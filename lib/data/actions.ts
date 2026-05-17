@@ -12,6 +12,7 @@ import { normalizeCoachTone, type CoachTone } from "../coach/coach";
 import { track, resetAnalytics } from "../services/analytics";
 import { authCallbackUrl, parseAuthCallbackUrl } from "../auth/auth-redirect";
 import { buildCompletionValuePayload } from "./completions";
+import { clearDataCache } from "./cache";
 import { localDateKey } from "../utils/date";
 import { cancelHabitReminders, syncScheduledReminders } from "./reminder-sync";
 import {
@@ -117,6 +118,7 @@ export async function signIn(email: string, password: string) {
   if (!isSupabaseConfigured()) return { error: configurationError() };
   try {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (!error) clearDataCache();
     return { error };
   } catch {
     return { error: networkError() };
@@ -131,6 +133,7 @@ export async function signUp(email: string, password: string) {
       password,
       options: { emailRedirectTo: authCallbackUrl() },
     });
+    if (!error) clearDataCache();
     return { data, error };
   } catch {
     return { data: null, error: networkError() };
@@ -158,6 +161,7 @@ export async function signOut() {
       await clearLocalAuthSession();
     }
   }
+  clearDataCache();
   resetAnalytics();
 }
 
@@ -191,6 +195,7 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
 
     if (parsed.code) {
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(parsed.code);
+      if (!exchangeError) clearDataCache();
       return { error: exchangeError as Error | null };
     }
     if (parsed.accessToken && parsed.refreshToken) {
@@ -198,6 +203,7 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
         access_token: parsed.accessToken,
         refresh_token: parsed.refreshToken,
       });
+      if (!sessionError) clearDataCache();
       return { error: sessionError as Error | null };
     }
 
@@ -237,6 +243,7 @@ export async function logCompletion(
     { onConflict: "habit_id,completed_on" },
   );
   if (error) return mutationResult(error);
+  clearDataCache();
   void syncScheduledReminders();
   return { ok: true };
 }
@@ -255,6 +262,7 @@ export async function setCompletionValue(
       onConflict: "habit_id,completed_on",
     });
   if (error) return mutationResult(error);
+  clearDataCache();
   void syncScheduledReminders();
   track("habit_progress_set", { habit_id: habitId });
   return { ok: true };
@@ -276,6 +284,7 @@ export async function toggleHabit(
       .eq("user_id", user.id)
       .eq("completed_on", localDateKey());
     if (error) return mutationResult(error);
+    clearDataCache();
     void syncScheduledReminders();
     track("habit_uncompleted", { habit_id: habitId });
     return { ok: true };
@@ -303,6 +312,7 @@ export async function toggleHabit(
       { onConflict: "habit_id,completed_on" },
     );
   if (error) return mutationResult(error);
+  clearDataCache();
   void syncScheduledReminders();
   track("habit_completed", { habit_id: habitId });
   return { ok: true };
@@ -315,11 +325,13 @@ export async function updateAvatar(style: AvatarStyle, seed: string): Promise<Ac
     data: { avatar_style: style, avatar_seed: seed },
   });
   if (error) return mutationResult(error);
+  clearDataCache();
 
   const { error: profileError } = await supabase
     .from("profiles")
     .update({ avatar_style: style, avatar_seed: seed, updated_at: new Date().toISOString() })
     .eq("user_id", user.id);
+  if (!profileError) clearDataCache();
   return mutationResult(profileError);
 }
 
@@ -331,6 +343,7 @@ export async function updateCoachTone(tone: CoachTone): Promise<ActionResult> {
     coach_tone: normalizeCoachTone(tone),
     updated_at: new Date().toISOString(),
   });
+  if (!error) clearDataCache();
   return mutationResult(error);
 }
 
@@ -351,6 +364,7 @@ export async function updateHabitReminders(
     .eq("user_id", user.id);
   if (error) return mutationResult(error);
 
+  clearDataCache();
   if (data.enabled) await syncScheduledReminders();
   else await cancelHabitReminders(habitId);
   return { ok: true };
@@ -438,6 +452,7 @@ export async function createHabit(data: HabitMutationData) {
         .eq("user_id", user.id);
       if (legacyError) return { ok: false, id: null, error: legacyError.message };
     }
+    clearDataCache();
     void syncScheduledReminders();
     track("habit_merged", { habit_type: merged.habit_type, score: match.score });
     return { ok: true, id: match.habit.id, merged: true };
@@ -456,6 +471,7 @@ export async function createHabit(data: HabitMutationData) {
       .select("id")
       .single();
     if (legacyError) return { ok: false, id: null, error: legacyError.message };
+    clearDataCache();
     if (data.remindersEnabled) void syncScheduledReminders();
     track("habit_created", {
       color: data.color,
@@ -466,6 +482,7 @@ export async function createHabit(data: HabitMutationData) {
     return { ok: true, id: legacyRow?.id as string, migrated: false };
   }
 
+  clearDataCache();
   if (data.remindersEnabled) void syncScheduledReminders();
   track("habit_created", {
     color: data.color,
@@ -508,6 +525,7 @@ export async function updateHabitFull(
     if (legacyError) return mutationResult(legacyError);
   }
 
+  clearDataCache();
   if (data.remindersEnabled) void syncScheduledReminders();
   else void cancelHabitReminders(habitId);
   return { ok: true };
@@ -523,6 +541,7 @@ export async function deleteHabit(habitId: string): Promise<ActionResult> {
     .eq("user_id", user.id);
   if (error) return mutationResult(error);
 
+  clearDataCache();
   await cancelHabitReminders(habitId);
   return { ok: true };
 }
@@ -562,6 +581,7 @@ export async function requestAccountDeletion(
     if (error) return { ok: false, error: error.message };
     if (!data?.ok) return { ok: false, error: data?.error ?? "Could not delete account." };
     await clearLocalAuthSession();
+    clearDataCache();
     resetAnalytics();
     return { ok: true };
   } catch {

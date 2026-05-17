@@ -24,6 +24,7 @@ import {
 } from "@/lib/data/leaderboard";
 import { avatarUrl, type AvatarStyle } from "@/lib/utils/avatar";
 import ShareCardModal, { type ShareCardData } from "@/components/share-card-modal";
+import Skeleton, { SkeletonText } from "@/components/skeleton";
 
 export default function LeaderboardScreen() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -35,17 +36,19 @@ export default function LeaderboardScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shareData, setShareData] = useState<ShareCardData | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { force?: boolean }) => {
     const [board, prof, rank] = await Promise.all([
-      getLeaderboard(50),
-      getMyProfile(),
-      getMyRank(),
+      getLeaderboard(50, options),
+      getMyProfile(options),
+      getMyRank(options),
     ]);
     setEntries(board);
     setProfile(prof);
     setMyRank(rank);
     if (prof?.display_name) setNameInput(prof.display_name);
+    setLoaded(true);
   }, []);
 
   useFocusEffect(
@@ -56,7 +59,7 @@ export default function LeaderboardScreen() {
 
   async function onRefresh() {
     setRefreshing(true);
-    await load();
+    await load({ force: true });
     setRefreshing(false);
   }
 
@@ -79,7 +82,7 @@ export default function LeaderboardScreen() {
       return;
     }
     setShowOptIn(false);
-    load();
+    load({ force: true });
   }
 
   async function handleOptOut() {
@@ -96,7 +99,7 @@ export default function LeaderboardScreen() {
             await setDisplayName(null);
             setSaving(false);
             setShowOptIn(false);
-            load();
+            load({ force: true });
           },
         },
       ],
@@ -127,7 +130,9 @@ export default function LeaderboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {!optedIn && (
+        {!loaded ? (
+          <LeaderboardHeaderSkeleton />
+        ) : !optedIn ? (
           <TouchableOpacity
             onPress={() => setShowOptIn(true)}
             className="mx-margin-mobile mb-lg bg-primary-fixed rounded-xl p-md flex-row items-center gap-md"
@@ -143,9 +148,9 @@ export default function LeaderboardScreen() {
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color="#F26B1F" />
           </TouchableOpacity>
-        )}
+        ) : null}
 
-        {optedIn && myRank != null && (
+        {loaded && optedIn && myRank != null && (
           <View className="mx-margin-mobile mb-lg bg-primary rounded-xl p-md flex-row items-center gap-md">
             <Text className="text-headline-md text-on-primary font-bold">#{myRank}</Text>
             <View className="flex-1">
@@ -171,7 +176,9 @@ export default function LeaderboardScreen() {
         )}
 
         <View className="px-margin-mobile gap-xs">
-          {entries.length === 0 ? (
+          {!loaded ? (
+            <LeaderboardListSkeleton />
+          ) : entries.length === 0 ? (
             <View className="items-center py-xxl">
               <MaterialCommunityIcons name="account-group-outline" size={48} color="#8F8A82" />
               <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-sm text-center">
@@ -210,6 +217,40 @@ export default function LeaderboardScreen() {
 
       <ShareCardModal data={shareData} onClose={() => setShareData(null)} />
     </SafeAreaView>
+  );
+}
+
+function LeaderboardHeaderSkeleton() {
+  return (
+    <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md">
+      <Skeleton className="w-12 h-12 rounded-full" />
+      <View className="flex-1 gap-xs">
+        <SkeletonText width="70%" />
+        <SkeletonText className="h-3" width="52%" />
+      </View>
+      <Skeleton className="w-6 h-6 rounded-full" />
+    </View>
+  );
+}
+
+function LeaderboardListSkeleton() {
+  return (
+    <>
+      {[0, 1, 2, 3, 4].map((item) => (
+        <View
+          key={item}
+          className="flex-row items-center bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-md"
+        >
+          <Skeleton className="w-8 h-5 rounded-full" />
+          <Skeleton className="w-10 h-10 rounded-full" />
+          <View className="flex-1 gap-xs">
+            <SkeletonText width="58%" />
+            <SkeletonText className="h-3" width="84%" />
+          </View>
+          <Skeleton className="w-12 h-4 rounded-full" />
+        </View>
+      ))}
+    </>
   );
 }
 

@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Alert, View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import LogoChainL from "@/components/logo-chain-l";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabitsForToday, getInsights } from "@/lib/data/habits";
@@ -15,6 +14,7 @@ import { FIRST_LOGIN_WELCOME_BODY, FIRST_LOGIN_WELCOME_TITLE } from "@/lib/auth/
 import HabitCard from "@/components/habit-card";
 import CoachCard from "@/components/coach-card";
 import LogPrompt from "@/components/log-prompt";
+import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit } from "@/types/db";
 import { progressForHabit, type HabitProgress } from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
@@ -93,8 +93,11 @@ export default function DashboardScreen() {
     if (newUser === "1") setShowWelcome(true);
   }, [newUser]);
 
-  const load = useCallback(async () => {
-    const [result, insights] = await Promise.all([getHabitsForToday(), getInsights()]);
+  const load = useCallback(async (options?: { force?: boolean }) => {
+    const [result, insights] = await Promise.all([
+      getHabitsForToday(options),
+      getInsights(options),
+    ]);
     setData({
       ...result,
       completedToday: result.completedToday,
@@ -290,7 +293,7 @@ export default function DashboardScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await load({ force: true });
     if (stepHabit && (stepTracking.status === "tracking" || stepTracking.status === "synced")) {
       await syncStepHabit(stepHabit, false, true);
     }
@@ -327,7 +330,7 @@ export default function DashboardScreen() {
       celebrate();
       recordCompletionAndMaybeReview();
     }
-    load();
+    load({ force: true });
   }
 
   function isSleepHabit(habit: Habit): boolean {
@@ -352,7 +355,7 @@ export default function DashboardScreen() {
       }
       celebrate();
       recordCompletionAndMaybeReview();
-      load();
+      load({ force: true });
       return;
     }
     router.push(`/habits/${signal.habitId}`);
@@ -365,7 +368,7 @@ export default function DashboardScreen() {
     setSleepLogHabit(null);
     celebrate();
     recordCompletionAndMaybeReview();
-    load();
+    load({ force: true });
     return { ok: true };
   }
 
@@ -379,6 +382,7 @@ export default function DashboardScreen() {
     total > 0 ? progressItems.reduce((sum, item) => sum + item.ratio, 0) / total : 0;
   const activeProgress =
     total > 0 ? progressItems.filter((item) => item.current > 0 || item.isDone).length / total : 0;
+  const isInitialLoading = data === null;
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
@@ -423,8 +427,9 @@ export default function DashboardScreen() {
               className="text-headline-lg text-on-background dark:text-d-on-background"
               style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
             >
-              Hey, {data?.profile.displayName ?? "there"}
+              {isInitialLoading ? "" : `Hey, ${data.profile.displayName}`}
             </Text>
+            {isInitialLoading && <SkeletonText className="mt-xs h-8" width={152} />}
           </View>
           <View className="flex-row items-center gap-sm">
             <TouchableOpacity
@@ -438,19 +443,24 @@ export default function DashboardScreen() {
 
         {/* Habit status */}
         <View className="items-center py-lg">
-          <HabitStatusRings
-            completedProgress={progress}
-            metricProgress={metricProgress}
-            activeProgress={activeProgress}
-            completedCount={completedCount}
-            total={total}
-            trackColor={primaryTrack}
-          />
-          <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
-            {completedCount === total && total > 0
-              ? "All done! Great work 🎉"
-              : `${total - completedCount} habit${total - completedCount === 1 ? "" : "s"} remaining`}
-          </Text>
+          {isInitialLoading && <DashboardProgressSkeleton />}
+          {!isInitialLoading && (
+            <>
+              <HabitStatusRings
+                completedProgress={progress}
+                metricProgress={metricProgress}
+                activeProgress={activeProgress}
+                completedCount={completedCount}
+                total={total}
+                trackColor={primaryTrack}
+              />
+              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
+                {completedCount === total && total > 0
+                  ? "All done! Great work 🎉"
+                  : `${total - completedCount} habit${total - completedCount === 1 ? "" : "s"} remaining`}
+              </Text>
+            </>
+          )}
         </View>
 
         {/* Leaderboard opt-in banner */}
@@ -496,11 +506,15 @@ export default function DashboardScreen() {
         />
 
         {/* Weekly insights */}
-        {data?.insights && (
+        {isInitialLoading ? (
+          <View className="mt-sm mb-lg px-margin-mobile">
+            <Skeleton className="h-20 rounded-xl" />
+          </View>
+        ) : data?.insights ? (
           <View className="mt-sm mb-lg">
             <InsightsStrip insights={data.insights} />
           </View>
-        )}
+        ) : null}
 
         {/* Habits list */}
         <View className="px-margin-mobile gap-sm">
@@ -510,7 +524,9 @@ export default function DashboardScreen() {
           >
             TODAY'S HABITS
           </Text>
-          {habits.length === 0 ? (
+          {isInitialLoading ? (
+            <DashboardHabitSkeleton />
+          ) : habits.length === 0 ? (
             <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-lg gap-md">
               <View className="items-center gap-sm">
                 <View className="w-14 h-14 rounded-full bg-primary-fixed items-center justify-center">
@@ -562,6 +578,35 @@ type StepTrackingCardProps = {
   primary: string;
   onEnable: () => void;
 };
+
+function DashboardProgressSkeleton() {
+  return (
+    <View className="items-center gap-sm">
+      <Skeleton className="rounded-full" style={{ width: 184, height: 184 }} />
+      <SkeletonText width={180} />
+    </View>
+  );
+}
+
+function DashboardHabitSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((item) => (
+        <View
+          key={item}
+          className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+        >
+          <Skeleton className="w-12 h-12 rounded-full" />
+          <View className="flex-1 gap-xs">
+            <SkeletonText width="68%" />
+            <SkeletonText className="h-3" width="48%" />
+          </View>
+          <Skeleton className="w-9 h-9 rounded-full" />
+        </View>
+      ))}
+    </>
+  );
+}
 
 function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
   const busy = state.status === "checking" || state.status === "syncing";

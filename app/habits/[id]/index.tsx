@@ -10,6 +10,7 @@ import Icon from "@/components/icon";
 import LogEntryFab from "@/components/log-entry-fab";
 import LogPrompt from "@/components/log-prompt";
 import HabitProgressVisual from "@/components/habit-progress-visual";
+import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/utils/date";
 import { formatAmount, progressForHabit } from "@/lib/coach/habit-intelligence";
@@ -37,12 +38,15 @@ export default function HabitDetailScreen() {
   const [showLogPrompt, setShowLogPrompt] = useState(false);
   const [toggling, setToggling] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    const { habit: h, completions: c } = await getHabit(id);
-    setHabit(h);
-    setCompletions(c);
-  }, [id]);
+  const load = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!id) return;
+      const { habit: h, completions: c } = await getHabit(id, options);
+      setHabit(h);
+      setCompletions(c);
+    },
+    [id],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -52,7 +56,7 @@ export default function HabitDetailScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await load({ force: true });
     setRefreshing(false);
   }, [load]);
 
@@ -70,7 +74,7 @@ export default function HabitDetailScreen() {
       if (!doneToday) celebrate();
       const result = await toggleHabit(habit.id, doneToday);
       if (!result.ok) Alert.alert("Could not update habit", result.error ?? "Try again.");
-      load();
+      load({ force: true });
     } finally {
       setToggling(false);
     }
@@ -82,7 +86,7 @@ export default function HabitDetailScreen() {
     if (!result.ok) return result;
     setShowLogPrompt(false);
     celebrate();
-    load();
+    load({ force: true });
     return result;
   }
 
@@ -117,7 +121,7 @@ export default function HabitDetailScreen() {
     ]);
   }
 
-  if (!habit) return null;
+  if (!habit) return <HabitDetailSkeleton onBack={() => router.back()} />;
 
   const bg = COLOR_BG[habit.color] ?? "#e6deff";
   const fg = COLOR_FG[habit.color] ?? "#F26B1F";
@@ -259,6 +263,58 @@ export default function HabitDetailScreen() {
         onSubmit={handleLog}
         onDismiss={() => setShowLogPrompt(false)}
       />
+    </SafeAreaView>
+  );
+}
+
+function HabitDetailSkeleton({ onBack }: { onBack: () => void }) {
+  return (
+    <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
+      <View className="flex-row items-center justify-between px-margin-mobile py-sm">
+        <TouchableOpacity onPress={onBack}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
+        </TouchableOpacity>
+        <View className="flex-row gap-sm">
+          <Skeleton className="w-6 h-6 rounded-full" />
+          <Skeleton className="w-6 h-6 rounded-full" />
+        </View>
+      </View>
+
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
+        <View className="mx-margin-mobile mb-lg rounded-2xl p-lg bg-surface-container dark:bg-d-surface-container gap-md">
+          <View className="flex-row items-center gap-md">
+            <Skeleton className="w-14 h-14 rounded-full" />
+            <Skeleton className="rounded-full" style={{ width: 96, height: 96 }} />
+          </View>
+          <SkeletonText className="h-8" width="72%" />
+          <SkeletonText width="86%" />
+          <SkeletonText width="54%" />
+        </View>
+
+        <View className="flex-row mx-margin-mobile mb-lg gap-sm">
+          {[0, 1, 2].map((item) => (
+            <View
+              key={item}
+              className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center gap-xs"
+            >
+              <SkeletonText className="h-7" width={36} />
+              <SkeletonText className="h-3" width={64} />
+            </View>
+          ))}
+        </View>
+
+        <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-md">
+          <SkeletonText width={96} />
+          <View className="flex-row justify-between">
+            {[0, 1, 2, 3, 4, 5, 6].map((item) => (
+              <View key={item} className="items-center gap-xs">
+                <Skeleton className="w-8 h-8 rounded-full" />
+                <SkeletonText className="h-3" width={24} />
+              </View>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

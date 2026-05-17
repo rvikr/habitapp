@@ -1,5 +1,6 @@
 import type { Habit, SleepEntry } from "../../types/db";
 import { supabase, isSupabaseConfigured, getCurrentUser } from "../supabase/client";
+import { DATA_CACHE_PREFIX, clearDataCache, readThroughCache } from "./cache";
 import { syncScheduledReminders } from "./reminder-sync";
 import {
   buildSleepCompletionValue,
@@ -15,6 +16,7 @@ import {
 type Result<T = undefined> = T extends undefined
   ? { ok: boolean; error?: string }
   : { ok: boolean; data?: T; error?: string };
+type DataFetchOptions = { force?: boolean };
 
 export type SleepSyncResult = {
   entry: SleepEntry;
@@ -29,6 +31,7 @@ export type SleepDashboardData = {
 };
 
 const DEFAULT_SLEEP_TARGET_HOURS = 8;
+const DATA_CACHE_TTL_MS = 30_000;
 
 function notConfigured(): Result {
   return { ok: false, error: "Supabase is not configured." };
@@ -165,6 +168,7 @@ export async function syncNormalizedSleepEntry(
   if (completionError) return { ok: false, error: completionError.message };
 
   await syncScheduledReminders();
+  clearDataCache();
   return { ok: true, data: { entry: entryRow as SleepEntry, habit } };
 }
 
@@ -186,7 +190,9 @@ export async function manualLogSleep(
   });
 }
 
-export async function getSleepDashboardData(): Promise<SleepDashboardData> {
+export async function getSleepDashboardData(
+  options?: DataFetchOptions,
+): Promise<SleepDashboardData> {
   if (!isSupabaseConfigured()) {
     return {
       habit: null,
@@ -204,29 +210,36 @@ export async function getSleepDashboardData(): Promise<SleepDashboardData> {
       targetMinutes: DEFAULT_SLEEP_TARGET_HOURS * 60,
     };
 
-  const [{ data: habits }, { data: entries }] = await Promise.all([
-    supabase
-      .from("habits")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("habit_type", "sleep")
-      .is("archived_at", null)
-      .order("created_at", { ascending: true })
-      .limit(1),
-    supabase
-      .from("sleep_entries")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("sleep_date", { ascending: false })
-      .limit(14),
-  ]);
+  return readThroughCache(
+    `${DATA_CACHE_PREFIX}sleep-dashboard:${user.id}`,
+    DATA_CACHE_TTL_MS,
+    async () => {
+      const [{ data: habits }, { data: entries }] = await Promise.all([
+        supabase
+          .from("habits")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("habit_type", "sleep")
+          .is("archived_at", null)
+          .order("created_at", { ascending: true })
+          .limit(1),
+        supabase
+          .from("sleep_entries")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("sleep_date", { ascending: false })
+          .limit(14),
+      ]);
 
-  const habit = ((habits ?? []) as Habit[])[0] ?? null;
-  const sleepEntries = (entries ?? []) as SleepEntry[];
-  return {
-    habit,
-    latestEntry: sleepEntries[0] ?? null,
-    entries: sleepEntries,
-    targetMinutes: targetMinutesForHabit(habit),
-  };
+      const habit = ((habits ?? []) as Habit[])[0] ?? null;
+      const sleepEntries = (entries ?? []) as SleepEntry[];
+      return {
+        habit,
+        latestEntry: sleepEntries[0] ?? null,
+        entries: sleepEntries,
+        targetMinutes: targetMinutesForHabit(habit),
+      };
+    },
+    options,
+  );
 }

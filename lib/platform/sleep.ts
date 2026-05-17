@@ -11,7 +11,9 @@ export declare function syncLastNightSleep(): Promise<{
   error?: string;
   status?: SleepPermissionStatus;
 }>;
-export declare function getSleepDashboardData(): Promise<SleepDashboardData>;
+export declare function getSleepDashboardData(options?: {
+  force?: boolean;
+}): Promise<SleepDashboardData>;
 export declare function manualLogSleep(
   durationHours: number,
   sleepDate?: string,
