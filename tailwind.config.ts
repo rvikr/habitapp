@@ -2,10 +2,8 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   darkMode: "class",
-  content: [
-    "./app/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-  ],
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   presets: [require("nativewind/preset")],
   theme: {
     extend: {

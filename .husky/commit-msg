@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+# Enforce a Conventional Commits subset on the subject line.
+# Allowed types: feat, fix, chore, docs, refactor, test, build, ci, perf, style, revert
+# Format: type(optional-scope): subject (>= 3 chars)
+
+commit_msg_file="$1"
+subject=$(head -n1 "$commit_msg_file")
+
+# Skip merge commits and revert auto-messages.
+case "$subject" in
+  "Merge "*|"Revert "*|"fixup!"*|"squash!"*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|chore|docs|refactor|test|build|ci|perf|style|revert)(\([^)]+\))?: .{3,}'
+
+if ! printf '%s' "$subject" | grep -Eq "$pattern"; then
+  echo "" >&2
+  echo "Commit message rejected." >&2
+  echo "Subject must follow: <type>(optional-scope): <description>" >&2
+  echo "Allowed types: feat, fix, chore, docs, refactor, test, build, ci, perf, style, revert" >&2
+  echo "" >&2
+  echo "Examples:" >&2
+  echo "  feat(coach): add burnout detection signal" >&2
+  echo "  fix(streak): correct off-by-one across DST boundary" >&2
+  echo "  docs(readme): document Cloud Run deployment" >&2
+  echo "" >&2
+  echo "Got: $subject" >&2
+  exit 1
+fi
