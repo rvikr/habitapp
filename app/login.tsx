@@ -96,9 +96,18 @@ export default function LoginScreen() {
 
             {/* Header */}
             <View className="mb-xxl">
-              <View className="mb-lg">
+              <View className="mb-md">
                 <LogoChainL size={44} />
               </View>
+              <Text
+                className="text-display-sm text-on-background dark:text-d-on-background"
+                style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+              >
+                Lagan
+              </Text>
+              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mb-lg">
+                A habit tracking app
+              </Text>
               <Text
                 className="text-headline-lg text-on-background dark:text-d-on-background"
                 style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
