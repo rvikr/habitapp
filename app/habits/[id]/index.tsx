@@ -14,8 +14,8 @@ import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/date";
 import { formatAmount, progressForHabit } from "@/lib/habit-intelligence";
 
-const COLOR_BG: Record<string, string> = { primary: "#e6deff", secondary: "#76f6f2", tertiary: "#ffdbce", neutral: "#e1e3e4" };
-const COLOR_FG: Record<string, string> = { primary: "#451ebb", secondary: "#006a67", tertiary: "#7b2900", neutral: "#484554" };
+const COLOR_BG: Record<string, string> = { primary: "#FFE6CF", secondary: "#CFEBDF", tertiary: "#FFF0CC", neutral: "#E6E0D5" };
+const COLOR_FG: Record<string, string> = { primary: "#F26B1F", secondary: "#3EBB7F", tertiary: "#E4A23A", neutral: "#5A554D" };
 
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -102,20 +102,20 @@ export default function HabitDetailScreen() {
   if (!habit) return null;
 
   const bg = COLOR_BG[habit.color] ?? "#e6deff";
-  const fg = COLOR_FG[habit.color] ?? "#451ebb";
+  const fg = COLOR_FG[habit.color] ?? "#F26B1F";
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center justify-between px-margin-mobile py-sm">
         <TouchableOpacity onPress={() => router.back()}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#451ebb" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <View className="flex-row gap-sm">
           <TouchableOpacity onPress={() => router.push(`/habits/${habit.id}/edit`)}>
-            <MaterialCommunityIcons name="pencil" size={22} color="#451ebb" />
+            <MaterialCommunityIcons name="pencil" size={22} color="#F26B1F" />
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDelete}>
-            <MaterialCommunityIcons name="delete" size={22} color="#ba1a1a" />
+            <MaterialCommunityIcons name="delete" size={22} color="#FF5A5A" />
           </TouchableOpacity>
         </View>
       </View>
@@ -163,7 +163,7 @@ export default function HabitDetailScreen() {
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">total logs</Text>
           </View>
           <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
-            <MaterialCommunityIcons name={doneToday ? "check-circle" : "circle-outline"} size={28} color={doneToday ? "#006a67" : "#797586"} />
+            <MaterialCommunityIcons name={doneToday ? "check-circle" : "circle-outline"} size={28} color={doneToday ? "#3EBB7F" : "#8F8A82"} />
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{progress?.ratio ? `${Math.round(progress.ratio * 100)}%` : "today"}</Text>
           </View>
         </View>
@@ -176,7 +176,7 @@ export default function HabitDetailScreen() {
               <View key={day.key} className="items-center gap-xs">
                 <View
                   className="w-8 h-8 rounded-full items-center justify-center"
-                  style={{ backgroundColor: day.done ? fg : day.future ? "#e1e3e4" : "#c9c4d7" }}
+                  style={{ backgroundColor: day.done ? fg : day.future ? "#e1e3e4" : "#E6E0D5" }}
                 >
                   {day.done && <MaterialCommunityIcons name="check" size={16} color="#fff" />}
                 </View>

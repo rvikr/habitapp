@@ -42,7 +42,7 @@ export default function FeedbackScreen() {
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
         <TouchableOpacity onPress={() => router.back()} className="mr-md">
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#451ebb" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">Send Feedback</Text>
       </View>
@@ -60,7 +60,7 @@ export default function FeedbackScreen() {
                     onPress={() => setCategory(item.id)}
                     className={`flex-row items-center px-md py-sm rounded-xl ${active ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
                   >
-                    <MaterialCommunityIcons name={item.icon} size={18} color={active ? "#fff" : "#451ebb"} />
+                    <MaterialCommunityIcons name={item.icon} size={18} color={active ? "#fff" : "#F26B1F"} />
                     <Text className={`ml-xs text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}>
                       {item.label}
                     </Text>
@@ -79,7 +79,7 @@ export default function FeedbackScreen() {
                   onPress={() => setRating(value)}
                   className={`flex-1 h-11 rounded-xl items-center justify-center ${rating >= value ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
                 >
-                  <MaterialCommunityIcons name="star" size={20} color={rating >= value ? "#fff" : "#797586"} />
+                  <MaterialCommunityIcons name="star" size={20} color={rating >= value ? "#fff" : "#8F8A82"} />
                 </TouchableOpacity>
               ))}
             </View>
@@ -90,7 +90,7 @@ export default function FeedbackScreen() {
             <TextInput
               className="min-h-36 bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="Tell us what you tried, what happened, and what you expected."
-              placeholderTextColor="#797586"
+              placeholderTextColor="#8F8A82"
               value={message}
               onChangeText={setMessage}
               multiline
@@ -112,7 +112,7 @@ export default function FeedbackScreen() {
             <Switch
               value={includeEmail}
               onValueChange={setIncludeEmail}
-              trackColor={{ false: "#c9c4d7", true: "#5d3fd3" }}
+              trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
               thumbColor="#fff"
             />
           </View>

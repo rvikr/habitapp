@@ -5,6 +5,7 @@ import {
   progressForHabit,
   smartReminderTimesForDay,
   type ReminderStrategy,
+  type HabitProgress,
 } from "./habit-intelligence";
 import type { Habit } from "../types/db";
 import { buildCoachSignals, chooseTopCoachSignal, normalizeCoachTone } from "./coach";
@@ -26,7 +27,8 @@ export type ScheduledReminder = {
   icon: string;
   strategy: ReminderStrategy;
   context: ReminderContext;
-  progressLabel?: string;
+  progress?: HabitProgress;
+  unit?: string | null;
   coachMessage?: string;
 };
 
@@ -125,7 +127,9 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
     const typicalHour = typicalHourFromTimestamps(hc.map((c) => c.created_at));
     const context = { streak, typicalHour, percentileAhead };
     const localCoachSignal = chooseTopCoachSignal(buildCoachSignals({ habits: [habit], completions: hc.map((c) => ({ habit_id: habit.id, ...c })), now, tone: coachTone }));
-    const coachMessage = localCoachSignal ? await resolveCoachMessage(localCoachSignal, { enabled: aiCoachEnabled }) : undefined;
+    const coachMessage = localCoachSignal ? await resolveCoachMessage(localCoachSignal, { enabled: aiCoachEnabled, nonBlocking: true }) : undefined;
+    const todayCompletion = hc.find((c) => c.completed_on === todayKey);
+    const todayProgress = progressForHabit(habit, todayCompletion);
 
     for (const time of times) {
       if (!/^\d{2}:\d{2}$/.test(time)) continue;
@@ -137,6 +141,8 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
         time,
         days,
         context,
+        progress: todayProgress,
+        unit: habit.unit,
         coachMessage,
       });
     }
@@ -144,9 +150,11 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
     const strategy = (habit.reminder_strategy ?? "manual") as ReminderStrategy;
     if (strategy !== "interval" && strategy !== "conditional_interval") continue;
 
-    const todayCompletion = hc.find((c) => c.completed_on === todayKey);
-    const progress = progressForHabit(habit, todayCompletion);
-    if (progress.isDone) continue;
+    // Respect reminder_days for smart reminders (e.g. workout only on Mon/Wed/Fri/Sat)
+    const smartDays = (h.reminder_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[];
+    if (!smartDays.includes(now.getDay())) continue;
+
+    if (todayProgress.isDone) continue;
     if (strategy === "conditional_interval" && todayCompletion) continue;
 
     const interval = habit.reminder_interval_minutes ?? (strategy === "interval" ? 120 : 60);
@@ -158,7 +166,8 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
         strategy,
         fireAt,
         context,
-        progressLabel: progress.label,
+        progress: todayProgress,
+        unit: habit.unit,
         coachMessage,
       });
     }

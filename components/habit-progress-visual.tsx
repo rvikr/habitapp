@@ -16,7 +16,7 @@ export default function HabitProgressVisual({
   visualType,
   progress,
   size = "compact",
-  color = "#451ebb",
+  color = "#F26B1F",
   trackColor = "#e1e3e4",
 }: Props) {
   const clamped = Math.min(Math.max(progress, 0), 1);

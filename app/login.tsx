@@ -2,12 +2,20 @@
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, Linking } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { signIn, signUp, resetPassword } from "@/lib/actions";
 import { validatePassword } from "@/lib/password";
+import {
+  SIGNUP_CONFIRMATION_MESSAGE,
+  consumePendingSignupWelcome,
+  rememberPendingSignup,
+} from "@/lib/auth-welcome";
+import LogoChainL from "@/components/logo-chain-l";
 
 type Mode = "signin" | "signup";
 
 export default function LoginScreen() {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -52,7 +60,16 @@ export default function LoginScreen() {
     try {
       if (mode === "signin") {
         const { error: e } = await signIn(trimmedEmail, password);
-        if (e) setError(e.message);
+        if (e) {
+          setError(e.message);
+        } else {
+          const shouldWelcome = await consumePendingSignupWelcome(trimmedEmail).catch(() => false);
+          router.replace(
+            shouldWelcome
+              ? ({ pathname: "/", params: { newUser: "1" } } as never)
+              : ("/" as never),
+          );
+        }
       } else {
         const { data, error: e } = await signUp(trimmedEmail, password);
         if (e) {
@@ -60,7 +77,8 @@ export default function LoginScreen() {
         } else if (!data?.user || data.user.identities?.length === 0) {
           setError("An account with this email already exists. Try signing in instead.");
         } else {
-          setMessage("Check your email to confirm your account, then sign in.");
+          await rememberPendingSignup(trimmedEmail).catch(() => {});
+          setMessage(SIGNUP_CONFIRMATION_MESSAGE);
         }
       }
     } catch {
@@ -77,17 +95,19 @@ export default function LoginScreen() {
           <View className="flex-1 px-margin-mobile py-xxl">
 
             {/* Header */}
-            <View className="items-center mb-xxl">
-              <View className="w-16 h-16 rounded-full bg-primary items-center justify-center mb-lg">
-                <Ionicons name="sunny" size={28} color="#ffffff" />
+            <View className="mb-xxl">
+              <View className="mb-lg">
+                <LogoChainL size={44} />
               </View>
-              <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">Lagan लगन</Text>
-              <Text className="text-headline-md text-primary font-semibold mt-xs">
+              <Text
+                className="text-headline-lg text-on-background dark:text-d-on-background"
+                style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+              >
                 {mode === "signin" ? "Welcome back" : "Create account"}
               </Text>
-              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-xs text-center">
+              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
                 {mode === "signin"
-                  ? "Let's keep the momentum going and start your day with intention."
+                  ? "Pick up where you left off."
                   : "Start building better habits today."}
               </Text>
             </View>
@@ -99,7 +119,7 @@ export default function LoginScreen() {
                 <TextInput
                   className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
                   placeholder="you@example.com"
-                  placeholderTextColor="#797586"
+                  placeholderTextColor="#8F8A82"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -122,14 +142,14 @@ export default function LoginScreen() {
                   <TextInput
                     className="flex-1 text-on-surface dark:text-d-on-surface px-md py-sm text-body-md"
                     placeholder={mode === "signup" ? "8+ chars, mixed case + number" : "••••••••"}
-                    placeholderTextColor="#797586"
+                    placeholderTextColor="#8F8A82"
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     textContentType={mode === "signup" ? "newPassword" : "password"}
                   />
                   <TouchableOpacity className="px-md py-sm" onPress={() => setShowPassword(v => !v)}>
-                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#797586" />
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#8F8A82" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -141,14 +161,14 @@ export default function LoginScreen() {
                     <TextInput
                       className="flex-1 text-on-surface dark:text-d-on-surface px-md py-sm text-body-md"
                       placeholder="Re-enter your password"
-                      placeholderTextColor="#797586"
+                      placeholderTextColor="#8F8A82"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
                       secureTextEntry={!showConfirmPassword}
                       textContentType="newPassword"
                     />
                     <TouchableOpacity className="px-md py-sm" onPress={() => setShowConfirmPassword(v => !v)}>
-                      <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#797586" />
+                      <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#8F8A82" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -201,7 +221,7 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 ) : null}
                 <Text className="text-label-sm text-outline">·</Text>
-                <Text className="text-label-sm text-outline">© 2025 Lagan</Text>
+                <Text className="text-label-sm text-outline">© 2026 Lagan</Text>
               </View>
             </View>
 
@@ -250,7 +270,7 @@ function ForgotPasswordModal({ visible, onDismiss, initialEmail }: { visible: bo
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
             placeholder="Email"
-            placeholderTextColor="#797586"
+            placeholderTextColor="#8F8A82"
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"

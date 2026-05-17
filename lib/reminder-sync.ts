@@ -2,6 +2,8 @@ import { getItem, removeItem, setItem } from "@/lib/storage";
 import { getReminderSchedule } from "@/lib/reminders";
 import { cancelScheduledReminder, getPermissionStatus, scheduleHabitReminder, scheduleHabitReminderAt } from "@/lib/notifications";
 import type { ReminderContext } from "@/lib/reminders";
+import { formatAmount } from "@/lib/habit-intelligence";
+import type { HabitProgress } from "@/lib/habit-intelligence";
 
 const STORAGE_KEY = "habbit:scheduled-reminder-ids";
 
@@ -13,22 +15,39 @@ function formatHour(hour: number): string {
   return `${h12}${period}`;
 }
 
-export function buildSmartBody(habitName: string, ctx: ReminderContext): string {
-  if (ctx.streak > 1) {
-    return `Only a moment to keep your ${ctx.streak}-day streak alive.`;
-  }
-  if (ctx.typicalHour !== null) {
-    return `You usually complete this around ${formatHour(ctx.typicalHour)}.`;
-  }
-  if (ctx.percentileAhead !== null && ctx.percentileAhead >= 50) {
-    return `You're ahead of ${ctx.percentileAhead}% of users this week.`;
-  }
-  return habitName;
-}
+export function buildSmartBody(habitName: string, ctx: ReminderContext, progress?: HabitProgress, unit?: string | null): string {
+  const { streak, typicalHour, percentileAhead } = ctx;
+  const u = unit ? ` ${unit}` : "";
 
-function buildProgressBody(habitName: string, progressLabel?: string): string {
-  if (!progressLabel) return habitName;
-  return `${progressLabel}. Keep going.`;
+  if (progress && progress.target && progress.target > 0 && !progress.isDone) {
+    const remaining = progress.target - progress.current;
+    const remainStr = `${formatAmount(remaining)}${u}`;
+    const pct = Math.round(progress.ratio * 100);
+
+    if (progress.current === 0) {
+      if (streak > 1) return `Haven't started yet — log now to keep your ${streak}-day streak!`;
+      return `Goal: ${formatAmount(progress.target)}${u}. Ready to start?`;
+    }
+
+    if (pct >= 80) {
+      if (streak > 1) return `Almost done! Just ${remainStr} more to protect your ${streak}-day streak!`;
+      return `Almost there! Just ${remainStr} left to hit your goal.`;
+    }
+
+    if (pct >= 50) {
+      if (streak > 1) return `${pct}% done — ${remainStr} more keeps your ${streak}-day streak going!`;
+      return `Halfway there — just ${remainStr} more to hit your goal.`;
+    }
+
+    if (streak > 1) return `${progress.label} done — ${remainStr} more to keep your ${streak}-day streak!`;
+    return `${progress.label} — ${remainStr} more to reach your goal.`;
+  }
+
+  // Boolean habit or already done
+  if (streak > 1) return `One moment to keep your ${streak}-day streak alive.`;
+  if (typicalHour !== null) return `You usually complete this around ${formatHour(typicalHour)}.`;
+  if (percentileAhead !== null && percentileAhead >= 50) return `You're ahead of ${percentileAhead}% of users this week.`;
+  return `Time to log ${habitName}.`;
 }
 
 export async function syncScheduledReminders(): Promise<void> {
@@ -40,19 +59,15 @@ export async function syncScheduledReminders(): Promise<void> {
   const next: ReminderIdMap = {};
 
   for (const reminder of schedule) {
+    const body = reminder.coachMessage ?? buildSmartBody(reminder.habitName, reminder.context, reminder.progress, reminder.unit);
+
     if (reminder.fireAt) {
-      const id = await scheduleHabitReminderAt(
-        reminder.habitId,
-        reminder.habitName,
-        reminder.fireAt,
-        reminder.coachMessage ?? buildProgressBody(reminder.habitName, reminder.progressLabel),
-      );
+      const id = await scheduleHabitReminderAt(reminder.habitId, reminder.habitName, reminder.fireAt, body);
       if (id) next[reminder.habitId] = [...(next[reminder.habitId] ?? []), id];
       continue;
     }
 
     if (!reminder.time || !reminder.days) continue;
-    const body = reminder.coachMessage ?? buildSmartBody(reminder.habitName, reminder.context);
     const ids = await scheduleHabitReminder(reminder.habitId, reminder.habitName, reminder.time, reminder.days, body);
     if (ids.length > 0) next[reminder.habitId] = [...(next[reminder.habitId] ?? []), ...ids];
   }

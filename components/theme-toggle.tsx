@@ -9,7 +9,7 @@ export default function ThemeToggle() {
       <MaterialCommunityIcons
         name={colorScheme === "dark" ? "weather-sunny" : "weather-night"}
         size={22}
-        color="#451ebb"
+        color="#F26B1F"
       />
     </TouchableOpacity>
   );

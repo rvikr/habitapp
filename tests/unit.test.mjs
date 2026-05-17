@@ -4,6 +4,14 @@ import { readFileSync } from "node:fs";
 import { localDateDaysAgo, localDateKey } from "../lib/date.ts";
 import { XP_PER_COMPLETION, XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "../lib/xp.ts";
 import { validatePassword } from "../lib/password.ts";
+import {
+  AUTH_CALLBACK_CONFIRMED_BODY,
+  AUTH_CALLBACK_CONFIRMED_TITLE,
+  FIRST_LOGIN_WELCOME_BODY,
+  FIRST_LOGIN_WELCOME_TITLE,
+  SIGNUP_CONFIRMATION_MESSAGE,
+  isPendingSignupForEmail,
+} from "../lib/auth-welcome.ts";
 import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
 import { isValidReminderTime, parseOptionalPositiveNumber, validateFeedback } from "../lib/validation.ts";
 import { streakFromDates } from "../lib/streak.ts";
@@ -16,13 +24,17 @@ import {
 import {
   buildSleepCompletionValue,
   computeSleepScore,
+  isSleepEntriesSetupError,
   normalizeHealthConnectSleepSessions,
   normalizeHealthKitSleepSamples,
+  sleepNoDataMessage,
   sleepDateForWakeTime,
+  sleepLookbackWindows,
   sleepWindowForDate,
 } from "../lib/sleep-shared.ts";
 import {
   inferHabitIntelligence,
+  mergeHabitReminders,
   mergeHabitSettings,
   progressForHabit,
   scoreHabitSimilarity,
@@ -228,6 +240,22 @@ test("password validation rejects weak passwords", () => {
   assert.equal(validatePassword("ValidPassword1"), null);
 });
 
+test("signup and email confirmation copy gives a clear next step", () => {
+  assert.match(SIGNUP_CONFIRMATION_MESSAGE, /check your email/i);
+  assert.match(SIGNUP_CONFIRMATION_MESSAGE, /confirm/i);
+  assert.equal(AUTH_CALLBACK_CONFIRMED_TITLE, "Congratulations, your email is confirmed!");
+  assert.match(AUTH_CALLBACK_CONFIRMED_BODY, /refresh the app/i);
+  assert.match(AUTH_CALLBACK_CONFIRMED_BODY, /sign in/i);
+  assert.equal(FIRST_LOGIN_WELCOME_TITLE, "Welcome to Lagan!");
+  assert.match(FIRST_LOGIN_WELCOME_BODY, /all set/i);
+});
+
+test("first-login welcome is scoped to the email that just signed up", () => {
+  assert.equal(isPendingSignupForEmail("New.User@Example.com ", "new.user@example.com"), true);
+  assert.equal(isPendingSignupForEmail("other@example.com", "new.user@example.com"), false);
+  assert.equal(isPendingSignupForEmail(null, "new.user@example.com"), false);
+});
+
 test("reminder time validation accepts only HH:MM in 24-hour time", () => {
   assert.equal(isValidReminderTime("08:30"), true);
   assert.equal(isValidReminderTime("23:59"), true);
@@ -393,6 +421,21 @@ test("sleep date is assigned from wake time and windows span 18:00 to 18:00", ()
   assert.equal(end.getHours(), 18);
 });
 
+test("sleep sync builds recent nightly windows newest first", () => {
+  const windows = sleepLookbackWindows(3, new Date(2026, 4, 14, 7, 30));
+  assert.deepEqual(windows.map((window) => window.sleepDate), ["2026-05-14", "2026-05-13", "2026-05-12"]);
+  assert.equal(new Date(windows[2].startTime).getDate(), 11);
+  assert.equal(new Date(windows[2].endTime).getDate(), 12);
+});
+
+test("sleep no-data copy explains the provider and checked range", () => {
+  const windows = sleepLookbackWindows(2, new Date(2026, 4, 14, 7, 30));
+  const message = sleepNoDataMessage("Health Connect", windows);
+  assert.match(message, /No sleep data was found in Health Connect/i);
+  assert.match(message, /2026-05-13 through 2026-05-14/i);
+  assert.match(message, /sleep app or wearable/i);
+});
+
 test("health connect sleep sessions normalize duration and stages", () => {
   const normalized = normalizeHealthConnectSleepSessions([
     {
@@ -453,6 +496,22 @@ test("sleep completion value stores hours from synced minutes", () => {
   assert.equal(buildSleepCompletionValue(-20), 0);
 });
 
+test("sleep storage setup errors are recognized", () => {
+  assert.equal(isSleepEntriesSetupError("Could not find the table 'public.sleep_entries' in the schema cache"), true);
+  assert.equal(isSleepEntriesSetupError("relation \"public.sleep_entries\" does not exist"), true);
+  assert.equal(isSleepEntriesSetupError("permission denied for table sleep_entries"), true);
+  assert.equal(isSleepEntriesSetupError("Network request failed"), false);
+});
+
+test("sleep entries migration exposes the table to authenticated clients", () => {
+  const sql = [
+    readFileSync("supabase/migrations/0010_sleep_tracking.sql", "utf8"),
+    readFileSync("supabase/schema.sql", "utf8"),
+  ].join("\n");
+  assert.match(sql, /grant select,\s*insert,\s*update,\s*delete on table public\.sleep_entries to authenticated/i);
+  assert.match(sql, /alter table public\.sleep_entries enable row level security/i);
+});
+
 test("duplicate scoring and merging combine compatible water habits", () => {
   const existing = {
     id: "h1",
@@ -481,6 +540,113 @@ test("duplicate scoring and merging combine compatible water habits", () => {
   const merged = mergeHabitSettings(candidate, existing);
   assert.equal(merged.target, 2000);
   assert.equal(merged.metric_type, "volume_ml");
+});
+
+test("bundling keeps the stronger workout habit identity and target", () => {
+  const existing = {
+    id: "workout-15",
+    user_id: "u1",
+    name: "15 min workout",
+    description: "Short starter workout.",
+    icon: "fitness_center",
+    color: "tertiary",
+    target: 15,
+    unit: "min",
+    reminder_time: null,
+    reminder_times: ["07:00"],
+    reminder_days: [1, 2],
+    reminders_enabled: true,
+    habit_type: "workout",
+    metric_type: "minutes",
+    visual_type: "progress_ring",
+    reminder_strategy: "manual",
+    reminder_interval_minutes: null,
+    default_log_value: 5,
+    created_at: "2026-05-10T00:00:00Z",
+    archived_at: null,
+  };
+  const candidate = {
+    name: "45 min workout",
+    description: "Longer strength session.",
+    icon: "fitness_center",
+    unit: "min",
+    target: 45,
+    habitType: "workout",
+    metricType: "minutes",
+    visualType: "progress_ring",
+    reminderStrategy: "manual",
+    reminderIntervalMinutes: null,
+    defaultLogValue: 15,
+  };
+
+  assert.ok(scoreHabitSimilarity(candidate, existing) >= 0.8);
+  const merged = mergeHabitSettings(candidate, existing);
+  assert.equal(merged.name, "45 min workout");
+  assert.equal(merged.description, "Longer strength session.");
+  assert.equal(merged.target, 45);
+  assert.equal(merged.default_log_value, 15);
+});
+
+test("bundling keeps the existing habit identity when it has the stronger target", () => {
+  const existing = {
+    id: "read-30",
+    user_id: "u1",
+    name: "Read 30 pages",
+    description: "Evening reading.",
+    icon: "menu_book",
+    color: "primary",
+    target: 30,
+    unit: "pages",
+    reminder_time: null,
+    reminder_times: ["21:00"],
+    reminder_days: [1, 2, 3],
+    reminders_enabled: true,
+    habit_type: "read",
+    metric_type: "pages",
+    visual_type: "reading_book",
+    reminder_strategy: "manual",
+    reminder_interval_minutes: null,
+    default_log_value: 10,
+    created_at: "2026-05-10T00:00:00Z",
+    archived_at: null,
+  };
+  const candidate = {
+    name: "Read 10 pages",
+    description: "Short reading habit.",
+    icon: "menu_book",
+    unit: "pages",
+    target: 10,
+    habitType: "read",
+    metricType: "pages",
+    visualType: "reading_book",
+    reminderStrategy: "manual",
+    reminderIntervalMinutes: null,
+    defaultLogValue: 5,
+  };
+
+  const merged = mergeHabitSettings(candidate, existing);
+  assert.equal(merged.name, "Read 30 pages");
+  assert.equal(merged.description, "Evening reading.");
+  assert.equal(merged.target, 30);
+  assert.equal(merged.default_log_value, 10);
+});
+
+test("bundling unions active reminder times and days without copying disabled defaults", () => {
+  assert.deepEqual(
+    mergeHabitReminders(
+      { enabled: true, times: ["07:00"], days: [1, 2] },
+      { enabled: true, times: ["07:00", "18:00"], days: [1, 2, 3] },
+    ),
+    { enabled: true, times: ["07:00", "18:00"], days: [1, 2, 3] },
+  );
+
+  assert.deepEqual(
+    mergeHabitReminders(
+      { enabled: false, times: [], days: [0, 1, 2, 3, 4, 5, 6] },
+      { enabled: true, times: ["08:30"], days: [1, 3, 5] },
+    ),
+    { enabled: true, times: ["08:30"], days: [1, 3, 5] },
+  );
 });
 
 test("smart reminder slots respect active hours and intervals", () => {

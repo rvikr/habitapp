@@ -2,8 +2,8 @@ import { View, Text, FlatList, TouchableOpacity } from "react-native";
 import { HABIT_CATALOG, type CatalogEntry } from "@/lib/habit-catalog";
 import Icon from "./icon";
 
-const COLOR_BG: Record<string, string> = { primary: "#e6deff", secondary: "#76f6f2", tertiary: "#ffdbce", neutral: "#e1e3e4" };
-const COLOR_FG: Record<string, string> = { primary: "#451ebb", secondary: "#006a67", tertiary: "#7b2900", neutral: "#484554" };
+const COLOR_BG: Record<string, string> = { primary: "#FFE6CF", secondary: "#CFEBDF", tertiary: "#FFF0CC", neutral: "#E6E0D5" };
+const COLOR_FG: Record<string, string> = { primary: "#F26B1F", secondary: "#3EBB7F", tertiary: "#E4A23A", neutral: "#5A554D" };
 
 type Props = {
   onSelect: (entry: CatalogEntry) => void;
@@ -31,7 +31,7 @@ export default function HabitCatalogPicker({ onSelect, onSkip }: Props) {
         }
         renderItem={({ item }) => {
           const bg = COLOR_BG[item.color] ?? "#e6deff";
-          const fg = COLOR_FG[item.color] ?? "#451ebb";
+          const fg = COLOR_FG[item.color] ?? "#F26B1F";
           return (
             <TouchableOpacity
               className="flex-row items-center bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-md"

@@ -23,7 +23,7 @@ export default function CoachCard({ signal, onPress, onAction }: Props) {
       className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-start gap-md"
     >
       <View className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center">
-        <MaterialCommunityIcons name="message-text-outline" size={20} color="#451ebb" />
+        <MaterialCommunityIcons name="message-text-outline" size={20} color="#F26B1F" />
       </View>
       <View className="flex-1">
         <Text className="text-label-lg text-primary mb-xs">AI COACH</Text>

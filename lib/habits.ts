@@ -15,6 +15,7 @@ export type Insights = {
   peakTimeLabel: string | null;
 };
 export type TodayProgressMap = Map<string, HabitProgress>;
+export type StreaksMap = Map<string, number>;
 
 const today = () => localDateKey();
 
@@ -23,17 +24,21 @@ async function getUser() {
 }
 
 export async function getHabitsForToday() {
+  const emptyStreaks: StreaksMap = new Map();
   if (!isSupabaseConfigured()) {
-    return { habits: [] as Habit[], completedToday: new Set<string>(), todayProgress: new Map<string, HabitProgress>(), profile: { displayName: "Demo", email: null }, leaderboardOptedIn: false, coachSignal: null as CoachSignal | null };
+    return { habits: [] as Habit[], completedToday: new Set<string>(), todayProgress: new Map<string, HabitProgress>(), streaksMap: emptyStreaks, profile: { displayName: "Demo", email: null }, leaderboardOptedIn: false, coachSignal: null as CoachSignal | null };
   }
 
   const user = await getUser();
-  if (!user) return { habits: [] as Habit[], completedToday: new Set<string>(), todayProgress: new Map<string, HabitProgress>(), profile: { displayName: "there", email: null }, leaderboardOptedIn: false, coachSignal: null as CoachSignal | null };
+  if (!user) return { habits: [] as Habit[], completedToday: new Set<string>(), todayProgress: new Map<string, HabitProgress>(), streaksMap: emptyStreaks, profile: { displayName: "there", email: null }, leaderboardOptedIn: false, coachSignal: null as CoachSignal | null };
 
-  const [{ data: habits }, { data: completions }, { data: profile }] = await Promise.all([
-    supabase.from("habits").select("*").is("archived_at", null).order("created_at", { ascending: true }),
-    supabase.from("habit_completions").select("habit_id, completed_on, created_at, value").eq("user_id", user.id).gte("completed_on", localDateDaysAgo(60)),
-    supabase.from("profiles").select("display_name, coach_tone").eq("user_id", user.id).maybeSingle(),
+  const [[{ data: habits }, { data: completions }, { data: profile }], aiEnabled] = await Promise.all([
+    Promise.all([
+      supabase.from("habits").select("*").is("archived_at", null).order("created_at", { ascending: true }),
+      supabase.from("habit_completions").select("habit_id, completed_on, created_at, value").eq("user_id", user.id).gte("completed_on", localDateDaysAgo(60)),
+      supabase.from("profiles").select("display_name, coach_tone").eq("user_id", user.id).maybeSingle(),
+    ]),
+    getAiSuggestionsEnabled(),
   ]);
 
   const habitsList = (habits ?? []) as Habit[];
@@ -49,11 +54,20 @@ export async function getHabitsForToday() {
   const completedToday = new Set(
     [...todayProgress.entries()].filter(([, progress]) => progress.isDone).map(([habitId]) => habitId),
   );
+
+  const completionDatesByHabit = new Map<string, string[]>();
+  for (const c of completionRows) {
+    const dates = completionDatesByHabit.get(c.habit_id as string) ?? [];
+    dates.push(c.completed_on as string);
+    completionDatesByHabit.set(c.habit_id as string, dates);
+  }
+  const streaksMap: StreaksMap = new Map(
+    habitsList.map((habit) => [habit.id, streakFromDates(completionDatesByHabit.get(habit.id) ?? [])]),
+  );
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
   let coachSignal = chooseTopCoachSignal(buildCoachSignals({ habits: habitsList, completions: completionRows, tone: coachTone }));
   if (coachSignal) {
-    const enabled = await getAiSuggestionsEnabled();
-    coachSignal = { ...coachSignal, message: await resolveCoachMessage(coachSignal, { enabled }) };
+    coachSignal = { ...coachSignal, message: await resolveCoachMessage(coachSignal, { enabled: aiEnabled, nonBlocking: true }) };
   }
   const displayName =
     (profile?.display_name as string | null | undefined) ??
@@ -65,6 +79,7 @@ export async function getHabitsForToday() {
     habits: habitsList,
     completedToday,
     todayProgress,
+    streaksMap,
     profile: { displayName, email: user.email ?? null },
     leaderboardOptedIn: !!(profile?.display_name as string | null | undefined),
     coachSignal,

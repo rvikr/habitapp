@@ -2,19 +2,28 @@ import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { getSleepDashboardData, manualLogSleep, syncNormalizedSleepEntry, type SleepSyncResult } from "./sleep-data";
 import {
-  lastNightSleepWindow,
+  sleepLookbackWindows,
+  sleepNoDataMessage,
   normalizeHealthConnectSleepSessions,
   normalizeHealthKitSleepSamples,
+  type NormalizedSleepEntry,
   type SleepPermissionStatus,
+  type SleepWindow,
 } from "./sleep-shared";
 
 export { getSleepDashboardData, manualLogSleep };
 
 const HEALTH_CONNECT_SLEEP_PERMISSION = { accessType: "read", recordType: "SleepSession" } as const;
 const HEALTHKIT_SLEEP_IDENTIFIER = "HKCategoryTypeIdentifierSleepAnalysis" as const;
+const SLEEP_SYNC_LOOKBACK_DAYS = 7;
 
 type HealthConnectModule = typeof import("react-native-health-connect");
 type HealthKitModule = typeof import("@kingstinct/react-native-healthkit");
+type SleepReadSnapshot = {
+  status: SleepPermissionStatus;
+  entry: NormalizedSleepEntry | null;
+  checkedWindows?: SleepWindow[];
+};
 
 function isExpoGo(): boolean {
   return Constants.appOwnership === "expo";
@@ -88,7 +97,7 @@ async function requestHealthConnectSleepPermission(): Promise<SleepPermissionSta
   }
 }
 
-async function readHealthConnectLastNight() {
+async function readHealthConnectRecentSleep(): Promise<SleepReadSnapshot> {
   const { mod, status } = await initializeHealthConnect();
   if (!mod || status !== "undetermined") return { status, entry: null };
 
@@ -96,16 +105,20 @@ async function readHealthConnectLastNight() {
   if (permission !== "granted") return { status: permission, entry: null };
 
   try {
-    const window = lastNightSleepWindow();
-    const result = await mod.readRecords("SleepSession", {
-      timeRangeFilter: { operator: "between", startTime: window.startTime, endTime: window.endTime },
-      ascendingOrder: true,
-      pageSize: 100,
-    });
-    const records = Array.isArray((result as { records?: unknown[] }).records)
-      ? (result as { records: unknown[] }).records
-      : result;
-    return { status: "granted" as const, entry: normalizeHealthConnectSleepSessions(records) };
+    const windows = sleepLookbackWindows(SLEEP_SYNC_LOOKBACK_DAYS);
+    for (const [index, window] of windows.entries()) {
+      const result = await mod.readRecords("SleepSession", {
+        timeRangeFilter: { operator: "between", startTime: window.startTime, endTime: window.endTime },
+        ascendingOrder: true,
+        pageSize: 100,
+      });
+      const records = Array.isArray((result as { records?: unknown[] }).records)
+        ? (result as { records: unknown[] }).records
+        : result;
+      const entry = normalizeHealthConnectSleepSessions(records);
+      if (entry) return { status: "granted" as const, entry, checkedWindows: windows.slice(0, index + 1) };
+    }
+    return { status: "granted" as const, entry: null, checkedWindows: windows };
   } catch {
     return { status: "unavailable" as const, entry: null };
   }
@@ -148,7 +161,7 @@ async function requestHealthKitSleepPermission(): Promise<SleepPermissionStatus>
   }
 }
 
-async function readHealthKitLastNight() {
+async function readHealthKitRecentSleep(): Promise<SleepReadSnapshot> {
   const healthKit = await loadHealthKit();
   if (!healthKit) return { status: "unavailable" as const, entry: null };
 
@@ -156,13 +169,17 @@ async function readHealthKitLastNight() {
   if (permission !== "granted") return { status: permission, entry: null };
 
   try {
-    const window = lastNightSleepWindow();
-    const samples = await healthKit.queryCategorySamples(HEALTHKIT_SLEEP_IDENTIFIER, {
-      limit: 100,
-      ascending: true,
-      filter: { date: { startDate: new Date(window.startTime), endDate: new Date(window.endTime) } },
-    });
-    return { status: "granted" as const, entry: normalizeHealthKitSleepSamples(samples) };
+    const windows = sleepLookbackWindows(SLEEP_SYNC_LOOKBACK_DAYS);
+    for (const [index, window] of windows.entries()) {
+      const samples = await healthKit.queryCategorySamples(HEALTHKIT_SLEEP_IDENTIFIER, {
+        limit: 100,
+        ascending: true,
+        filter: { date: { startDate: new Date(window.startTime), endDate: new Date(window.endTime) } },
+      });
+      const entry = normalizeHealthKitSleepSamples(samples);
+      if (entry) return { status: "granted" as const, entry, checkedWindows: windows.slice(0, index + 1) };
+    }
+    return { status: "granted" as const, entry: null, checkedWindows: windows };
   } catch {
     return { status: "unavailable" as const, entry: null };
   }
@@ -189,12 +206,17 @@ export async function syncLastNightSleep(): Promise<{ ok: boolean; data?: SleepS
     return { ok: false, status, error: status === "unavailable" ? "Sleep sync is unavailable on this device." : "Sleep permission is required to sync." };
   }
 
-  const snapshot = Platform.OS === "android" ? await readHealthConnectLastNight() : await readHealthKitLastNight();
+  const snapshot = Platform.OS === "android" ? await readHealthConnectRecentSleep() : await readHealthKitRecentSleep();
   if (snapshot.status !== "granted") {
     return { ok: false, status: snapshot.status, error: "Could not read sleep data from your health provider." };
   }
   if (!snapshot.entry) {
-    return { ok: false, status: "granted", error: "No sleep data was found for last night. You can log it manually." };
+    const provider = Platform.OS === "android" ? "Health Connect" : "Apple Health";
+    return {
+      ok: false,
+      status: "granted",
+      error: sleepNoDataMessage(provider, snapshot.checkedWindows ?? sleepLookbackWindows(SLEEP_SYNC_LOOKBACK_DAYS)),
+    };
   }
 
   const source = Platform.OS === "android" ? "healthConnect" : "healthKit";

@@ -111,6 +111,8 @@ alter table public.habits enable row level security;
 alter table public.habit_completions enable row level security;
 alter table public.sleep_entries enable row level security;
 
+grant select, insert, update, delete on table public.sleep_entries to authenticated;
+
 drop policy if exists "habits: owner read" on public.habits;
 create policy "habits: owner read"
   on public.habits for select
@@ -156,20 +158,20 @@ create policy "completions: owner update"
 drop policy if exists "sleep_entries: owner read" on public.sleep_entries;
 create policy "sleep_entries: owner read"
   on public.sleep_entries for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "sleep_entries: owner insert" on public.sleep_entries;
 create policy "sleep_entries: owner insert"
   on public.sleep_entries for insert
-  with check (auth.uid() = user_id);
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "sleep_entries: owner update" on public.sleep_entries;
 create policy "sleep_entries: owner update"
   on public.sleep_entries for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "sleep_entries: owner delete" on public.sleep_entries;
 create policy "sleep_entries: owner delete"
   on public.sleep_entries for delete
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);

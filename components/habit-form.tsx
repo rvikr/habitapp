@@ -14,12 +14,21 @@ import {
   type VisualType,
 } from "@/lib/habit-intelligence";
 
+function smartReminderSummary(intervalMinutes: number | null, strategy: ReminderStrategy): string {
+  const interval = intervalMinutes ?? 720;
+  const slotsPerDay = Math.round((14 * 60) / interval);
+  const count = Math.max(1, slotsPerDay);
+  const suffix = strategy === "conditional_interval" ? ", stops once done for the day" : "";
+  if (count === 1) return `One smart reminder per day${suffix}.`;
+  return `Up to ${count} smart reminders per day${suffix}.`;
+}
+
 const ICONS = ["water_drop", "directions_run", "directions_walk", "menu_book", "self_improvement", "edit_note", "fitness_center", "bedtime", "medication", "restaurant", "shower", "code", "directions_bike", "favorite", "eco", "spa"];
 const COLORS: Array<{ id: "primary" | "secondary" | "tertiary" | "neutral"; label: string; hex: string }> = [
-  { id: "primary", label: "Purple", hex: "#5d3fd3" },
-  { id: "secondary", label: "Teal", hex: "#006a67" },
-  { id: "tertiary", label: "Orange", hex: "#7b2900" },
-  { id: "neutral", label: "Neutral", hex: "#484554" },
+  { id: "primary", label: "Ember", hex: "#F26B1F" },
+  { id: "secondary", label: "Sage", hex: "#3EBB7F" },
+  { id: "tertiary", label: "Amber", hex: "#E4A23A" },
+  { id: "neutral", label: "Neutral", hex: "#5A554D" },
 ];
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const TIME_PRESETS = ["07:00", "08:00", "12:00", "16:00", "20:00", "22:00"];
@@ -97,6 +106,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
     setDefaultLogValue(entry.defaultLogValue);
     setRemindersEnabled(entry.remindersEnabledByDefault ?? entry.defaultTimes.length > 0);
     setReminderTimes(entry.defaultTimes);
+    setReminderDays(entry.defaultReminderDays ?? [0, 1, 2, 3, 4, 5, 6]);
     setShowCatalog(false);
   }
 
@@ -235,7 +245,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
             placeholder="Habit name"
-            placeholderTextColor="#797586"
+            placeholderTextColor="#8F8A82"
             value={name}
             onChangeText={setName}
           />
@@ -247,7 +257,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
             placeholder="What's this habit about?"
-            placeholderTextColor="#797586"
+            placeholderTextColor="#8F8A82"
             value={description}
             onChangeText={setDescription}
             multiline
@@ -263,7 +273,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
               <TouchableOpacity
                 key={ic}
                 className="w-12 h-12 rounded-xl items-center justify-center"
-                style={{ backgroundColor: icon === ic ? "#5d3fd3" : "#edeeef" }}
+                style={{ backgroundColor: icon === ic ? "#F26B1F" : "#F2EDE4" }}
                 onPress={() => setIcon(ic)}
               >
                 <Icon name={ic} size={24} color={icon === ic ? "#fff" : "#484554"} />
@@ -297,7 +307,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
             <TextInput
               className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="ml, km, min..."
-              placeholderTextColor="#797586"
+              placeholderTextColor="#8F8A82"
               value={unit}
               onChangeText={setUnit}
             />
@@ -307,7 +317,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
             <TextInput
               className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="e.g. 2000"
-              placeholderTextColor="#797586"
+              placeholderTextColor="#8F8A82"
               value={target}
               onChangeText={setTarget}
               keyboardType="decimal-pad"
@@ -344,7 +354,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                   <TouchableOpacity
                     key={`${option.metricType}-${option.unit}`}
                     className="px-md py-sm border-b border-outline-variant dark:border-d-outline-variant"
-                    style={{ backgroundColor: active ? "#e6deff" : "transparent" }}
+                    style={{ backgroundColor: active ? "#FFE6CF" : "transparent" }}
                     onPress={() => selectMetricOption(option)}
                   >
                     <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">{option.label}</Text>
@@ -362,26 +372,32 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
         <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
           <View className="flex-row items-center justify-between">
             <View className="flex-1">
-              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">Reminders</Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">Smart reminders and manual reminder times can work together.</Text>
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">Smart Reminders</Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {reminderStrategy !== "manual"
+                  ? "Fires automatically based on your habit — stops once you log it for the day."
+                  : "Set specific times for this habit."}
+              </Text>
             </View>
             <Switch
               value={remindersEnabled}
               onValueChange={setRemindersEnabled}
-              trackColor={{ false: "#c9c4d7", true: "#5d3fd3" }}
+              trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
               thumbColor="#fff"
             />
           </View>
 
           {remindersEnabled && reminderStrategy !== "manual" && (
             <Text className="text-label-sm text-primary">
-              Smart reminders every {reminderIntervalMinutes ?? 60} minutes from 08:00 to 22:00.
+              {smartReminderSummary(reminderIntervalMinutes, reminderStrategy)}
             </Text>
           )}
 
           {remindersEnabled && (
             <>
-              <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">TIMES</Text>
+              <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
+                {reminderStrategy !== "manual" ? "CUSTOM OVERRIDE TIMES (optional)" : "TIMES"}
+              </Text>
               <View className="flex-row flex-wrap gap-xs">
                 {TIME_PRESETS.map((t) => {
                   const active = reminderTimes.includes(t);
@@ -416,7 +432,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                 <TextInput
                   className="flex-1 bg-surface-high dark:bg-d-surface-high text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
                   placeholder="HH:MM (24h)"
-                  placeholderTextColor="#797586"
+                  placeholderTextColor="#8F8A82"
                   value={customTime}
                   onChangeText={setCustomTime}
                   keyboardType="numbers-and-punctuation"
@@ -462,7 +478,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
             <Switch
               value={mergeSimilar}
               onValueChange={setMergeSimilar}
-              trackColor={{ false: "#c9c4d7", true: "#5d3fd3" }}
+              trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
               thumbColor="#fff"
             />
           </View>

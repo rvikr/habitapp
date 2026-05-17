@@ -4,8 +4,10 @@ import { syncScheduledReminders } from "./reminder-sync";
 import {
   buildSleepCompletionValue,
   computeSleepScore,
+  isSleepEntriesSetupError,
   minutesOfDay,
   sleepDateForWakeTime,
+  SLEEP_ENTRIES_SETUP_MESSAGE,
   type NormalizedSleepEntry,
   type SleepSource,
 } from "./sleep-shared";
@@ -32,6 +34,10 @@ function notConfigured(): Result {
 
 function notSignedIn(): Result {
   return { ok: false, error: "You need to sign in again." };
+}
+
+function databaseErrorMessage(message: string): string {
+  return isSleepEntriesSetupError(message) ? SLEEP_ENTRIES_SETUP_MESSAGE : message;
 }
 
 function sleepHabitPayload(userId: string) {
@@ -107,7 +113,7 @@ export async function syncNormalizedSleepEntry(source: SleepSource, normalized: 
     .lt("sleep_date", normalized.sleepDate)
     .order("sleep_date", { ascending: false })
     .limit(7);
-  if (recentError) return { ok: false, error: recentError.message };
+  if (recentError) return { ok: false, error: databaseErrorMessage(recentError.message) };
 
   const recentEntries = (recentRows ?? []) as SleepEntry[];
   const score = computeSleepScore({
@@ -138,7 +144,7 @@ export async function syncNormalizedSleepEntry(source: SleepSource, normalized: 
     .upsert(sleepEntryPayload, { onConflict: "user_id,sleep_date" })
     .select("*")
     .single();
-  if (entryError) return { ok: false, error: entryError.message };
+  if (entryError) return { ok: false, error: databaseErrorMessage(entryError.message) };
 
   const { error: completionError } = await supabase
     .from("habit_completions")

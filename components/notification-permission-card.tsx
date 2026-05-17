@@ -14,7 +14,7 @@ export default function NotificationPermissionCard() {
 
   return (
     <View className="bg-primary-fixed rounded-xl p-md flex-row items-center gap-md mx-margin-mobile mb-md">
-      <MaterialCommunityIcons name="bell-alert" size={24} color="#451ebb" />
+      <MaterialCommunityIcons name="bell-alert" size={24} color="#F26B1F" />
       <View className="flex-1">
         <Text className="text-body-md text-on-background font-semibold">Enable notifications</Text>
         <Text className="text-label-sm text-on-surface-variant">

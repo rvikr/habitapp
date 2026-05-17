@@ -10,7 +10,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Lagan" />
-        <meta name="theme-color" content="#451ebb" />
+        <meta name="theme-color" content="#F26B1F" />
         <meta name="mobile-web-app-capable" content="yes" />
 
         <title>Lagan लगन — Build habits, track progress, earn badges</title>
@@ -37,7 +37,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         {/* Body background frames the phone-shaped app on desktop, fills the viewport on mobile. */}
         <style dangerouslySetInnerHTML={{ __html: `
           html,body,#root,#__next{height:100%;}
-          body{margin:0;background:#edeeef;}
+          body{margin:0;background:#F2EDE4;}
           @media(prefers-color-scheme:dark){body{background:#0f0f14;}}
           @media(max-width:480px){body{background:#f8f9fa;}@media(prefers-color-scheme:dark){body{background:#0f0f14;}}}
         ` }} />

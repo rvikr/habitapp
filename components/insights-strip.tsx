@@ -15,7 +15,7 @@ function buildItems(insights: Insights): InsightItem[] {
   if (insights.mostProductiveDay) {
     items.push({
       icon: "calendar-star",
-      color: "#451ebb",
+      color: "#F26B1F",
       bg: "#e6deff",
       text: `Most productive on ${insights.mostProductiveDay}s`,
     });
@@ -25,7 +25,7 @@ function buildItems(insights: Insights): InsightItem[] {
     const up = insights.consistencyChangePct >= 0;
     items.push({
       icon: up ? "trending-up" : "trending-down",
-      color: up ? "#006a67" : "#b3261e",
+      color: up ? "#3EBB7F" : "#b3261e",
       bg: up ? "#76f6f240" : "#f2b8b540",
       text: up
         ? `Consistency up ${insights.consistencyChangePct}% this month`
@@ -36,7 +36,7 @@ function buildItems(insights: Insights): InsightItem[] {
   if (insights.peakTimeLabel) {
     items.push({
       icon: "clock-outline",
-      color: "#7b2900",
+      color: "#E4A23A",
       bg: "#ffdbce",
       text: `Most active ${insights.peakTimeLabel}`,
     });

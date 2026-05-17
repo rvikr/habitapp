@@ -11,6 +11,8 @@ type ResolveCoachMessageOptions = {
   storage?: CoachMessageStorage;
   now?: Date;
   ttlMs?: number;
+  /** Return fallback immediately on cache miss; refresh the cache in background. */
+  nonBlocking?: boolean;
 };
 
 const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
@@ -24,6 +26,16 @@ export async function resolveCoachMessage(signal: CoachSignal, options: ResolveC
   const storage = options.storage ?? await defaultStorage();
   const cached = await readCachedMessage(storage, key, now, ttlMs);
   if (cached) return cached;
+
+  if (options.nonBlocking) {
+    void (async () => {
+      try {
+        const generated = (await (options.invoke ?? invokeCoachMessage)(signal))?.trim();
+        if (generated) await storage?.setItem(key, JSON.stringify({ message: generated, cachedAt: now.getTime() }));
+      } catch {}
+    })();
+    return signal.message;
+  }
 
   try {
     const generated = (await (options.invoke ?? invokeCoachMessage)(signal))?.trim();

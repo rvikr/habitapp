@@ -47,7 +47,7 @@ export default function ResetPasswordScreen() {
         <TextInput
           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
           placeholder="New password"
-          placeholderTextColor="#797586"
+          placeholderTextColor="#8F8A82"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -56,7 +56,7 @@ export default function ResetPasswordScreen() {
         <TextInput
           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
           placeholder="Confirm new password"
-          placeholderTextColor="#797586"
+          placeholderTextColor="#8F8A82"
           value={confirm}
           onChangeText={setConfirm}
           secureTextEntry

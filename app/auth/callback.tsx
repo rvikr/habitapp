@@ -1,16 +1,23 @@
 ﻿import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { useRef } from "react";
+import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from "react-native";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { supabase } from "@/lib/supabase/client";
 import { parseAuthCallbackUrl } from "@/lib/auth-redirect";
+import {
+  AUTH_CALLBACK_CONFIRMED_BODY,
+  AUTH_CALLBACK_CONFIRMED_TITLE,
+} from "@/lib/auth-welcome";
 
 type Status = "loading" | "success" | "error";
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
+  const currentUrl = Linking.useURL();
+  const handledUrlRef = useRef<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
 
@@ -18,8 +25,10 @@ export default function AuthCallbackScreen() {
     let cancelled = false;
 
     async function finishAuth() {
-      const url = await Linking.getInitialURL();
+      const url = currentUrl ?? await Linking.getInitialURL() ?? browserLocationUrl();
       if (!url) throw new Error("Missing authentication callback URL.");
+      if (handledUrlRef.current === url) return;
+      handledUrlRef.current = url;
 
       const parsed = parseAuthCallbackUrl(url);
       if (parsed.error) {
@@ -37,6 +46,9 @@ export default function AuthCallbackScreen() {
         if (sessionError) throw sessionError;
       }
 
+      const { data: sessionData } = await supabase.auth.getSession();
+      const hasSession = Boolean(sessionData.session);
+
       if (cancelled) return;
 
       if (parsed.type === "recovery") {
@@ -45,9 +57,11 @@ export default function AuthCallbackScreen() {
       }
 
       setStatus("success");
-      setTimeout(() => {
-        if (!cancelled) router.replace({ pathname: "/", params: { newUser: "1" } } as never);
-      }, 2000);
+      if (Platform.OS !== "web" && hasSession) {
+        requestAnimationFrame(() => {
+          if (!cancelled) router.replace({ pathname: "/", params: { newUser: "1" } } as never);
+        });
+      }
     }
 
     finishAuth().catch((e) => {
@@ -60,7 +74,7 @@ export default function AuthCallbackScreen() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [currentUrl, router]);
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background items-center justify-center px-margin-mobile">
@@ -79,15 +93,29 @@ export default function AuthCallbackScreen() {
             <Ionicons name="checkmark" size={40} color="#ffffff" />
           </View>
           <Text className="text-headline-md text-on-background dark:text-d-on-background font-bold text-center mb-sm">
-            Email confirmed!
+            {AUTH_CALLBACK_CONFIRMED_TITLE}
           </Text>
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
-            Welcome to Lagan. Taking you in…
+            {AUTH_CALLBACK_CONFIRMED_BODY}
           </Text>
+          <View className="w-full gap-sm mt-lg">
+            <TouchableOpacity
+              className="bg-primary rounded-full py-md items-center"
+              onPress={() => router.replace({ pathname: "/", params: { newUser: "1" } } as never)}
+            >
+              <Text className="text-on-primary text-label-lg font-semibold">Continue to app</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="bg-surface-container dark:bg-d-surface-container rounded-full py-md items-center"
+              onPress={() => router.replace("/login" as never)}
+            >
+              <Text className="text-primary text-label-lg font-semibold">Sign in</Text>
+            </TouchableOpacity>
+          </View>
         </>
       ) : (
         <>
-          <ActivityIndicator size="large" color="#451ebb" />
+          <ActivityIndicator size="large" color="#F26B1F" />
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-md">
             Finishing sign in...
           </Text>
@@ -95,4 +123,9 @@ export default function AuthCallbackScreen() {
       )}
     </SafeAreaView>
   );
+}
+
+function browserLocationUrl(): string | null {
+  if (Platform.OS !== "web" || typeof window === "undefined") return null;
+  return window.location.href || null;
 }

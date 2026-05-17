@@ -38,10 +38,10 @@ export default function BadgeGrid({ badges, onShare }: Props) {
       renderItem={({ item }) => {
         const bgMap = dark ? TONE_BG_DARK : TONE_BG;
         const fgMap = dark ? TONE_FG_DARK : TONE_FG;
-        const unearnedBg = dark ? "#2a2435" : "#e7e8e9";
-        const unearnedFg = dark ? "#a09ab8" : "#797586";
-        const bg = item.earned ? (bgMap[item.tone] ?? (dark ? "#2d1f6e" : "#e6deff")) : unearnedBg;
-        const fg = item.earned ? (fgMap[item.tone] ?? (dark ? "#c4b5fd" : "#451ebb")) : unearnedFg;
+        const unearnedBg = dark ? "#2C2C36" : "#E6E0D5";
+        const unearnedFg = dark ? "#7A7E88" : "#8F8A82";
+        const bg = item.earned ? (bgMap[item.tone] ?? (dark ? "#3D1800" : "#FFE6CF")) : unearnedBg;
+        const fg = item.earned ? (fgMap[item.tone] ?? "#F26B1F") : unearnedFg;
         return (
           <View
             className="flex-1 rounded-xl p-md"

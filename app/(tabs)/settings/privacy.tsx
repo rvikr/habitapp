@@ -40,6 +40,10 @@ export default function PrivacyScreen() {
   }
 
   function handleDeletionRequest() {
+    if (!deletePassword.trim()) {
+      Alert.alert("Password required", "Confirm your password before requesting account deletion.");
+      return;
+    }
     Alert.alert(
       "Delete account?",
       "This permanently removes your account and all your data (habits, completions, profile). This cannot be undone.",
@@ -85,7 +89,7 @@ export default function PrivacyScreen() {
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
         <TouchableOpacity onPress={() => router.back()} className="mr-md">
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#451ebb" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">Privacy & Data</Text>
       </View>
@@ -103,31 +107,31 @@ export default function PrivacyScreen() {
               <Switch
                 value={analyticsOff}
                 onValueChange={toggleAnalytics}
-                trackColor={{ false: "#c9c4d7", true: "#5d3fd3" }}
+                trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
                 thumbColor="#fff"
               />
             </View>
           </View>
 
           <TouchableOpacity className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center" onPress={handleExport}>
-            <MaterialCommunityIcons name="file-export-outline" size={22} color="#451ebb" />
+            <MaterialCommunityIcons name="file-export-outline" size={22} color="#F26B1F" />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface font-semibold">View my data export</Text>
-            {exporting ? <ActivityIndicator color="#451ebb" /> : <MaterialCommunityIcons name="chevron-right" size={20} color="#797586" />}
+            {exporting ? <ActivityIndicator color="#F26B1F" /> : <MaterialCommunityIcons name="chevron-right" size={20} color="#8F8A82" />}
           </TouchableOpacity>
 
           <TouchableOpacity className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center" onPress={openPrivacyPolicy}>
-            <MaterialCommunityIcons name="shield-account-outline" size={22} color="#451ebb" />
+            <MaterialCommunityIcons name="shield-account-outline" size={22} color="#F26B1F" />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface font-semibold">Privacy policy</Text>
-            <MaterialCommunityIcons name="open-in-new" size={20} color="#797586" />
+            <MaterialCommunityIcons name="open-in-new" size={20} color="#8F8A82" />
           </TouchableOpacity>
 
           <TouchableOpacity
             className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center"
             onPress={openAccountDeletionPage}
           >
-            <MaterialCommunityIcons name="account-remove-outline" size={22} color="#451ebb" />
+            <MaterialCommunityIcons name="account-remove-outline" size={22} color="#F26B1F" />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface font-semibold">Account deletion page</Text>
-            <MaterialCommunityIcons name="open-in-new" size={20} color="#797586" />
+            <MaterialCommunityIcons name="open-in-new" size={20} color="#8F8A82" />
           </TouchableOpacity>
 
           <View className="bg-error-container rounded-xl p-md gap-sm">
@@ -135,7 +139,7 @@ export default function PrivacyScreen() {
             <TextInput
               className="bg-surface-lowest text-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="Optional note"
-              placeholderTextColor="#797586"
+              placeholderTextColor="#8F8A82"
               value={reason}
               onChangeText={setReason}
               multiline
@@ -144,7 +148,7 @@ export default function PrivacyScreen() {
             <TextInput
               className="bg-surface-lowest text-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="Confirm password"
-              placeholderTextColor="#797586"
+              placeholderTextColor="#8F8A82"
               value={deletePassword}
               onChangeText={setDeletePassword}
               secureTextEntry
@@ -163,7 +167,7 @@ export default function PrivacyScreen() {
           <View className="flex-row items-center justify-between px-margin-mobile py-sm">
             <Text className="text-headline-md text-on-background dark:text-d-on-background">Data export</Text>
             <TouchableOpacity onPress={() => setExportText(null)}>
-              <MaterialCommunityIcons name="close" size={24} color="#451ebb" />
+              <MaterialCommunityIcons name="close" size={24} color="#F26B1F" />
             </TouchableOpacity>
           </View>
           <ScrollView className="flex-1 px-margin-mobile">

@@ -33,7 +33,7 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
       {children}
       <Modal transparent visible={visible} animationType="fade">
         <View style={StyleSheet.absoluteFill} className="items-center justify-center pointer-events-none">
-          <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-3xl px-xl py-lg items-center" style={{ shadowColor: "#451ebb", shadowOpacity: 0.25, shadowRadius: 20, elevation: 10 }}>
+          <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-3xl px-xl py-lg items-center" style={{ shadowColor: "#F26B1F", shadowOpacity: 0.25, shadowRadius: 20, elevation: 10 }}>
             <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold text-center">{message}</Text>
           </View>
           {visible && (
@@ -44,7 +44,7 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
               fadeOut
               explosionSpeed={350}
               fallSpeed={3000}
-              colors={["#451ebb", "#cabeff", "#006a67", "#73f3ef", "#7b2900", "#ffb599"]}
+              colors={["#F26B1F", "#FFC56B", "#3EBB7F", "#C24E0D", "#E4A23A", "#FFE6CF"]}
             />
           )}
         </View>

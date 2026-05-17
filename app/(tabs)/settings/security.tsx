@@ -30,7 +30,7 @@ export default function SecurityScreen() {
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
         <TouchableOpacity onPress={() => router.back()} className="mr-md">
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#451ebb" />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">Security</Text>
       </View>
@@ -38,7 +38,7 @@ export default function SecurityScreen() {
         <TextInput
           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
           placeholder="New password (8+ chars, mixed case + number)"
-          placeholderTextColor="#797586"
+          placeholderTextColor="#8F8A82"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -47,7 +47,7 @@ export default function SecurityScreen() {
         <TextInput
           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
           placeholder="Confirm new password"
-          placeholderTextColor="#797586"
+          placeholderTextColor="#8F8A82"
           value={confirm}
           onChangeText={setConfirm}
           secureTextEntry

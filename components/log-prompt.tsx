@@ -48,7 +48,7 @@ export default function LogPrompt({ visible, habit, onSubmit, onDismiss }: Props
               Log {habit?.unit ? habit.unit : "progress"}
             </Text>
             <TouchableOpacity onPress={onDismiss}>
-              <MaterialCommunityIcons name="close" size={24} color="#797586" />
+              <MaterialCommunityIcons name="close" size={24} color="#8F8A82" />
             </TouchableOpacity>
           </View>
           {habit?.unit && (
@@ -56,7 +56,7 @@ export default function LogPrompt({ visible, habit, onSubmit, onDismiss }: Props
               <TextInput
                 className="flex-1 bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
                 placeholder={`Amount in ${habit.unit}`}
-                placeholderTextColor="#797586"
+                placeholderTextColor="#8F8A82"
                 value={value}
                 onChangeText={setValue}
                 keyboardType="decimal-pad"
@@ -67,7 +67,7 @@ export default function LogPrompt({ visible, habit, onSubmit, onDismiss }: Props
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md mb-md"
             placeholder="Note (optional)"
-            placeholderTextColor="#797586"
+            placeholderTextColor="#8F8A82"
             value={note}
             onChangeText={setNote}
             multiline

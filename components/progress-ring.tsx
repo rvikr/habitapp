@@ -15,8 +15,8 @@ export default function ProgressRing({
   progress,
   size = 120,
   strokeWidth = 8,
-  color = "#451ebb",
-  trackColor = "#c9c4d7",
+  color = "#F26B1F",
+  trackColor = "#E6E0D5",
   children,
 }: Props) {
   const radius = (size - strokeWidth) / 2;

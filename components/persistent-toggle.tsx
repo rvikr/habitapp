@@ -30,7 +30,7 @@ export default function PersistentToggle({ storageKey, label, defaultValue = fal
       <Text className="text-body-md text-on-surface dark:text-d-on-surface flex-1">{label}</Text>
       <View
         className="w-11 h-6 rounded-full justify-center"
-        style={{ backgroundColor: checked ? "#5d3fd3" : "#c9c4d7", paddingHorizontal: 2 }}
+        style={{ backgroundColor: checked ? "#F26B1F" : "#E6E0D5", paddingHorizontal: 2 }}
       >
         <View
           className="w-5 h-5 rounded-full bg-white"

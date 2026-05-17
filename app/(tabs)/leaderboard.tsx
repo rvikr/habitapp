@@ -72,7 +72,7 @@ export default function LeaderboardScreen() {
         <View className="px-margin-mobile pt-md pb-sm flex-row items-center justify-between">
           <Text className="text-headline-lg text-on-background dark:text-d-on-background">Leaderboard</Text>
           <TouchableOpacity onPress={() => { setNameInput(profile?.display_name ?? ""); setShowOptIn(true); }} className="p-xs">
-            <MaterialCommunityIcons name="account-edit" size={22} color="#451ebb" />
+            <MaterialCommunityIcons name="account-edit" size={22} color="#F26B1F" />
           </TouchableOpacity>
         </View>
 
@@ -81,12 +81,12 @@ export default function LeaderboardScreen() {
             onPress={() => setShowOptIn(true)}
             className="mx-margin-mobile mb-lg bg-primary-fixed rounded-xl p-md flex-row items-center gap-md"
           >
-            <MaterialCommunityIcons name="trophy-award" size={24} color="#451ebb" />
+            <MaterialCommunityIcons name="trophy-award" size={24} color="#F26B1F" />
             <View className="flex-1">
               <Text className="text-body-md text-on-background font-semibold">Join the leaderboard</Text>
               <Text className="text-label-sm text-on-surface-variant">Pick a display name to compete with others.</Text>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color="#451ebb" />
+            <MaterialCommunityIcons name="chevron-right" size={20} color="#F26B1F" />
           </TouchableOpacity>
         )}
 
@@ -113,7 +113,7 @@ export default function LeaderboardScreen() {
         <View className="px-margin-mobile gap-xs">
           {entries.length === 0 ? (
             <View className="items-center py-xxl">
-              <MaterialCommunityIcons name="account-group-outline" size={48} color="#797586" />
+              <MaterialCommunityIcons name="account-group-outline" size={48} color="#8F8A82" />
               <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-sm text-center">
                 {optedIn ? "Be the first on the board — start logging habits!" : "No one's on the board yet. Opt in above to be the first."}
               </Text>
@@ -196,7 +196,7 @@ function OptInModal({
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md mt-sm"
             placeholder="Display name (e.g. ravi-k)"
-            placeholderTextColor="#797586"
+            placeholderTextColor="#8F8A82"
             value={nameInput}
             onChangeText={setNameInput}
             maxLength={30}

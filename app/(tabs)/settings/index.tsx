@@ -22,9 +22,9 @@ function SettingsRow({ icon, label, onPress, danger }: { icon: string; label: st
       className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl mb-xs"
       onPress={onPress}
     >
-      <MaterialCommunityIcons name={icon as any} size={20} color={danger ? "#ba1a1a" : "#451ebb"} />
+      <MaterialCommunityIcons name={icon as any} size={20} color={danger ? "#FF5A5A" : "#F26B1F"} />
       <Text className={`flex-1 ml-md text-body-md ${danger ? "text-error" : "text-on-surface dark:text-d-on-surface"}`}>{label}</Text>
-      {!danger && <MaterialCommunityIcons name="chevron-right" size={20} color="#797586" />}
+      {!danger && <MaterialCommunityIcons name="chevron-right" size={20} color="#8F8A82" />}
     </TouchableOpacity>
   );
 }
@@ -84,14 +84,14 @@ export default function SettingsScreen() {
             <Image source={{ uri: user.avatarUrl }} className="w-14 h-14 rounded-full" resizeMode="cover" />
           ) : (
             <View className="w-14 h-14 rounded-full bg-primary-fixed items-center justify-center">
-              <MaterialCommunityIcons name="account" size={28} color="#451ebb" />
+              <MaterialCommunityIcons name="account" size={28} color="#F26B1F" />
             </View>
           )}
           <View className="flex-1 ml-md">
             <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">{user?.displayName}</Text>
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{user?.email}</Text>
           </View>
-          <MaterialCommunityIcons name="chevron-right" size={20} color="#797586" />
+          <MaterialCommunityIcons name="chevron-right" size={20} color="#8F8A82" />
         </TouchableOpacity>
 
         {/* Appearance */}
@@ -104,7 +104,7 @@ export default function SettingsScreen() {
             <MaterialCommunityIcons
               name={colorScheme === "dark" ? "weather-night" : "weather-sunny"}
               size={20}
-              color="#451ebb"
+              color="#F26B1F"
             />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface">
               {colorScheme === "dark" ? "Dark mode" : "Light mode"}

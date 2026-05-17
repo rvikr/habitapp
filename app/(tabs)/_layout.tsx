@@ -2,17 +2,17 @@
 import { useColorScheme, Platform } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-const TAB_ACTIVE = "#451ebb";
-const TAB_ACTIVE_DARK = "#cabeff";
-const TAB_INACTIVE = "#797586";
-const TAB_INACTIVE_DARK = "#9b95ad";
+const TAB_ACTIVE = "#F26B1F";
+const TAB_ACTIVE_DARK = "#F26B1F";
+const TAB_INACTIVE = "#8F8A82";
+const TAB_INACTIVE_DARK = "#7A7E88";
 
 export default function TabsLayout() {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
   const active = isDark ? TAB_ACTIVE_DARK : TAB_ACTIVE;
   const inactive = isDark ? TAB_INACTIVE_DARK : TAB_INACTIVE;
-  const tabBarBg = isDark ? "#14141b" : "#ffffff";
+  const tabBarBg = isDark ? "#16161C" : "#FFFFFF";
 
   return (
     <Tabs
@@ -22,7 +22,7 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: inactive,
         tabBarStyle: {
           backgroundColor: tabBarBg,
-          borderTopColor: isDark ? "#4a4658" : "#c9c4d7",
+          borderTopColor: isDark ? "#2C2C36" : "#E6E0D5",
           borderTopWidth: 1,
           paddingBottom: Platform.OS === "ios" ? 20 : 8,
           paddingTop: 8,

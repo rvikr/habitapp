@@ -48,11 +48,12 @@ export type HabitProgress = {
   label: string;
 };
 
-type HabitLike = Pick<Habit, "name" | "icon" | "target" | "unit"> &
+type HabitLike = Pick<Habit, "name" | "description" | "icon" | "target" | "unit"> &
   Partial<Pick<Habit, "habit_type" | "metric_type" | "visual_type" | "reminder_strategy" | "reminder_interval_minutes" | "default_log_value">>;
 
 type HabitInput = {
   name: string;
+  description?: string | null;
   icon?: string | null;
   unit?: string | null;
   target?: number | null;
@@ -78,7 +79,7 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
     metricType: "steps",
     visualType: "step_path",
     reminderStrategy: "conditional_interval",
-    reminderIntervalMinutes: 60,
+    reminderIntervalMinutes: 180, // ~4-5 nudges/day, stops when step goal hit
     defaultLogValue: 1000,
     unit: "steps",
     target: 8000,
@@ -86,8 +87,8 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   sleep: {
     metricType: "hours",
     visualType: "sleep_moon",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720, // 8am + 8pm, stops once logged
     defaultLogValue: 1,
     unit: "hr",
     target: 8,
@@ -95,8 +96,8 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   read: {
     metricType: "pages",
     visualType: "reading_book",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720, // 8am + 8pm, stops once done
     defaultLogValue: 10,
     unit: "pages",
     target: 20,
@@ -104,8 +105,8 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   run: {
     metricType: "distance_km",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 480, // 2 nudges/day max, stops when done
     defaultLogValue: 1,
     unit: "km",
     target: 5,
@@ -113,8 +114,8 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   cycling: {
     metricType: "distance_km",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 480, // 2 nudges/day max, stops when done
     defaultLogValue: 2,
     unit: "km",
     target: 10,
@@ -122,8 +123,8 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   meditate: {
     metricType: "minutes",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720, // 8am + 8pm, stops once done
     defaultLogValue: 5,
     unit: "min",
     target: 10,
@@ -131,17 +132,17 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   workout: {
     metricType: "minutes",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
-    defaultLogValue: 15,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 480, // 2 nudges/day max on scheduled days
+    defaultLogValue: 45, // realistic minimum session length
     unit: "min",
     target: 45,
   },
   cold_shower: {
     metricType: "minutes",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720, // 8am + 8pm, stops once done
     defaultLogValue: 1,
     unit: "min",
     target: 3,
@@ -149,8 +150,8 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   coding: {
     metricType: "minutes",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 360, // 3 nudges/day, stops once done
     defaultLogValue: 15,
     unit: "min",
     target: 60,
@@ -158,8 +159,8 @@ const DEFAULTS: Record<HabitType, Omit<HabitIntelligence, "habitType">> = {
   stretch: {
     metricType: "minutes",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720, // 8am + 8pm, stops once done
     defaultLogValue: 5,
     unit: "min",
     target: 15,
@@ -176,8 +177,8 @@ function booleanDefaults(): Omit<HabitIntelligence, "habitType"> {
   return {
     metricType: "boolean",
     visualType: "progress_ring",
-    reminderStrategy: "manual",
-    reminderIntervalMinutes: null,
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720, // 8am + 8pm, stops once done
     defaultLogValue: null,
     unit: "",
     target: null,
@@ -359,22 +360,55 @@ export function mergeHabitSettings(candidate: HabitInput, existing: HabitLike) {
     target: existing.target,
     habitType: existing.habit_type,
     metricType: existing.metric_type,
+    visualType: existing.visual_type,
+    reminderStrategy: existing.reminder_strategy,
+    reminderIntervalMinutes: existing.reminder_interval_minutes,
+    defaultLogValue: existing.default_log_value,
   });
   const candidateTarget = candidateIntel.target;
   const existingTarget = existingIntel.target;
+  const preferCandidate =
+    candidateTarget != null &&
+    (existingTarget == null || candidateTarget > existingTarget);
+  const preferredIntel = preferCandidate ? candidateIntel : existingIntel;
+  const fallbackIntel = preferCandidate ? existingIntel : candidateIntel;
+  const preferredDefaultLogValue = [preferredIntel.defaultLogValue, fallbackIntel.defaultLogValue]
+    .filter((value): value is number => value != null)
+    .sort((a, b) => b - a)[0] ?? null;
 
   return {
-    habit_type: candidateIntel.habitType,
-    metric_type: candidateIntel.metricType,
-    visual_type: candidateIntel.visualType,
-    reminder_strategy: candidateIntel.reminderStrategy,
-    reminder_interval_minutes: candidateIntel.reminderIntervalMinutes,
-    default_log_value: candidateIntel.defaultLogValue,
-    unit: candidateIntel.unit || null,
+    name: preferCandidate ? candidate.name : existing.name,
+    description: preferCandidate ? candidate.description ?? existing.description : existing.description ?? candidate.description ?? null,
+    habit_type: preferredIntel.habitType,
+    metric_type: preferredIntel.metricType,
+    visual_type: preferredIntel.visualType,
+    reminder_strategy: preferredIntel.reminderStrategy,
+    reminder_interval_minutes: preferredIntel.reminderIntervalMinutes,
+    default_log_value: preferredDefaultLogValue,
+    unit: preferredIntel.unit || fallbackIntel.unit || null,
     target:
       candidateTarget != null && existingTarget != null
         ? Math.max(candidateTarget, existingTarget)
         : candidateTarget ?? existingTarget ?? null,
+  };
+}
+
+export type HabitReminderSettings = {
+  enabled: boolean | null | undefined;
+  times: string[] | null | undefined;
+  days: number[] | null | undefined;
+};
+
+export function mergeHabitReminders(existing: HabitReminderSettings, candidate: HabitReminderSettings) {
+  const enabled = !!existing.enabled || !!candidate.enabled;
+  const activeReminderSets = [existing, candidate].filter((settings) => !!settings.enabled);
+  const times = Array.from(new Set(activeReminderSets.flatMap((settings) => settings.times ?? []))).sort();
+  const days = Array.from(new Set(activeReminderSets.flatMap((settings) => settings.days ?? []))).sort();
+
+  return {
+    enabled,
+    times,
+    days: enabled ? (days.length > 0 ? days : [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6],
   };
 }
 

@@ -52,7 +52,7 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
             <Image
               source={{ uri: avatarUrl(style, item) }}
               className="w-14 h-14 rounded-full"
-              style={{ borderWidth: 2, borderColor: seed === item ? "#451ebb" : "transparent" }}
+              style={{ borderWidth: 2, borderColor: seed === item ? "#F26B1F" : "transparent" }}
             />
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{item}</Text>
           </TouchableOpacity>

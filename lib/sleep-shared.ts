@@ -19,6 +19,13 @@ export type NormalizedSleepEntry = {
   sourceMetadata: Record<string, unknown>;
 };
 
+export type SleepWindow = {
+  sleepDate: string;
+  operator: "between";
+  startTime: string;
+  endTime: string;
+};
+
 export type SleepScoreRecentEntry = {
   startMinutes?: number | null;
   endMinutes?: number | null;
@@ -57,6 +64,9 @@ type HealthKitSleepSample = {
 
 const DEFAULT_SLEEP_TARGET_MINUTES = 8 * 60;
 const SLEEP_DAY_CUTOFF_HOUR = 18;
+const DEFAULT_SLEEP_LOOKBACK_DAYS = 7;
+export const SLEEP_ENTRIES_SETUP_MESSAGE =
+  "Sleep tracking storage is not set up yet. Apply the sleep_entries migration and grant authenticated users access, then try again.";
 
 function addDays(date: Date, days: number): Date {
   const next = new Date(date);
@@ -79,16 +89,45 @@ export function sleepDateForWakeTime(wakeTime = new Date()): string {
   return dateKey(date);
 }
 
-export function sleepWindowForDate(sleepDate: string): { operator: "between"; startTime: string; endTime: string } {
+export function sleepWindowForDate(sleepDate: string): Omit<SleepWindow, "sleepDate"> {
   const [year, month, day] = sleepDate.split("-").map(Number);
   const end = new Date(year, month - 1, day, SLEEP_DAY_CUTOFF_HOUR, 0, 0, 0);
   const start = addDays(end, -1);
   return { operator: "between", startTime: start.toISOString(), endTime: end.toISOString() };
 }
 
-export function lastNightSleepWindow(now = new Date()): { sleepDate: string; operator: "between"; startTime: string; endTime: string } {
+export function lastNightSleepWindow(now = new Date()): SleepWindow {
   const sleepDate = sleepDateForWakeTime(now);
   return { sleepDate, ...sleepWindowForDate(sleepDate) };
+}
+
+export function sleepLookbackWindows(days = DEFAULT_SLEEP_LOOKBACK_DAYS, now = new Date()): SleepWindow[] {
+  const count = Math.max(1, Math.floor(days));
+  const [year, month, day] = sleepDateForWakeTime(now).split("-").map(Number);
+  const firstSleepDate = new Date(year, month - 1, day, 12, 0, 0, 0);
+
+  return Array.from({ length: count }, (_, index) => {
+    const sleepDate = dateKey(addDays(firstSleepDate, -index));
+    return { sleepDate, ...sleepWindowForDate(sleepDate) };
+  });
+}
+
+export function sleepNoDataMessage(provider: "Health Connect" | "Apple Health" | string, windows: SleepWindow[]): string {
+  const newest = windows[0]?.sleepDate;
+  const oldest = windows[windows.length - 1]?.sleepDate;
+  const range = newest && oldest ? (newest === oldest ? newest : `${oldest} through ${newest}`) : "the recent sleep window";
+  return `No sleep data was found in ${provider} for ${range}. ${provider} only returns sleep sessions recorded by a sleep app or wearable; confirm sleep tracking is enabled there, or log it manually.`;
+}
+
+export function isSleepEntriesSetupError(message: string | null | undefined): boolean {
+  const text = String(message ?? "").toLowerCase();
+  if (!text.includes("sleep_entries")) return false;
+  return (
+    text.includes("schema cache") ||
+    text.includes("does not exist") ||
+    text.includes("permission denied") ||
+    text.includes("grant")
+  );
 }
 
 function minutesBetween(start: Date, end: Date): number {

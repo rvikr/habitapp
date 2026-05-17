@@ -17,7 +17,7 @@ import {
 import type { SleepEntry } from "@/types/db";
 
 const SLEEP_BG = "#e6deff";
-const SLEEP_FG = "#451ebb";
+const SLEEP_FG = "#F26B1F";
 
 function formatHours(minutes: number | null | undefined): string {
   if (!minutes || minutes <= 0) return "0 hr";
@@ -52,7 +52,7 @@ function scoreTone(score: number | null | undefined): string {
 
 export default function SleepScreen() {
   const { colorScheme } = useTheme();
-  const track = colorScheme === "dark" ? "#3d3450" : "#c9c4d7";
+  const track = colorScheme === "dark" ? "#3d3450" : "#E6E0D5";
   const [data, setData] = useState<SleepDashboardData | null>(null);
   const [status, setStatus] = useState<SleepPermissionStatus | "checking" | "syncing" | "idle">("idle");
   const [refreshing, setRefreshing] = useState(false);
@@ -136,9 +136,9 @@ export default function SleepScreen() {
               size={104}
               strokeWidth={9}
               color={SLEEP_FG}
-              trackColor="#c9c4d7"
+              trackColor="#E6E0D5"
             >
-              <HabitProgressVisual visualType="sleep_moon" progress={durationRatio} size="compact" color={SLEEP_FG} trackColor="#d8ceff" />
+              <HabitProgressVisual visualType="sleep_moon" progress={durationRatio} size="compact" color={SLEEP_FG} trackColor="#FFC56B" />
             </ProgressRing>
           </View>
 
@@ -174,7 +174,7 @@ export default function SleepScreen() {
             {busy && status === "syncing" ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">Sync last night</Text>
+              <Text className="text-on-primary text-label-lg font-semibold">Sync recent sleep</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -185,7 +185,7 @@ export default function SleepScreen() {
             <TextInput
               className="flex-1 bg-surface-lowest dark:bg-d-surface-lowest text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="Hours, e.g. 7.5"
-              placeholderTextColor="#797586"
+              placeholderTextColor="#8F8A82"
               value={manualHours}
               onChangeText={setManualHours}
               keyboardType="decimal-pad"

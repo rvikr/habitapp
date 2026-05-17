@@ -1,17 +1,20 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Alert, View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import LogoChainL from "@/components/logo-chain-l";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabitsForToday, getInsights } from "@/lib/habits";
 import { logCompletion, setCompletionValue, toggleHabit } from "@/lib/actions";
 import InsightsStrip from "@/components/insights-strip";
-import type { Insights } from "@/lib/habits";
+import type { Insights, StreaksMap } from "@/lib/habits";
 import { useCelebrate } from "@/components/celebration";
 import { useTheme } from "@/components/theme-provider";
 import { recordCompletionAndMaybeReview } from "@/lib/store-review";
+import { FIRST_LOGIN_WELCOME_BODY, FIRST_LOGIN_WELCOME_TITLE } from "@/lib/auth-welcome";
 import HabitCard from "@/components/habit-card";
 import CoachCard from "@/components/coach-card";
+import LogPrompt from "@/components/log-prompt";
 import type { Habit } from "@/types/db";
 import { progressForHabit, type HabitProgress } from "@/lib/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach";
@@ -29,6 +32,7 @@ type DashboardData = {
   habits: Habit[];
   completedToday: Set<string>;
   todayProgress: Map<string, HabitProgress>;
+  streaksMap: StreaksMap;
   profile: { displayName: string; email: string | null };
   insights: Insights;
   leaderboardOptedIn: boolean;
@@ -62,12 +66,13 @@ export default function DashboardScreen() {
   const router = useRouter();
   const celebrate = useCelebrate();
   const { colorScheme } = useTheme();
-  const primary = colorScheme === "dark" ? "#c5b8ff" : "#451ebb";
-  const primaryTrack = colorScheme === "dark" ? "#3d3450" : "#c9c4d7";
+  const primary = "#F26B1F";
+  const primaryTrack = colorScheme === "dark" ? "#2C2C36" : "#E6E0D5";
   const [data, setData] = useState<DashboardData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const { newUser } = useLocalSearchParams<{ newUser?: string }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
+  const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
   const [stepTracking, setStepTracking] = useState<StepTrackingState>({ status: "idle", lastSyncedAt: null });
   const dataRef = useRef<DashboardData | null>(null);
   const stepSubscriptionRef = useRef<StepSubscription | null>(null);
@@ -81,9 +86,13 @@ export default function DashboardScreen() {
     dataRef.current = data;
   }, [data]);
 
+  useEffect(() => {
+    if (newUser === "1") setShowWelcome(true);
+  }, [newUser]);
+
   const load = useCallback(async () => {
     const [result, insights] = await Promise.all([getHabitsForToday(), getInsights()]);
-    setData({ ...result, completedToday: result.completedToday, todayProgress: result.todayProgress, insights });
+    setData({ ...result, completedToday: result.completedToday, todayProgress: result.todayProgress, streaksMap: result.streaksMap, insights });
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -271,7 +280,7 @@ export default function DashboardScreen() {
     if (wasDone) next.delete(habitId);
     else next.add(habitId);
     setData({ ...data, completedToday: next });
-    const result = await toggleHabit(habitId, wasDone);
+    const result = await toggleHabit(habitId, wasDone, habit.target as number | null);
     if (!result.ok) {
       setData((current) => current ? { ...current, completedToday: previous } : current);
       Alert.alert("Could not update habit", result.error ?? "Try again.");
@@ -284,7 +293,16 @@ export default function DashboardScreen() {
     load();
   }
 
+  function isSleepHabit(habit: Habit): boolean {
+    return habit.habit_type === "sleep" || habit.metric_type === "hours";
+  }
+
   async function handleCoachAction(signal: CoachSignal) {
+    const habit = data?.habits.find((h) => h.id === signal.habitId) ?? null;
+    if (signal.suggestedAction === "log_value" && habit && isSleepHabit(habit)) {
+      setSleepLogHabit(habit);
+      return;
+    }
     if (signal.suggestedAction === "log_value" && signal.suggestedValue) {
       const result = await logCompletion(signal.habitId, signal.suggestedValue, "Logged from AI coach");
       if (!result.ok) {
@@ -297,6 +315,17 @@ export default function DashboardScreen() {
       return;
     }
     router.push(`/habits/${signal.habitId}`);
+  }
+
+  async function handleSleepCoachLog(value: number, note: string) {
+    if (!sleepLogHabit) return;
+    const result = await logCompletion(sleepLogHabit.id, value, note || "Logged from AI coach");
+    if (!result.ok) return { ok: false, error: result.error ?? "Try again." };
+    setSleepLogHabit(null);
+    celebrate();
+    recordCompletionAndMaybeReview();
+    load();
+    return { ok: true };
   }
 
   const completedCount = data ? [...data.completedToday].filter(id => habits.some(h => h.id === id)).length : 0;
@@ -321,8 +350,8 @@ export default function DashboardScreen() {
           >
             <MaterialCommunityIcons name="party-popper" size={22} color={primary} />
             <View className="flex-1">
-              <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">Welcome to Lagan!</Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">You're all set. Add your first habit to get started.</Text>
+              <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">{FIRST_LOGIN_WELCOME_TITLE}</Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{FIRST_LOGIN_WELCOME_BODY}</Text>
             </View>
             <MaterialCommunityIcons name="close" size={18} color={primary} />
           </TouchableOpacity>
@@ -331,19 +360,24 @@ export default function DashboardScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between px-margin-mobile pt-md pb-sm">
           <View>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant" style={{ letterSpacing: 0.3, textTransform: "uppercase" }}>
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </Text>
-            <Text className="text-headline-lg text-on-background dark:text-d-on-background">
-              Hey, {data?.profile.displayName ?? "there"} 👋
+            <Text
+              className="text-headline-lg text-on-background dark:text-d-on-background"
+              style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+            >
+              Hey, {data?.profile.displayName ?? "there"}
             </Text>
           </View>
-          <TouchableOpacity
-            className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center"
-            onPress={() => router.push("/habits/new")}
-          >
-            <MaterialCommunityIcons name="plus" size={22} color={primary} />
-          </TouchableOpacity>
+          <View className="flex-row items-center gap-sm">
+            <TouchableOpacity
+              className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center"
+              onPress={() => router.push("/habits/new")}
+            >
+              <MaterialCommunityIcons name="plus" size={22} color={primary} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Habit status */}
@@ -384,13 +418,20 @@ export default function DashboardScreen() {
           />
         )}
 
-        {data?.coachSignal && (
+        {data?.coachSignal && !data.completedToday.has(data.coachSignal.habitId) && (
           <CoachCard
             signal={data.coachSignal}
             onPress={() => router.push(`/habits/${data.coachSignal!.habitId}`)}
             onAction={() => handleCoachAction(data.coachSignal!)}
           />
         )}
+
+        <LogPrompt
+          visible={sleepLogHabit !== null}
+          habit={sleepLogHabit}
+          onSubmit={handleSleepCoachLog}
+          onDismiss={() => setSleepLogHabit(null)}
+        />
 
         {/* Weekly insights */}
         {data?.insights && (
@@ -401,7 +442,7 @@ export default function DashboardScreen() {
 
         {/* Habits list */}
         <View className="px-margin-mobile gap-sm">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">TODAY'S HABITS</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs" style={{ letterSpacing: 0.6 }}>TODAY'S HABITS</Text>
           {habits.length === 0 ? (
             <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-lg gap-md">
               <View className="items-center gap-sm">
@@ -433,6 +474,7 @@ export default function DashboardScreen() {
                 habit={habit}
                 done={data?.completedToday.has(habit.id) ?? false}
                 progress={data?.todayProgress.get(habit.id)}
+                streak={data?.streaksMap.get(habit.id) ?? 0}
                 onToggle={() => handleToggle(habit)}
                 onPress={() => router.push(`/habits/${habit.id}`)}
               />
@@ -544,9 +586,9 @@ function HabitStatusRings({
 }: HabitStatusRingsProps) {
   return (
     <View style={{ width: 184, height: 184, alignItems: "center", justifyContent: "center" }}>
-      <StatusArc progress={completedProgress} size={176} strokeWidth={11} color="#5d3fd3" trackColor={trackColor} />
-      <StatusArc progress={metricProgress} size={148} strokeWidth={10} color="#f8d100" trackColor={trackColor} />
-      <StatusArc progress={activeProgress} size={120} strokeWidth={9} color="#66b7ff" trackColor={trackColor} />
+      <StatusArc progress={completedProgress} size={176} strokeWidth={11} color="#F26B1F" trackColor={trackColor} />
+      <StatusArc progress={metricProgress} size={148} strokeWidth={10} color="#FFC56B" trackColor={trackColor} />
+      <StatusArc progress={activeProgress} size={120} strokeWidth={9} color="#3EBB7F" trackColor={trackColor} />
       <View className="w-20 h-20 rounded-full bg-surface-lowest dark:bg-d-surface-lowest items-center justify-center">
         <Text className="text-headline-md">{completedCount === total && total > 0 ? "😊" : "🙂"}</Text>
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">

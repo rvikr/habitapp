@@ -118,29 +118,33 @@ export default function HabitWizardScreen() {
     }
 
     setCreating(true);
-    const failures: string[] = [];
-    for (const item of selected) {
-      const result = await createHabit({
-        name: item.name,
-        description: item.description,
-        icon: item.icon,
-        color: item.color,
-        unit: item.unit,
-        target: item.target,
-        remindersEnabled: item.remindersEnabled,
-        reminderTimes: item.reminderTimes,
-        reminderDays: item.reminderDays,
-        habitType: item.habitType,
-        metricType: item.metricType,
-        visualType: item.visualType,
-        reminderStrategy: item.reminderStrategy,
-        reminderIntervalMinutes: item.reminderIntervalMinutes,
-        defaultLogValue: item.defaultLogValue,
-        mergeSimilar: item.mergeSimilar,
-      });
-      if (!result.ok) failures.push(`${item.name}: ${result.error ?? "Could not create habit."}`);
-    }
+    const results = await Promise.all(
+      selected.map((item) =>
+        createHabit({
+          name: item.name,
+          description: item.description,
+          icon: item.icon,
+          color: item.color,
+          unit: item.unit,
+          target: item.target,
+          remindersEnabled: item.remindersEnabled,
+          reminderTimes: item.reminderTimes,
+          reminderDays: item.reminderDays,
+          habitType: item.habitType,
+          metricType: item.metricType,
+          visualType: item.visualType,
+          reminderStrategy: item.reminderStrategy,
+          reminderIntervalMinutes: item.reminderIntervalMinutes,
+          defaultLogValue: item.defaultLogValue,
+          mergeSimilar: item.mergeSimilar,
+        }),
+      ),
+    );
     setCreating(false);
+
+    const failures = results
+      .map((result, i) => (result.ok ? null : `${selected[i].name}: ${result.error ?? "Could not create habit."}`))
+      .filter((msg): msg is string => msg !== null);
 
     if (failures.length > 0) {
       Alert.alert("Some habits were not created", failures.join("\n"));
@@ -165,7 +169,7 @@ export default function HabitWizardScreen() {
               </Text>
               {loadingRoutine && (
                 <View className="flex-row items-center gap-xs pt-xs">
-                  <ActivityIndicator size="small" color="#451ebb" />
+                  <ActivityIndicator size="small" color="#F26B1F" />
                   <Text className="text-label-sm text-primary">Checking for AI refinements...</Text>
                 </View>
               )}
@@ -177,7 +181,7 @@ export default function HabitWizardScreen() {
                 <View key={item.id} className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-sm">
                   <View className="flex-row items-start gap-md">
                     <View className={`w-12 h-12 rounded-full items-center justify-center ${item.selected ? "bg-primary-fixed" : "bg-surface-container dark:bg-d-surface-container"}`}>
-                      <Icon name={item.icon} size={24} color={item.selected ? "#451ebb" : "#797586"} />
+                      <Icon name={item.icon} size={24} color={item.selected ? "#F26B1F" : "#8F8A82"} />
                     </View>
                     <View className="flex-1 gap-xs">
                       {editing ? (
@@ -186,7 +190,7 @@ export default function HabitWizardScreen() {
                           value={item.name}
                           onChangeText={(name) => updateRecommendation(item.id, { name })}
                           placeholder="Habit name"
-                          placeholderTextColor="#797586"
+                          placeholderTextColor="#8F8A82"
                         />
                       ) : (
                         <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">{item.name}</Text>
@@ -198,7 +202,7 @@ export default function HabitWizardScreen() {
                       className={`w-9 h-9 rounded-full items-center justify-center ${item.selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
                       onPress={() => updateRecommendation(item.id, { selected: !item.selected })}
                     >
-                      <MaterialCommunityIcons name={item.selected ? "check" : "plus"} size={20} color={item.selected ? "#ffffff" : "#451ebb"} />
+                      <MaterialCommunityIcons name={item.selected ? "check" : "plus"} size={20} color={item.selected ? "#ffffff" : "#F26B1F"} />
                     </TouchableOpacity>
                   </View>
 
@@ -212,7 +216,7 @@ export default function HabitWizardScreen() {
                           onChangeText={(value) => updateRecommendation(item.id, { target: parseTarget(value) })}
                           keyboardType="decimal-pad"
                           placeholder="Optional"
-                          placeholderTextColor="#797586"
+                          placeholderTextColor="#8F8A82"
                         />
                       </View>
                       <View className="flex-1">
@@ -222,7 +226,7 @@ export default function HabitWizardScreen() {
                           value={item.unit}
                           onChangeText={(unit) => updateRecommendation(item.id, { unit })}
                           placeholder="min, pages..."
-                          placeholderTextColor="#797586"
+                          placeholderTextColor="#8F8A82"
                         />
                       </View>
                     </View>
@@ -347,7 +351,7 @@ function WizardHeader({ title, onBack }: { title: string; onBack: () => void }) 
   return (
     <View className="flex-row items-center px-margin-mobile py-sm">
       <TouchableOpacity onPress={onBack} className="mr-md">
-        <MaterialCommunityIcons name="arrow-left" size={24} color="#451ebb" />
+        <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
       </TouchableOpacity>
       <Text className="text-headline-md text-on-background dark:text-d-on-background">{title}</Text>
     </View>
@@ -362,13 +366,13 @@ function ChoiceRow({ option, selected, onPress }: { option: Option; selected: bo
       activeOpacity={0.75}
     >
       <View className={`w-11 h-11 rounded-full items-center justify-center ${selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}>
-        <MaterialCommunityIcons name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={21} color={selected ? "#ffffff" : "#451ebb"} />
+        <MaterialCommunityIcons name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={21} color={selected ? "#ffffff" : "#F26B1F"} />
       </View>
       <View className="flex-1">
         <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">{option.label}</Text>
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{option.detail}</Text>
       </View>
-      <MaterialCommunityIcons name={selected ? "check-circle" : "circle-outline"} size={22} color={selected ? "#451ebb" : "#797586"} />
+      <MaterialCommunityIcons name={selected ? "check-circle" : "circle-outline"} size={22} color={selected ? "#F26B1F" : "#8F8A82"} />
     </TouchableOpacity>
   );
 }
