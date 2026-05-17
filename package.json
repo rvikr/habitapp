@@ -9,7 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/unit.test.mjs"
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/unit.test.mjs",
+    "generate-assets": "node scripts/generate-assets.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/manrope": "^0.4.2",
@@ -56,6 +57,7 @@
   "devDependencies": {
     "@babel/core": "^7.25.0",
     "@types/react": "~19.1.10",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.14",
     "typescript": "~5.9.2"
   },
