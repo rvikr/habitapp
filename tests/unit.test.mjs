@@ -221,7 +221,10 @@ test("AI Edge Functions enforce server-side quota before OpenAI calls", () => {
 
 test("account deletion requires password confirmation and recent sign-in", () => {
   const actionSource = readFileSync("lib/data/actions.ts", "utf8");
-  assert.match(actionSource, /requestAccountDeletion\(reason\?: string, password\?: string\)/);
+  assert.match(
+    actionSource,
+    /requestAccountDeletion\(\s*reason\?: string,\s*password\?: string,?\s*\)/,
+  );
   assert.match(actionSource, /signInWithPassword/);
   assert.match(actionSource, /Confirm your password before deleting your account/);
 
