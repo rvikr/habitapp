@@ -318,7 +318,7 @@ export default function DashboardScreen() {
   }
 
   async function handleSleepCoachLog(value: number, note: string) {
-    if (!sleepLogHabit) return;
+    if (!sleepLogHabit) return { ok: false, error: "Habit not loaded." };
     const result = await logCompletion(sleepLogHabit.id, value, note || "Logged from AI coach");
     if (!result.ok) return { ok: false, error: result.error ?? "Try again." };
     setSleepLogHabit(null);

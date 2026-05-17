@@ -61,7 +61,7 @@ export default function TermsPage() {
           </div>
 
           <Section title="1. Acceptance of terms">
-            <p>These Terms & Conditions ("Terms") govern your use of the Lagan mobile application and website (collectively, the "Service") operated by Lagan Health ("we", "us", or "our").</p>
+            <p>These Terms & Conditions (&quot;Terms&quot;) govern your use of the Lagan mobile application and website (collectively, the &quot;Service&quot;) operated by Lagan Health (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).</p>
             <p>By accessing or using the Service, you confirm that you are at least 13 years old (or the minimum age required in your country) and that you accept these Terms. If you do not agree, do not use the Service.</p>
           </Section>
 
@@ -114,7 +114,7 @@ export default function TermsPage() {
           </Section>
 
           <Section title="11. Disclaimers">
-            <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF HARMFUL COMPONENTS.</p>
+            <p>THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF HARMFUL COMPONENTS.</p>
           </Section>
 
           <Section title="12. Limitation of liability">
@@ -128,7 +128,7 @@ export default function TermsPage() {
           </Section>
 
           <Section title="14. Changes to these Terms">
-            <p>We may update these Terms from time to time. We will update the "Last updated" date at the top of this page and, for material changes, notify you via email or an in-app message. Continued use of the Service after the effective date of any changes constitutes acceptance of the updated Terms.</p>
+            <p>We may update these Terms from time to time. We will update the &quot;Last updated&quot; date at the top of this page and, for material changes, notify you via email or an in-app message. Continued use of the Service after the effective date of any changes constitutes acceptance of the updated Terms.</p>
           </Section>
 
           <Section title="15. Governing law">

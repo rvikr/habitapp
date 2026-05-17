@@ -2,11 +2,12 @@
 import { useRef } from "react";
 import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from "react-native";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { supabase } from "@/lib/supabase/client";
-import { parseAuthCallbackUrl } from "@/lib/auth-redirect";
+import { AUTH_CALLBACK_PATH, parseAuthCallbackUrl } from "@/lib/auth-redirect";
+import { authCallbackUrlFromParams } from "@/lib/auth-callback-params";
 import {
   AUTH_CALLBACK_CONFIRMED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
@@ -16,6 +17,8 @@ type Status = "loading" | "success" | "error";
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
+  const callbackParams = useLocalSearchParams();
+  const routeCallbackUrl = authCallbackUrlFromParams(`/${AUTH_CALLBACK_PATH}`, callbackParams);
   const currentUrl = Linking.useURL();
   const handledUrlRef = useRef<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
@@ -25,7 +28,7 @@ export default function AuthCallbackScreen() {
     let cancelled = false;
 
     async function finishAuth() {
-      const url = currentUrl ?? await Linking.getInitialURL() ?? browserLocationUrl();
+      const url = currentUrl ?? await Linking.getInitialURL() ?? browserLocationUrl() ?? routeCallbackUrl;
       if (!url) throw new Error("Missing authentication callback URL.");
       if (handledUrlRef.current === url) return;
       handledUrlRef.current = url;
@@ -74,7 +77,7 @@ export default function AuthCallbackScreen() {
     return () => {
       cancelled = true;
     };
-  }, [currentUrl, router]);
+  }, [currentUrl, routeCallbackUrl, router]);
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background items-center justify-center px-margin-mobile">

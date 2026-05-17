@@ -4,6 +4,7 @@ import { cancelScheduledReminder, getPermissionStatus, scheduleHabitReminder, sc
 import type { ReminderContext } from "@/lib/reminders";
 import { formatAmount } from "@/lib/habit-intelligence";
 import type { HabitProgress } from "@/lib/habit-intelligence";
+import { createQueuedReminderSync } from "./reminder-sync-queue";
 
 const STORAGE_KEY = "habbit:scheduled-reminder-ids";
 
@@ -50,7 +51,7 @@ export function buildSmartBody(habitName: string, ctx: ReminderContext, progress
   return `Time to log ${habitName}.`;
 }
 
-export async function syncScheduledReminders(): Promise<void> {
+async function performScheduledReminderSync(): Promise<void> {
   const status = await getPermissionStatus();
   if (status !== "granted") return;
 
@@ -74,6 +75,8 @@ export async function syncScheduledReminders(): Promise<void> {
 
   await setItem(STORAGE_KEY, JSON.stringify(next));
 }
+
+export const syncScheduledReminders = createQueuedReminderSync(performScheduledReminderSync);
 
 export async function cancelHabitReminders(habitId: string): Promise<void> {
   const map = await readReminderIds();

@@ -56,7 +56,7 @@ export default function PrivacyPage() {
               Last updated: 17 May 2026
             </p>
             <p className="text-base leading-8 text-on-surface-variant">
-              Lagan ("we", "our", or "us") is committed to protecting your personal information. This policy explains what data we collect, why we collect it, and your rights over it.
+              Lagan (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your personal information. This policy explains what data we collect, why we collect it, and your rights over it.
             </p>
           </div>
 
@@ -115,7 +115,7 @@ export default function PrivacyPage() {
           </Section>
 
           <Section title="Changes to this policy">
-            <p>We may update this policy from time to time. When we do, we will update the "Last updated" date at the top of this page. Continued use of Lagan after changes take effect constitutes your acceptance of the updated policy.</p>
+            <p>We may update this policy from time to time. When we do, we will update the &quot;Last updated&quot; date at the top of this page. Continued use of Lagan after changes take effect constitutes your acceptance of the updated policy.</p>
           </Section>
 
           <Section title="Contact">

@@ -12,6 +12,7 @@ import {
   SIGNUP_CONFIRMATION_MESSAGE,
   isPendingSignupForEmail,
 } from "../lib/auth-welcome.ts";
+import { authCallbackUrlFromParams } from "../lib/auth-callback-params.ts";
 import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
 import { isValidReminderTime, parseOptionalPositiveNumber, validateFeedback } from "../lib/validation.ts";
 import { streakFromDates } from "../lib/streak.ts";
@@ -52,6 +53,7 @@ import {
   chooseTopCoachSignal,
 } from "../lib/coach.ts";
 import { resolveCoachMessage } from "../lib/coach-ai.ts";
+import { createQueuedReminderSync } from "../lib/reminder-sync-queue.ts";
 import {
   dateKeyInTimeZone,
   isValidDateKey,
@@ -63,14 +65,18 @@ import {
 } from "../website/lib/xp.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
 
+let testChain = Promise.resolve();
+
 function test(name, fn) {
-  try {
-    fn();
-    console.log(`ok - ${name}`);
-  } catch (error) {
-    console.error(`not ok - ${name}`);
-    throw error;
-  }
+  testChain = testChain.then(async () => {
+    try {
+      await fn();
+      console.log(`ok - ${name}`);
+    } catch (error) {
+      console.error(`not ok - ${name}`);
+      throw error;
+    }
+  });
 }
 
 test("localDateKey uses local calendar fields", () => {
@@ -248,6 +254,57 @@ test("signup and email confirmation copy gives a clear next step", () => {
   assert.match(AUTH_CALLBACK_CONFIRMED_BODY, /sign in/i);
   assert.equal(FIRST_LOGIN_WELCOME_TITLE, "Welcome to Lagan!");
   assert.match(FIRST_LOGIN_WELCOME_BODY, /all set/i);
+});
+
+test("auth callback params can reconstruct a callback URL when native Linking has no URL", () => {
+  const url = authCallbackUrlFromParams("/auth/callback", {
+    code: "auth-code",
+    state: ["first-state", "ignored-state"],
+    error: undefined,
+  });
+
+  assert.equal(url, "/auth/callback?code=auth-code&state=first-state");
+});
+
+test("queued reminder sync cancels the latest stored IDs before the next sync schedules", async () => {
+  let stored = {};
+  const scheduled = [];
+  const cancelled = [];
+  let firstScheduleStarted;
+  const firstScheduleStartedPromise = new Promise((resolve) => {
+    firstScheduleStarted = resolve;
+  });
+  let releaseFirstSchedule;
+  const releaseFirstSchedulePromise = new Promise((resolve) => {
+    releaseFirstSchedule = resolve;
+  });
+
+  const runSync = createQueuedReminderSync(async () => {
+    const currentStored = { ...stored };
+    for (const ids of Object.values(currentStored)) {
+      for (const id of ids) cancelled.push(id);
+    }
+    stored = {};
+
+    if (scheduled.length === 0) {
+      firstScheduleStarted();
+      await releaseFirstSchedulePromise;
+    }
+
+    const id = `scheduled-${scheduled.length + 1}`;
+    scheduled.push(id);
+    stored = { habit1: [id] };
+  });
+
+  const first = runSync();
+  await firstScheduleStartedPromise;
+  const second = runSync();
+  releaseFirstSchedule();
+  await Promise.all([first, second]);
+
+  assert.deepEqual(scheduled, ["scheduled-1", "scheduled-2"]);
+  assert.deepEqual(cancelled, ["scheduled-1"]);
+  assert.deepEqual(stored, { habit1: ["scheduled-2"] });
 });
 
 test("first-login welcome is scoped to the email that just signed up", () => {
@@ -866,3 +923,5 @@ test("AI coach message uses cache before invoking generation", async () => {
   assert.equal(message, "Cached coach line.");
   assert.equal(calls, 0);
 });
+
+await testChain;
