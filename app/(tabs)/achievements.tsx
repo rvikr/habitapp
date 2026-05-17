@@ -6,6 +6,7 @@ import { getStats, getMilestones } from "@/lib/data/habits";
 import { BADGE_DEFS, type ComputedBadge } from "@/lib/coach/badges";
 import BadgeGrid from "@/components/badge-grid";
 import ShareCardModal, { type ShareCardData } from "@/components/share-card-modal";
+import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Milestone } from "@/types/db";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
@@ -16,9 +17,10 @@ export default function AchievementsScreen() {
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [shareData, setShareData] = useState<ShareCardData | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
-    const s = await getStats();
+  const load = useCallback(async (options?: { force?: boolean }) => {
+    const s = await getStats(options);
     setStats(s);
     if (s) {
       const computed: ComputedBadge[] = BADGE_DEFS.map((def) => ({
@@ -34,6 +36,7 @@ export default function AchievementsScreen() {
       setBadges(computed);
     }
     setMilestones(getMilestones(s));
+    setLoaded(true);
   }, []);
 
   useFocusEffect(
@@ -44,7 +47,7 @@ export default function AchievementsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await load();
+    await load({ force: true });
     setRefreshing(false);
   }, [load]);
 
@@ -74,52 +77,56 @@ export default function AchievementsScreen() {
         </View>
 
         {/* Level / XP banner */}
-        <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-lg">
-          <View className="flex-row justify-between items-center mb-sm">
-            <Text className="text-label-lg text-on-surface dark:text-d-on-surface">
-              Level {stats?.level ?? 1}
-            </Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              {stats?.xp ?? 0} / {stats?.xpForNext ?? 500} XP
-            </Text>
-          </View>
-          <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden">
-            <View className="h-full bg-primary rounded-full" style={{ width: `${xpPct}%` }} />
-          </View>
-          <View className="flex-row mt-md gap-lg">
-            <View className="flex-1 items-center">
-              <Text className="text-headline-md text-primary font-bold">
-                {stats?.totalCompletions ?? 0}
+        {loaded ? (
+          <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-lg">
+            <View className="flex-row justify-between items-center mb-sm">
+              <Text className="text-label-lg text-on-surface dark:text-d-on-surface">
+                Level {stats?.level ?? 1}
               </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                completions
+                {stats?.xp ?? 0} / {stats?.xpForNext ?? 500} XP
               </Text>
             </View>
-            <View className="flex-1 items-center">
-              <Text className="text-headline-md text-secondary font-bold">
-                {stats?.currentStreak ?? 0}
-              </Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                day streak
-              </Text>
+            <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden">
+              <View className="h-full bg-primary rounded-full" style={{ width: `${xpPct}%` }} />
             </View>
-            <View className="flex-1 items-center">
-              <Text className="text-headline-md text-tertiary font-bold">
-                {stats?.totalHabits ?? 0}
-              </Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                habits
-              </Text>
+            <View className="flex-row mt-md gap-lg">
+              <View className="flex-1 items-center">
+                <Text className="text-headline-md text-primary font-bold">
+                  {stats?.totalCompletions ?? 0}
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  completions
+                </Text>
+              </View>
+              <View className="flex-1 items-center">
+                <Text className="text-headline-md text-secondary font-bold">
+                  {stats?.currentStreak ?? 0}
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  day streak
+                </Text>
+              </View>
+              <View className="flex-1 items-center">
+                <Text className="text-headline-md text-tertiary font-bold">
+                  {stats?.totalHabits ?? 0}
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  habits
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        ) : (
+          <AchievementsSummarySkeleton />
+        )}
 
         {/* Badges */}
         <View className="px-margin-mobile mb-lg">
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
             BADGES
           </Text>
-          <BadgeGrid badges={badges} onShare={handleShareBadge} />
+          {loaded ? <BadgeGrid badges={badges} onShare={handleShareBadge} /> : <BadgeSkeleton />}
         </View>
 
         {/* Milestones */}
@@ -158,5 +165,43 @@ export default function AchievementsScreen() {
 
       <ShareCardModal data={shareData} onClose={() => setShareData(null)} />
     </SafeAreaView>
+  );
+}
+
+function AchievementsSummarySkeleton() {
+  return (
+    <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-lg gap-md">
+      <View className="flex-row justify-between">
+        <SkeletonText width={84} />
+        <SkeletonText width={96} />
+      </View>
+      <Skeleton className="h-2 rounded-full" />
+      <View className="flex-row gap-lg">
+        {[0, 1, 2].map((item) => (
+          <View key={item} className="flex-1 items-center gap-xs">
+            <SkeletonText className="h-7" width={44} />
+            <SkeletonText className="h-3" width={72} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function BadgeSkeleton() {
+  return (
+    <View className="flex-row flex-wrap gap-sm">
+      {[0, 1, 2, 3, 4, 5].map((item) => (
+        <View
+          key={item}
+          className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs"
+          style={{ width: "31%" }}
+        >
+          <Skeleton className="w-10 h-10 rounded-full" />
+          <SkeletonText className="h-3" width="80%" />
+          <SkeletonText className="h-3" width="58%" />
+        </View>
+      ))}
+    </View>
   );
 }

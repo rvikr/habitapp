@@ -55,6 +55,7 @@ import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
+import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
 import {
   dateKeyInTimeZone,
@@ -383,6 +384,56 @@ test("queued reminder sync cancels the latest stored IDs before the next sync sc
   assert.deepEqual(scheduled, ["scheduled-1", "scheduled-2"]);
   assert.deepEqual(cancelled, ["scheduled-1"]);
   assert.deepEqual(stored, { habit1: ["scheduled-2"] });
+});
+
+test("readThroughCache returns fresh cached values without refetching", async () => {
+  clearCache("test-cache:");
+  let calls = 0;
+  const first = await readThroughCache("test-cache:fresh", 1_000, async () => {
+    calls++;
+    return { value: "loaded" };
+  });
+  const second = await readThroughCache("test-cache:fresh", 1_000, async () => {
+    calls++;
+    return { value: "new" };
+  });
+
+  assert.deepEqual(first, { value: "loaded" });
+  assert.deepEqual(second, { value: "loaded" });
+  assert.equal(calls, 1);
+});
+
+test("readThroughCache refreshes expired entries and supports prefix clearing", async () => {
+  clearCache("test-cache:");
+  let now = 1_000;
+  let calls = 0;
+
+  await readThroughCache(
+    "test-cache:expiring",
+    100,
+    async () => {
+      calls++;
+      return { value: calls };
+    },
+    { now: () => now },
+  );
+
+  now = 1_200;
+  const refreshed = await readThroughCache(
+    "test-cache:expiring",
+    100,
+    async () => {
+      calls++;
+      return { value: calls };
+    },
+    { now: () => now },
+  );
+
+  assert.deepEqual(refreshed, { value: 2 });
+  assert.equal(calls, 2);
+
+  clearCache("test-cache:");
+  assert.equal(getCachedValue("test-cache:expiring", 1_000, { now: () => now }), null);
 });
 
 test("first-login welcome is scoped to the email that just signed up", () => {

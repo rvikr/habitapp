@@ -8,6 +8,7 @@ import { updateHabitReminders } from "@/lib/data/actions";
 import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
 import { syncScheduledReminders, buildSmartBody } from "@/lib/data/reminder-sync";
 import { getReminderSchedule } from "@/lib/data/reminders";
+import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit } from "@/types/db";
 import type { ReminderStrategy } from "@/lib/coach/habit-intelligence";
 
@@ -32,9 +33,10 @@ export default function RemindersScreen() {
     "undetermined",
   );
   const [previewMessages, setPreviewMessages] = useState<Record<string, string>>({});
+  const [loaded, setLoaded] = useState(false);
 
-  const load = useCallback(async () => {
-    const { habits: h } = await getHabitsForToday();
+  const load = useCallback(async (options?: { force?: boolean }) => {
+    const { habits: h } = await getHabitsForToday(options);
     setHabits(h);
     const status = await getPermissionStatus();
     setPermission(status);
@@ -49,6 +51,7 @@ export default function RemindersScreen() {
       }
     }
     setPreviewMessages(previews);
+    setLoaded(true);
   }, []);
 
   useFocusEffect(
@@ -135,60 +138,83 @@ export default function RemindersScreen() {
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile gap-sm">
-          {habits.map((habit) => (
-            <View
-              key={habit.id}
-              className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md"
-            >
-              <View className="flex-row items-center justify-between mb-sm">
-                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {habit.name}
-                </Text>
-                <Switch
-                  value={habit.reminders_enabled ?? false}
-                  onValueChange={() => handleToggle(habit)}
-                  trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
-                  thumbColor="#fff"
-                />
-              </View>
-              {(habit.reminder_strategy === "interval" ||
-                habit.reminder_strategy === "conditional_interval") && (
-                <Text className="text-label-sm text-primary">
-                  {smartReminderSummary(
-                    habit.reminder_interval_minutes,
-                    habit.reminder_strategy as ReminderStrategy,
-                  )}
-                </Text>
-              )}
-              {habit.reminder_times && habit.reminder_times.length > 0 && (
-                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  Custom override: {habit.reminder_times.join(", ")}
-                </Text>
-              )}
-              {habit.reminder_days && habit.reminder_days.length < 7 && (
-                <View className="flex-row gap-xs mt-xs flex-wrap">
-                  {habit.reminder_days.map((d) => (
-                    <Text
-                      key={d}
-                      className="text-label-sm bg-primary-fixed text-primary px-xs py-xs rounded"
-                    >
-                      {DAY_LABELS[d]}
-                    </Text>
-                  ))}
-                </View>
-              )}
-              {habit.reminders_enabled && previewMessages[habit.id] && (
-                <View className="mt-sm flex-row items-center gap-xs bg-primary-fixed/40 rounded-lg px-sm py-xs">
-                  <MaterialCommunityIcons name="message-text-outline" size={14} color="#F26B1F" />
-                  <Text className="text-label-sm text-primary flex-1" numberOfLines={2}>
-                    {previewMessages[habit.id]}
+          {!loaded ? (
+            <ReminderSkeleton />
+          ) : (
+            habits.map((habit) => (
+              <View
+                key={habit.id}
+                className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md"
+              >
+                <View className="flex-row items-center justify-between mb-sm">
+                  <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                    {habit.name}
                   </Text>
+                  <Switch
+                    value={habit.reminders_enabled ?? false}
+                    onValueChange={() => handleToggle(habit)}
+                    trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
+                    thumbColor="#fff"
+                  />
                 </View>
-              )}
-            </View>
-          ))}
+                {(habit.reminder_strategy === "interval" ||
+                  habit.reminder_strategy === "conditional_interval") && (
+                  <Text className="text-label-sm text-primary">
+                    {smartReminderSummary(
+                      habit.reminder_interval_minutes,
+                      habit.reminder_strategy as ReminderStrategy,
+                    )}
+                  </Text>
+                )}
+                {habit.reminder_times && habit.reminder_times.length > 0 && (
+                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                    Custom override: {habit.reminder_times.join(", ")}
+                  </Text>
+                )}
+                {habit.reminder_days && habit.reminder_days.length < 7 && (
+                  <View className="flex-row gap-xs mt-xs flex-wrap">
+                    {habit.reminder_days.map((d) => (
+                      <Text
+                        key={d}
+                        className="text-label-sm bg-primary-fixed text-primary px-xs py-xs rounded"
+                      >
+                        {DAY_LABELS[d]}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+                {habit.reminders_enabled && previewMessages[habit.id] && (
+                  <View className="mt-sm flex-row items-center gap-xs bg-primary-fixed/40 rounded-lg px-sm py-xs">
+                    <MaterialCommunityIcons name="message-text-outline" size={14} color="#F26B1F" />
+                    <Text className="text-label-sm text-primary flex-1" numberOfLines={2}>
+                      {previewMessages[habit.id]}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function ReminderSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((item) => (
+        <View
+          key={item}
+          className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm"
+        >
+          <View className="flex-row items-center justify-between">
+            <SkeletonText width="54%" />
+            <Skeleton className="w-12 h-7 rounded-full" />
+          </View>
+          <SkeletonText className="h-3" width="66%" />
+        </View>
+      ))}
+    </>
   );
 }

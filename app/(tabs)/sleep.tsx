@@ -14,7 +14,7 @@ import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import HabitProgressVisual from "@/components/habit-progress-visual";
 import ProgressRing from "@/components/progress-ring";
-import { useTheme } from "@/components/theme-provider";
+import Skeleton, { SkeletonText } from "@/components/skeleton";
 import {
   getSleepDashboardData,
   getSleepPermissionStatus,
@@ -60,8 +60,6 @@ function scoreTone(score: number | null | undefined): string {
 }
 
 export default function SleepScreen() {
-  const { colorScheme } = useTheme();
-  const track = colorScheme === "dark" ? "#3d3450" : "#E6E0D5";
   const [data, setData] = useState<SleepDashboardData | null>(null);
   const [status, setStatus] = useState<SleepPermissionStatus | "checking" | "syncing" | "idle">(
     "idle",
@@ -70,9 +68,9 @@ export default function SleepScreen() {
   const [manualHours, setManualHours] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { force?: boolean }) => {
     const [dashboard, permission] = await Promise.all([
-      getSleepDashboardData(),
+      getSleepDashboardData(options),
       getSleepPermissionStatus(),
     ]);
     setData(dashboard);
@@ -92,7 +90,7 @@ export default function SleepScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await load();
+    await load({ force: true });
     setRefreshing(false);
   }
 
@@ -105,7 +103,7 @@ export default function SleepScreen() {
       setStatus(result.status ?? "idle");
       Alert.alert("Could not sync sleep", result.error ?? "Try again.");
     }
-    await load();
+    await load({ force: true });
     setBusy(false);
   }
 
@@ -122,7 +120,7 @@ export default function SleepScreen() {
     } else {
       setManualHours("");
     }
-    await load();
+    await load({ force: true });
     setBusy(false);
   }
 
@@ -142,88 +140,98 @@ export default function SleepScreen() {
           </Text>
         </View>
 
-        <View
-          className="mx-margin-mobile rounded-2xl p-lg gap-md"
-          style={{ backgroundColor: SLEEP_BG }}
-        >
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1">
-              <Text className="text-label-lg font-semibold" style={{ color: SLEEP_FG }}>
-                {scoreTone(latest?.score)}
-              </Text>
-              <Text className="text-display-sm font-bold" style={{ color: SLEEP_FG }}>
-                {latest ? latest.score : "--"}
-              </Text>
-              <Text className="text-body-sm" style={{ color: SLEEP_FG }}>
-                {latest
-                  ? `${formatHours(latest.duration_minutes)} synced from ${sourceLabel(latest.source)}`
-                  : "Sync or log sleep to calculate your score."}
-              </Text>
-            </View>
-            <ProgressRing
-              progress={latest ? latest.score / 100 : 0}
-              size={104}
-              strokeWidth={9}
-              color={SLEEP_FG}
-              trackColor="#E6E0D5"
-            >
-              <HabitProgressVisual
-                visualType="sleep_moon"
-                progress={durationRatio}
-                size="compact"
-                color={SLEEP_FG}
-                trackColor="#FFC56B"
-              />
-            </ProgressRing>
-          </View>
-
-          <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md">
-            <View className="flex-row items-center justify-between">
-              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                {formatHours(latest?.duration_minutes)} / {formatHours(targetMinutes)}
-              </Text>
-              <Text className="text-label-lg text-primary font-semibold">
-                {Math.round(durationRatio * 100)}%
-              </Text>
-            </View>
-            <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden mt-sm">
-              <View
-                className="h-2 rounded-full"
-                style={{ width: `${durationRatio * 100}%`, backgroundColor: SLEEP_FG }}
-              />
-            </View>
-          </View>
-        </View>
-
-        <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
-          <View className="flex-row items-center gap-sm">
-            <MaterialCommunityIcons
-              name={status === "granted" ? "check-circle" : "alert-circle-outline"}
-              size={22}
-              color={SLEEP_FG}
-            />
-            <View className="flex-1">
-              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                {statusLabel(status)}
-              </Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            className="bg-primary rounded-full py-sm items-center"
-            onPress={handleSync}
-            disabled={busy}
-            style={{ opacity: busy ? 0.6 : 1 }}
+        {data ? (
+          <View
+            className="mx-margin-mobile rounded-2xl p-lg gap-md"
+            style={{ backgroundColor: SLEEP_BG }}
           >
-            {busy && status === "syncing" ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">Sync recent sleep</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1">
+                <Text className="text-label-lg font-semibold" style={{ color: SLEEP_FG }}>
+                  {scoreTone(latest?.score)}
+                </Text>
+                <Text className="text-display-sm font-bold" style={{ color: SLEEP_FG }}>
+                  {latest ? latest.score : "--"}
+                </Text>
+                <Text className="text-body-sm" style={{ color: SLEEP_FG }}>
+                  {latest
+                    ? `${formatHours(latest.duration_minutes)} synced from ${sourceLabel(latest.source)}`
+                    : "Sync or log sleep to calculate your score."}
+                </Text>
+              </View>
+              <ProgressRing
+                progress={latest ? latest.score / 100 : 0}
+                size={104}
+                strokeWidth={9}
+                color={SLEEP_FG}
+                trackColor="#E6E0D5"
+              >
+                <HabitProgressVisual
+                  visualType="sleep_moon"
+                  progress={durationRatio}
+                  size="compact"
+                  color={SLEEP_FG}
+                  trackColor="#FFC56B"
+                />
+              </ProgressRing>
+            </View>
+
+            <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                  {formatHours(latest?.duration_minutes)} / {formatHours(targetMinutes)}
+                </Text>
+                <Text className="text-label-lg text-primary font-semibold">
+                  {Math.round(durationRatio * 100)}%
+                </Text>
+              </View>
+              <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden mt-sm">
+                <View
+                  className="h-2 rounded-full"
+                  style={{ width: `${durationRatio * 100}%`, backgroundColor: SLEEP_FG }}
+                />
+              </View>
+            </View>
+          </View>
+        ) : (
+          <SleepHeroSkeleton />
+        )}
+
+        {data ? (
+          <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
+            <View className="flex-row items-center gap-sm">
+              <MaterialCommunityIcons
+                name={status === "granted" ? "check-circle" : "alert-circle-outline"}
+                size={22}
+                color={SLEEP_FG}
+              />
+              <View className="flex-1">
+                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                  {statusLabel(status)}
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              className="bg-primary rounded-full py-sm items-center"
+              onPress={handleSync}
+              disabled={busy}
+              style={{ opacity: busy ? 0.6 : 1 }}
+            >
+              {busy && status === "syncing" ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-on-primary text-label-lg font-semibold">
+                  Sync recent sleep
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <SleepStatusSkeleton />
+        )}
 
         <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
           <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
@@ -253,7 +261,9 @@ export default function SleepScreen() {
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
             7-DAY TREND
           </Text>
-          {trend.length === 0 ? (
+          {!data ? (
+            <SleepTrendSkeleton />
+          ) : trend.length === 0 ? (
             <View className="items-center py-lg gap-xs">
               <MaterialCommunityIcons name="sleep" size={36} color={SLEEP_FG} />
               <Text className="text-body-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
@@ -298,5 +308,56 @@ export default function SleepScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function SleepHeroSkeleton() {
+  return (
+    <View className="mx-margin-mobile rounded-2xl p-lg gap-md bg-surface-container dark:bg-d-surface-container">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 gap-sm">
+          <SkeletonText width={104} />
+          <SkeletonText className="h-12" width={76} />
+          <SkeletonText width="82%" />
+        </View>
+        <Skeleton className="rounded-full" style={{ width: 104, height: 104 }} />
+      </View>
+      <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-sm">
+        <View className="flex-row justify-between">
+          <SkeletonText width={120} />
+          <SkeletonText width={44} />
+        </View>
+        <Skeleton className="h-2 rounded-full" />
+      </View>
+    </View>
+  );
+}
+
+function SleepStatusSkeleton() {
+  return (
+    <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
+      <View className="flex-row items-center gap-sm">
+        <Skeleton className="w-7 h-7 rounded-full" />
+        <View className="flex-1 gap-xs">
+          <SkeletonText width="48%" />
+          <SkeletonText className="h-3" width="88%" />
+        </View>
+      </View>
+      <Skeleton className="h-10 rounded-full" />
+    </View>
+  );
+}
+
+function SleepTrendSkeleton() {
+  return (
+    <View className="flex-row items-end justify-between" style={{ height: 142 }}>
+      {[0, 1, 2, 3, 4, 5, 6].map((item) => (
+        <View key={item} className="items-center gap-xs" style={{ width: 38 }}>
+          <SkeletonText className="h-3" width={24} />
+          <Skeleton className="w-7 rounded-full" style={{ height: 32 + item * 8 }} />
+          <SkeletonText className="h-3" width={20} />
+        </View>
+      ))}
+    </View>
   );
 }

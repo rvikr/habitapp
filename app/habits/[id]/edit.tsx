@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { Alert, View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { Alert, View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabit } from "@/lib/data/habits";
 import { updateHabitFull } from "@/lib/data/actions";
 import HabitForm from "@/components/habit-form";
+import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit } from "@/types/db";
 
 export default function EditHabitScreen() {
@@ -38,7 +39,13 @@ export default function EditHabitScreen() {
         className="flex-1 bg-background dark:bg-d-background items-center justify-center"
         edges={["top"]}
       >
-        <ActivityIndicator size="large" color="#F26B1F" />
+        <View className="w-full px-margin-mobile gap-md">
+          <SkeletonText className="h-8" width={140} />
+          <Skeleton className="h-14 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-14 rounded-xl" />
+          <Skeleton className="h-12 rounded-full" />
+        </View>
       </SafeAreaView>
     );
   }
