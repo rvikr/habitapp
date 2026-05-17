@@ -1,5 +1,7 @@
 # HabbitApp
 
+![CI](https://github.com/rvikr/habbitapp/actions/workflows/ci.yml/badge.svg)
+
 A cross-platform habit tracker for iOS, Android, and the web. Build daily habits, track
 streaks, log progress, and earn badges.
 
@@ -126,9 +128,11 @@ npx expo start                  # Dev server with QR code
 npx expo start --web            # Web only
 npx expo start --clear          # Clear bundler cache
 
-# Quality
-npx tsc --noEmit                # Typecheck
-npm test                        # Unit tests
+# Quality (all three run in CI on every PR)
+npm run typecheck               # tsc --noEmit
+npm run lint                    # ESLint (eslint-config-expo + prettier)
+npm run format                  # Prettier write
+npm test                        # Unit tests (node --experimental-strip-types)
 
 # Next website/admin
 cd website
@@ -152,6 +156,57 @@ npx eas-cli submit -p android
 # Web export (deploy dist/ to Vercel / Netlify / Cloudflare Pages)
 npx expo export -p web
 ```
+
+---
+
+## Deployment
+
+Three independent surfaces; pick the one you're changing.
+
+### Mobile (iOS + Android) — EAS
+
+EAS profiles live in [`eas.json`](eas.json) (`development`, `preview`, `production`).
+Builds: `npx eas-cli build -p ios --profile production`. OTA updates: `npx eas-cli update --branch production`.
+Store submission: `npx eas-cli submit -p ios|android`. See [`SHIPPING.md`](SHIPPING.md) for the full launch checklist.
+
+### Web (Expo web export → Cloud Run)
+
+The Expo web export is containerised and deployed to Google Cloud Run, not Vercel/Netlify (despite the option above being available).
+
+- [`Dockerfile`](Dockerfile) — two-stage build: `npx expo export --platform web` → static
+  assets served by nginx on port 8080. `EXPO_PUBLIC_*` env vars are passed as build args
+  so they're baked into the client bundle.
+- [`nginx.conf`](nginx.conf) — SPA-friendly nginx config (history-mode fallback).
+- [`.dockerignore`](.dockerignore) — excludes `node_modules`, `.expo`, `dist`, and
+  `website/` from the build context.
+- [`cloudbuild.yaml`](cloudbuild.yaml) — Cloud Build pipeline: build → push to
+  `gcr.io/lagan-495719/lagan` → `gcloud run deploy` in `asia-south2`. Trigger this on
+  push to `main` from a Cloud Build trigger.
+
+**One-time setup** (per environment):
+
+1. Create the Cloud Build trigger pointing at this repo.
+2. Add these trigger substitutions, sourcing the secret-shaped ones from Secret Manager:
+   `_SUPABASE_URL`, `_SUPABASE_ANON_KEY`, `_SENTRY_DSN`, `_POSTHOG_KEY`, `_POSTHOG_HOST`,
+   `_PRIVACY_POLICY_URL`.
+3. Grant the Cloud Build service account `roles/run.admin` and
+   `roles/iam.serviceAccountUser`.
+
+Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml --substitutions _SUPABASE_URL=...,_SUPABASE_ANON_KEY=...`.
+
+### Backend (Supabase)
+
+- Schema: [`supabase/schema.sql`](supabase/schema.sql) — run once in a fresh project via the SQL editor.
+- Migrations: [`supabase/migrations/`](supabase/migrations/) — apply in order. With the
+  Supabase CLI: `supabase db push`.
+- Admin tables: [`supabase/admin_schema.sql`](supabase/admin_schema.sql).
+- Leaderboard RPC: [`supabase/get_leaderboard.sql`](supabase/get_leaderboard.sql).
+- Edge Functions: [`supabase/functions/`](supabase/functions/) — `coach-message`,
+  `delete-account`, `habit-routine`. Deploy with
+  `supabase functions deploy <name> --project-ref <ref>`.
+
+The admin Next site under [`website/`](website/) is built separately
+(`cd website && npm run build`); it ships with its own deployment story not covered here.
 
 ---
 
