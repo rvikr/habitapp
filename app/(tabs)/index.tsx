@@ -4,20 +4,20 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import LogoChainL from "@/components/logo-chain-l";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { getHabitsForToday, getInsights } from "@/lib/habits";
-import { logCompletion, setCompletionValue, toggleHabit } from "@/lib/actions";
+import { getHabitsForToday, getInsights } from "@/lib/data/habits";
+import { logCompletion, setCompletionValue, toggleHabit } from "@/lib/data/actions";
 import InsightsStrip from "@/components/insights-strip";
-import type { Insights, StreaksMap } from "@/lib/habits";
+import type { Insights, StreaksMap } from "@/lib/data/habits";
 import { useCelebrate } from "@/components/celebration";
 import { useTheme } from "@/components/theme-provider";
-import { recordCompletionAndMaybeReview } from "@/lib/store-review";
-import { FIRST_LOGIN_WELCOME_BODY, FIRST_LOGIN_WELCOME_TITLE } from "@/lib/auth-welcome";
+import { recordCompletionAndMaybeReview } from "@/lib/platform/store-review";
+import { FIRST_LOGIN_WELCOME_BODY, FIRST_LOGIN_WELCOME_TITLE } from "@/lib/auth/auth-welcome";
 import HabitCard from "@/components/habit-card";
 import CoachCard from "@/components/coach-card";
 import LogPrompt from "@/components/log-prompt";
 import type { Habit } from "@/types/db";
-import { progressForHabit, type HabitProgress } from "@/lib/habit-intelligence";
-import type { CoachSignal } from "@/lib/coach";
+import { progressForHabit, type HabitProgress } from "@/lib/coach/habit-intelligence";
+import type { CoachSignal } from "@/lib/coach/coach";
 import {
   getStepPermissionStatus,
   getTodayStepSnapshot,
@@ -25,7 +25,7 @@ import {
   requestStepPermission,
   watchStepCount,
   type StepSubscription,
-} from "@/lib/steps";
+} from "@/lib/platform/steps";
 import Svg, { Circle } from "react-native-svg";
 
 type DashboardData = {
@@ -73,7 +73,10 @@ export default function DashboardScreen() {
   const { newUser } = useLocalSearchParams<{ newUser?: string }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
-  const [stepTracking, setStepTracking] = useState<StepTrackingState>({ status: "idle", lastSyncedAt: null });
+  const [stepTracking, setStepTracking] = useState<StepTrackingState>({
+    status: "idle",
+    lastSyncedAt: null,
+  });
   const dataRef = useRef<DashboardData | null>(null);
   const stepSubscriptionRef = useRef<StepSubscription | null>(null);
   const stepTrackingHabitIdRef = useRef<string | null>(null);
@@ -92,10 +95,20 @@ export default function DashboardScreen() {
 
   const load = useCallback(async () => {
     const [result, insights] = await Promise.all([getHabitsForToday(), getInsights()]);
-    setData({ ...result, completedToday: result.completedToday, todayProgress: result.todayProgress, streaksMap: result.streaksMap, insights });
+    setData({
+      ...result,
+      completedToday: result.completedToday,
+      todayProgress: result.todayProgress,
+      streaksMap: result.streaksMap,
+      insights,
+    });
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   const habits = data?.habits ?? [];
   const stepHabit = habits.find(isStepHabit) ?? null;
@@ -106,18 +119,22 @@ export default function DashboardScreen() {
     stepTrackingHabitIdRef.current = null;
   }, []);
 
-  useFocusEffect(useCallback(() => {
-    return () => {
-      const habit = dataRef.current?.habits.find((item) => item.id === stepTrackingHabitIdRef.current);
-      const steps = lastStepValueRef.current;
-      if (habit && steps > 0) {
-        void setCompletionValue(habit.id, steps, "Synced from step counter");
-      }
-      stepSubscriptionRef.current?.remove();
-      stepSubscriptionRef.current = null;
-      stepTrackingHabitIdRef.current = null;
-    };
-  }, []));
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        const habit = dataRef.current?.habits.find(
+          (item) => item.id === stepTrackingHabitIdRef.current,
+        );
+        const steps = lastStepValueRef.current;
+        if (habit && steps > 0) {
+          void setCompletionValue(habit.id, steps, "Synced from step counter");
+        }
+        stepSubscriptionRef.current?.remove();
+        stepSubscriptionRef.current = null;
+        stepTrackingHabitIdRef.current = null;
+      };
+    }, []),
+  );
 
   const updateLocalStepProgress = useCallback((habit: Habit, value: number) => {
     setData((current) => {
@@ -145,7 +162,11 @@ export default function DashboardScreen() {
     stepSavingRef.current = false;
 
     if (!result.ok) {
-      setStepTracking({ status: "error", lastSyncedAt: lastStepSaveAtRef.current || null, error: result.error });
+      setStepTracking({
+        status: "error",
+        lastSyncedAt: lastStepSaveAtRef.current || null,
+        error: result.error,
+      });
       return;
     }
 
@@ -153,89 +174,102 @@ export default function DashboardScreen() {
     setStepTracking({ status: "tracking", lastSyncedAt: now });
   }, []);
 
-  const syncStepHabit = useCallback(async (habit: Habit, shouldRequestPermission: boolean, forcePersist = true) => {
-    setStepTracking((current) => ({ ...current, status: current.status === "tracking" ? "syncing" : "checking" }));
+  const syncStepHabit = useCallback(
+    async (habit: Habit, shouldRequestPermission: boolean, forcePersist = true) => {
+      setStepTracking((current) => ({
+        ...current,
+        status: current.status === "tracking" ? "syncing" : "checking",
+      }));
 
-    const available = await isStepTrackingAvailable();
-    if (!available) {
-      stopStepWatcher();
-      setStepTracking({ status: "unsupported", lastSyncedAt: null });
-      return false;
-    }
+      const available = await isStepTrackingAvailable();
+      if (!available) {
+        stopStepWatcher();
+        setStepTracking({ status: "unsupported", lastSyncedAt: null });
+        return false;
+      }
 
-    let permission = await getStepPermissionStatus();
-    if (permission !== "granted" && shouldRequestPermission) {
-      permission = await requestStepPermission();
-    }
+      let permission = await getStepPermissionStatus();
+      if (permission !== "granted" && shouldRequestPermission) {
+        permission = await requestStepPermission();
+      }
 
-    if (permission !== "granted") {
-      stopStepWatcher();
-      setStepTracking({
-        status:
-          permission === "providerUpdateRequired"
-            ? "providerUpdateRequired"
-            : permission === "unavailable"
-              ? "unsupported"
-              : permission === "denied"
-                ? "denied"
-                : "needsPermission",
-        lastSyncedAt: null,
+      if (permission !== "granted") {
+        stopStepWatcher();
+        setStepTracking({
+          status:
+            permission === "providerUpdateRequired"
+              ? "providerUpdateRequired"
+              : permission === "unavailable"
+                ? "unsupported"
+                : permission === "denied"
+                  ? "denied"
+                  : "needsPermission",
+          lastSyncedAt: null,
+        });
+        return false;
+      }
+
+      const savedValue = dataRef.current?.todayProgress.get(habit.id)?.current ?? 0;
+      const snapshot = await getTodayStepSnapshot();
+      if (snapshot.status === "providerUpdateRequired") {
+        stopStepWatcher();
+        setStepTracking({ status: "providerUpdateRequired", lastSyncedAt: null });
+        return false;
+      }
+      if (snapshot.status === "unavailable" && snapshot.source !== "pedometer") {
+        stopStepWatcher();
+        setStepTracking({ status: "unsupported", lastSyncedAt: null });
+        return false;
+      }
+      if (snapshot.status !== "granted") {
+        stopStepWatcher();
+        setStepTracking({
+          status: snapshot.status === "denied" ? "denied" : "needsPermission",
+          lastSyncedAt: null,
+        });
+        return false;
+      }
+
+      const baseline = Math.max(savedValue, snapshot.steps ?? 0);
+      stepBaseRef.current = baseline;
+      lastStepValueRef.current = baseline;
+      stepTrackingHabitIdRef.current = habit.id;
+
+      if (baseline > 0) {
+        updateLocalStepProgress(habit, baseline);
+        await persistStepCount(habit, baseline, forcePersist);
+      }
+
+      if (!snapshot.canWatch) {
+        stopStepWatcher();
+        setStepTracking({ status: "synced", lastSyncedAt: Date.now() });
+        return true;
+      }
+
+      stepSubscriptionRef.current?.remove();
+      const subscription = watchStepCount((sessionSteps) => {
+        const totalSteps = Math.max(lastStepValueRef.current, stepBaseRef.current + sessionSteps);
+        if (totalSteps <= lastStepValueRef.current) return;
+        lastStepValueRef.current = totalSteps;
+        updateLocalStepProgress(habit, totalSteps);
+        void persistStepCount(habit, totalSteps);
       });
-      return false;
-    }
 
-    const savedValue = dataRef.current?.todayProgress.get(habit.id)?.current ?? 0;
-    const snapshot = await getTodayStepSnapshot();
-    if (snapshot.status === "providerUpdateRequired") {
-      stopStepWatcher();
-      setStepTracking({ status: "providerUpdateRequired", lastSyncedAt: null });
-      return false;
-    }
-    if (snapshot.status === "unavailable" && snapshot.source !== "pedometer") {
-      stopStepWatcher();
-      setStepTracking({ status: "unsupported", lastSyncedAt: null });
-      return false;
-    }
-    if (snapshot.status !== "granted") {
-      stopStepWatcher();
-      setStepTracking({ status: snapshot.status === "denied" ? "denied" : "needsPermission", lastSyncedAt: null });
-      return false;
-    }
+      if (!subscription) {
+        setStepTracking({
+          status: "error",
+          lastSyncedAt: lastStepSaveAtRef.current || null,
+          error: "Could not start step tracking.",
+        });
+        return false;
+      }
 
-    const baseline = Math.max(savedValue, snapshot.steps ?? 0);
-    stepBaseRef.current = baseline;
-    lastStepValueRef.current = baseline;
-    stepTrackingHabitIdRef.current = habit.id;
-
-    if (baseline > 0) {
-      updateLocalStepProgress(habit, baseline);
-      await persistStepCount(habit, baseline, forcePersist);
-    }
-
-    if (!snapshot.canWatch) {
-      stopStepWatcher();
-      setStepTracking({ status: "synced", lastSyncedAt: Date.now() });
+      stepSubscriptionRef.current = subscription;
+      setStepTracking((current) => ({ status: "tracking", lastSyncedAt: current.lastSyncedAt }));
       return true;
-    }
-
-    stepSubscriptionRef.current?.remove();
-    const subscription = watchStepCount((sessionSteps) => {
-      const totalSteps = Math.max(lastStepValueRef.current, stepBaseRef.current + sessionSteps);
-      if (totalSteps <= lastStepValueRef.current) return;
-      lastStepValueRef.current = totalSteps;
-      updateLocalStepProgress(habit, totalSteps);
-      void persistStepCount(habit, totalSteps);
-    });
-
-    if (!subscription) {
-      setStepTracking({ status: "error", lastSyncedAt: lastStepSaveAtRef.current || null, error: "Could not start step tracking." });
-      return false;
-    }
-
-    stepSubscriptionRef.current = subscription;
-    setStepTracking((current) => ({ status: "tracking", lastSyncedAt: current.lastSyncedAt }));
-    return true;
-  }, [persistStepCount, stopStepWatcher, updateLocalStepProgress]);
+    },
+    [persistStepCount, stopStepWatcher, updateLocalStepProgress],
+  );
 
   useEffect(() => {
     if (!stepHabit) {
@@ -268,7 +302,10 @@ export default function DashboardScreen() {
     if (isStepHabit(habit)) {
       const ok = await syncStepHabit(habit, true, true);
       if (!ok) {
-        Alert.alert("Step tracking unavailable", "Open the habit to log steps manually, or enable motion access in your device settings.");
+        Alert.alert(
+          "Step tracking unavailable",
+          "Open the habit to log steps manually, or enable motion access in your device settings.",
+        );
       }
       return;
     }
@@ -282,7 +319,7 @@ export default function DashboardScreen() {
     setData({ ...data, completedToday: next });
     const result = await toggleHabit(habitId, wasDone, habit.target as number | null);
     if (!result.ok) {
-      setData((current) => current ? { ...current, completedToday: previous } : current);
+      setData((current) => (current ? { ...current, completedToday: previous } : current));
       Alert.alert("Could not update habit", result.error ?? "Try again.");
       return;
     }
@@ -304,7 +341,11 @@ export default function DashboardScreen() {
       return;
     }
     if (signal.suggestedAction === "log_value" && signal.suggestedValue) {
-      const result = await logCompletion(signal.habitId, signal.suggestedValue, "Logged from AI coach");
+      const result = await logCompletion(
+        signal.habitId,
+        signal.suggestedValue,
+        "Logged from AI coach",
+      );
       if (!result.ok) {
         Alert.alert("Could not log progress", result.error ?? "Try again.");
         return;
@@ -328,12 +369,16 @@ export default function DashboardScreen() {
     return { ok: true };
   }
 
-  const completedCount = data ? [...data.completedToday].filter(id => habits.some(h => h.id === id)).length : 0;
+  const completedCount = data
+    ? [...data.completedToday].filter((id) => habits.some((h) => h.id === id)).length
+    : 0;
   const total = habits.length;
   const progress = total > 0 ? completedCount / total : 0;
   const progressItems = data ? [...data.todayProgress.values()] : [];
-  const metricProgress = total > 0 ? progressItems.reduce((sum, item) => sum + item.ratio, 0) / total : 0;
-  const activeProgress = total > 0 ? progressItems.filter((item) => item.current > 0 || item.isDone).length / total : 0;
+  const metricProgress =
+    total > 0 ? progressItems.reduce((sum, item) => sum + item.ratio, 0) / total : 0;
+  const activeProgress =
+    total > 0 ? progressItems.filter((item) => item.current > 0 || item.isDone).length / total : 0;
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
@@ -350,8 +395,12 @@ export default function DashboardScreen() {
           >
             <MaterialCommunityIcons name="party-popper" size={22} color={primary} />
             <View className="flex-1">
-              <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">{FIRST_LOGIN_WELCOME_TITLE}</Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{FIRST_LOGIN_WELCOME_BODY}</Text>
+              <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
+                {FIRST_LOGIN_WELCOME_TITLE}
+              </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {FIRST_LOGIN_WELCOME_BODY}
+              </Text>
             </View>
             <MaterialCommunityIcons name="close" size={18} color={primary} />
           </TouchableOpacity>
@@ -360,8 +409,15 @@ export default function DashboardScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between px-margin-mobile pt-md pb-sm">
           <View>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant" style={{ letterSpacing: 0.3, textTransform: "uppercase" }}>
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+            <Text
+              className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
+              style={{ letterSpacing: 0.3, textTransform: "uppercase" }}
+            >
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+              })}
             </Text>
             <Text
               className="text-headline-lg text-on-background dark:text-d-on-background"
@@ -391,7 +447,9 @@ export default function DashboardScreen() {
             trackColor={primaryTrack}
           />
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
-            {completedCount === total && total > 0 ? "All done! Great work 🎉" : `${total - completedCount} habit${total - completedCount === 1 ? "" : "s"} remaining`}
+            {completedCount === total && total > 0
+              ? "All done! Great work 🎉"
+              : `${total - completedCount} habit${total - completedCount === 1 ? "" : "s"} remaining`}
           </Text>
         </View>
 
@@ -403,8 +461,12 @@ export default function DashboardScreen() {
           >
             <MaterialCommunityIcons name="trophy-outline" size={22} color={primary} />
             <View className="flex-1">
-              <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">Join the global leaderboard</Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">Set a display name to rank with others</Text>
+              <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
+                Join the global leaderboard
+              </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                Set a display name to rank with others
+              </Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color={primary} />
           </TouchableOpacity>
@@ -442,14 +504,21 @@ export default function DashboardScreen() {
 
         {/* Habits list */}
         <View className="px-margin-mobile gap-sm">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs" style={{ letterSpacing: 0.6 }}>TODAY'S HABITS</Text>
+          <Text
+            className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs"
+            style={{ letterSpacing: 0.6 }}
+          >
+            TODAY'S HABITS
+          </Text>
           {habits.length === 0 ? (
             <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-lg gap-md">
               <View className="items-center gap-sm">
                 <View className="w-14 h-14 rounded-full bg-primary-fixed items-center justify-center">
                   <MaterialCommunityIcons name="auto-fix" size={28} color={primary} />
                 </View>
-                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">Build your first routine</Text>
+                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                  Build your first routine
+                </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
                   Answer a few questions and get a small habit routine matched to your day.
                 </Text>
@@ -458,7 +527,9 @@ export default function DashboardScreen() {
                 className="bg-primary rounded-full py-sm items-center"
                 onPress={() => router.push("/habits/wizard")}
               >
-                <Text className="text-on-primary text-label-lg font-semibold">Build my routine</Text>
+                <Text className="text-on-primary text-label-lg font-semibold">
+                  Build my routine
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 className="bg-surface-lowest dark:bg-d-surface-lowest rounded-full py-sm items-center"
@@ -513,7 +584,7 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
         : state.status === "denied"
           ? "Enable Health Connect steps access or motion access, or log steps manually from the habit screen."
           : state.status === "error"
-            ? state.error ?? "Could not sync steps. Try again."
+            ? (state.error ?? "Could not sync steps. Try again.")
             : "Use Health Connect to update your Walk habit from today's Android step total.";
   const action = busy ? "Checking..." : state.status === "denied" ? "Retry" : "Enable";
 
@@ -526,8 +597,12 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
     >
       <MaterialCommunityIcons name="walk" size={24} color={primary} />
       <View className="flex-1">
-        <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">{title}</Text>
-        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{body}</Text>
+        <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
+          {title}
+        </Text>
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+          {body}
+        </Text>
       </View>
       {!disabled && <Text className="text-primary text-label-lg font-semibold">{action}</Text>}
     </TouchableOpacity>
@@ -549,7 +624,15 @@ function StatusArc({ progress, size, strokeWidth, color, trackColor }: StatusArc
 
   return (
     <Svg width={size} height={size} style={{ position: "absolute" }}>
-      <Circle cx={size / 2} cy={size / 2} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" opacity={0.45} />
+      <Circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        stroke={trackColor}
+        strokeWidth={strokeWidth}
+        fill="none"
+        opacity={0.45}
+      />
       <Circle
         cx={size / 2}
         cy={size / 2}
@@ -586,11 +669,31 @@ function HabitStatusRings({
 }: HabitStatusRingsProps) {
   return (
     <View style={{ width: 184, height: 184, alignItems: "center", justifyContent: "center" }}>
-      <StatusArc progress={completedProgress} size={176} strokeWidth={11} color="#F26B1F" trackColor={trackColor} />
-      <StatusArc progress={metricProgress} size={148} strokeWidth={10} color="#FFC56B" trackColor={trackColor} />
-      <StatusArc progress={activeProgress} size={120} strokeWidth={9} color="#3EBB7F" trackColor={trackColor} />
+      <StatusArc
+        progress={completedProgress}
+        size={176}
+        strokeWidth={11}
+        color="#F26B1F"
+        trackColor={trackColor}
+      />
+      <StatusArc
+        progress={metricProgress}
+        size={148}
+        strokeWidth={10}
+        color="#FFC56B"
+        trackColor={trackColor}
+      />
+      <StatusArc
+        progress={activeProgress}
+        size={120}
+        strokeWidth={9}
+        color="#3EBB7F"
+        trackColor={trackColor}
+      />
       <View className="w-20 h-20 rounded-full bg-surface-lowest dark:bg-d-surface-lowest items-center justify-center">
-        <Text className="text-headline-md">{completedCount === total && total > 0 ? "😊" : "🙂"}</Text>
+        <Text className="text-headline-md">
+          {completedCount === total && total > 0 ? "😊" : "🙂"}
+        </Text>
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
           {completedCount}/{total}
         </Text>

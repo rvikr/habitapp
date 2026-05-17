@@ -1,5 +1,5 @@
 import { createClient as _createClient, type Session, type User } from "@supabase/supabase-js";
-import { secureStorage } from "@/lib/secure-storage";
+import { secureStorage } from "../platform/secure-storage";
 import { isMissingRefreshTokenError } from "./auth-error";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
@@ -38,7 +38,8 @@ export const supabase = _createClient(
 
 export function configurationError() {
   return {
-    message: "Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY before signing in.",
+    message:
+      "Supabase is not configured. Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY before signing in.",
   };
 }
 

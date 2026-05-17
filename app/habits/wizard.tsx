@@ -1,12 +1,24 @@
 import { useState } from "react";
-import { Alert, ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Icon from "@/components/icon";
-import { createHabit } from "@/lib/actions";
-import { buildRoutineRecommendations, type HabitRecommendation, type RoutineWizardAnswers } from "@/lib/routine-builder";
-import { refineRoutineRecommendations } from "@/lib/routine-ai";
+import { createHabit } from "@/lib/data/actions";
+import {
+  buildRoutineRecommendations,
+  type HabitRecommendation,
+  type RoutineWizardAnswers,
+} from "@/lib/coach/routine-builder";
+import { refineRoutineRecommendations } from "@/lib/coach/routine-ai";
 
 type StepId = "goals" | "lifestyle" | "sleep" | "workload" | "stress" | "fitnessLevel";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
@@ -52,13 +64,37 @@ const FITNESS_OPTIONS: Option<RoutineWizardAnswers["fitnessLevel"]>[] = [
   { value: "advanced", label: "Advanced", detail: "Ready for more", icon: "arm-flex" },
 ];
 
-const STEPS: Array<{ id: StepId; title: string; subtitle: string }> = [
-  { id: "goals", title: "What do you want to improve?", subtitle: "Pick any goals that matter this week." },
-  { id: "lifestyle", title: "What does your day look like?", subtitle: "This shapes the kind of habits I suggest." },
-  { id: "sleep", title: "How is your sleep lately?", subtitle: "Sleep decides how ambitious the routine should be." },
-  { id: "workload", title: "How busy are your days?", subtitle: "A good routine has to survive real life." },
-  { id: "stress", title: "How stressed do you feel?", subtitle: "Stress changes the first habits worth building." },
-  { id: "fitnessLevel", title: "Where is your fitness level?", subtitle: "Movement goals should feel doable from day one." },
+const STEPS: { id: StepId; title: string; subtitle: string }[] = [
+  {
+    id: "goals",
+    title: "What do you want to improve?",
+    subtitle: "Pick any goals that matter this week.",
+  },
+  {
+    id: "lifestyle",
+    title: "What does your day look like?",
+    subtitle: "This shapes the kind of habits I suggest.",
+  },
+  {
+    id: "sleep",
+    title: "How is your sleep lately?",
+    subtitle: "Sleep decides how ambitious the routine should be.",
+  },
+  {
+    id: "workload",
+    title: "How busy are your days?",
+    subtitle: "A good routine has to survive real life.",
+  },
+  {
+    id: "stress",
+    title: "How stressed do you feel?",
+    subtitle: "Stress changes the first habits worth building.",
+  },
+  {
+    id: "fitnessLevel",
+    title: "Where is your fitness level?",
+    subtitle: "Movement goals should feel doable from day one.",
+  },
 ];
 
 const INITIAL_ANSWERS: RoutineWizardAnswers = {
@@ -93,7 +129,9 @@ export default function HabitWizardScreen() {
   }
 
   function updateRecommendation(id: string, patch: Partial<HabitRecommendation>) {
-    setRecommendations((current) => current?.map((item) => item.id === id ? { ...item, ...patch } : item) ?? null);
+    setRecommendations(
+      (current) => current?.map((item) => (item.id === id ? { ...item, ...patch } : item)) ?? null,
+    );
   }
 
   async function buildRoutine() {
@@ -143,7 +181,9 @@ export default function HabitWizardScreen() {
     setCreating(false);
 
     const failures = results
-      .map((result, i) => (result.ok ? null : `${selected[i].name}: ${result.error ?? "Could not create habit."}`))
+      .map((result, i) =>
+        result.ok ? null : `${selected[i].name}: ${result.error ?? "Could not create habit."}`,
+      )
       .filter((msg): msg is string => msg !== null);
 
     if (failures.length > 0) {
@@ -156,11 +196,17 @@ export default function HabitWizardScreen() {
   if (recommendations) {
     return (
       <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
-        <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <WizardHeader title="Your Routine" onBack={() => setRecommendations(null)} />
           <View className="px-margin-mobile gap-md">
             <View className="bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md gap-xs">
-              <Text className="text-label-lg text-primary">{generatedByAi ? "AI-REFINED ROUTINE" : "SMART STARTER ROUTINE"}</Text>
+              <Text className="text-label-lg text-primary">
+                {generatedByAi ? "AI-REFINED ROUTINE" : "SMART STARTER ROUTINE"}
+              </Text>
               <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
                 {selectedCount} habit{selectedCount === 1 ? "" : "s"} selected
               </Text>
@@ -178,10 +224,19 @@ export default function HabitWizardScreen() {
             {recommendations.map((item) => {
               const editing = editingId === item.id;
               return (
-                <View key={item.id} className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-sm">
+                <View
+                  key={item.id}
+                  className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-sm"
+                >
                   <View className="flex-row items-start gap-md">
-                    <View className={`w-12 h-12 rounded-full items-center justify-center ${item.selected ? "bg-primary-fixed" : "bg-surface-container dark:bg-d-surface-container"}`}>
-                      <Icon name={item.icon} size={24} color={item.selected ? "#F26B1F" : "#8F8A82"} />
+                    <View
+                      className={`w-12 h-12 rounded-full items-center justify-center ${item.selected ? "bg-primary-fixed" : "bg-surface-container dark:bg-d-surface-container"}`}
+                    >
+                      <Icon
+                        name={item.icon}
+                        size={24}
+                        color={item.selected ? "#F26B1F" : "#8F8A82"}
+                      />
                     </View>
                     <View className="flex-1 gap-xs">
                       {editing ? (
@@ -193,34 +248,48 @@ export default function HabitWizardScreen() {
                           placeholderTextColor="#8F8A82"
                         />
                       ) : (
-                        <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">{item.name}</Text>
+                        <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                          {item.name}
+                        </Text>
                       )}
-                      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{item.description}</Text>
+                      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                        {item.description}
+                      </Text>
                       <Text className="text-label-sm text-primary">{item.reason}</Text>
                     </View>
                     <TouchableOpacity
                       className={`w-9 h-9 rounded-full items-center justify-center ${item.selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
                       onPress={() => updateRecommendation(item.id, { selected: !item.selected })}
                     >
-                      <MaterialCommunityIcons name={item.selected ? "check" : "plus"} size={20} color={item.selected ? "#ffffff" : "#F26B1F"} />
+                      <MaterialCommunityIcons
+                        name={item.selected ? "check" : "plus"}
+                        size={20}
+                        color={item.selected ? "#ffffff" : "#F26B1F"}
+                      />
                     </TouchableOpacity>
                   </View>
 
                   {editing && (
                     <View className="flex-row gap-sm">
                       <View className="flex-1">
-                        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mb-xs">TARGET</Text>
+                        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+                          TARGET
+                        </Text>
                         <TextInput
                           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
                           value={item.target == null ? "" : String(item.target)}
-                          onChangeText={(value) => updateRecommendation(item.id, { target: parseTarget(value) })}
+                          onChangeText={(value) =>
+                            updateRecommendation(item.id, { target: parseTarget(value) })
+                          }
                           keyboardType="decimal-pad"
                           placeholder="Optional"
                           placeholderTextColor="#8F8A82"
                         />
                       </View>
                       <View className="flex-1">
-                        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mb-xs">UNIT</Text>
+                        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+                          UNIT
+                        </Text>
                         <TextInput
                           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
                           value={item.unit}
@@ -237,13 +306,17 @@ export default function HabitWizardScreen() {
                       className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-xs items-center"
                       onPress={() => setEditingId(editing ? null : item.id)}
                     >
-                      <Text className="text-label-lg text-primary font-semibold">{editing ? "Done" : "Edit"}</Text>
+                      <Text className="text-label-lg text-primary font-semibold">
+                        {editing ? "Done" : "Edit"}
+                      </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-xs items-center"
                       onPress={() => updateRecommendation(item.id, { selected: false })}
                     >
-                      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">Remove</Text>
+                      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
+                        Remove
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -255,7 +328,11 @@ export default function HabitWizardScreen() {
               onPress={createRoutine}
               disabled={creating}
             >
-              {creating ? <ActivityIndicator color="#fff" /> : <Text className="text-on-primary text-label-lg font-semibold">Create routine</Text>}
+              {creating ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-on-primary text-label-lg font-semibold">Create routine</Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -269,72 +346,90 @@ export default function HabitWizardScreen() {
         <WizardHeader title="Habit Builder" onBack={() => router.back()} />
         <View className="px-margin-mobile gap-lg">
           <View className="gap-xs">
-            <Text className="text-label-lg text-primary">STEP {stepIndex + 1} OF {STEPS.length}</Text>
-            <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">{step.title}</Text>
-            <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">{step.subtitle}</Text>
+            <Text className="text-label-lg text-primary">
+              STEP {stepIndex + 1} OF {STEPS.length}
+            </Text>
+            <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">
+              {step.title}
+            </Text>
+            <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
+              {step.subtitle}
+            </Text>
           </View>
 
           <View className="gap-sm">
-            {step.id === "goals" && GOAL_OPTIONS.map((option) => (
-              <ChoiceRow
-                key={option.value}
-                option={option}
-                selected={answers.goals.includes(option.value)}
-                onPress={() => toggleGoal(option.value)}
-              />
-            ))}
-            {step.id === "lifestyle" && LIFESTYLE_OPTIONS.map((option) => (
-              <ChoiceRow
-                key={option.value}
-                option={option}
-                selected={answers.lifestyle === option.value}
-                onPress={() => setAnswers((current) => ({ ...current, lifestyle: option.value }))}
-              />
-            ))}
-            {step.id === "sleep" && SLEEP_OPTIONS.map((option) => (
-              <ChoiceRow
-                key={option.value}
-                option={option}
-                selected={answers.sleep === option.value}
-                onPress={() => setAnswers((current) => ({ ...current, sleep: option.value }))}
-              />
-            ))}
-            {step.id === "workload" && WORKLOAD_OPTIONS.map((option) => (
-              <ChoiceRow
-                key={option.value}
-                option={option}
-                selected={answers.workload === option.value}
-                onPress={() => setAnswers((current) => ({ ...current, workload: option.value }))}
-              />
-            ))}
-            {step.id === "stress" && STRESS_OPTIONS.map((option) => (
-              <ChoiceRow
-                key={option.value}
-                option={option}
-                selected={answers.stress === option.value}
-                onPress={() => setAnswers((current) => ({ ...current, stress: option.value }))}
-              />
-            ))}
-            {step.id === "fitnessLevel" && FITNESS_OPTIONS.map((option) => (
-              <ChoiceRow
-                key={option.value}
-                option={option}
-                selected={answers.fitnessLevel === option.value}
-                onPress={() => setAnswers((current) => ({ ...current, fitnessLevel: option.value }))}
-              />
-            ))}
+            {step.id === "goals" &&
+              GOAL_OPTIONS.map((option) => (
+                <ChoiceRow
+                  key={option.value}
+                  option={option}
+                  selected={answers.goals.includes(option.value)}
+                  onPress={() => toggleGoal(option.value)}
+                />
+              ))}
+            {step.id === "lifestyle" &&
+              LIFESTYLE_OPTIONS.map((option) => (
+                <ChoiceRow
+                  key={option.value}
+                  option={option}
+                  selected={answers.lifestyle === option.value}
+                  onPress={() => setAnswers((current) => ({ ...current, lifestyle: option.value }))}
+                />
+              ))}
+            {step.id === "sleep" &&
+              SLEEP_OPTIONS.map((option) => (
+                <ChoiceRow
+                  key={option.value}
+                  option={option}
+                  selected={answers.sleep === option.value}
+                  onPress={() => setAnswers((current) => ({ ...current, sleep: option.value }))}
+                />
+              ))}
+            {step.id === "workload" &&
+              WORKLOAD_OPTIONS.map((option) => (
+                <ChoiceRow
+                  key={option.value}
+                  option={option}
+                  selected={answers.workload === option.value}
+                  onPress={() => setAnswers((current) => ({ ...current, workload: option.value }))}
+                />
+              ))}
+            {step.id === "stress" &&
+              STRESS_OPTIONS.map((option) => (
+                <ChoiceRow
+                  key={option.value}
+                  option={option}
+                  selected={answers.stress === option.value}
+                  onPress={() => setAnswers((current) => ({ ...current, stress: option.value }))}
+                />
+              ))}
+            {step.id === "fitnessLevel" &&
+              FITNESS_OPTIONS.map((option) => (
+                <ChoiceRow
+                  key={option.value}
+                  option={option}
+                  selected={answers.fitnessLevel === option.value}
+                  onPress={() =>
+                    setAnswers((current) => ({ ...current, fitnessLevel: option.value }))
+                  }
+                />
+              ))}
           </View>
 
           <View className="flex-row gap-sm">
             <TouchableOpacity
               className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-md items-center"
-              onPress={() => stepIndex === 0 ? router.back() : setStepIndex((value) => value - 1)}
+              onPress={() => (stepIndex === 0 ? router.back() : setStepIndex((value) => value - 1))}
             >
-              <Text className="text-label-lg text-primary font-semibold">{stepIndex === 0 ? "Cancel" : "Back"}</Text>
+              <Text className="text-label-lg text-primary font-semibold">
+                {stepIndex === 0 ? "Cancel" : "Back"}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               className="flex-1 bg-primary rounded-full py-md items-center"
-              onPress={() => stepIndex === STEPS.length - 1 ? buildRoutine() : setStepIndex((value) => value + 1)}
+              onPress={() =>
+                stepIndex === STEPS.length - 1 ? buildRoutine() : setStepIndex((value) => value + 1)
+              }
             >
               <Text className="text-label-lg text-on-primary font-semibold">
                 {stepIndex === STEPS.length - 1 ? "Build routine" : "Next"}
@@ -358,21 +453,43 @@ function WizardHeader({ title, onBack }: { title: string; onBack: () => void }) 
   );
 }
 
-function ChoiceRow({ option, selected, onPress }: { option: Option; selected: boolean; onPress: () => void }) {
+function ChoiceRow({
+  option,
+  selected,
+  onPress,
+}: {
+  option: Option;
+  selected: boolean;
+  onPress: () => void;
+}) {
   return (
     <TouchableOpacity
       className={`flex-row items-center rounded-xl p-md gap-md ${selected ? "bg-primary-fixed dark:bg-d-surface-high" : "bg-surface-lowest dark:bg-d-surface-lowest"}`}
       onPress={onPress}
       activeOpacity={0.75}
     >
-      <View className={`w-11 h-11 rounded-full items-center justify-center ${selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}>
-        <MaterialCommunityIcons name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={21} color={selected ? "#ffffff" : "#F26B1F"} />
+      <View
+        className={`w-11 h-11 rounded-full items-center justify-center ${selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
+      >
+        <MaterialCommunityIcons
+          name={option.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+          size={21}
+          color={selected ? "#ffffff" : "#F26B1F"}
+        />
       </View>
       <View className="flex-1">
-        <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">{option.label}</Text>
-        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{option.detail}</Text>
+        <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+          {option.label}
+        </Text>
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+          {option.detail}
+        </Text>
       </View>
-      <MaterialCommunityIcons name={selected ? "check-circle" : "circle-outline"} size={22} color={selected ? "#F26B1F" : "#8F8A82"} />
+      <MaterialCommunityIcons
+        name={selected ? "check-circle" : "circle-outline"}
+        size={22}
+        color={selected ? "#F26B1F" : "#8F8A82"}
+      />
     </TouchableOpacity>
   );
 }

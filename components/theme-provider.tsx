@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import { Appearance, Platform, useColorScheme as useRNColorScheme } from "react-native";
 import { colorScheme as nwColorScheme } from "nativewind";
-import { getItem, setItem } from "@/lib/storage";
+import { getItem, setItem } from "@/lib/platform/storage";
 
 const STORAGE_KEY = "habbit:theme";
 
@@ -41,11 +41,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setItem(STORAGE_KEY, next);
   }
 
-  return (
-    <ThemeContext.Provider value={{ colorScheme, toggle }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={{ colorScheme, toggle }}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

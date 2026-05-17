@@ -1,6 +1,6 @@
 import { TouchableOpacity, Text } from "react-native";
 import { useRouter } from "expo-router";
-import { signOut } from "@/lib/actions";
+import { signOut } from "@/lib/data/actions";
 
 type Props = { className?: string };
 

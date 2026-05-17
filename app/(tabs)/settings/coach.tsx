@@ -4,10 +4,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getCurrentUser, supabase } from "@/lib/supabase/client";
-import { updateCoachTone } from "@/lib/actions";
-import { normalizeCoachTone, type CoachTone } from "@/lib/coach";
+import { updateCoachTone } from "@/lib/data/actions";
+import { normalizeCoachTone, type CoachTone } from "@/lib/coach/coach";
 
-const TONES: Array<{ id: CoachTone; label: string; sample: string }> = [
+const TONES: { id: CoachTone; label: string; sample: string }[] = [
   { id: "friendly", label: "Friendly", sample: "You can still make progress today." },
   { id: "motivational", label: "Motivational", sample: "Build momentum with one strong step." },
   { id: "calm", label: "Calm", sample: "A smaller version counts." },
@@ -31,7 +31,11 @@ export default function CoachSettingsScreen() {
     setTone(normalizeCoachTone(data?.coach_tone as string | null | undefined));
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   async function handleSelect(nextTone: CoachTone) {
     setTone(nextTone);
@@ -50,7 +54,9 @@ export default function CoachSettingsScreen() {
         <TouchableOpacity onPress={() => router.back()} className="mr-md">
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
-        <Text className="text-headline-md text-on-background dark:text-d-on-background">AI Coach</Text>
+        <Text className="text-headline-md text-on-background dark:text-d-on-background">
+          AI Coach
+        </Text>
       </View>
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
@@ -70,8 +76,12 @@ export default function CoachSettingsScreen() {
                   color={active ? "#F26B1F" : "#8F8A82"}
                 />
                 <View className="flex-1">
-                  <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">{item.label}</Text>
-                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{item.sample}</Text>
+                  <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                    {item.label}
+                  </Text>
+                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                    {item.sample}
+                  </Text>
                 </View>
                 {saving === item.id && <Text className="text-label-sm text-primary">Saving</Text>}
               </TouchableOpacity>

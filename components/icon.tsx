@@ -1,4 +1,4 @@
-﻿import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
 const ICON_MAP: Record<string, string> = {
   // Navigation

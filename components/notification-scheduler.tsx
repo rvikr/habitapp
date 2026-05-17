@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { syncScheduledReminders } from "@/lib/reminder-sync";
+import { syncScheduledReminders } from "@/lib/data/reminder-sync";
 
 export default function NotificationScheduler() {
   const router = useRouter();

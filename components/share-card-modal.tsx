@@ -1,4 +1,4 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
-import { getBadgeShareMessage, getRankShareMessage } from "@/lib/share-messages";
+import { getBadgeShareMessage, getRankShareMessage } from "@/lib/utils/share-messages";
 
 const APP_URL = "https://lagan.health";
 
@@ -20,14 +20,14 @@ const TONE_ACCENT: Record<string, string> = {
   yellow: "#f59e0b",
   orange: "#ea580c",
   purple: "#7c3aed",
-  teal:   "#0d9488",
+  teal: "#0d9488",
   indigo: "#4338ca",
-  red:    "#dc2626",
+  red: "#dc2626",
 };
 
 export type ShareCardData =
   | { kind: "badge"; id: string; name: string; description: string; tone: string }
-  | { kind: "rank";  rank: number; streak: number; topPct: number | null };
+  | { kind: "rank"; rank: number; streak: number; topPct: number | null };
 
 interface Props {
   data: ShareCardData | null;
@@ -44,20 +44,28 @@ export default function ShareCardModal({ data, onClose }: Props) {
       const cardPath = `/api/og/card?type=badge&id=${data.id}&name=${encodeURIComponent(data.name)}&tone=${data.tone}`;
       return { ...msg, cardPath };
     } else {
-      const msg = getRankShareMessage({ rank: data.rank, streak: data.streak, topPct: data.topPct });
+      const msg = getRankShareMessage({
+        rank: data.rank,
+        streak: data.streak,
+        topPct: data.topPct,
+      });
       const cardPath = `/api/og/card?type=rank&rank=${data.rank}&streak=${data.streak}&pct=${data.topPct ?? 50}`;
       return { ...msg, cardPath };
     }
   }, [data]);
 
-  const accentColor = data?.kind === "badge"
-    ? (TONE_ACCENT[data.tone] ?? "#4338ca")
-    : data?.kind === "rank"
-      ? (data.topPct != null && data.topPct <= 1  ? "#7c3aed"
-       : data.topPct != null && data.topPct <= 5  ? "#d97706"
-       : data.topPct != null && data.topPct <= 10 ? "#0d9488"
-       : "#4338ca")
-    : "#4338ca";
+  const accentColor =
+    data?.kind === "badge"
+      ? (TONE_ACCENT[data.tone] ?? "#4338ca")
+      : data?.kind === "rank"
+        ? data.topPct != null && data.topPct <= 1
+          ? "#7c3aed"
+          : data.topPct != null && data.topPct <= 5
+            ? "#d97706"
+            : data.topPct != null && data.topPct <= 10
+              ? "#0d9488"
+              : "#4338ca"
+        : "#4338ca";
 
   const { tagline, subtitle, cardPath } = getMessage();
 
@@ -84,9 +92,7 @@ export default function ShareCardModal({ data, onClose }: Props) {
   }, [cardPath, tagline]);
 
   const handleShareText = useCallback(async () => {
-    const shareUrl = data?.kind === "rank"
-      ? `${APP_URL}/leaderboard`
-      : `${APP_URL}/achievements`;
+    const shareUrl = data?.kind === "rank" ? `${APP_URL}/leaderboard` : `${APP_URL}/achievements`;
     try {
       await Share.share({
         message: `${tagline}\n\n${shareUrl}`,
@@ -100,23 +106,34 @@ export default function ShareCardModal({ data, onClose }: Props) {
   if (!data) return null;
 
   return (
-    <Modal
-      visible
-      animationType="slide"
-      transparent
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
+    <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
         <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#111" }}>
           <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
-
             {/* Header */}
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "600", letterSpacing: 1, textTransform: "uppercase" }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 20,
+              }}
+            >
+              <Text
+                style={{
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 13,
+                  fontWeight: "600",
+                  letterSpacing: 1,
+                  textTransform: "uppercase",
+                }}
+              >
                 Your Card
               </Text>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+              <TouchableOpacity
+                onPress={onClose}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
                 <MaterialCommunityIcons name="close" size={22} color="rgba(255,255,255,0.5)" />
               </TouchableOpacity>
             </View>
@@ -197,10 +214,11 @@ export default function ShareCardModal({ data, onClose }: Props) {
                 opacity: sharing ? 0.7 : 1,
               }}
             >
-              {sharing
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <MaterialCommunityIcons name="share-variant" size={18} color="#fff" />
-              }
+              {sharing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <MaterialCommunityIcons name="share-variant" size={18} color="#fff" />
+              )}
               <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>
                 {sharing ? "Preparing…" : "Share Card"}
               </Text>
@@ -222,7 +240,6 @@ export default function ShareCardModal({ data, onClose }: Props) {
                 Share as Text
               </Text>
             </TouchableOpacity>
-
           </View>
         </SafeAreaView>
       </View>

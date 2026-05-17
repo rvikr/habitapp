@@ -23,8 +23,8 @@ import { CelebrationProvider } from "@/components/celebration";
 import ErrorBoundary from "@/components/error-boundary";
 import NotificationScheduler from "@/components/notification-scheduler";
 import { supabase, isSupabaseConfigured, getCurrentSession } from "@/lib/supabase/client";
-import { initSentry, setUser as setSentryUser } from "@/lib/sentry";
-import { initAnalytics, track } from "@/lib/analytics";
+import { initSentry, setUser as setSentryUser } from "@/lib/services/sentry";
+import { initAnalytics, track } from "@/lib/services/analytics";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -49,7 +49,9 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
 
     function evaluate(session: { user?: { id: string } } | null) {
       const segs = segmentsRef.current;
-      const publicRoute = ["login", "auth", "reset-password", "account-deletion"].includes(String(segs[0] ?? ""));
+      const publicRoute = ["login", "auth", "reset-password", "account-deletion"].includes(
+        String(segs[0] ?? ""),
+      );
       if (!session && !publicRoute) {
         router.replace("/login");
       } else if (session && segs[0] === "login") {
@@ -65,7 +67,9 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
       onReady();
     })();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return;
       evaluate(session);
     });
@@ -89,7 +93,8 @@ function ConfigurationError() {
         Configuration error
       </Text>
       <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
-        Supabase is not configured. Set{"\n"}EXPO_PUBLIC_SUPABASE_URL and{"\n"}EXPO_PUBLIC_SUPABASE_ANON_KEY in .env.local.
+        Supabase is not configured. Set{"\n"}EXPO_PUBLIC_SUPABASE_URL and{"\n"}
+        EXPO_PUBLIC_SUPABASE_ANON_KEY in .env.local.
       </Text>
     </View>
   );
@@ -131,8 +136,14 @@ function RootLayoutContent() {
       <Stack.Screen name="account-deletion" options={{ headerShown: false }} />
       <Stack.Screen name="habits/new" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="habits/wizard" options={{ headerShown: false, presentation: "card" }} />
-      <Stack.Screen name="habits/[id]/index" options={{ headerShown: false, presentation: "card" }} />
-      <Stack.Screen name="habits/[id]/edit" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen
+        name="habits/[id]/index"
+        options={{ headerShown: false, presentation: "card" }}
+      />
+      <Stack.Screen
+        name="habits/[id]/edit"
+        options={{ headerShown: false, presentation: "card" }}
+      />
     </Stack>
   );
 

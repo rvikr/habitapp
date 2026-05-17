@@ -1,6 +1,6 @@
-﻿import { ScrollView, View, Text } from "react-native";
+import { ScrollView, View, Text } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import type { Insights } from "@/lib/habits";
+import type { Insights } from "@/lib/data/habits";
 
 type InsightItem = {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -69,8 +69,16 @@ export default function InsightsStrip({ insights }: Props) {
             className="rounded-2xl p-md flex-row items-start gap-sm"
             style={{ backgroundColor: item.bg, width: 190 }}
           >
-            <MaterialCommunityIcons name={item.icon} size={18} color={item.color} style={{ marginTop: 1 }} />
-            <Text className="text-label-md flex-1 flex-wrap font-medium" style={{ color: item.color }}>
+            <MaterialCommunityIcons
+              name={item.icon}
+              size={18}
+              color={item.color}
+              style={{ marginTop: 1 }}
+            />
+            <Text
+              className="text-label-md flex-1 flex-wrap font-medium"
+              style={{ color: item.color }}
+            >
               {item.text}
             </Text>
           </View>

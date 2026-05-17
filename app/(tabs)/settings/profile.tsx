@@ -1,11 +1,11 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getCurrentUser } from "@/lib/supabase/client";
-import { updateAvatar } from "@/lib/actions";
-import { type AvatarStyle } from "@/lib/avatar";
+import { updateAvatar } from "@/lib/data/actions";
+import { type AvatarStyle } from "@/lib/utils/avatar";
 import AvatarPicker from "@/components/avatar-picker";
 
 export default function ProfileScreen() {
@@ -23,7 +23,9 @@ export default function ProfileScreen() {
       setStyle((user.user_metadata?.avatar_style as AvatarStyle) ?? "avataaars");
       setSeed((user.user_metadata?.avatar_seed as string) ?? user.id.slice(0, 12));
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleSave() {
@@ -40,15 +42,12 @@ export default function ProfileScreen() {
         <TouchableOpacity onPress={() => router.back()} className="mr-md">
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
-        <Text className="text-headline-md text-on-background dark:text-d-on-background">Edit Profile</Text>
+        <Text className="text-headline-md text-on-background dark:text-d-on-background">
+          Edit Profile
+        </Text>
       </View>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
-        <AvatarPicker
-          style={style}
-          seed={seed}
-          onStyleChange={setStyle}
-          onSeedChange={setSeed}
-        />
+        <AvatarPicker style={style} seed={seed} onStyleChange={setStyle} onSeedChange={setSeed} />
         <View className="px-margin-mobile mt-lg">
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center"
@@ -58,7 +57,9 @@ export default function ProfileScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">{saved ? "Saved!" : "Save changes"}</Text>
+              <Text className="text-on-primary text-label-lg font-semibold">
+                {saved ? "Saved!" : "Save changes"}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

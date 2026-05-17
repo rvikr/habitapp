@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { getItem, setItem } from "@/lib/storage";
+import { getItem, setItem } from "@/lib/platform/storage";
 
 type Props = {
   storageKey: string;
@@ -9,7 +9,12 @@ type Props = {
   onChange?: (value: boolean) => void;
 };
 
-export default function PersistentToggle({ storageKey, label, defaultValue = false, onChange }: Props) {
+export default function PersistentToggle({
+  storageKey,
+  label,
+  defaultValue = false,
+  onChange,
+}: Props) {
   const [checked, setChecked] = useState(defaultValue);
 
   useEffect(() => {
@@ -26,7 +31,10 @@ export default function PersistentToggle({ storageKey, label, defaultValue = fal
   }
 
   return (
-    <TouchableOpacity className="flex-row items-center justify-between py-sm" onPress={handleToggle}>
+    <TouchableOpacity
+      className="flex-row items-center justify-between py-sm"
+      onPress={handleToggle}
+    >
       <Text className="text-body-md text-on-surface dark:text-d-on-surface flex-1">{label}</Text>
       <View
         className="w-11 h-6 rounded-full justify-center"
@@ -34,7 +42,13 @@ export default function PersistentToggle({ storageKey, label, defaultValue = fal
       >
         <View
           className="w-5 h-5 rounded-full bg-white"
-          style={{ transform: [{ translateX: checked ? 20 : 0 }], shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 }}
+          style={{
+            transform: [{ translateX: checked ? 20 : 0 }],
+            shadowColor: "#000",
+            shadowOpacity: 0.15,
+            shadowRadius: 2,
+            elevation: 2,
+          }}
         />
       </View>
     </TouchableOpacity>

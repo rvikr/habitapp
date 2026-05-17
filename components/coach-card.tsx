@@ -1,6 +1,6 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import type { CoachSignal } from "@/lib/coach";
+import type { CoachSignal } from "@/lib/coach/coach";
 
 type Props = {
   signal: CoachSignal;
@@ -27,12 +27,11 @@ export default function CoachCard({ signal, onPress, onAction }: Props) {
       </View>
       <View className="flex-1">
         <Text className="text-label-lg text-primary mb-xs">AI COACH</Text>
-        <Text className="text-body-sm text-on-surface dark:text-d-on-surface">{signal.message}</Text>
+        <Text className="text-body-sm text-on-surface dark:text-d-on-surface">
+          {signal.message}
+        </Text>
       </View>
-      <TouchableOpacity
-        onPress={onAction}
-        className="bg-primary px-sm py-xs rounded-full"
-      >
+      <TouchableOpacity onPress={onAction} className="bg-primary px-sm py-xs rounded-full">
         <Text className="text-on-primary text-label-sm font-semibold">{actionLabel(signal)}</Text>
       </TouchableOpacity>
     </TouchableOpacity>

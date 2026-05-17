@@ -1,8 +1,16 @@
-﻿import { useState } from "react";
-import { View, Text, Modal, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from "react-native";
+import { useState } from "react";
+import {
+  View,
+  Text,
+  Modal,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import type { Habit } from "@/types/db";
-import { parseOptionalPositiveNumber } from "@/lib/validation";
+import { parseOptionalPositiveNumber } from "@/lib/auth/validation";
 
 type Props = {
   visible: boolean;
@@ -40,7 +48,10 @@ export default function LogPrompt({ visible, habit, onSubmit, onDismiss }: Props
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} className="flex-1 justify-end">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1 justify-end"
+      >
         <TouchableOpacity className="flex-1" onPress={onDismiss} />
         <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-t-3xl p-lg">
           <View className="flex-row items-center justify-between mb-md">
@@ -61,7 +72,9 @@ export default function LogPrompt({ visible, habit, onSubmit, onDismiss }: Props
                 onChangeText={setValue}
                 keyboardType="decimal-pad"
               />
-              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">{habit.unit}</Text>
+              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
+                {habit.unit}
+              </Text>
             </View>
           )}
           <TextInput
@@ -74,8 +87,14 @@ export default function LogPrompt({ visible, habit, onSubmit, onDismiss }: Props
             numberOfLines={2}
           />
           {error && <Text className="text-error text-label-sm mb-sm">{error}</Text>}
-          <TouchableOpacity className="bg-primary rounded-full py-sm items-center" onPress={handleSubmit} disabled={submitting}>
-            <Text className="text-on-primary text-label-lg font-semibold">{submitting ? "Saving..." : "Log"}</Text>
+          <TouchableOpacity
+            className="bg-primary rounded-full py-sm items-center"
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {submitting ? "Saving..." : "Log"}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

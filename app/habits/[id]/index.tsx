@@ -1,21 +1,31 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Alert, View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { getHabit, weekProgressFor, streakFor } from "@/lib/habits";
-import { toggleHabit, deleteHabit, logCompletion } from "@/lib/actions";
+import { getHabit, weekProgressFor, streakFor } from "@/lib/data/habits";
+import { toggleHabit, deleteHabit, logCompletion } from "@/lib/data/actions";
 import { useCelebrate } from "@/components/celebration";
 import Icon from "@/components/icon";
 import LogEntryFab from "@/components/log-entry-fab";
 import LogPrompt from "@/components/log-prompt";
 import HabitProgressVisual from "@/components/habit-progress-visual";
 import type { Habit, HabitCompletion } from "@/types/db";
-import { localDateKey } from "@/lib/date";
-import { formatAmount, progressForHabit } from "@/lib/habit-intelligence";
+import { localDateKey } from "@/lib/utils/date";
+import { formatAmount, progressForHabit } from "@/lib/coach/habit-intelligence";
 
-const COLOR_BG: Record<string, string> = { primary: "#FFE6CF", secondary: "#CFEBDF", tertiary: "#FFF0CC", neutral: "#E6E0D5" };
-const COLOR_FG: Record<string, string> = { primary: "#F26B1F", secondary: "#3EBB7F", tertiary: "#E4A23A", neutral: "#5A554D" };
+const COLOR_BG: Record<string, string> = {
+  primary: "#FFE6CF",
+  secondary: "#CFEBDF",
+  tertiary: "#FFF0CC",
+  neutral: "#E6E0D5",
+};
+const COLOR_FG: Record<string, string> = {
+  primary: "#F26B1F",
+  secondary: "#3EBB7F",
+  tertiary: "#E4A23A",
+  neutral: "#5A554D",
+};
 
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,9 +44,17 @@ export default function HabitDetailScreen() {
     setCompletions(c);
   }, [id]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
-  const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   const today = localDateKey();
   const todayCompletion = completions.find((c) => c.completed_on === today);
@@ -128,7 +146,10 @@ export default function HabitDetailScreen() {
         {/* Header card */}
         <View className="mx-margin-mobile mb-lg rounded-2xl p-lg" style={{ backgroundColor: bg }}>
           <View className="flex-row items-center gap-md mb-md">
-            <View className="w-14 h-14 rounded-full items-center justify-center" style={{ backgroundColor: fg + "20" }}>
+            <View
+              className="w-14 h-14 rounded-full items-center justify-center"
+              style={{ backgroundColor: fg + "20" }}
+            >
               <Icon name={habit.icon} size={28} color={fg} />
             </View>
             {progress && (
@@ -141,9 +162,13 @@ export default function HabitDetailScreen() {
               />
             )}
           </View>
-          <Text className="text-headline-lg font-bold mb-xs" style={{ color: fg }}>{habit.name}</Text>
+          <Text className="text-headline-lg font-bold mb-xs" style={{ color: fg }}>
+            {habit.name}
+          </Text>
           {habit.description && (
-            <Text className="text-body-md" style={{ color: fg + "cc" }}>{habit.description}</Text>
+            <Text className="text-body-md" style={{ color: fg + "cc" }}>
+              {habit.description}
+            </Text>
           )}
           {progress && (
             <Text className="text-body-md font-semibold mt-sm" style={{ color: fg }}>
@@ -156,21 +181,33 @@ export default function HabitDetailScreen() {
         <View className="flex-row mx-margin-mobile mb-lg gap-sm">
           <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
             <Text className="text-headline-md font-bold text-primary">{streak}</Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">day streak</Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              day streak
+            </Text>
           </View>
           <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
             <Text className="text-headline-md font-bold text-secondary">{completions.length}</Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">total logs</Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              total logs
+            </Text>
           </View>
           <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
-            <MaterialCommunityIcons name={doneToday ? "check-circle" : "circle-outline"} size={28} color={doneToday ? "#3EBB7F" : "#8F8A82"} />
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{progress?.ratio ? `${Math.round(progress.ratio * 100)}%` : "today"}</Text>
+            <MaterialCommunityIcons
+              name={doneToday ? "check-circle" : "circle-outline"}
+              size={28}
+              color={doneToday ? "#3EBB7F" : "#8F8A82"}
+            />
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              {progress?.ratio ? `${Math.round(progress.ratio * 100)}%` : "today"}
+            </Text>
           </View>
         </View>
 
         {/* Weekly bars */}
         <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">THIS WEEK</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
+            THIS WEEK
+          </Text>
           <View className="flex-row justify-between">
             {weekDays.map((day) => (
               <View key={day.key} className="items-center gap-xs">
@@ -180,7 +217,9 @@ export default function HabitDetailScreen() {
                 >
                   {day.done && <MaterialCommunityIcons name="check" size={16} color="#fff" />}
                 </View>
-                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{day.label}</Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  {day.label}
+                </Text>
               </View>
             ))}
           </View>
@@ -212,9 +251,7 @@ export default function HabitDetailScreen() {
         </View>
       </ScrollView>
 
-      {habit.target != null && (
-        <LogEntryFab onPress={() => setShowLogPrompt(true)} />
-      )}
+      {habit.target != null && <LogEntryFab onPress={() => setShowLogPrompt(true)} />}
 
       <LogPrompt
         visible={showLogPrompt}

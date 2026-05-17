@@ -2,8 +2,8 @@ import { useState } from "react";
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { updatePassword } from "@/lib/actions";
-import { validatePassword } from "@/lib/password";
+import { updatePassword } from "@/lib/data/actions";
+import { validatePassword } from "@/lib/auth/password";
 
 export default function ResetPasswordScreen() {
   const router = useRouter();
@@ -62,12 +62,22 @@ export default function ResetPasswordScreen() {
           secureTextEntry
         />
         {message && (
-          <Text className={`text-label-sm ${message.type === "error" ? "text-error" : "text-secondary"}`}>
+          <Text
+            className={`text-label-sm ${message.type === "error" ? "text-error" : "text-secondary"}`}
+          >
             {message.text}
           </Text>
         )}
-        <TouchableOpacity className="bg-primary rounded-full py-sm items-center mt-sm" onPress={handleSave} disabled={loading}>
-          {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-on-primary text-label-lg font-semibold">Update password</Text>}
+        <TouchableOpacity
+          className="bg-primary rounded-full py-sm items-center mt-sm"
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-on-primary text-label-lg font-semibold">Update password</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

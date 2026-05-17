@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useRef, type ReactNode } from "react";
 import { View, Text, Modal, StyleSheet } from "react-native";
 import ConfettiCannon from "react-native-confetti-cannon";
-import { success } from "@/lib/haptics";
+import { success } from "@/lib/platform/haptics";
 
 const MESSAGES = [
   "Great job! 🎉",
@@ -32,9 +32,17 @@ export function CelebrationProvider({ children }: { children: ReactNode }) {
     <CelebrationContext.Provider value={{ celebrate }}>
       {children}
       <Modal transparent visible={visible} animationType="fade">
-        <View style={StyleSheet.absoluteFill} className="items-center justify-center pointer-events-none">
-          <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-3xl px-xl py-lg items-center" style={{ shadowColor: "#F26B1F", shadowOpacity: 0.25, shadowRadius: 20, elevation: 10 }}>
-            <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold text-center">{message}</Text>
+        <View
+          style={StyleSheet.absoluteFill}
+          className="items-center justify-center pointer-events-none"
+        >
+          <View
+            className="bg-surface-lowest dark:bg-d-surface-lowest rounded-3xl px-xl py-lg items-center"
+            style={{ shadowColor: "#F26B1F", shadowOpacity: 0.25, shadowRadius: 20, elevation: 10 }}
+          >
+            <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold text-center">
+              {message}
+            </Text>
           </View>
           {visible && (
             <ConfettiCannon

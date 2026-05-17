@@ -1,10 +1,18 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Switch } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Switch,
+} from "react-native";
 import Icon from "./icon";
 import HabitCatalogPicker from "./habit-catalog-picker";
 import type { Habit } from "@/types/db";
-import type { CatalogEntry } from "@/lib/habit-catalog";
-import { isValidReminderTime, parseOptionalPositiveNumber } from "@/lib/validation";
+import type { CatalogEntry } from "@/lib/data/habit-catalog";
+import { isValidReminderTime, parseOptionalPositiveNumber } from "@/lib/auth/validation";
 import {
   inferHabitIntelligence,
   unitOptionsForHabit,
@@ -12,7 +20,7 @@ import {
   type MetricType,
   type ReminderStrategy,
   type VisualType,
-} from "@/lib/habit-intelligence";
+} from "@/lib/coach/habit-intelligence";
 
 function smartReminderSummary(intervalMinutes: number | null, strategy: ReminderStrategy): string {
   const interval = intervalMinutes ?? 720;
@@ -23,8 +31,29 @@ function smartReminderSummary(intervalMinutes: number | null, strategy: Reminder
   return `Up to ${count} smart reminders per day${suffix}.`;
 }
 
-const ICONS = ["water_drop", "directions_run", "directions_walk", "menu_book", "self_improvement", "edit_note", "fitness_center", "bedtime", "medication", "restaurant", "shower", "code", "directions_bike", "favorite", "eco", "spa"];
-const COLORS: Array<{ id: "primary" | "secondary" | "tertiary" | "neutral"; label: string; hex: string }> = [
+const ICONS = [
+  "water_drop",
+  "directions_run",
+  "directions_walk",
+  "menu_book",
+  "self_improvement",
+  "edit_note",
+  "fitness_center",
+  "bedtime",
+  "medication",
+  "restaurant",
+  "shower",
+  "code",
+  "directions_bike",
+  "favorite",
+  "eco",
+  "spa",
+];
+const COLORS: {
+  id: "primary" | "secondary" | "tertiary" | "neutral";
+  label: string;
+  hex: string;
+}[] = [
   { id: "primary", label: "Ember", hex: "#F26B1F" },
   { id: "secondary", label: "Sage", hex: "#3EBB7F" },
   { id: "tertiary", label: "Amber", hex: "#E4A23A" },
@@ -78,13 +107,21 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   const [target, setTarget] = useState(initial?.target?.toString() ?? "");
   const [remindersEnabled, setRemindersEnabled] = useState(initial?.reminders_enabled ?? false);
   const [reminderTimes, setReminderTimes] = useState<string[]>(initial?.reminder_times ?? []);
-  const [reminderDays, setReminderDays] = useState<number[]>(initial?.reminder_days ?? [0, 1, 2, 3, 4, 5, 6]);
+  const [reminderDays, setReminderDays] = useState<number[]>(
+    initial?.reminder_days ?? [0, 1, 2, 3, 4, 5, 6],
+  );
   const [habitType, setHabitType] = useState<HabitType>(initial?.habit_type ?? "custom");
   const [metricType, setMetricType] = useState<MetricType>(initial?.metric_type ?? "boolean");
   const [visualType, setVisualType] = useState<VisualType>(initial?.visual_type ?? "progress_ring");
-  const [reminderStrategy, setReminderStrategy] = useState<ReminderStrategy>(initial?.reminder_strategy ?? "manual");
-  const [reminderIntervalMinutes, setReminderIntervalMinutes] = useState<number | null>(initial?.reminder_interval_minutes ?? null);
-  const [defaultLogValue, setDefaultLogValue] = useState<number | null>(initial?.default_log_value ?? null);
+  const [reminderStrategy, setReminderStrategy] = useState<ReminderStrategy>(
+    initial?.reminder_strategy ?? "manual",
+  );
+  const [reminderIntervalMinutes, setReminderIntervalMinutes] = useState<number | null>(
+    initial?.reminder_interval_minutes ?? null,
+  );
+  const [defaultLogValue, setDefaultLogValue] = useState<number | null>(
+    initial?.default_log_value ?? null,
+  );
   const [mergeSimilar, setMergeSimilar] = useState(true);
   const [showMetricOptions, setShowMetricOptions] = useState(false);
   const [customTime, setCustomTime] = useState("");
@@ -111,7 +148,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   }
 
   function toggleTime(time: string) {
-    setReminderTimes((prev) => prev.includes(time) ? prev.filter((t) => t !== time) : [...prev, time].sort());
+    setReminderTimes((prev) =>
+      prev.includes(time) ? prev.filter((t) => t !== time) : [...prev, time].sort(),
+    );
   }
 
   function addCustomTime() {
@@ -126,7 +165,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   }
 
   function toggleDay(day: number) {
-    setReminderDays((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort());
+    setReminderDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort(),
+    );
   }
 
   async function handleSubmit() {
@@ -148,7 +189,11 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
       reminderIntervalMinutes,
       defaultLogValue,
     });
-    if (remindersEnabled && intelligence.reminderStrategy === "manual" && reminderTimes.length === 0) {
+    if (
+      remindersEnabled &&
+      intelligence.reminderStrategy === "manual" &&
+      reminderTimes.length === 0
+    ) {
       setFormError("Add at least one reminder time or turn reminders off.");
       return;
     }
@@ -171,7 +216,11 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
       target: parsedTarget.value,
       remindersEnabled,
       reminderTimes: remindersEnabled ? reminderTimes : [],
-      reminderDays: remindersEnabled ? (reminderDays.length > 0 ? reminderDays : [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6],
+      reminderDays: remindersEnabled
+        ? reminderDays.length > 0
+          ? reminderDays
+          : [0, 1, 2, 3, 4, 5, 6]
+        : [0, 1, 2, 3, 4, 5, 6],
       habitType: intelligence.habitType,
       metricType: intelligence.metricType,
       visualType: intelligence.visualType,
@@ -202,7 +251,10 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   });
   const metricOptions = unitOptionsForHabit(metricPreview.habitType, metricPreview.metricType);
   const storagePreview =
-    metricPreview.metricType === "volume_ml" && unit.trim().toLowerCase() === "l" && previewTarget.ok && previewTarget.value != null
+    metricPreview.metricType === "volume_ml" &&
+    unit.trim().toLowerCase() === "l" &&
+    previewTarget.ok &&
+    previewTarget.value != null
       ? `${previewTarget.value} l will be saved as ${metricPreview.target ?? previewTarget.value * 1000} ml.`
       : metricPreview.metricType === "volume_ml"
         ? "Water volume is saved in ml."
@@ -237,11 +289,17 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   }
 
   return (
-    <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      className="flex-1"
+      contentContainerStyle={{ paddingBottom: 32 }}
+      keyboardShouldPersistTaps="handled"
+    >
       <View className="px-margin-mobile gap-md">
         {/* Name */}
         <View>
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">NAME</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+            NAME
+          </Text>
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
             placeholder="Habit name"
@@ -253,7 +311,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
 
         {/* Description */}
         <View>
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">DESCRIPTION (optional)</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+            DESCRIPTION (optional)
+          </Text>
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
             placeholder="What's this habit about?"
@@ -267,7 +327,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
 
         {/* Icon picker */}
         <View>
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">ICON</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+            ICON
+          </Text>
           <View className="flex-row flex-wrap gap-sm">
             {ICONS.map((ic) => (
               <TouchableOpacity
@@ -284,17 +346,25 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
 
         {/* Color picker */}
         <View>
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">COLOR</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+            COLOR
+          </Text>
           <View className="flex-row gap-sm">
             {COLORS.map((c) => (
               <TouchableOpacity
                 key={c.id}
                 className="flex-1 py-sm rounded-xl items-center"
-                style={{ backgroundColor: c.hex + "22", borderWidth: 2, borderColor: color === c.id ? c.hex : "transparent" }}
+                style={{
+                  backgroundColor: c.hex + "22",
+                  borderWidth: 2,
+                  borderColor: color === c.id ? c.hex : "transparent",
+                }}
                 onPress={() => setColor(c.id)}
               >
                 <View className="w-5 h-5 rounded-full mb-xs" style={{ backgroundColor: c.hex }} />
-                <Text className="text-label-sm" style={{ color: c.hex }}>{c.label}</Text>
+                <Text className="text-label-sm" style={{ color: c.hex }}>
+                  {c.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -303,7 +373,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
         {/* Unit + Target */}
         <View className="flex-row gap-sm">
           <View className="flex-1">
-            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">UNIT</Text>
+            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+              UNIT
+            </Text>
             <TextInput
               className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="ml, km, min..."
@@ -313,7 +385,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
             />
           </View>
           <View className="flex-1">
-            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">TARGET</Text>
+            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+              TARGET
+            </Text>
             <TextInput
               className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
               placeholder="e.g. 2000"
@@ -357,9 +431,16 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                     style={{ backgroundColor: active ? "#FFE6CF" : "transparent" }}
                     onPress={() => selectMetricOption(option)}
                   >
-                    <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">{option.label}</Text>
+                    <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
+                      {option.label}
+                    </Text>
                     <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                      Store as {option.metricType === "volume_ml" ? "ml" : option.metricType === "distance_km" ? "km" : option.unit}
+                      Store as{" "}
+                      {option.metricType === "volume_ml"
+                        ? "ml"
+                        : option.metricType === "distance_km"
+                          ? "km"
+                          : option.unit}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -372,7 +453,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
         <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
           <View className="flex-row items-center justify-between">
             <View className="flex-1">
-              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">Smart Reminders</Text>
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                Smart Reminders
+              </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
                 {reminderStrategy !== "manual"
                   ? "Fires automatically based on your habit — stops once you log it for the day."
@@ -407,7 +490,11 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                       onPress={() => toggleTime(t)}
                       className={`px-md py-xs rounded-full ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
                     >
-                      <Text className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}>{t}</Text>
+                      <Text
+                        className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
+                      >
+                        {t}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -415,16 +502,18 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
 
               {reminderTimes.filter((t) => !TIME_PRESETS.includes(t)).length > 0 && (
                 <View className="flex-row flex-wrap gap-xs">
-                  {reminderTimes.filter((t) => !TIME_PRESETS.includes(t)).map((t) => (
-                    <TouchableOpacity
-                      key={t}
-                      onPress={() => toggleTime(t)}
-                      className="px-md py-xs rounded-full bg-primary flex-row items-center gap-xs"
-                    >
-                      <Text className="text-on-primary text-label-lg">{t}</Text>
-                      <Text className="text-on-primary text-label-sm">x</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {reminderTimes
+                    .filter((t) => !TIME_PRESETS.includes(t))
+                    .map((t) => (
+                      <TouchableOpacity
+                        key={t}
+                        onPress={() => toggleTime(t)}
+                        className="px-md py-xs rounded-full bg-primary flex-row items-center gap-xs"
+                      >
+                        <Text className="text-on-primary text-label-lg">{t}</Text>
+                        <Text className="text-on-primary text-label-sm">x</Text>
+                      </TouchableOpacity>
+                    ))}
                 </View>
               )}
 
@@ -448,7 +537,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                 </TouchableOpacity>
               </View>
 
-              <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">REPEAT ON</Text>
+              <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
+                REPEAT ON
+              </Text>
               <View className="flex-row gap-xs">
                 {DAY_LABELS.map((label, i) => {
                   const active = reminderDays.includes(i);
@@ -458,7 +549,11 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                       onPress={() => toggleDay(i)}
                       className={`flex-1 py-xs rounded-full items-center ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
                     >
-                      <Text className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}>{label}</Text>
+                      <Text
+                        className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
+                      >
+                        {label}
+                      </Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -470,7 +565,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
         {!initial && (
           <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center justify-between gap-md">
             <View className="flex-1">
-              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">Merge similar habits</Text>
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                Merge similar habits
+              </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
                 Combine this with an existing habit when it looks like the same goal.
               </Text>
@@ -493,7 +590,11 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
           disabled={loading || !name.trim()}
           style={{ opacity: !name.trim() ? 0.5 : 1 }}
         >
-          {loading ? <ActivityIndicator color="#fff" /> : <Text className="text-on-primary text-label-lg font-semibold">{submitLabel}</Text>}
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-on-primary text-label-lg font-semibold">{submitLabel}</Text>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>

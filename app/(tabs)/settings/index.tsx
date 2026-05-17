@@ -1,29 +1,52 @@
-﻿import { useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import Constants from "expo-constants";
-import { requestReviewManually } from "@/lib/store-review";
-
-const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL;
-const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
-const APP_VERSION = Constants.expoConfig?.version ?? "—";
-import { Alert, Linking, Platform, View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
+import { requestReviewManually } from "@/lib/platform/store-review";
+import {
+  Alert,
+  Linking,
+  Platform,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { supabase, getCurrentUser } from "@/lib/supabase/client";
-import { signOut } from "@/lib/actions";
-import { avatarFromUser } from "@/lib/avatar";
+import { signOut } from "@/lib/data/actions";
+import { avatarFromUser } from "@/lib/utils/avatar";
 import { useTheme } from "@/components/theme-provider";
+
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL;
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
+const APP_VERSION = Constants.expoConfig?.version ?? "—";
 
 type UserInfo = { displayName: string; email: string | null; avatarUrl: string };
 
-function SettingsRow({ icon, label, onPress, danger }: { icon: string; label: string; onPress: () => void; danger?: boolean }) {
+function SettingsRow({
+  icon,
+  label,
+  onPress,
+  danger,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+}) {
   return (
     <TouchableOpacity
       className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl mb-xs"
       onPress={onPress}
     >
       <MaterialCommunityIcons name={icon as any} size={20} color={danger ? "#FF5A5A" : "#F26B1F"} />
-      <Text className={`flex-1 ml-md text-body-md ${danger ? "text-error" : "text-on-surface dark:text-d-on-surface"}`}>{label}</Text>
+      <Text
+        className={`flex-1 ml-md text-body-md ${danger ? "text-error" : "text-on-surface dark:text-d-on-surface"}`}
+      >
+        {label}
+      </Text>
       {!danger && <MaterialCommunityIcons name="chevron-right" size={20} color="#8F8A82" />}
     </TouchableOpacity>
   );
@@ -54,7 +77,11 @@ export default function SettingsScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   async function handleSignOut() {
     if (Platform.OS === "web") {
@@ -72,7 +99,9 @@ export default function SettingsScreen() {
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile pt-md pb-sm">
-          <Text className="text-headline-lg text-on-background dark:text-d-on-background">Settings</Text>
+          <Text className="text-headline-lg text-on-background dark:text-d-on-background">
+            Settings
+          </Text>
         </View>
 
         {/* Profile card */}
@@ -81,22 +110,32 @@ export default function SettingsScreen() {
           onPress={() => router.push("/settings/profile")}
         >
           {user?.avatarUrl ? (
-            <Image source={{ uri: user.avatarUrl }} className="w-14 h-14 rounded-full" resizeMode="cover" />
+            <Image
+              source={{ uri: user.avatarUrl }}
+              className="w-14 h-14 rounded-full"
+              resizeMode="cover"
+            />
           ) : (
             <View className="w-14 h-14 rounded-full bg-primary-fixed items-center justify-center">
               <MaterialCommunityIcons name="account" size={28} color="#F26B1F" />
             </View>
           )}
           <View className="flex-1 ml-md">
-            <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">{user?.displayName}</Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{user?.email}</Text>
+            <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
+              {user?.displayName}
+            </Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              {user?.email}
+            </Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={20} color="#8F8A82" />
         </TouchableOpacity>
 
         {/* Appearance */}
         <View className="px-margin-mobile mb-lg">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">APPEARANCE</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
+            APPEARANCE
+          </Text>
           <TouchableOpacity
             className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl"
             onPress={toggle}
@@ -109,27 +148,69 @@ export default function SettingsScreen() {
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface">
               {colorScheme === "dark" ? "Dark mode" : "Light mode"}
             </Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">Toggle</Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              Toggle
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* Account */}
         <View className="px-margin-mobile mb-lg">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">ACCOUNT</Text>
-          <SettingsRow icon="bell" label="Reminders" onPress={() => router.push("/settings/reminders")} />
-          <SettingsRow icon="message-text-outline" label="AI Coach" onPress={() => router.push("/settings/coach")} />
-          <SettingsRow icon="message-alert-outline" label="Send Feedback" onPress={() => router.push("/settings/feedback" as never)} />
-          <SettingsRow icon="star-outline" label="Rate Lagan" onPress={() => requestReviewManually()} />
-          <SettingsRow icon="email-outline" label="Contact Support" onPress={() => {
-            if (!SUPPORT_EMAIL) { Alert.alert("Not configured", "Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment."); return; }
-            Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
-          }} />
-          <SettingsRow icon="shield-lock" label="Security" onPress={() => router.push("/settings/security")} />
-          <SettingsRow icon="database-lock" label="Privacy & Data" onPress={() => router.push("/settings/privacy" as never)} />
-          <SettingsRow icon="file-document-outline" label="Terms & Conditions" onPress={() => {
-            if (!TERMS_URL) { Alert.alert("Not configured", "Set EXPO_PUBLIC_TERMS_URL in your environment."); return; }
-            Linking.openURL(TERMS_URL);
-          }} />
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
+            ACCOUNT
+          </Text>
+          <SettingsRow
+            icon="bell"
+            label="Reminders"
+            onPress={() => router.push("/settings/reminders")}
+          />
+          <SettingsRow
+            icon="message-text-outline"
+            label="AI Coach"
+            onPress={() => router.push("/settings/coach")}
+          />
+          <SettingsRow
+            icon="message-alert-outline"
+            label="Send Feedback"
+            onPress={() => router.push("/settings/feedback" as never)}
+          />
+          <SettingsRow
+            icon="star-outline"
+            label="Rate Lagan"
+            onPress={() => requestReviewManually()}
+          />
+          <SettingsRow
+            icon="email-outline"
+            label="Contact Support"
+            onPress={() => {
+              if (!SUPPORT_EMAIL) {
+                Alert.alert("Not configured", "Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment.");
+                return;
+              }
+              Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
+            }}
+          />
+          <SettingsRow
+            icon="shield-lock"
+            label="Security"
+            onPress={() => router.push("/settings/security")}
+          />
+          <SettingsRow
+            icon="database-lock"
+            label="Privacy & Data"
+            onPress={() => router.push("/settings/privacy" as never)}
+          />
+          <SettingsRow
+            icon="file-document-outline"
+            label="Terms & Conditions"
+            onPress={() => {
+              if (!TERMS_URL) {
+                Alert.alert("Not configured", "Set EXPO_PUBLIC_TERMS_URL in your environment.");
+                return;
+              }
+              Linking.openURL(TERMS_URL);
+            }}
+          />
         </View>
 
         {/* Danger */}

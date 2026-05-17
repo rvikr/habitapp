@@ -1,7 +1,7 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { requestPermission, getPermissionStatus } from "@/lib/notifications";
+import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
 
 export default function NotificationPermissionCard() {
   const [status, setStatus] = useState<"granted" | "denied" | "undetermined">("undetermined");
@@ -18,7 +18,9 @@ export default function NotificationPermissionCard() {
       <View className="flex-1">
         <Text className="text-body-md text-on-background font-semibold">Enable notifications</Text>
         <Text className="text-label-sm text-on-surface-variant">
-          {status === "denied" ? "Notifications blocked — enable in Settings." : "Allow notifications for habit reminders."}
+          {status === "denied"
+            ? "Notifications blocked — enable in Settings."
+            : "Allow notifications for habit reminders."}
         </Text>
       </View>
       {status !== "denied" && (

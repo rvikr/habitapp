@@ -1,5 +1,10 @@
 import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
-import { avatarUrl, AVATAR_STYLES, AVATAR_SEED_PRESETS, type AvatarStyle } from "@/lib/avatar";
+import {
+  avatarUrl,
+  AVATAR_STYLES,
+  AVATAR_SEED_PRESETS,
+  type AvatarStyle,
+} from "@/lib/utils/avatar";
 
 type Props = {
   style: AvatarStyle;
@@ -15,14 +20,13 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
     <View className="px-margin-mobile">
       {/* Preview */}
       <View className="items-center py-lg">
-        <Image
-          source={{ uri: previewUrl }}
-          className="w-28 h-28 rounded-full bg-primary-fixed"
-        />
+        <Image source={{ uri: previewUrl }} className="w-28 h-28 rounded-full bg-primary-fixed" />
       </View>
 
       {/* Style picker */}
-      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">STYLE</Text>
+      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
+        STYLE
+      </Text>
       <View className="flex-row flex-wrap gap-sm mb-lg">
         {AVATAR_STYLES.map((s) => (
           <TouchableOpacity
@@ -30,7 +34,9 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
             onPress={() => onStyleChange(s.id)}
             className={`px-md py-xs rounded-full ${style === s.id ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
           >
-            <Text className={`text-label-lg ${style === s.id ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}>
+            <Text
+              className={`text-label-lg ${style === s.id ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
+            >
               {s.label}
             </Text>
           </TouchableOpacity>
@@ -38,7 +44,9 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
       </View>
 
       {/* Seed picker */}
-      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">AVATAR</Text>
+      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
+        AVATAR
+      </Text>
       <FlatList
         data={AVATAR_SEED_PRESETS}
         horizontal
@@ -54,7 +62,9 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
               className="w-14 h-14 rounded-full"
               style={{ borderWidth: 2, borderColor: seed === item ? "#F26B1F" : "transparent" }}
             />
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">{item}</Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              {item}
+            </Text>
           </TouchableOpacity>
         )}
       />

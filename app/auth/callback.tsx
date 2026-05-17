@@ -1,17 +1,16 @@
-﻿import { useEffect, useState } from "react";
-import { useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from "react-native";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { supabase } from "@/lib/supabase/client";
-import { AUTH_CALLBACK_PATH, parseAuthCallbackUrl } from "@/lib/auth-redirect";
-import { authCallbackUrlFromParams } from "@/lib/auth-callback-params";
+import { AUTH_CALLBACK_PATH, parseAuthCallbackUrl } from "@/lib/auth/auth-redirect";
+import { authCallbackUrlFromParams } from "@/lib/auth/auth-callback-params";
 import {
   AUTH_CALLBACK_CONFIRMED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
-} from "@/lib/auth-welcome";
+} from "@/lib/auth/auth-welcome";
 
 type Status = "loading" | "success" | "error";
 
@@ -28,7 +27,8 @@ export default function AuthCallbackScreen() {
     let cancelled = false;
 
     async function finishAuth() {
-      const url = currentUrl ?? await Linking.getInitialURL() ?? browserLocationUrl() ?? routeCallbackUrl;
+      const url =
+        currentUrl ?? (await Linking.getInitialURL()) ?? browserLocationUrl() ?? routeCallbackUrl;
       if (!url) throw new Error("Missing authentication callback URL.");
       if (handledUrlRef.current === url) return;
       handledUrlRef.current = url;

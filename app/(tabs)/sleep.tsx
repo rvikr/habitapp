@@ -1,5 +1,14 @@
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -13,7 +22,7 @@ import {
   syncLastNightSleep,
   type SleepDashboardData,
   type SleepPermissionStatus,
-} from "@/lib/sleep";
+} from "@/lib/platform/sleep";
 import type { SleepEntry } from "@/types/db";
 
 const SLEEP_BG = "#e6deff";
@@ -54,18 +63,27 @@ export default function SleepScreen() {
   const { colorScheme } = useTheme();
   const track = colorScheme === "dark" ? "#3d3450" : "#E6E0D5";
   const [data, setData] = useState<SleepDashboardData | null>(null);
-  const [status, setStatus] = useState<SleepPermissionStatus | "checking" | "syncing" | "idle">("idle");
+  const [status, setStatus] = useState<SleepPermissionStatus | "checking" | "syncing" | "idle">(
+    "idle",
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [manualHours, setManualHours] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [dashboard, permission] = await Promise.all([getSleepDashboardData(), getSleepPermissionStatus()]);
+    const [dashboard, permission] = await Promise.all([
+      getSleepDashboardData(),
+      getSleepPermissionStatus(),
+    ]);
     setData(dashboard);
     setStatus(permission);
   }, []);
 
-  useFocusEffect(useCallback(() => { void load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load]),
+  );
 
   const latest = data?.latestEntry ?? null;
   const targetMinutes = data?.targetMinutes ?? 480;
@@ -116,19 +134,30 @@ export default function SleepScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
       >
         <View className="px-margin-mobile pt-md pb-sm">
-          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">Sleep tracker</Text>
-          <Text className="text-headline-lg text-on-background dark:text-d-on-background">Last night</Text>
+          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+            Sleep tracker
+          </Text>
+          <Text className="text-headline-lg text-on-background dark:text-d-on-background">
+            Last night
+          </Text>
         </View>
 
-        <View className="mx-margin-mobile rounded-2xl p-lg gap-md" style={{ backgroundColor: SLEEP_BG }}>
+        <View
+          className="mx-margin-mobile rounded-2xl p-lg gap-md"
+          style={{ backgroundColor: SLEEP_BG }}
+        >
           <View className="flex-row items-center justify-between">
             <View className="flex-1">
-              <Text className="text-label-lg font-semibold" style={{ color: SLEEP_FG }}>{scoreTone(latest?.score)}</Text>
+              <Text className="text-label-lg font-semibold" style={{ color: SLEEP_FG }}>
+                {scoreTone(latest?.score)}
+              </Text>
               <Text className="text-display-sm font-bold" style={{ color: SLEEP_FG }}>
                 {latest ? latest.score : "--"}
               </Text>
               <Text className="text-body-sm" style={{ color: SLEEP_FG }}>
-                {latest ? `${formatHours(latest.duration_minutes)} synced from ${sourceLabel(latest.source)}` : "Sync or log sleep to calculate your score."}
+                {latest
+                  ? `${formatHours(latest.duration_minutes)} synced from ${sourceLabel(latest.source)}`
+                  : "Sync or log sleep to calculate your score."}
               </Text>
             </View>
             <ProgressRing
@@ -138,7 +167,13 @@ export default function SleepScreen() {
               color={SLEEP_FG}
               trackColor="#E6E0D5"
             >
-              <HabitProgressVisual visualType="sleep_moon" progress={durationRatio} size="compact" color={SLEEP_FG} trackColor="#FFC56B" />
+              <HabitProgressVisual
+                visualType="sleep_moon"
+                progress={durationRatio}
+                size="compact"
+                color={SLEEP_FG}
+                trackColor="#FFC56B"
+              />
             </ProgressRing>
           </View>
 
@@ -147,19 +182,30 @@ export default function SleepScreen() {
               <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
                 {formatHours(latest?.duration_minutes)} / {formatHours(targetMinutes)}
               </Text>
-              <Text className="text-label-lg text-primary font-semibold">{Math.round(durationRatio * 100)}%</Text>
+              <Text className="text-label-lg text-primary font-semibold">
+                {Math.round(durationRatio * 100)}%
+              </Text>
             </View>
             <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden mt-sm">
-              <View className="h-2 rounded-full" style={{ width: `${durationRatio * 100}%`, backgroundColor: SLEEP_FG }} />
+              <View
+                className="h-2 rounded-full"
+                style={{ width: `${durationRatio * 100}%`, backgroundColor: SLEEP_FG }}
+              />
             </View>
           </View>
         </View>
 
         <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
           <View className="flex-row items-center gap-sm">
-            <MaterialCommunityIcons name={status === "granted" ? "check-circle" : "alert-circle-outline"} size={22} color={SLEEP_FG} />
+            <MaterialCommunityIcons
+              name={status === "granted" ? "check-circle" : "alert-circle-outline"}
+              size={22}
+              color={SLEEP_FG}
+            />
             <View className="flex-1">
-              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">{statusLabel(status)}</Text>
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                {statusLabel(status)}
+              </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
                 iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.
               </Text>
@@ -180,7 +226,9 @@ export default function SleepScreen() {
         </View>
 
         <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
-          <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">Manual fallback</Text>
+          <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+            Manual fallback
+          </Text>
           <View className="flex-row gap-sm">
             <TextInput
               className="flex-1 bg-surface-lowest dark:bg-d-surface-lowest text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
@@ -202,7 +250,9 @@ export default function SleepScreen() {
         </View>
 
         <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">7-DAY TREND</Text>
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
+            7-DAY TREND
+          </Text>
           {trend.length === 0 ? (
             <View className="items-center py-lg gap-xs">
               <MaterialCommunityIcons name="sleep" size={36} color={SLEEP_FG} />
@@ -217,8 +267,13 @@ export default function SleepScreen() {
                 const date = new Date(`${entry.sleep_date}T12:00:00`);
                 return (
                   <View key={entry.id} className="items-center gap-xs" style={{ width: 38 }}>
-                    <Text className="text-label-sm text-on-surface dark:text-d-on-surface font-semibold">{entry.score}</Text>
-                    <View className="w-7 rounded-full" style={{ height, backgroundColor: SLEEP_FG }} />
+                    <Text className="text-label-sm text-on-surface dark:text-d-on-surface font-semibold">
+                      {entry.score}
+                    </Text>
+                    <View
+                      className="w-7 rounded-full"
+                      style={{ height, backgroundColor: SLEEP_FG }}
+                    />
                     <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
                       {date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 2)}
                     </Text>
@@ -231,9 +286,13 @@ export default function SleepScreen() {
 
         {latest?.stage_minutes && (
           <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs">
-            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">SLEEP DETAIL</Text>
+            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+              SLEEP DETAIL
+            </Text>
             <Text className="text-body-sm text-on-surface dark:text-d-on-surface">
-              Deep {formatHours(latest.stage_minutes.deep ?? 0)} · REM {formatHours(latest.stage_minutes.rem ?? 0)} · Awake {formatHours(latest.stage_minutes.awake ?? 0)}
+              Deep {formatHours(latest.stage_minutes.deep ?? 0)} · REM{" "}
+              {formatHours(latest.stage_minutes.rem ?? 0)} · Awake{" "}
+              {formatHours(latest.stage_minutes.awake ?? 0)}
             </Text>
           </View>
         )}

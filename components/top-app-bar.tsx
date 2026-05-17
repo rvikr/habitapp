@@ -1,4 +1,4 @@
-﻿import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
@@ -17,7 +17,9 @@ export default function TopAppBar({ title, showBack, trailing }: Props) {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
       )}
-      <Text className="flex-1 text-headline-md text-on-background dark:text-d-on-background">{title}</Text>
+      <Text className="flex-1 text-headline-md text-on-background dark:text-d-on-background">
+        {title}
+      </Text>
       {trailing}
     </View>
   );

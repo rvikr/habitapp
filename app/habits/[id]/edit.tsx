@@ -1,10 +1,10 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Alert, View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { getHabit } from "@/lib/habits";
-import { updateHabitFull } from "@/lib/actions";
+import { getHabit } from "@/lib/data/habits";
+import { updateHabitFull } from "@/lib/data/actions";
 import HabitForm from "@/components/habit-form";
 import type { Habit } from "@/types/db";
 
@@ -20,7 +20,9 @@ export default function EditHabitScreen() {
       const { habit: h } = await getHabit(id);
       if (!cancelled) setHabit(h);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   async function handleUpdate(data: Parameters<typeof updateHabitFull>[1]) {
@@ -32,7 +34,10 @@ export default function EditHabitScreen() {
 
   if (!habit) {
     return (
-      <SafeAreaView className="flex-1 bg-background dark:bg-d-background items-center justify-center" edges={["top"]}>
+      <SafeAreaView
+        className="flex-1 bg-background dark:bg-d-background items-center justify-center"
+        edges={["top"]}
+      >
         <ActivityIndicator size="large" color="#F26B1F" />
       </SafeAreaView>
     );
@@ -44,13 +49,11 @@ export default function EditHabitScreen() {
         <TouchableOpacity onPress={() => router.back()} className="mr-md">
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
-        <Text className="text-headline-md text-on-background dark:text-d-on-background">Edit Habit</Text>
+        <Text className="text-headline-md text-on-background dark:text-d-on-background">
+          Edit Habit
+        </Text>
       </View>
-      <HabitForm
-        initial={habit}
-        onSubmit={handleUpdate}
-        submitLabel="Save changes"
-      />
+      <HabitForm initial={habit} onSubmit={handleUpdate} submitLabel="Save changes" />
     </SafeAreaView>
   );
 }

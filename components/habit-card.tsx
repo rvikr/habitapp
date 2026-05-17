@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Svg, { Path } from "react-native-svg";
 import type { Habit } from "@/types/db";
-import type { HabitProgress } from "@/lib/habit-intelligence";
+import type { HabitProgress } from "@/lib/coach/habit-intelligence";
 import { useTheme } from "@/components/theme-provider";
 
 type Props = {
@@ -49,7 +48,10 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
   const accentColor = "#FFC56B";
   const primaryColor = "#F26B1F";
 
-  const subtitle = progress?.label ?? (habit.description || (habit.target ? `Goal: ${habit.target} ${habit.unit ?? ""}`.trim() : null));
+  const subtitle =
+    progress?.label ??
+    (habit.description ||
+      (habit.target ? `Goal: ${habit.target} ${habit.unit ?? ""}`.trim() : null));
 
   async function handleToggleTap(e: { stopPropagation: () => void }) {
     e.stopPropagation();

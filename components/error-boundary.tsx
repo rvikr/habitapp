@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { reportError } from "@/lib/sentry";
+import { reportError } from "@/lib/services/sentry";
 
 type Props = { children: ReactNode };
 type State = { error: Error | null };
