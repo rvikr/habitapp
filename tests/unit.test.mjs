@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { localDateDaysAgo, localDateKey } from "../lib/date.ts";
-import { XP_PER_COMPLETION, XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "../lib/xp.ts";
-import { validatePassword } from "../lib/password.ts";
+import { addLocalDays, localDateDaysAgo, localDateKey } from "../lib/utils/date.ts";
+import {
+  XP_PER_COMPLETION,
+  XP_PER_LEVEL,
+  levelForXp,
+  xpForCompletions,
+  xpInLevel,
+} from "../lib/coach/xp.ts";
+import { validatePassword } from "../lib/auth/password.ts";
 import {
   AUTH_CALLBACK_CONFIRMED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
@@ -11,17 +17,21 @@ import {
   FIRST_LOGIN_WELCOME_TITLE,
   SIGNUP_CONFIRMATION_MESSAGE,
   isPendingSignupForEmail,
-} from "../lib/auth-welcome.ts";
-import { authCallbackUrlFromParams } from "../lib/auth-callback-params.ts";
+} from "../lib/auth/auth-welcome.ts";
+import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
 import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
-import { isValidReminderTime, parseOptionalPositiveNumber, validateFeedback } from "../lib/validation.ts";
-import { streakFromDates } from "../lib/streak.ts";
-import { buildCompletionValuePayload } from "../lib/completions.ts";
+import {
+  isValidReminderTime,
+  parseOptionalPositiveNumber,
+  validateFeedback,
+} from "../lib/auth/validation.ts";
+import { streakFromDates } from "../lib/coach/streak.ts";
+import { buildCompletionValuePayload } from "../lib/data/completions.ts";
 import {
   healthConnectTodayRange,
   normalizeHealthConnectStepAggregate,
   normalizeStepCount,
-} from "../lib/steps-shared.ts";
+} from "../lib/data/steps-shared.ts";
 import {
   buildSleepCompletionValue,
   computeSleepScore,
@@ -32,7 +42,7 @@ import {
   sleepDateForWakeTime,
   sleepLookbackWindows,
   sleepWindowForDate,
-} from "../lib/sleep-shared.ts";
+} from "../lib/data/sleep-shared.ts";
 import {
   inferHabitIntelligence,
   mergeHabitReminders,
@@ -40,20 +50,12 @@ import {
   progressForHabit,
   scoreHabitSimilarity,
   smartReminderTimesForDay,
-} from "../lib/habit-intelligence.ts";
-import {
-  buildRoutineRecommendations,
-} from "../lib/routine-builder.ts";
-import {
-  sanitizeHabitRecommendations,
-} from "../lib/routine-ai.ts";
-import {
-  buildCoachSignals,
-  formatCoachMessage,
-  chooseTopCoachSignal,
-} from "../lib/coach.ts";
-import { resolveCoachMessage } from "../lib/coach-ai.ts";
-import { createQueuedReminderSync } from "../lib/reminder-sync-queue.ts";
+} from "../lib/coach/habit-intelligence.ts";
+import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
+import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
+import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
+import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
+import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
 import {
   dateKeyInTimeZone,
   isValidDateKey,
@@ -100,6 +102,56 @@ test("date key validation accepts only real yyyy-mm-dd calendar dates", () => {
   assert.equal(isValidDateKey("05/10/2026"), false);
 });
 
+test("localDateDaysAgo lands on Feb 29 in leap years and Feb 28 in non-leap years", () => {
+  assert.equal(localDateDaysAgo(1, new Date(2024, 2, 1, 8, 0)), "2024-02-29");
+  assert.equal(localDateDaysAgo(1, new Date(2025, 2, 1, 8, 0)), "2025-02-28");
+});
+
+test("addLocalDays crosses the year boundary forward", () => {
+  assert.equal(localDateKey(addLocalDays(new Date(2025, 11, 31, 12, 0), 1)), "2026-01-01");
+});
+
+test("localDateKey flips at the stroke of midnight", () => {
+  assert.equal(localDateKey(new Date(2026, 4, 17, 23, 59, 59, 999)), "2026-05-17");
+  assert.equal(localDateKey(new Date(2026, 4, 18, 0, 0, 0, 1)), "2026-05-18");
+});
+
+// DST: Date.setDate is calendar-day arithmetic, so streaks across spring-forward
+// (US: Mar 9 2025 02:00 -> 03:00) and fall-back (US: Nov 2 2025 02:00 -> 01:00)
+// must still count consecutive days without an off-by-one.
+test("streakFromDates spans US DST spring-forward without dropping a day", () => {
+  const afterSpringForward = new Date(2025, 2, 10, 12, 0);
+  const dates = [
+    localDateKey(afterSpringForward),
+    localDateDaysAgo(1, afterSpringForward),
+    localDateDaysAgo(2, afterSpringForward),
+    localDateDaysAgo(3, afterSpringForward),
+  ];
+  assert.equal(streakFromDates(dates, afterSpringForward), 4);
+});
+
+test("streakFromDates spans US DST fall-back without double-counting", () => {
+  const afterFallBack = new Date(2025, 10, 3, 12, 0);
+  const dates = [
+    localDateKey(afterFallBack),
+    localDateDaysAgo(1, afterFallBack),
+    localDateDaysAgo(2, afterFallBack),
+    localDateDaysAgo(3, afterFallBack),
+  ];
+  assert.equal(streakFromDates(dates, afterFallBack), 4);
+});
+
+test("streakFromDates counts an unbroken run across the new year", () => {
+  const newYearsDay = new Date(2026, 0, 1, 9, 0);
+  const dates = [
+    localDateKey(newYearsDay),
+    localDateDaysAgo(1, newYearsDay),
+    localDateDaysAgo(2, newYearsDay),
+  ];
+  assert.equal(dates[1], "2025-12-31");
+  assert.equal(streakFromDates(dates, newYearsDay), 3);
+});
+
 test("XP constants are canonical across app, website, and SQL", () => {
   assert.equal(XP_PER_COMPLETION, 10);
   assert.equal(XP_PER_LEVEL, 500);
@@ -133,9 +185,18 @@ test("AI quota RPC is service-only and records quota events", () => {
   assert.match(sql, /create or replace function public\.consume_ai_quota/i);
   assert.match(sql, /current_setting\('request\.jwt\.claim\.role'/i);
   assert.match(sql, /raise exception 'service role required'/i);
-  assert.match(sql, /revoke execute on function public\.consume_ai_quota\(uuid, text, integer, integer\) from public/i);
-  assert.match(sql, /revoke execute on function public\.consume_ai_quota\(uuid, text, integer, integer\) from anon/i);
-  assert.match(sql, /grant execute on function public\.consume_ai_quota\(uuid, text, integer, integer\) to service_role/i);
+  assert.match(
+    sql,
+    /revoke execute on function public\.consume_ai_quota\(uuid, text, integer, integer\) from public/i,
+  );
+  assert.match(
+    sql,
+    /revoke execute on function public\.consume_ai_quota\(uuid, text, integer, integer\) from anon/i,
+  );
+  assert.match(
+    sql,
+    /grant execute on function public\.consume_ai_quota\(uuid, text, integer, integer\) to service_role/i,
+  );
   assert.match(sql, /where key = 'ai_suggestions'/i);
   assert.match(sql, /hourly_quota_exceeded/i);
   assert.match(sql, /daily_quota_exceeded/i);
@@ -159,7 +220,7 @@ test("AI Edge Functions enforce server-side quota before OpenAI calls", () => {
 });
 
 test("account deletion requires password confirmation and recent sign-in", () => {
-  const actionSource = readFileSync("lib/actions.ts", "utf8");
+  const actionSource = readFileSync("lib/data/actions.ts", "utf8");
   assert.match(actionSource, /requestAccountDeletion\(reason\?: string, password\?: string\)/);
   assert.match(actionSource, /signInWithPassword/);
   assert.match(actionSource, /Confirm your password before deleting your account/);
@@ -175,17 +236,24 @@ test("account deletion requires password confirmation and recent sign-in", () =>
   assert.match(functionSource, /user\.last_sign_in_at/);
   assert.match(functionSource, /Recent sign-in required before deleting your account/);
   assert.ok(
-    functionSource.indexOf("hasRecentSignIn(user)") < functionSource.indexOf("admin.auth.admin.deleteUser"),
+    functionSource.indexOf("hasRecentSignIn(user)") <
+      functionSource.indexOf("admin.auth.admin.deleteUser"),
     "delete-account should enforce recent sign-in before deleting the auth user",
   );
 });
 
 test("external account deletion page is wired for Play Store compliance", () => {
   const mobileEnvExample = readFileSync(".env.local.example", "utf8");
-  assert.match(mobileEnvExample, /EXPO_PUBLIC_ACCOUNT_DELETION_URL=https:\/\/your-domain\.example\/account-deletion/);
+  assert.match(
+    mobileEnvExample,
+    /EXPO_PUBLIC_ACCOUNT_DELETION_URL=https:\/\/your-domain\.example\/account-deletion/,
+  );
 
   const websiteEnvExample = readFileSync("website/.env.local.example", "utf8");
-  assert.match(websiteEnvExample, /NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@your-domain\.example/);
+  assert.match(
+    websiteEnvExample,
+    /NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@your-domain\.example/,
+  );
 
   const privacyScreen = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
   assert.match(privacyScreen, /EXPO_PUBLIC_ACCOUNT_DELETION_URL/);
@@ -200,7 +268,10 @@ test("external account deletion page is wired for Play Store compliance", () => 
   const settingsForm = readFileSync("website/app/(app)/settings/SettingsForm.tsx", "utf8");
   assert.match(settingsForm, /deletePassword/);
   assert.match(settingsForm, /signInWithPassword/);
-  assert.match(settingsForm, /functions\.invoke<\{ ok\?: boolean; error\?: string \}>\("delete-account"/);
+  assert.match(
+    settingsForm,
+    /functions\.invoke<\{ ok\?: boolean; error\?: string \}>\("delete-account"/,
+  );
   assert.match(settingsForm, /\/account-deletion\?status=deleted/);
 
   const loginForm = readFileSync("website/app/login/LoginForm.tsx", "utf8");
@@ -210,7 +281,9 @@ test("external account deletion page is wired for Play Store compliance", () => 
 
 test("Health Connect privacy policy links route to a dedicated Play rationale activity", () => {
   const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
-  const plugins = appConfig.expo.plugins.map((plugin) => Array.isArray(plugin) ? plugin[0] : plugin);
+  const plugins = appConfig.expo.plugins.map((plugin) =>
+    Array.isArray(plugin) ? plugin[0] : plugin,
+  );
   const healthConnectIndex = plugins.indexOf("expo-health-connect");
   const rationaleIndex = plugins.indexOf("./plugins/with-health-connect-rationale");
   assert.ok(healthConnectIndex >= 0, "app should install the Health Connect config plugin");
@@ -219,10 +292,12 @@ test("Health Connect privacy policy links route to a dedicated Play rationale ac
     rationaleIndex < healthConnectIndex,
     "rationale plugin should be declared before expo-health-connect so its manifest cleanup runs after Expo composes mods",
   );
-  assert.deepEqual(appConfig.expo.android.permissions.filter((permission) => permission.startsWith("android.permission.health.")), [
-    "android.permission.health.READ_STEPS",
-    "android.permission.health.READ_SLEEP",
-  ]);
+  assert.deepEqual(
+    appConfig.expo.android.permissions.filter((permission) =>
+      permission.startsWith("android.permission.health."),
+    ),
+    ["android.permission.health.READ_STEPS", "android.permission.health.READ_SLEEP"],
+  );
 
   const pluginSource = readFileSync("plugins/with-health-connect-rationale.js", "utf8");
   assert.match(pluginSource, /HealthConnectRationaleActivity/);
@@ -329,8 +404,14 @@ test("positive number parsing rejects invalid habit targets", () => {
 
 test("feedback validation requires useful message and valid rating", () => {
   assert.equal(validateFeedback({ rating: 5, message: "Great, but reminders need snooze." }), null);
-  assert.equal(validateFeedback({ rating: 5, message: "too short" })?.includes("10 characters"), true);
-  assert.equal(validateFeedback({ rating: 6, message: "This message is long enough." })?.includes("rating"), true);
+  assert.equal(
+    validateFeedback({ rating: 5, message: "too short" })?.includes("10 characters"),
+    true,
+  );
+  assert.equal(
+    validateFeedback({ rating: 6, message: "This message is long enough." })?.includes("rating"),
+    true,
+  );
 });
 
 test("streakFromDates returns 0 for empty input", () => {
@@ -339,21 +420,13 @@ test("streakFromDates returns 0 for empty input", () => {
 
 test("streakFromDates counts consecutive days ending today", () => {
   const today = new Date(2026, 4, 10);
-  const dates = [
-    localDateKey(today),
-    localDateDaysAgo(1, today),
-    localDateDaysAgo(2, today),
-  ];
+  const dates = [localDateKey(today), localDateDaysAgo(1, today), localDateDaysAgo(2, today)];
   assert.equal(streakFromDates(dates, today), 3);
 });
 
 test("streakFromDates breaks on a missing day", () => {
   const today = new Date(2026, 4, 10);
-  const dates = [
-    localDateKey(today),
-    localDateDaysAgo(2, today),
-    localDateDaysAgo(3, today),
-  ];
+  const dates = [localDateKey(today), localDateDaysAgo(2, today), localDateDaysAgo(3, today)];
   assert.equal(streakFromDates(dates, today), 1);
 });
 
@@ -391,10 +464,22 @@ test("habit intelligence normalizes water litre goals to ml", () => {
 });
 
 test("habit intelligence converts selected display units into base storage units", () => {
-  const water = inferHabitIntelligence({ name: "Drink water", unit: "l", target: 2, habitType: "water_intake", metricType: "volume_ml" });
+  const water = inferHabitIntelligence({
+    name: "Drink water",
+    unit: "l",
+    target: 2,
+    habitType: "water_intake",
+    metricType: "volume_ml",
+  });
   assert.equal(water.unit, "ml");
   assert.equal(water.target, 2000);
-  const run = inferHabitIntelligence({ name: "Run", unit: "m", target: 500, habitType: "run", metricType: "distance_km" });
+  const run = inferHabitIntelligence({
+    name: "Run",
+    unit: "m",
+    target: 500,
+    habitType: "run",
+    metricType: "distance_km",
+  });
   assert.equal(run.unit, "km");
   assert.equal(run.target, 0.5);
 });
@@ -480,7 +565,10 @@ test("sleep date is assigned from wake time and windows span 18:00 to 18:00", ()
 
 test("sleep sync builds recent nightly windows newest first", () => {
   const windows = sleepLookbackWindows(3, new Date(2026, 4, 14, 7, 30));
-  assert.deepEqual(windows.map((window) => window.sleepDate), ["2026-05-14", "2026-05-13", "2026-05-12"]);
+  assert.deepEqual(
+    windows.map((window) => window.sleepDate),
+    ["2026-05-14", "2026-05-13", "2026-05-12"],
+  );
   assert.equal(new Date(windows[2].startTime).getDate(), 11);
   assert.equal(new Date(windows[2].endTime).getDate(), 12);
 });
@@ -529,8 +617,14 @@ test("healthkit sleep samples count asleep categories and ignore in-bed/awake", 
 });
 
 test("sleep score is duration-first with neutral consistency and stage points", () => {
-  assert.equal(computeSleepScore({ durationMinutes: 480, targetMinutes: 480, recentEntries: [] }), 100);
-  assert.equal(computeSleepScore({ durationMinutes: 240, targetMinutes: 480, recentEntries: [] }), 58);
+  assert.equal(
+    computeSleepScore({ durationMinutes: 480, targetMinutes: 480, recentEntries: [] }),
+    100,
+  );
+  assert.equal(
+    computeSleepScore({ durationMinutes: 240, targetMinutes: 480, recentEntries: [] }),
+    58,
+  );
   assert.equal(
     computeSleepScore({
       durationMinutes: 480,
@@ -554,8 +648,11 @@ test("sleep completion value stores hours from synced minutes", () => {
 });
 
 test("sleep storage setup errors are recognized", () => {
-  assert.equal(isSleepEntriesSetupError("Could not find the table 'public.sleep_entries' in the schema cache"), true);
-  assert.equal(isSleepEntriesSetupError("relation \"public.sleep_entries\" does not exist"), true);
+  assert.equal(
+    isSleepEntriesSetupError("Could not find the table 'public.sleep_entries' in the schema cache"),
+    true,
+  );
+  assert.equal(isSleepEntriesSetupError('relation "public.sleep_entries" does not exist'), true);
   assert.equal(isSleepEntriesSetupError("permission denied for table sleep_entries"), true);
   assert.equal(isSleepEntriesSetupError("Network request failed"), false);
 });
@@ -565,7 +662,10 @@ test("sleep entries migration exposes the table to authenticated clients", () =>
     readFileSync("supabase/migrations/0010_sleep_tracking.sql", "utf8"),
     readFileSync("supabase/schema.sql", "utf8"),
   ].join("\n");
-  assert.match(sql, /grant select,\s*insert,\s*update,\s*delete on table public\.sleep_entries to authenticated/i);
+  assert.match(
+    sql,
+    /grant select,\s*insert,\s*update,\s*delete on table public\.sleep_entries to authenticated/i,
+  );
   assert.match(sql, /alter table public\.sleep_entries enable row level security/i);
 });
 
@@ -708,7 +808,10 @@ test("bundling unions active reminder times and days without copying disabled de
 
 test("smart reminder slots respect active hours and intervals", () => {
   const slots = smartReminderTimesForDay(new Date(2026, 4, 10, 7, 30), 120);
-  assert.deepEqual(slots.map((slot) => slot.getHours()), [8, 10, 12, 14, 16, 18, 20, 22]);
+  assert.deepEqual(
+    slots.map((slot) => slot.getHours()),
+    [8, 10, 12, 14, 16, 18, 20, 22],
+  );
   const midday = smartReminderTimesForDay(new Date(2026, 4, 10, 12, 30), 60);
   assert.equal(midday[0].getHours(), 13);
 });
@@ -772,7 +875,10 @@ test("AI routine sanitizer rejects invalid names enums and oversized routines", 
     fitnessLevel: "beginner",
   });
   assert.equal(sanitizeHabitRecommendations([{ ...fallback[0], name: "" }], fallback), fallback);
-  assert.equal(sanitizeHabitRecommendations([{ ...fallback[0], color: "rainbow" }], fallback), fallback);
+  assert.equal(
+    sanitizeHabitRecommendations([{ ...fallback[0], color: "rainbow" }], fallback),
+    fallback,
+  );
   assert.equal(sanitizeHabitRecommendations([...fallback, ...fallback], fallback), fallback);
 });
 
@@ -802,7 +908,14 @@ const coachHabit = {
 test("coach detects target habits falling behind by time of day", () => {
   const signals = buildCoachSignals({
     habits: [coachHabit],
-    completions: [{ habit_id: coachHabit.id, completed_on: "2026-05-14", created_at: "2026-05-14T09:00:00", value: 600 }],
+    completions: [
+      {
+        habit_id: coachHabit.id,
+        completed_on: "2026-05-14",
+        created_at: "2026-05-14T09:00:00",
+        value: 600,
+      },
+    ],
     now: new Date(2026, 4, 14, 16, 0),
     tone: "friendly",
   });
@@ -827,10 +940,30 @@ test("coach detects same-weekday late skip windows and suggests an easier versio
   const signals = buildCoachSignals({
     habits: [workout],
     completions: [
-      { habit_id: workout.id, completed_on: "2026-05-12", created_at: "2026-05-12T18:30:00", value: 45 },
-      { habit_id: workout.id, completed_on: "2026-05-11", created_at: "2026-05-11T18:30:00", value: 45 },
-      { habit_id: workout.id, completed_on: "2026-05-06", created_at: "2026-05-06T18:30:00", value: 45 },
-      { habit_id: workout.id, completed_on: "2026-04-29", created_at: "2026-04-29T18:30:00", value: 45 },
+      {
+        habit_id: workout.id,
+        completed_on: "2026-05-12",
+        created_at: "2026-05-12T18:30:00",
+        value: 45,
+      },
+      {
+        habit_id: workout.id,
+        completed_on: "2026-05-11",
+        created_at: "2026-05-11T18:30:00",
+        value: 45,
+      },
+      {
+        habit_id: workout.id,
+        completed_on: "2026-05-06",
+        created_at: "2026-05-06T18:30:00",
+        value: 45,
+      },
+      {
+        habit_id: workout.id,
+        completed_on: "2026-04-29",
+        created_at: "2026-04-29T18:30:00",
+        value: 45,
+      },
     ],
     now: new Date(2026, 4, 13, 20, 30),
     tone: "motivational",
@@ -844,10 +977,30 @@ test("coach softens strict tones when burnout is detected", () => {
   const signals = buildCoachSignals({
     habits: [coachHabit],
     completions: [
-      { habit_id: coachHabit.id, completed_on: "2026-05-05", created_at: "2026-05-05T09:00:00", value: 2000 },
-      { habit_id: coachHabit.id, completed_on: "2026-05-06", created_at: "2026-05-06T09:00:00", value: 2000 },
-      { habit_id: coachHabit.id, completed_on: "2026-05-07", created_at: "2026-05-07T09:00:00", value: 2000 },
-      { habit_id: coachHabit.id, completed_on: "2026-05-08", created_at: "2026-05-08T09:00:00", value: 2000 },
+      {
+        habit_id: coachHabit.id,
+        completed_on: "2026-05-05",
+        created_at: "2026-05-05T09:00:00",
+        value: 2000,
+      },
+      {
+        habit_id: coachHabit.id,
+        completed_on: "2026-05-06",
+        created_at: "2026-05-06T09:00:00",
+        value: 2000,
+      },
+      {
+        habit_id: coachHabit.id,
+        completed_on: "2026-05-07",
+        created_at: "2026-05-07T09:00:00",
+        value: 2000,
+      },
+      {
+        habit_id: coachHabit.id,
+        completed_on: "2026-05-08",
+        created_at: "2026-05-08T09:00:00",
+        value: 2000,
+      },
     ],
     now: new Date(2026, 4, 14, 18, 0),
     tone: "military",
@@ -885,11 +1038,23 @@ test("AI coach message falls back when disabled or generation fails", async () =
     message: "Read one page now.",
   };
   let calls = 0;
-  const disabled = await resolveCoachMessage(signal, { enabled: false, invoke: async () => { calls++; return "Generated"; } });
+  const disabled = await resolveCoachMessage(signal, {
+    enabled: false,
+    invoke: async () => {
+      calls++;
+      return "Generated";
+    },
+  });
   assert.equal(disabled, signal.message);
   assert.equal(calls, 0);
 
-  const failed = await resolveCoachMessage(signal, { enabled: true, invoke: async () => { calls++; throw new Error("offline"); } });
+  const failed = await resolveCoachMessage(signal, {
+    enabled: true,
+    invoke: async () => {
+      calls++;
+      throw new Error("offline");
+    },
+  });
   assert.equal(failed, signal.message);
   assert.equal(calls, 1);
 });
@@ -907,18 +1072,26 @@ test("AI coach message uses cache before invoking generation", async () => {
   };
   const cachedAt = new Date(2026, 4, 14, 12, 0).getTime();
   const cache = new Map([
-    ["habbit:coach-message:behind_progress:habit-1:friendly:500", JSON.stringify({ message: "Cached coach line.", cachedAt })],
+    [
+      "habbit:coach-message:behind_progress:habit-1:friendly:500",
+      JSON.stringify({ message: "Cached coach line.", cachedAt }),
+    ],
   ]);
   const storage = {
     getItem: async (key) => cache.get(key) ?? null,
-    setItem: async (key, value) => { cache.set(key, value); },
+    setItem: async (key, value) => {
+      cache.set(key, value);
+    },
   };
   let calls = 0;
   const message = await resolveCoachMessage(signal, {
     enabled: true,
     now: new Date(cachedAt + 60_000),
     storage,
-    invoke: async () => { calls++; return "Generated coach line."; },
+    invoke: async () => {
+      calls++;
+      return "Generated coach line.";
+    },
   });
   assert.equal(message, "Cached coach line.");
   assert.equal(calls, 0);
