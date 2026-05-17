@@ -1,9 +1,10 @@
 ﻿import { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Modal, Linking } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import AntDesign from "@expo/vector-icons/AntDesign";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { signIn, signUp, resetPassword } from "@/lib/actions";
+import { signIn, signUp, resetPassword, signInWithGoogle } from "@/lib/actions";
 import { validatePassword } from "@/lib/password";
 import {
   SIGNUP_CONFIRMATION_MESSAGE,
@@ -23,6 +24,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [showForgot, setShowForgot] = useState(false);
@@ -34,6 +36,21 @@ export default function LoginScreen() {
     setConfirmPassword("");
     setShowPassword(false);
     setShowConfirmPassword(false);
+  }
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const { error: e, cancelled } = await signInWithGoogle();
+      if (cancelled) return;
+      if (e) setError(e.message);
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
+      setGoogleLoading(false);
+    }
   }
 
   async function handleSubmit() {
@@ -197,7 +214,7 @@ export default function LoginScreen() {
               <TouchableOpacity
                 className="bg-primary rounded-full py-md items-center mt-xs"
                 onPress={handleSubmit}
-                disabled={loading}
+                disabled={loading || googleLoading}
               >
                 {loading ? (
                   <ActivityIndicator color="#fff" />
@@ -205,6 +222,29 @@ export default function LoginScreen() {
                   <Text className="text-on-primary text-label-lg font-semibold">
                     {mode === "signin" ? "Sign in" : "Create account"}
                   </Text>
+                )}
+              </TouchableOpacity>
+
+              <View className="flex-row items-center gap-sm my-xs">
+                <View className="flex-1 h-px bg-outline-variant dark:bg-d-outline-variant" />
+                <Text className="text-on-surface-variant dark:text-d-on-surface-variant text-label-sm">or</Text>
+                <View className="flex-1 h-px bg-outline-variant dark:bg-d-outline-variant" />
+              </View>
+
+              <TouchableOpacity
+                className="flex-row items-center justify-center gap-sm border border-outline-variant dark:border-d-outline-variant rounded-full py-md"
+                onPress={handleGoogleSignIn}
+                disabled={loading || googleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator color="#8F8A82" />
+                ) : (
+                  <>
+                    <AntDesign name="google" size={20} color="#4285F4" />
+                    <Text className="text-on-surface dark:text-d-on-surface text-label-lg font-semibold">
+                      Continue with Google
+                    </Text>
+                  </>
                 )}
               </TouchableOpacity>
 

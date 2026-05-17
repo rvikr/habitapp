@@ -1,3 +1,5 @@
+import { Platform } from "react-native";
+import * as WebBrowser from "expo-web-browser";
 import {
   supabase,
   isSupabaseConfigured,
@@ -8,7 +10,7 @@ import {
 import type { AvatarStyle } from "./avatar";
 import { normalizeCoachTone, type CoachTone } from "./coach";
 import { track, resetAnalytics } from "./analytics";
-import { authCallbackUrl } from "./auth-redirect";
+import { authCallbackUrl, parseAuthCallbackUrl } from "./auth-redirect";
 import { buildCompletionValuePayload } from "./completions";
 import { localDateKey } from "./date";
 import { cancelHabitReminders, syncScheduledReminders } from "./reminder-sync";
@@ -155,6 +157,51 @@ export async function signOut() {
     }
   }
   resetAnalytics();
+}
+
+export async function signInWithGoogle(): Promise<{ error: Error | null; cancelled?: boolean }> {
+  if (!isSupabaseConfigured()) return { error: configurationError() as unknown as Error };
+  try {
+    const redirectTo = authCallbackUrl();
+
+    if (Platform.OS === "web") {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
+      });
+      return { error: error as Error | null };
+    }
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo, skipBrowserRedirect: true },
+    });
+    if (error) return { error: error as unknown as Error };
+    if (!data.url) return { error: new Error("No authentication URL returned.") };
+
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    if (result.type === "cancel" || result.type === "dismiss") return { error: null, cancelled: true };
+    if (result.type !== "success") return { error: new Error("Authentication was not completed.") };
+
+    const parsed = parseAuthCallbackUrl(result.url);
+    if (parsed.error) return { error: new Error(parsed.errorDescription ?? parsed.error) };
+
+    if (parsed.code) {
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(parsed.code);
+      return { error: exchangeError as Error | null };
+    }
+    if (parsed.accessToken && parsed.refreshToken) {
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: parsed.accessToken,
+        refresh_token: parsed.refreshToken,
+      });
+      return { error: sessionError as Error | null };
+    }
+
+    return { error: new Error("No authentication tokens received.") };
+  } catch {
+    return { error: networkError() };
+  }
 }
 
 export async function logCompletion(habitId: string, value?: number, note?: string): Promise<ActionResult> {
