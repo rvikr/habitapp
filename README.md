@@ -47,6 +47,18 @@ EXPO_PUBLIC_SUPPORT_EMAIL=support@your-domain.example
 All `EXPO_PUBLIC_*` vars are bundled into the client at build time. Don't put service-role
 keys here.
 
+### Supabase Auth redirects
+
+In Supabase Dashboard -> Authentication -> URL Configuration, add the native app redirect
+URL before testing Google sign-in in a production Android/iOS build:
+
+```
+habbitapp://auth/callback
+```
+
+Keep the production web callback URL, such as `https://your-domain.example/auth/callback`,
+in the same allow list if web auth is enabled.
+
 `website/.env.local`:
 
 ```

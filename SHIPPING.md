@@ -82,6 +82,7 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 - [ ] Add `play-service-account.json` locally or configure Google Play credentials in EAS before `eas submit -p android`
 - [ ] Confirm `com.habbitapp.app` bundle ID is unique to you (or change to your reverse domain)
 - [ ] Set production env vars in EAS: Supabase URL/key, privacy policy URL, Sentry DSN, and PostHog key/host
+- [ ] Add `habbitapp://auth/callback` to Supabase Auth -> URL Configuration -> Redirect URLs for Google sign-in
 - [ ] Deploy the public account deletion page and set `EXPO_PUBLIC_ACCOUNT_DELETION_URL` to `https://your-domain/account-deletion`
 - [ ] Set `NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL` for the web account deletion page
 - [ ] Verify the Play Console account deletion URL returns HTTP 200 without sign-in before submitting

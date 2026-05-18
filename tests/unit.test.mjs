@@ -345,6 +345,11 @@ test("auth callback params can reconstruct a callback URL when native Linking ha
   assert.equal(url, "/auth/callback?code=auth-code&state=first-state");
 });
 
+test("native Supabase OAuth uses PKCE so Android callbacks carry query params", () => {
+  const clientSource = readFileSync("lib/supabase/client.ts", "utf8");
+  assert.match(clientSource, /flowType:\s*["']pkce["']/);
+});
+
 test("queued reminder sync cancels the latest stored IDs before the next sync schedules", async () => {
   let stored = {};
   const scheduled = [];
