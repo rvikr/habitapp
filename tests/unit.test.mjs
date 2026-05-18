@@ -283,6 +283,28 @@ test("external account deletion page is wired for Play Store compliance", () => 
   assert.match(loginForm, /safeNextPath/);
 });
 
+test("store-facing support and legal links have production build defaults", () => {
+  const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
+  assert.match(settingsScreen, /https:\/\/lagan\.health\/terms/);
+  assert.match(settingsScreen, /support@lagan\.health/);
+
+  const privacyScreen = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
+  assert.match(privacyScreen, /https:\/\/lagan\.health\/privacy/);
+  assert.match(privacyScreen, /https:\/\/lagan\.health\/account-deletion/);
+
+  const easConfig = JSON.parse(readFileSync("eas.json", "utf8"));
+  assert.equal(easConfig.build.production.env.EXPO_PUBLIC_TERMS_URL, "https://lagan.health/terms");
+  assert.equal(
+    easConfig.build.production.env.EXPO_PUBLIC_PRIVACY_POLICY_URL,
+    "https://lagan.health/privacy",
+  );
+  assert.equal(
+    easConfig.build.production.env.EXPO_PUBLIC_ACCOUNT_DELETION_URL,
+    "https://lagan.health/account-deletion",
+  );
+  assert.equal(easConfig.build.production.env.EXPO_PUBLIC_SUPPORT_EMAIL, "support@lagan.health");
+});
+
 test("Health Connect privacy policy links route to a dedicated Play rationale activity", () => {
   const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
   const plugins = appConfig.expo.plugins.map((plugin) =>

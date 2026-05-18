@@ -19,8 +19,8 @@ import { signOut } from "@/lib/data/actions";
 import { avatarFromUser } from "@/lib/utils/avatar";
 import { useTheme } from "@/components/theme-provider";
 
-const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL;
-const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL;
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || "https://lagan.health/terms";
+const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || "support@lagan.health";
 const APP_VERSION = Constants.expoConfig?.version ?? "—";
 
 type UserInfo = { displayName: string; email: string | null; avatarUrl: string };

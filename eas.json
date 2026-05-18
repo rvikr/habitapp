@@ -26,7 +26,13 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
-      "environment": "production"
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "https://lagan.health/privacy",
+        "EXPO_PUBLIC_TERMS_URL": "https://lagan.health/terms",
+        "EXPO_PUBLIC_ACCOUNT_DELETION_URL": "https://lagan.health/account-deletion",
+        "EXPO_PUBLIC_SUPPORT_EMAIL": "support@lagan.health"
+      }
     }
   }
 }

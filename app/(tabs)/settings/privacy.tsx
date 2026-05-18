@@ -18,8 +18,10 @@ import { requestAccountDeletion } from "@/lib/data/actions";
 import { exportMyData } from "@/lib/utils/privacy";
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from "@/lib/services/analytics";
 
-const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL;
-const ACCOUNT_DELETION_URL = process.env.EXPO_PUBLIC_ACCOUNT_DELETION_URL;
+const PRIVACY_POLICY_URL =
+  process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || "https://lagan.health/privacy";
+const ACCOUNT_DELETION_URL =
+  process.env.EXPO_PUBLIC_ACCOUNT_DELETION_URL || "https://lagan.health/account-deletion";
 
 export default function PrivacyScreen() {
   const router = useRouter();
