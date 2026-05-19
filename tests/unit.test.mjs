@@ -19,6 +19,11 @@ import {
   isPendingSignupForEmail,
 } from "../lib/auth/auth-welcome.ts";
 import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
+import {
+  isSupportedLanguage,
+  languageLabel,
+  translate,
+} from "../lib/i18n/translations.ts";
 import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
 import {
   isValidReminderTime,
@@ -355,6 +360,25 @@ test("signup and email confirmation copy gives a clear next step", () => {
   assert.match(AUTH_CALLBACK_CONFIRMED_BODY, /sign in/i);
   assert.equal(FIRST_LOGIN_WELCOME_TITLE, "Welcome to Lagan!");
   assert.match(FIRST_LOGIN_WELCOME_BODY, /all set/i);
+});
+
+test("i18n translates Hindi copy with interpolation and English fallback", () => {
+  assert.equal(translate("hi", "Settings"), "सेटिंग्स");
+  assert.equal(translate("hi", "Hey, {name}", { name: "Ravi" }), "नमस्ते, Ravi");
+  assert.equal(
+    translate("hi", "{count} habits remaining", { count: 3 }),
+    "3 आदतें बाकी हैं",
+  );
+  assert.equal(translate("hi", "Untranslated {thing}", { thing: "copy" }), "Untranslated copy");
+  assert.equal(translate("en", "Settings"), "Settings");
+});
+
+test("i18n exposes stable labels and rejects unsupported language values", () => {
+  assert.equal(languageLabel("en"), "English");
+  assert.equal(languageLabel("hi"), "हिन्दी");
+  assert.equal(isSupportedLanguage("hi"), true);
+  assert.equal(isSupportedLanguage("fr"), false);
+  assert.equal(isSupportedLanguage(null), false);
 });
 
 test("auth callback params can reconstruct a callback URL when native Linking has no URL", () => {

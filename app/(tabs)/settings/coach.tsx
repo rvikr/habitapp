@@ -6,6 +6,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getCurrentUser, supabase } from "@/lib/supabase/client";
 import { updateCoachTone } from "@/lib/data/actions";
 import { normalizeCoachTone, type CoachTone } from "@/lib/coach/coach";
+import { useLanguage } from "@/components/language-provider";
 
 const TONES: { id: CoachTone; label: string; sample: string }[] = [
   { id: "friendly", label: "Friendly", sample: "You can still make progress today." },
@@ -17,6 +18,7 @@ const TONES: { id: CoachTone; label: string; sample: string }[] = [
 
 export default function CoachSettingsScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [tone, setTone] = useState<CoachTone>("friendly");
   const [saving, setSaving] = useState<CoachTone | null>(null);
 
@@ -43,7 +45,7 @@ export default function CoachSettingsScreen() {
     const result = await updateCoachTone(nextTone);
     setSaving(null);
     if (!result.ok) {
-      Alert.alert("Could not update coach", result.error ?? "Try again.");
+      Alert.alert(t("Could not update coach"), result.error ?? t("Try again."));
       load();
     }
   }
@@ -55,7 +57,7 @@ export default function CoachSettingsScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
-          AI Coach
+          {t("AI Coach")}
         </Text>
       </View>
 
@@ -77,13 +79,13 @@ export default function CoachSettingsScreen() {
                 />
                 <View className="flex-1">
                   <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                    {item.label}
+                    {t(item.label)}
                   </Text>
                   <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                    {item.sample}
+                    {t(item.sample)}
                   </Text>
                 </View>
-                {saving === item.id && <Text className="text-label-sm text-primary">Saving</Text>}
+                {saving === item.id && <Text className="text-label-sm text-primary">{t("Saving")}</Text>}
               </TouchableOpacity>
             );
           })}

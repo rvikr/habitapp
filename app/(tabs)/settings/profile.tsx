@@ -7,9 +7,11 @@ import { getCurrentUser } from "@/lib/supabase/client";
 import { updateAvatar } from "@/lib/data/actions";
 import { type AvatarStyle } from "@/lib/utils/avatar";
 import AvatarPicker from "@/components/avatar-picker";
+import { useLanguage } from "@/components/language-provider";
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [style, setStyle] = useState<AvatarStyle>("avataaars");
   const [seed, setSeed] = useState("Aspen");
   const [loading, setLoading] = useState(false);
@@ -43,7 +45,7 @@ export default function ProfileScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
-          Edit Profile
+          {t("Edit Profile")}
         </Text>
       </View>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
@@ -58,7 +60,7 @@ export default function ProfileScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text className="text-on-primary text-label-lg font-semibold">
-                {saved ? "Saved!" : "Save changes"}
+                {saved ? t("Saved!") : t("Save changes")}
               </Text>
             )}
           </TouchableOpacity>

@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useLanguage } from "@/components/language-provider";
 
 type Props = {
   title: string;
@@ -10,6 +11,7 @@ type Props = {
 
 export default function TopAppBar({ title, showBack, trailing }: Props) {
   const router = useRouter();
+  const { t } = useLanguage();
   return (
     <View className="flex-row items-center px-margin-mobile py-sm bg-background dark:bg-d-background">
       {showBack && (
@@ -18,7 +20,7 @@ export default function TopAppBar({ title, showBack, trailing }: Props) {
         </TouchableOpacity>
       )}
       <Text className="flex-1 text-headline-md text-on-background dark:text-d-on-background">
-        {title}
+        {t(title)}
       </Text>
       {trailing}
     </View>

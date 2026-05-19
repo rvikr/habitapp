@@ -23,11 +23,13 @@ import {
   rememberPendingSignup,
 } from "@/lib/auth/auth-welcome";
 import LogoChainL from "@/components/logo-chain-l";
+import { useLanguage } from "@/components/language-provider";
 
 type Mode = "signin" | "signup";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { languageName, t, toggleLanguage } = useLanguage();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -58,7 +60,7 @@ export default function LoginScreen() {
       if (cancelled) return;
       if (e) setError(e.message);
     } catch {
-      setError("Network error. Check your connection and try again.");
+      setError(t("Network error. Check your connection and try again."));
     } finally {
       setGoogleLoading(false);
     }
@@ -67,11 +69,11 @@ export default function LoginScreen() {
   async function handleSubmit() {
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
-      setError("Email and password are required.");
+      setError(t("Email and password are required."));
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setError("Enter a valid email address.");
+      setError(t("Enter a valid email address."));
       return;
     }
     if (mode === "signup") {
@@ -81,7 +83,7 @@ export default function LoginScreen() {
         return;
       }
       if (password !== confirmPassword) {
-        setError("Passwords do not match.");
+        setError(t("Passwords do not match."));
         return;
       }
     }
@@ -104,14 +106,14 @@ export default function LoginScreen() {
         if (e) {
           setError(e.message);
         } else if (!data?.user || data.user.identities?.length === 0) {
-          setError("An account with this email already exists. Try signing in instead.");
+          setError(t("An account with this email already exists. Try signing in instead."));
         } else {
           await rememberPendingSignup(trimmedEmail).catch(() => {});
-          setMessage(SIGNUP_CONFIRMATION_MESSAGE);
+          setMessage(t(SIGNUP_CONFIRMATION_MESSAGE));
         }
       }
     } catch {
-      setError("Network error. Check your connection and try again.");
+      setError(t("Network error. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
@@ -127,8 +129,17 @@ export default function LoginScreen() {
           <View className="flex-1 px-margin-mobile py-xxl">
             {/* Header */}
             <View className="mb-xxl">
-              <View className="mb-md">
+              <View className="mb-md flex-row items-center justify-between">
                 <LogoChainL size={44} />
+                <TouchableOpacity
+                  className="flex-row items-center gap-xs rounded-full bg-surface-container dark:bg-d-surface-container px-sm py-xs"
+                  onPress={toggleLanguage}
+                >
+                  <Ionicons name="language-outline" size={18} color="#F26B1F" />
+                  <Text className="text-label-sm text-on-surface dark:text-d-on-surface font-semibold">
+                    {languageName}
+                  </Text>
+                </TouchableOpacity>
               </View>
               <Text
                 className="text-display-sm text-on-background dark:text-d-on-background"
@@ -137,18 +148,18 @@ export default function LoginScreen() {
                 Lagan
               </Text>
               <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mb-lg">
-                A habit tracking app
+                {t("A habit tracking app")}
               </Text>
               <Text
                 className="text-headline-lg text-on-background dark:text-d-on-background"
                 style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
               >
-                {mode === "signin" ? "Welcome back" : "Create account"}
+                {mode === "signin" ? t("Welcome back") : t("Create account")}
               </Text>
               <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
                 {mode === "signin"
-                  ? "Pick up where you left off."
-                  : "Start building better habits today."}
+                  ? t("Pick up where you left off.")
+                  : t("Start building better habits today.")}
               </Text>
             </View>
 
@@ -156,7 +167,7 @@ export default function LoginScreen() {
             <View className="gap-md">
               <View className="gap-xs">
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
-                  Email
+                  {t("Email")}
                 </Text>
                 <TextInput
                   className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
@@ -174,12 +185,12 @@ export default function LoginScreen() {
               <View className="gap-xs">
                 <View className="flex-row justify-between items-center">
                   <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
-                    Password
+                    {t("Password")}
                   </Text>
                   {mode === "signin" && (
                     <TouchableOpacity onPress={() => setShowForgot(true)}>
                       <Text className="text-primary text-label-sm font-semibold">
-                        Forgot password?
+                        {t("Forgot password?")}
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -187,7 +198,9 @@ export default function LoginScreen() {
                 <View className="flex-row bg-surface-container dark:bg-d-surface-container rounded-xl overflow-hidden items-center">
                   <TextInput
                     className="flex-1 text-on-surface dark:text-d-on-surface px-md py-sm text-body-md"
-                    placeholder={mode === "signup" ? "8+ chars, mixed case + number" : "••••••••"}
+                    placeholder={
+                      mode === "signup" ? t("8+ chars, mixed case + number") : "••••••••"
+                    }
                     placeholderTextColor="#8F8A82"
                     value={password}
                     onChangeText={setPassword}
@@ -210,12 +223,12 @@ export default function LoginScreen() {
               {mode === "signup" && (
                 <View className="gap-xs">
                   <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
-                    Confirm Password
+                    {t("Confirm Password")}
                   </Text>
                   <View className="flex-row bg-surface-container dark:bg-d-surface-container rounded-xl overflow-hidden items-center">
                     <TextInput
                       className="flex-1 text-on-surface dark:text-d-on-surface px-md py-sm text-body-md"
-                      placeholder="Re-enter your password"
+                      placeholder={t("Re-enter your password")}
                       placeholderTextColor="#8F8A82"
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
@@ -256,7 +269,7 @@ export default function LoginScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text className="text-on-primary text-label-lg font-semibold">
-                    {mode === "signin" ? "Sign in" : "Create account"}
+                    {mode === "signin" ? t("Sign in") : t("Create account")}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -264,7 +277,7 @@ export default function LoginScreen() {
               <View className="flex-row items-center gap-sm my-xs">
                 <View className="flex-1 h-px bg-outline-variant dark:bg-d-outline-variant" />
                 <Text className="text-on-surface-variant dark:text-d-on-surface-variant text-label-sm">
-                  or
+                  {t("or")}
                 </Text>
                 <View className="flex-1 h-px bg-outline-variant dark:bg-d-outline-variant" />
               </View>
@@ -280,7 +293,7 @@ export default function LoginScreen() {
                   <>
                     <AntDesign name="google" size={20} color="#4285F4" />
                     <Text className="text-on-surface dark:text-d-on-surface text-label-lg font-semibold">
-                      Continue with Google
+                      {t("Continue with Google")}
                     </Text>
                   </>
                 )}
@@ -291,9 +304,11 @@ export default function LoginScreen() {
                 onPress={() => switchMode(mode === "signin" ? "signup" : "signin")}
               >
                 <Text className="text-on-surface-variant dark:text-d-on-surface-variant text-label-lg">
-                  {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
+                  {mode === "signin"
+                    ? t("Don't have an account? ")
+                    : t("Already have an account? ")}
                   <Text className="text-primary font-semibold">
-                    {mode === "signin" ? "Sign up" : "Sign in"}
+                    {mode === "signin" ? t("Sign up") : t("Sign in")}
                   </Text>
                 </Text>
               </TouchableOpacity>
@@ -307,7 +322,7 @@ export default function LoginScreen() {
                     onPress={() => Linking.openURL(process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL!)}
                   >
                     <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                      Privacy Policy
+                      {t("Privacy Policy")}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -337,6 +352,7 @@ function ForgotPasswordModal({
   onDismiss: () => void;
   initialEmail: string;
 }) {
+  const { t } = useLanguage();
   const [email, setEmail] = useState(initialEmail);
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; type: "error" | "success" } | null>(
@@ -346,11 +362,11 @@ function ForgotPasswordModal({
   async function send() {
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
-      setFeedback({ text: "Email is required.", type: "error" });
+      setFeedback({ text: t("Email is required."), type: "error" });
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setFeedback({ text: "Enter a valid email address.", type: "error" });
+      setFeedback({ text: t("Enter a valid email address."), type: "error" });
       return;
     }
     setSending(true);
@@ -358,9 +374,12 @@ function ForgotPasswordModal({
     try {
       const { error } = await resetPassword(trimmedEmail);
       if (error) setFeedback({ text: error.message, type: "error" });
-      else setFeedback({ text: "Reset link sent. Check your email.", type: "success" });
+      else setFeedback({ text: t("Reset link sent. Check your email."), type: "success" });
     } catch {
-      setFeedback({ text: "Network error. Check your connection and try again.", type: "error" });
+      setFeedback({
+        text: t("Network error. Check your connection and try again."),
+        type: "error",
+      });
     } finally {
       setSending(false);
     }
@@ -371,14 +390,14 @@ function ForgotPasswordModal({
       <View className="flex-1 justify-end bg-black/40">
         <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-t-3xl p-lg gap-sm">
           <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold">
-            Reset password
+            {t("Reset password")}
           </Text>
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
-            We'll email you a link to set a new password.
+            {t("We'll email you a link to set a new password.")}
           </Text>
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
-            placeholder="Email"
+            placeholder={t("Email")}
             placeholderTextColor="#8F8A82"
             value={email}
             onChangeText={setEmail}
@@ -400,11 +419,15 @@ function ForgotPasswordModal({
             {sending ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">Send reset link</Text>
+              <Text className="text-on-primary text-label-lg font-semibold">
+                {t("Send reset link")}
+              </Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity className="items-center py-sm" onPress={onDismiss}>
-            <Text className="text-on-surface-variant dark:text-d-on-surface-variant">Cancel</Text>
+            <Text className="text-on-surface-variant dark:text-d-on-surface-variant">
+              {t("Cancel")}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

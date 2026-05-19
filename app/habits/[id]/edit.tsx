@@ -7,11 +7,13 @@ import { getHabit } from "@/lib/data/habits";
 import { updateHabitFull } from "@/lib/data/actions";
 import HabitForm from "@/components/habit-form";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import { useLanguage } from "@/components/language-provider";
 import type { Habit } from "@/types/db";
 
 export default function EditHabitScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { t } = useLanguage();
   const [habit, setHabit] = useState<Habit | null>(null);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export default function EditHabitScreen() {
     if (!id) return;
     const result = await updateHabitFull(id, data);
     if (result.ok) router.back();
-    else Alert.alert("Could not save habit", result.error ?? "Try again.");
+    else Alert.alert(t("Could not save habit"), result.error ?? t("Try again."));
   }
 
   if (!habit) {
@@ -57,10 +59,10 @@ export default function EditHabitScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
-          Edit Habit
+          {t("Edit Habit")}
         </Text>
       </View>
-      <HabitForm initial={habit} onSubmit={handleUpdate} submitLabel="Save changes" />
+      <HabitForm initial={habit} onSubmit={handleUpdate} submitLabel={t("Save changes")} />
     </SafeAreaView>
   );
 }

@@ -19,6 +19,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
+import { LanguageProvider, useLanguage } from "@/components/language-provider";
 import { CelebrationProvider } from "@/components/celebration";
 import ErrorBoundary from "@/components/error-boundary";
 import NotificationScheduler from "@/components/notification-scheduler";
@@ -84,17 +85,19 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
 }
 
 function ConfigurationError() {
+  const { t } = useLanguage();
   return (
     <View className="flex-1 bg-background dark:bg-d-background items-center justify-center px-margin-mobile">
       <View className="w-16 h-16 rounded-full bg-error-container items-center justify-center mb-lg">
         <Text className="text-headline-lg text-on-error-container">!</Text>
       </View>
       <Text className="text-headline-md text-on-background dark:text-d-on-background font-bold mb-sm text-center">
-        Configuration error
+        {t("Configuration error")}
       </Text>
       <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
-        Supabase is not configured. Set{"\n"}EXPO_PUBLIC_SUPABASE_URL and{"\n"}
-        EXPO_PUBLIC_SUPABASE_ANON_KEY in .env.local.
+        {t(
+          "Supabase is not configured. Set\nEXPO_PUBLIC_SUPABASE_URL and\nEXPO_PUBLIC_SUPABASE_ANON_KEY in .env.local.",
+        )}
       </Text>
     </View>
   );
@@ -200,9 +203,11 @@ export default function RootLayout() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <ThemeProvider>
-          <CelebrationProvider>
-            <RootLayoutContent />
-          </CelebrationProvider>
+          <LanguageProvider>
+            <CelebrationProvider>
+              <RootLayoutContent />
+            </CelebrationProvider>
+          </LanguageProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

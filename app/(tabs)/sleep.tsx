@@ -15,6 +15,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import HabitProgressVisual from "@/components/habit-progress-visual";
 import ProgressRing from "@/components/progress-ring";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import { useLanguage } from "@/components/language-provider";
 import {
   getSleepDashboardData,
   getSleepPermissionStatus,
@@ -28,38 +29,42 @@ import type { SleepEntry } from "@/types/db";
 const SLEEP_BG = "#e6deff";
 const SLEEP_FG = "#F26B1F";
 
-function formatHours(minutes: number | null | undefined): string {
-  if (!minutes || minutes <= 0) return "0 hr";
+function formatHours(minutes: number | null | undefined, t: (message: string) => string): string {
+  if (!minutes || minutes <= 0) return `0 ${t("hr")}`;
   const hours = Math.round((minutes / 60) * 10) / 10;
-  return `${hours} hr`;
+  return `${hours} ${t("hr")}`;
 }
 
-function statusLabel(status: SleepPermissionStatus | "checking" | "syncing" | "idle"): string {
-  if (status === "granted") return "Ready to sync";
-  if (status === "undetermined") return "Permission needed";
-  if (status === "denied") return "Permission is off";
-  if (status === "providerUpdateRequired") return "Health Connect update needed";
-  if (status === "unavailable") return "Sync unavailable";
-  if (status === "syncing") return "Syncing";
-  if (status === "checking") return "Checking";
-  return "Not checked";
+function statusLabel(
+  status: SleepPermissionStatus | "checking" | "syncing" | "idle",
+  t: (message: string) => string,
+): string {
+  if (status === "granted") return t("Ready to sync");
+  if (status === "undetermined") return t("Permission needed");
+  if (status === "denied") return t("Permission is off");
+  if (status === "providerUpdateRequired") return t("Health Connect update needed");
+  if (status === "unavailable") return t("Sync unavailable");
+  if (status === "syncing") return t("Syncing");
+  if (status === "checking") return t("Checking");
+  return t("Not checked");
 }
 
-function sourceLabel(source: SleepEntry["source"]): string {
+function sourceLabel(source: SleepEntry["source"], t: (message: string) => string): string {
   if (source === "healthConnect") return "Health Connect";
   if (source === "healthKit") return "Apple Health";
-  return "Manual";
+  return t("Manual");
 }
 
-function scoreTone(score: number | null | undefined): string {
-  if (score == null) return "No score yet";
-  if (score >= 85) return "Great sleep";
-  if (score >= 70) return "Solid night";
-  if (score >= 50) return "Needs recovery";
-  return "Low sleep";
+function scoreTone(score: number | null | undefined, t: (message: string) => string): string {
+  if (score == null) return t("No score yet");
+  if (score >= 85) return t("Great sleep");
+  if (score >= 70) return t("Solid night");
+  if (score >= 50) return t("Needs recovery");
+  return t("Low sleep");
 }
 
 export default function SleepScreen() {
+  const { language, t } = useLanguage();
   const [data, setData] = useState<SleepDashboardData | null>(null);
   const [status, setStatus] = useState<SleepPermissionStatus | "checking" | "syncing" | "idle">(
     "idle",
@@ -101,7 +106,7 @@ export default function SleepScreen() {
     const result = await syncLastNightSleep();
     if (!result.ok) {
       setStatus(result.status ?? "idle");
-      Alert.alert("Could not sync sleep", result.error ?? "Try again.");
+      Alert.alert(t("Could not sync sleep"), result.error ?? t("Try again."));
     }
     await load({ force: true });
     setBusy(false);
@@ -110,13 +115,13 @@ export default function SleepScreen() {
   async function handleManualLog() {
     const value = Number(manualHours);
     if (!Number.isFinite(value) || value <= 0) {
-      Alert.alert("Enter sleep hours", "Use a number like 7.5.");
+      Alert.alert(t("Enter sleep hours"), t("Use a number like 7.5."));
       return;
     }
     setBusy(true);
     const result = await manualLogSleep(value);
     if (!result.ok) {
-      Alert.alert("Could not log sleep", result.error ?? "Try again.");
+      Alert.alert(t("Could not log sleep"), result.error ?? t("Try again."));
     } else {
       setManualHours("");
     }
@@ -133,10 +138,10 @@ export default function SleepScreen() {
       >
         <View className="px-margin-mobile pt-md pb-sm">
           <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-            Sleep tracker
+            {t("Sleep tracker")}
           </Text>
           <Text className="text-headline-lg text-on-background dark:text-d-on-background">
-            Last night
+            {t("Last night")}
           </Text>
         </View>
 
@@ -148,15 +153,18 @@ export default function SleepScreen() {
             <View className="flex-row items-center justify-between">
               <View className="flex-1">
                 <Text className="text-label-lg font-semibold" style={{ color: SLEEP_FG }}>
-                  {scoreTone(latest?.score)}
+                  {scoreTone(latest?.score, t)}
                 </Text>
                 <Text className="text-display-sm font-bold" style={{ color: SLEEP_FG }}>
                   {latest ? latest.score : "--"}
                 </Text>
                 <Text className="text-body-sm" style={{ color: SLEEP_FG }}>
                   {latest
-                    ? `${formatHours(latest.duration_minutes)} synced from ${sourceLabel(latest.source)}`
-                    : "Sync or log sleep to calculate your score."}
+                    ? t("{hours} synced from {source}", {
+                        hours: formatHours(latest.duration_minutes, t),
+                        source: sourceLabel(latest.source, t),
+                      })
+                    : t("Sync or log sleep to calculate your score.")}
                 </Text>
               </View>
               <ProgressRing
@@ -179,7 +187,7 @@ export default function SleepScreen() {
             <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md">
               <View className="flex-row items-center justify-between">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {formatHours(latest?.duration_minutes)} / {formatHours(targetMinutes)}
+                  {formatHours(latest?.duration_minutes, t)} / {formatHours(targetMinutes, t)}
                 </Text>
                 <Text className="text-label-lg text-primary font-semibold">
                   {Math.round(durationRatio * 100)}%
@@ -207,10 +215,12 @@ export default function SleepScreen() {
               />
               <View className="flex-1">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {statusLabel(status)}
+                  {statusLabel(status, t)}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.
+                  {t(
+                    "iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.",
+                  )}
                 </Text>
               </View>
             </View>
@@ -224,7 +234,7 @@ export default function SleepScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text className="text-on-primary text-label-lg font-semibold">
-                  Sync recent sleep
+                  {t("Sync recent sleep")}
                 </Text>
               )}
             </TouchableOpacity>
@@ -235,12 +245,12 @@ export default function SleepScreen() {
 
         <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
           <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-            Manual fallback
+            {t("Manual fallback")}
           </Text>
           <View className="flex-row gap-sm">
             <TextInput
               className="flex-1 bg-surface-lowest dark:bg-d-surface-lowest text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
-              placeholder="Hours, e.g. 7.5"
+              placeholder={t("Hours, e.g. 7.5")}
               placeholderTextColor="#8F8A82"
               value={manualHours}
               onChangeText={setManualHours}
@@ -252,14 +262,14 @@ export default function SleepScreen() {
               disabled={busy}
               style={{ opacity: busy ? 0.6 : 1 }}
             >
-              <Text className="text-on-primary text-label-lg font-semibold">Log</Text>
+              <Text className="text-on-primary text-label-lg font-semibold">{t("Log")}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
-            7-DAY TREND
+            {t("7-DAY TREND")}
           </Text>
           {!data ? (
             <SleepTrendSkeleton />
@@ -267,7 +277,7 @@ export default function SleepScreen() {
             <View className="items-center py-lg gap-xs">
               <MaterialCommunityIcons name="sleep" size={36} color={SLEEP_FG} />
               <Text className="text-body-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
-                Sleep scores will appear here after your first sync or manual log.
+                {t("Sleep scores will appear here after your first sync or manual log.")}
               </Text>
             </View>
           ) : (
@@ -285,7 +295,11 @@ export default function SleepScreen() {
                       style={{ height, backgroundColor: SLEEP_FG }}
                     />
                     <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                      {date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 2)}
+                      {date
+                        .toLocaleDateString(language === "hi" ? "hi-IN" : "en-US", {
+                          weekday: "short",
+                        })
+                        .slice(0, 2)}
                     </Text>
                   </View>
                 );
@@ -297,12 +311,14 @@ export default function SleepScreen() {
         {latest?.stage_minutes && (
           <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs">
             <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
-              SLEEP DETAIL
+              {t("SLEEP DETAIL")}
             </Text>
             <Text className="text-body-sm text-on-surface dark:text-d-on-surface">
-              Deep {formatHours(latest.stage_minutes.deep ?? 0)} · REM{" "}
-              {formatHours(latest.stage_minutes.rem ?? 0)} · Awake{" "}
-              {formatHours(latest.stage_minutes.awake ?? 0)}
+              {t("Deep {deep} · REM {rem} · Awake {awake}", {
+                deep: formatHours(latest.stage_minutes.deep ?? 0, t),
+                rem: formatHours(latest.stage_minutes.rem ?? 0, t),
+                awake: formatHours(latest.stage_minutes.awake ?? 0, t),
+              })}
             </Text>
           </View>
         )}

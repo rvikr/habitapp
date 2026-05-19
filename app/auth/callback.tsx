@@ -11,11 +11,13 @@ import {
   AUTH_CALLBACK_CONFIRMED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
 } from "@/lib/auth/auth-welcome";
+import { useLanguage } from "@/components/language-provider";
 
 type Status = "loading" | "success" | "error";
 
 export default function AuthCallbackScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const callbackParams = useLocalSearchParams();
   const routeCallbackUrl = authCallbackUrlFromParams(`/${AUTH_CALLBACK_PATH}`, callbackParams);
   const currentUrl = Linking.useURL();
@@ -69,7 +71,7 @@ export default function AuthCallbackScreen() {
 
     finishAuth().catch((e) => {
       if (!cancelled) {
-        setError(e instanceof Error ? e.message : "Could not complete authentication.");
+        setError(e instanceof Error ? e.message : t("Could not complete authentication."));
         setStatus("error");
       }
     });
@@ -77,14 +79,14 @@ export default function AuthCallbackScreen() {
     return () => {
       cancelled = true;
     };
-  }, [currentUrl, routeCallbackUrl, router]);
+  }, [currentUrl, routeCallbackUrl, router, t]);
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background items-center justify-center px-margin-mobile">
       {status === "error" ? (
         <>
           <Text className="text-headline-md text-on-background dark:text-d-on-background font-bold text-center mb-sm">
-            Link could not be opened
+            {t("Link could not be opened")}
           </Text>
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
             {error}
@@ -96,23 +98,25 @@ export default function AuthCallbackScreen() {
             <Ionicons name="checkmark" size={40} color="#ffffff" />
           </View>
           <Text className="text-headline-md text-on-background dark:text-d-on-background font-bold text-center mb-sm">
-            {AUTH_CALLBACK_CONFIRMED_TITLE}
+            {t(AUTH_CALLBACK_CONFIRMED_TITLE)}
           </Text>
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
-            {AUTH_CALLBACK_CONFIRMED_BODY}
+            {t(AUTH_CALLBACK_CONFIRMED_BODY)}
           </Text>
           <View className="w-full gap-sm mt-lg">
             <TouchableOpacity
               className="bg-primary rounded-full py-md items-center"
               onPress={() => router.replace({ pathname: "/", params: { newUser: "1" } } as never)}
             >
-              <Text className="text-on-primary text-label-lg font-semibold">Continue to app</Text>
+              <Text className="text-on-primary text-label-lg font-semibold">
+                {t("Continue to app")}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               className="bg-surface-container dark:bg-d-surface-container rounded-full py-md items-center"
               onPress={() => router.replace("/login" as never)}
             >
-              <Text className="text-primary text-label-lg font-semibold">Sign in</Text>
+              <Text className="text-primary text-label-lg font-semibold">{t("Sign in")}</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -120,7 +124,7 @@ export default function AuthCallbackScreen() {
         <>
           <ActivityIndicator size="large" color="#F26B1F" />
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-md">
-            Finishing sign in...
+            {t("Finishing sign in...")}
           </Text>
         </>
       )}

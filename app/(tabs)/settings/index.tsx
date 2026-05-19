@@ -18,6 +18,7 @@ import { supabase, getCurrentUser } from "@/lib/supabase/client";
 import { signOut } from "@/lib/data/actions";
 import { avatarFromUser } from "@/lib/utils/avatar";
 import { useTheme } from "@/components/theme-provider";
+import { useLanguage } from "@/components/language-provider";
 
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || "https://lagan.health/terms";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || "support@lagan.health";
@@ -55,6 +56,7 @@ function SettingsRow({
 export default function SettingsScreen() {
   const router = useRouter();
   const { colorScheme, toggle } = useTheme();
+  const { languageName, t, toggleLanguage } = useLanguage();
   const [user, setUser] = useState<UserInfo | null>(null);
 
   const load = useCallback(async () => {
@@ -70,12 +72,12 @@ export default function SettingsScreen() {
           (profile?.display_name as string | null | undefined) ??
           (u.user_metadata?.full_name as string | undefined) ??
           u.email?.split("@")[0] ??
-          "there",
+          t("there"),
         email: u.email ?? null,
         avatarUrl: avatarFromUser(u),
       });
     }
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -86,12 +88,12 @@ export default function SettingsScreen() {
   async function handleSignOut() {
     if (Platform.OS === "web") {
       // Alert.alert buttons don't fire on web — use browser confirm instead.
-      if (window.confirm("Sign out? You can sign back in any time.")) signOut();
+      if (window.confirm(`${t("Sign out?")} ${t("You can sign back in any time.")}`)) signOut();
       return;
     }
-    Alert.alert("Sign out?", "You can sign back in any time.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Sign out", style: "destructive", onPress: () => signOut() },
+    Alert.alert(t("Sign out?"), t("You can sign back in any time."), [
+      { text: t("Cancel"), style: "cancel" },
+      { text: t("Sign out"), style: "destructive", onPress: () => signOut() },
     ]);
   }
 
@@ -100,7 +102,7 @@ export default function SettingsScreen() {
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile pt-md pb-sm">
           <Text className="text-headline-lg text-on-background dark:text-d-on-background">
-            Settings
+            {t("Settings")}
           </Text>
         </View>
 
@@ -134,7 +136,7 @@ export default function SettingsScreen() {
         {/* Appearance */}
         <View className="px-margin-mobile mb-lg">
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
-            APPEARANCE
+            {t("APPEARANCE")}
           </Text>
           <TouchableOpacity
             className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl"
@@ -146,10 +148,29 @@ export default function SettingsScreen() {
               color="#F26B1F"
             />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface">
-              {colorScheme === "dark" ? "Dark mode" : "Light mode"}
+              {colorScheme === "dark" ? t("Dark mode") : t("Light mode")}
             </Text>
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              Toggle
+              {t("Toggle")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Language */}
+        <View className="px-margin-mobile mb-lg">
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
+            {t("LANGUAGE")}
+          </Text>
+          <TouchableOpacity
+            className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl"
+            onPress={toggleLanguage}
+          >
+            <MaterialCommunityIcons name="translate" size={20} color="#F26B1F" />
+            <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface">
+              {t("Language")}
+            </Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              {languageName}
             </Text>
           </TouchableOpacity>
         </View>
@@ -157,34 +178,34 @@ export default function SettingsScreen() {
         {/* Account */}
         <View className="px-margin-mobile mb-lg">
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
-            ACCOUNT
+            {t("ACCOUNT")}
           </Text>
           <SettingsRow
             icon="bell"
-            label="Reminders"
+            label={t("Reminders")}
             onPress={() => router.push("/settings/reminders")}
           />
           <SettingsRow
             icon="message-text-outline"
-            label="AI Coach"
+            label={t("AI Coach")}
             onPress={() => router.push("/settings/coach")}
           />
           <SettingsRow
             icon="message-alert-outline"
-            label="Send Feedback"
+            label={t("Send Feedback")}
             onPress={() => router.push("/settings/feedback" as never)}
           />
           <SettingsRow
             icon="star-outline"
-            label="Rate Lagan"
+            label={t("Rate Lagan")}
             onPress={() => requestReviewManually()}
           />
           <SettingsRow
             icon="email-outline"
-            label="Contact Support"
+            label={t("Contact Support")}
             onPress={() => {
               if (!SUPPORT_EMAIL) {
-                Alert.alert("Not configured", "Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment.");
+                Alert.alert(t("Not configured"), t("Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment."));
                 return;
               }
               Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
@@ -192,20 +213,20 @@ export default function SettingsScreen() {
           />
           <SettingsRow
             icon="shield-lock"
-            label="Security"
+            label={t("Security")}
             onPress={() => router.push("/settings/security")}
           />
           <SettingsRow
             icon="database-lock"
-            label="Privacy & Data"
+            label={t("Privacy & Data")}
             onPress={() => router.push("/settings/privacy" as never)}
           />
           <SettingsRow
             icon="file-document-outline"
-            label="Terms & Conditions"
+            label={t("Terms & Conditions")}
             onPress={() => {
               if (!TERMS_URL) {
-                Alert.alert("Not configured", "Set EXPO_PUBLIC_TERMS_URL in your environment.");
+                Alert.alert(t("Not configured"), t("Set EXPO_PUBLIC_TERMS_URL in your environment."));
                 return;
               }
               Linking.openURL(TERMS_URL);
@@ -215,11 +236,11 @@ export default function SettingsScreen() {
 
         {/* Danger */}
         <View className="px-margin-mobile">
-          <SettingsRow icon="logout" label="Sign out" onPress={handleSignOut} danger />
+          <SettingsRow icon="logout" label={t("Sign out")} onPress={handleSignOut} danger />
         </View>
 
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center mt-lg">
-          Version {APP_VERSION}
+          {t("Version {version}", { version: APP_VERSION })}
         </Text>
       </ScrollView>
     </SafeAreaView>

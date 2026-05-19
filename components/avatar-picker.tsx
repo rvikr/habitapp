@@ -5,6 +5,7 @@ import {
   AVATAR_SEED_PRESETS,
   type AvatarStyle,
 } from "@/lib/utils/avatar";
+import { useLanguage } from "@/components/language-provider";
 
 type Props = {
   style: AvatarStyle;
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange }: Props) {
+  const { t } = useLanguage();
   const previewUrl = avatarUrl(style, seed);
 
   return (
@@ -25,7 +27,7 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
 
       {/* Style picker */}
       <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
-        STYLE
+        {t("STYLE")}
       </Text>
       <View className="flex-row flex-wrap gap-sm mb-lg">
         {AVATAR_STYLES.map((s) => (
@@ -45,7 +47,7 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
 
       {/* Seed picker */}
       <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
-        AVATAR
+        {t("AVATAR")}
       </Text>
       <FlatList
         data={AVATAR_SEED_PRESETS}

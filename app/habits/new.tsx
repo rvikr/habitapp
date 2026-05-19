@@ -4,26 +4,28 @@ import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import HabitForm from "@/components/habit-form";
 import { createHabit } from "@/lib/data/actions";
+import { useLanguage } from "@/components/language-provider";
 
 export default function NewHabitScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   async function handleCreate(data: Parameters<typeof createHabit>[0]) {
     const result = await createHabit(data);
     if (result.ok) {
       if ("merged" in result && result.merged) {
         Alert.alert(
-          "Habit updated",
-          "A similar habit already existed, so I bundled the new goal into it.",
+          t("Habit updated"),
+          t("A similar habit already existed, so I bundled the new goal into it."),
         );
       } else if ("migrated" in result && result.migrated === false) {
         Alert.alert(
-          "Habit created",
-          "Apply the latest Supabase migration to enable saved smart metrics for this habit.",
+          t("Habit created"),
+          t("Apply the latest Supabase migration to enable saved smart metrics for this habit."),
         );
       }
       router.replace("/");
-    } else Alert.alert("Could not create habit", result.error ?? "Try again.");
+    } else Alert.alert(t("Could not create habit"), result.error ?? t("Try again."));
   }
 
   return (
@@ -33,10 +35,10 @@ export default function NewHabitScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
-          New Habit
+          {t("New Habit")}
         </Text>
       </View>
-      <HabitForm onSubmit={handleCreate} submitLabel="Create habit" />
+      <HabitForm onSubmit={handleCreate} submitLabel={t("Create habit")} />
     </SafeAreaView>
   );
 }

@@ -7,11 +7,13 @@ import { BADGE_DEFS, type ComputedBadge } from "@/lib/coach/badges";
 import BadgeGrid from "@/components/badge-grid";
 import ShareCardModal, { type ShareCardData } from "@/components/share-card-modal";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import { useLanguage } from "@/components/language-provider";
 import type { Milestone } from "@/types/db";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
 
 export default function AchievementsScreen() {
+  const { t } = useLanguage();
   const [stats, setStats] = useState<StatsData>(null);
   const [badges, setBadges] = useState<ComputedBadge[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
@@ -25,8 +27,8 @@ export default function AchievementsScreen() {
     if (s) {
       const computed: ComputedBadge[] = BADGE_DEFS.map((def) => ({
         id: def.id,
-        name: def.name,
-        description: def.description,
+        name: t(def.name),
+        description: t(def.description),
         icon: def.icon,
         tone: def.tone,
         earned: def.check(s),
@@ -37,7 +39,7 @@ export default function AchievementsScreen() {
     }
     setMilestones(getMilestones(s));
     setLoaded(true);
-  }, []);
+  }, [t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -72,7 +74,7 @@ export default function AchievementsScreen() {
       >
         <View className="px-margin-mobile pt-md pb-sm">
           <Text className="text-headline-lg text-on-background dark:text-d-on-background">
-            Achievements
+            {t("Achievements")}
           </Text>
         </View>
 
@@ -81,7 +83,7 @@ export default function AchievementsScreen() {
           <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-lg">
             <View className="flex-row justify-between items-center mb-sm">
               <Text className="text-label-lg text-on-surface dark:text-d-on-surface">
-                Level {stats?.level ?? 1}
+                {t("Level {level}", { level: stats?.level ?? 1 })}
               </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
                 {stats?.xp ?? 0} / {stats?.xpForNext ?? 500} XP
@@ -96,7 +98,7 @@ export default function AchievementsScreen() {
                   {stats?.totalCompletions ?? 0}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  completions
+                  {t("completions")}
                 </Text>
               </View>
               <View className="flex-1 items-center">
@@ -104,7 +106,7 @@ export default function AchievementsScreen() {
                   {stats?.currentStreak ?? 0}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  day streak
+                  {t("day streak")}
                 </Text>
               </View>
               <View className="flex-1 items-center">
@@ -112,7 +114,7 @@ export default function AchievementsScreen() {
                   {stats?.totalHabits ?? 0}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  habits
+                  {t("habits")}
                 </Text>
               </View>
             </View>
@@ -124,7 +126,7 @@ export default function AchievementsScreen() {
         {/* Badges */}
         <View className="px-margin-mobile mb-lg">
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
-            BADGES
+            {t("BADGES")}
           </Text>
           {loaded ? <BadgeGrid badges={badges} onShare={handleShareBadge} /> : <BadgeSkeleton />}
         </View>
@@ -133,7 +135,7 @@ export default function AchievementsScreen() {
         {milestones.length > 0 && (
           <View className="px-margin-mobile">
             <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
-              MILESTONES
+              {t("MILESTONES")}
             </Text>
             {milestones.map((m) => (
               <View

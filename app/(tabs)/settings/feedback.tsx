@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { submitFeedback, type FeedbackCategory } from "@/lib/utils/feedback";
+import { useLanguage } from "@/components/language-provider";
 
 const CATEGORIES: {
   id: FeedbackCategory;
@@ -27,6 +28,7 @@ const CATEGORIES: {
 
 export default function FeedbackScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [category, setCategory] = useState<FeedbackCategory>("bug");
   const [rating, setRating] = useState(4);
   const [message, setMessage] = useState("");
@@ -41,13 +43,13 @@ export default function FeedbackScreen() {
     setSending(false);
 
     if (!result.ok) {
-      setError(result.error ?? "Could not send feedback.");
+      setError(t(result.error ?? "Could not send feedback."));
       return;
     }
 
     setMessage("");
-    Alert.alert("Feedback sent", "Thanks. Your report was saved for review.", [
-      { text: "Done", onPress: () => router.back() },
+    Alert.alert(t("Feedback sent"), t("Thanks. Your report was saved for review."), [
+      { text: t("Done"), onPress: () => router.back() },
     ]);
   }
 
@@ -58,7 +60,7 @@ export default function FeedbackScreen() {
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
-          Send Feedback
+          {t("Send Feedback")}
         </Text>
       </View>
 
@@ -66,7 +68,7 @@ export default function FeedbackScreen() {
         <View className="px-margin-mobile gap-md">
           <View>
             <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
-              TYPE
+              {t("TYPE")}
             </Text>
             <View className="flex-row flex-wrap gap-sm">
               {CATEGORIES.map((item) => {
@@ -85,7 +87,7 @@ export default function FeedbackScreen() {
                     <Text
                       className={`ml-xs text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
                     >
-                      {item.label}
+                      {t(item.label)}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -95,7 +97,7 @@ export default function FeedbackScreen() {
 
           <View>
             <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
-              OVERALL RATING
+              {t("OVERALL RATING")}
             </Text>
             <View className="flex-row gap-xs">
               {[1, 2, 3, 4, 5].map((value) => (
@@ -116,11 +118,11 @@ export default function FeedbackScreen() {
 
           <View>
             <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
-              WHAT HAPPENED?
+              {t("WHAT HAPPENED?")}
             </Text>
             <TextInput
               className="min-h-36 bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
-              placeholder="Tell us what you tried, what happened, and what you expected."
+              placeholder={t("Tell us what you tried, what happened, and what you expected.")}
               placeholderTextColor="#8F8A82"
               value={message}
               onChangeText={setMessage}
@@ -136,10 +138,10 @@ export default function FeedbackScreen() {
           <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center justify-between">
             <View className="flex-1 mr-md">
               <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                Include email
+                {t("Include email")}
               </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                Lets us follow up if we need more details.
+                {t("Lets us follow up if we need more details.")}
               </Text>
             </View>
             <Switch
@@ -160,7 +162,9 @@ export default function FeedbackScreen() {
             {sending ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">Send feedback</Text>
+              <Text className="text-on-primary text-label-lg font-semibold">
+                {t("Send feedback")}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

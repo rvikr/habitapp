@@ -1,6 +1,7 @@
 import { ScrollView, View, Text } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import type { Insights } from "@/lib/data/habits";
+import { useLanguage } from "@/components/language-provider";
 
 type InsightItem = {
   icon: React.ComponentProps<typeof MaterialCommunityIcons>["name"];
@@ -9,7 +10,10 @@ type InsightItem = {
   text: string;
 };
 
-function buildItems(insights: Insights): InsightItem[] {
+function buildItems(
+  insights: Insights,
+  t: (message: string, values?: Record<string, string | number>) => string,
+): InsightItem[] {
   const items: InsightItem[] = [];
 
   if (insights.mostProductiveDay) {
@@ -17,7 +21,7 @@ function buildItems(insights: Insights): InsightItem[] {
       icon: "calendar-star",
       color: "#F26B1F",
       bg: "#e6deff",
-      text: `Most productive on ${insights.mostProductiveDay}s`,
+      text: t("Most productive on {day}s", { day: insights.mostProductiveDay }),
     });
   }
 
@@ -28,8 +32,12 @@ function buildItems(insights: Insights): InsightItem[] {
       color: up ? "#3EBB7F" : "#b3261e",
       bg: up ? "#76f6f240" : "#f2b8b540",
       text: up
-        ? `Consistency up ${insights.consistencyChangePct}% this month`
-        : `Consistency down ${Math.abs(insights.consistencyChangePct)}% this month`,
+        ? t("Consistency up {percent}% this month", {
+            percent: insights.consistencyChangePct,
+          })
+        : t("Consistency down {percent}% this month", {
+            percent: Math.abs(insights.consistencyChangePct),
+          }),
     });
   }
 
@@ -38,7 +46,7 @@ function buildItems(insights: Insights): InsightItem[] {
       icon: "clock-outline",
       color: "#E4A23A",
       bg: "#ffdbce",
-      text: `Most active ${insights.peakTimeLabel}`,
+      text: t("Most active {time}", { time: insights.peakTimeLabel }),
     });
   }
 
@@ -50,13 +58,14 @@ type Props = {
 };
 
 export default function InsightsStrip({ insights }: Props) {
-  const items = buildItems(insights);
+  const { t } = useLanguage();
+  const items = buildItems(insights, t);
   if (items.length === 0) return null;
 
   return (
     <View>
       <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm px-margin-mobile">
-        INSIGHTS
+        {t("INSIGHTS")}
       </Text>
       <ScrollView
         horizontal

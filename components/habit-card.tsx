@@ -4,6 +4,7 @@ import Svg, { Path } from "react-native-svg";
 import type { Habit } from "@/types/db";
 import type { HabitProgress } from "@/lib/coach/habit-intelligence";
 import { useTheme } from "@/components/theme-provider";
+import { useLanguage } from "@/components/language-provider";
 
 type Props = {
   habit: Habit;
@@ -42,6 +43,7 @@ function CheckIcon({ size = 14, color }: { size?: number; color: string }) {
 export default function HabitCard({ habit, done, progress, streak = 0, onToggle, onPress }: Props) {
   const [toggling, setToggling] = useState(false);
   const { colorScheme } = useTheme();
+  const { t } = useLanguage();
   const isDark = colorScheme === "dark";
 
   const borderColor = isDark ? "#2C2C36" : "#E6E0D5";
@@ -51,7 +53,9 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
   const subtitle =
     progress?.label ??
     (habit.description ||
-      (habit.target ? `Goal: ${habit.target} ${habit.unit ?? ""}`.trim() : null));
+      (habit.target
+        ? t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit ?? "" }).trim()
+        : null));
 
   async function handleToggleTap(e: { stopPropagation: () => void }) {
     e.stopPropagation();
@@ -100,7 +104,9 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 }}>
           <FlameIcon size={11} color={accentColor} />
           <Text style={{ fontSize: 11, fontWeight: "700", color: accentColor, letterSpacing: 0.2 }}>
-            {streak > 0 ? `${streak} day streak` : "Start your streak"}
+            {streak > 0
+              ? t("{count} day streak", { count: streak })
+              : t("Start your streak")}
           </Text>
         </View>
       </View>

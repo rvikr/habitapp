@@ -19,6 +19,7 @@ import {
   type RoutineWizardAnswers,
 } from "@/lib/coach/routine-builder";
 import { refineRoutineRecommendations } from "@/lib/coach/routine-ai";
+import { useLanguage } from "@/components/language-provider";
 
 type StepId = "goals" | "lifestyle" | "sleep" | "workload" | "stress" | "fitnessLevel";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
@@ -108,6 +109,7 @@ const INITIAL_ANSWERS: RoutineWizardAnswers = {
 
 export default function HabitWizardScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [answers, setAnswers] = useState<RoutineWizardAnswers>(INITIAL_ANSWERS);
   const [stepIndex, setStepIndex] = useState(0);
   const [recommendations, setRecommendations] = useState<HabitRecommendation[] | null>(null);
@@ -136,7 +138,7 @@ export default function HabitWizardScreen() {
 
   async function buildRoutine() {
     if (answers.goals.length === 0) {
-      Alert.alert("Choose a goal", "Pick at least one goal so I can tailor your routine.");
+      Alert.alert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
       return;
     }
     const local = buildRoutineRecommendations(answers);
@@ -151,7 +153,7 @@ export default function HabitWizardScreen() {
   async function createRoutine() {
     const selected = recommendations?.filter((item) => item.selected) ?? [];
     if (selected.length === 0) {
-      Alert.alert("Choose habits", "Keep at least one habit before creating your routine.");
+      Alert.alert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
       return;
     }
 
@@ -182,12 +184,12 @@ export default function HabitWizardScreen() {
 
     const failures = results
       .map((result, i) =>
-        result.ok ? null : `${selected[i].name}: ${result.error ?? "Could not create habit."}`,
+        result.ok ? null : `${selected[i].name}: ${result.error ?? t("Could not create habit.")}`,
       )
       .filter((msg): msg is string => msg !== null);
 
     if (failures.length > 0) {
-      Alert.alert("Some habits were not created", failures.join("\n"));
+      Alert.alert(t("Some habits were not created"), failures.join("\n"));
       return;
     }
     router.replace("/");
@@ -205,18 +207,22 @@ export default function HabitWizardScreen() {
           <View className="px-margin-mobile gap-md">
             <View className="bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md gap-xs">
               <Text className="text-label-lg text-primary">
-                {generatedByAi ? "AI-REFINED ROUTINE" : "SMART STARTER ROUTINE"}
+                {generatedByAi ? t("AI-REFINED ROUTINE") : t("SMART STARTER ROUTINE")}
               </Text>
               <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
-                {selectedCount} habit{selectedCount === 1 ? "" : "s"} selected
+                {t(selectedCount === 1 ? "{count} habit selected" : "{count} habits selected", {
+                  count: selectedCount,
+                })}
               </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                Review the suggestions, edit the basics, then create your routine.
+                {t("Review the suggestions, edit the basics, then create your routine.")}
               </Text>
               {loadingRoutine && (
                 <View className="flex-row items-center gap-xs pt-xs">
                   <ActivityIndicator size="small" color="#F26B1F" />
-                  <Text className="text-label-sm text-primary">Checking for AI refinements...</Text>
+                  <Text className="text-label-sm text-primary">
+                    {t("Checking for AI refinements...")}
+                  </Text>
                 </View>
               )}
             </View>
@@ -244,18 +250,18 @@ export default function HabitWizardScreen() {
                           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
                           value={item.name}
                           onChangeText={(name) => updateRecommendation(item.id, { name })}
-                          placeholder="Habit name"
+                          placeholder={t("Habit name")}
                           placeholderTextColor="#8F8A82"
                         />
                       ) : (
                         <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                          {item.name}
+                          {t(item.name)}
                         </Text>
                       )}
                       <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                        {item.description}
+                        {item.description ? t(item.description) : null}
                       </Text>
-                      <Text className="text-label-sm text-primary">{item.reason}</Text>
+                      <Text className="text-label-sm text-primary">{t(item.reason)}</Text>
                     </View>
                     <TouchableOpacity
                       className={`w-9 h-9 rounded-full items-center justify-center ${item.selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
@@ -273,7 +279,7 @@ export default function HabitWizardScreen() {
                     <View className="flex-row gap-sm">
                       <View className="flex-1">
                         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
-                          TARGET
+                          {t("TARGET")}
                         </Text>
                         <TextInput
                           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
@@ -282,19 +288,19 @@ export default function HabitWizardScreen() {
                             updateRecommendation(item.id, { target: parseTarget(value) })
                           }
                           keyboardType="decimal-pad"
-                          placeholder="Optional"
+                          placeholder={t("Optional")}
                           placeholderTextColor="#8F8A82"
                         />
                       </View>
                       <View className="flex-1">
                         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
-                          UNIT
+                          {t("UNIT")}
                         </Text>
                         <TextInput
                           className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
                           value={item.unit}
                           onChangeText={(unit) => updateRecommendation(item.id, { unit })}
-                          placeholder="min, pages..."
+                          placeholder={t("min, pages...")}
                           placeholderTextColor="#8F8A82"
                         />
                       </View>
@@ -307,7 +313,7 @@ export default function HabitWizardScreen() {
                       onPress={() => setEditingId(editing ? null : item.id)}
                     >
                       <Text className="text-label-lg text-primary font-semibold">
-                        {editing ? "Done" : "Edit"}
+                        {editing ? t("Done") : t("Edit")}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -315,7 +321,7 @@ export default function HabitWizardScreen() {
                       onPress={() => updateRecommendation(item.id, { selected: false })}
                     >
                       <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
-                        Remove
+                        {t("Remove")}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -331,7 +337,9 @@ export default function HabitWizardScreen() {
               {creating ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text className="text-on-primary text-label-lg font-semibold">Create routine</Text>
+                <Text className="text-on-primary text-label-lg font-semibold">
+                  {t("Create routine")}
+                </Text>
               )}
             </TouchableOpacity>
           </View>
@@ -347,13 +355,13 @@ export default function HabitWizardScreen() {
         <View className="px-margin-mobile gap-lg">
           <View className="gap-xs">
             <Text className="text-label-lg text-primary">
-              STEP {stepIndex + 1} OF {STEPS.length}
+              {t("STEP {current} OF {total}", { current: stepIndex + 1, total: STEPS.length })}
             </Text>
             <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">
-              {step.title}
+              {t(step.title)}
             </Text>
             <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
-              {step.subtitle}
+              {t(step.subtitle)}
             </Text>
           </View>
 
@@ -422,7 +430,7 @@ export default function HabitWizardScreen() {
               onPress={() => (stepIndex === 0 ? router.back() : setStepIndex((value) => value - 1))}
             >
               <Text className="text-label-lg text-primary font-semibold">
-                {stepIndex === 0 ? "Cancel" : "Back"}
+                {stepIndex === 0 ? t("Cancel") : t("Back")}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -432,7 +440,7 @@ export default function HabitWizardScreen() {
               }
             >
               <Text className="text-label-lg text-on-primary font-semibold">
-                {stepIndex === STEPS.length - 1 ? "Build routine" : "Next"}
+                {stepIndex === STEPS.length - 1 ? t("Build routine") : t("Next")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -443,12 +451,15 @@ export default function HabitWizardScreen() {
 }
 
 function WizardHeader({ title, onBack }: { title: string; onBack: () => void }) {
+  const { t } = useLanguage();
   return (
     <View className="flex-row items-center px-margin-mobile py-sm">
       <TouchableOpacity onPress={onBack} className="mr-md">
         <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
       </TouchableOpacity>
-      <Text className="text-headline-md text-on-background dark:text-d-on-background">{title}</Text>
+      <Text className="text-headline-md text-on-background dark:text-d-on-background">
+        {t(title)}
+      </Text>
     </View>
   );
 }
@@ -462,6 +473,7 @@ function ChoiceRow({
   selected: boolean;
   onPress: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <TouchableOpacity
       className={`flex-row items-center rounded-xl p-md gap-md ${selected ? "bg-primary-fixed dark:bg-d-surface-high" : "bg-surface-lowest dark:bg-d-surface-lowest"}`}
@@ -479,10 +491,10 @@ function ChoiceRow({
       </View>
       <View className="flex-1">
         <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-          {option.label}
+          {t(option.label)}
         </Text>
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-          {option.detail}
+          {t(option.detail)}
         </Text>
       </View>
       <MaterialCommunityIcons

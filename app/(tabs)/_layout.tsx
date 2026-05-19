@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { useColorScheme, Platform } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useLanguage } from "@/components/language-provider";
 
 const TAB_ACTIVE = "#F26B1F";
 const TAB_ACTIVE_DARK = "#F26B1F";
@@ -9,6 +10,7 @@ const TAB_INACTIVE_DARK = "#7A7E88";
 
 export default function TabsLayout() {
   const scheme = useColorScheme();
+  const { t } = useLanguage();
   const isDark = scheme === "dark";
   const active = isDark ? TAB_ACTIVE_DARK : TAB_ACTIVE;
   const inactive = isDark ? TAB_INACTIVE_DARK : TAB_INACTIVE;
@@ -34,7 +36,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Today",
+          title: t("Today"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="home" size={size} color={color} />
           ),
@@ -43,7 +45,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="achievements"
         options={{
-          title: "Badges",
+          title: t("Badges"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="trophy" size={size} color={color} />
           ),
@@ -52,7 +54,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="sleep"
         options={{
-          title: "Sleep",
+          title: t("Sleep"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="sleep" size={size} color={color} />
           ),
@@ -61,7 +63,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="leaderboard"
         options={{
-          title: "Ranks",
+          title: t("Ranks"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="podium" size={size} color={color} />
           ),
@@ -70,7 +72,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: t("Settings"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="cog" size={size} color={color} />
           ),

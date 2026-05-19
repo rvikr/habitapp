@@ -25,8 +25,10 @@ import {
 import { avatarUrl, type AvatarStyle } from "@/lib/utils/avatar";
 import ShareCardModal, { type ShareCardData } from "@/components/share-card-modal";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import { useLanguage } from "@/components/language-provider";
 
 export default function LeaderboardScreen() {
+  const { t } = useLanguage();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myRank, setMyRank] = useState<number | null>(null);
@@ -66,11 +68,11 @@ export default function LeaderboardScreen() {
   async function handleOptIn() {
     const trimmed = nameInput.trim();
     if (trimmed.length < 2) {
-      setError("Name must be at least 2 characters.");
+      setError(t("Name must be at least 2 characters."));
       return;
     }
     if (trimmed.length > 30) {
-      setError("Name must be at most 30 characters.");
+      setError(t("Name must be at most 30 characters."));
       return;
     }
     setSaving(true);
@@ -78,7 +80,7 @@ export default function LeaderboardScreen() {
     const result = await setDisplayName(trimmed);
     setSaving(false);
     if (!result.ok) {
-      setError(result.error ?? "Could not save");
+      setError(result.error ?? t("Could not save"));
       return;
     }
     setShowOptIn(false);
@@ -87,12 +89,12 @@ export default function LeaderboardScreen() {
 
   async function handleOptOut() {
     Alert.alert(
-      "Leave leaderboard?",
-      "Your display name and stats will no longer be shown to other users.",
+      t("Leave leaderboard?"),
+      t("Your display name and stats will no longer be shown to other users."),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("Cancel"), style: "cancel" },
         {
-          text: "Remove",
+          text: t("Remove"),
           style: "destructive",
           onPress: async () => {
             setSaving(true);
@@ -117,7 +119,7 @@ export default function LeaderboardScreen() {
       >
         <View className="px-margin-mobile pt-md pb-sm flex-row items-center justify-between">
           <Text className="text-headline-lg text-on-background dark:text-d-on-background">
-            Leaderboard
+            {t("Leaderboard")}
           </Text>
           <TouchableOpacity
             onPress={() => {
@@ -140,10 +142,10 @@ export default function LeaderboardScreen() {
             <MaterialCommunityIcons name="trophy-award" size={24} color="#F26B1F" />
             <View className="flex-1">
               <Text className="text-body-md text-on-background font-semibold">
-                Join the leaderboard
+                {t("Join the leaderboard")}
               </Text>
               <Text className="text-label-sm text-on-surface-variant">
-                Pick a display name to compete with others.
+                {t("Pick a display name to compete with others.")}
               </Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color="#F26B1F" />
@@ -154,8 +156,10 @@ export default function LeaderboardScreen() {
           <View className="mx-margin-mobile mb-lg bg-primary rounded-xl p-md flex-row items-center gap-md">
             <Text className="text-headline-md text-on-primary font-bold">#{myRank}</Text>
             <View className="flex-1">
-              <Text className="text-body-md text-on-primary font-semibold">Your rank</Text>
-              <Text className="text-label-sm text-on-primary opacity-80">Keep going to climb!</Text>
+              <Text className="text-body-md text-on-primary font-semibold">{t("Your rank")}</Text>
+              <Text className="text-label-sm text-on-primary opacity-80">
+                {t("Keep going to climb!")}
+              </Text>
             </View>
             <TouchableOpacity
               onPress={() => {
@@ -183,8 +187,8 @@ export default function LeaderboardScreen() {
               <MaterialCommunityIcons name="account-group-outline" size={48} color="#8F8A82" />
               <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-sm text-center">
                 {optedIn
-                  ? "Be the first on the board — start logging habits!"
-                  : "No one's on the board yet. Opt in above to be the first."}
+                  ? t("Be the first on the board — start logging habits!")
+                  : t("No one's on the board yet. Opt in above to be the first.")}
               </Text>
             </View>
           ) : (
@@ -263,6 +267,7 @@ function LeaderboardRow({
   rank: number;
   isMe: boolean;
 }) {
+  const { t } = useLanguage();
   const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
   const url = avatarUrl(entry.avatar_style as AvatarStyle | null, entry.avatar_seed);
   return (
@@ -289,10 +294,12 @@ function LeaderboardRow({
           numberOfLines={1}
         >
           {entry.display_name}
-          {isMe ? " (you)" : ""}
+          {isMe ? ` ${t("(you)")}` : ""}
         </Text>
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-          Level {entry.level} · {entry.total_completions} completions · {entry.total_habits} habits
+          {t("Level {level}", { level: entry.level })} ·{" "}
+          {t("{count} completions", { count: entry.total_completions })} ·{" "}
+          {t("{count} habits", { count: entry.total_habits })}
         </Text>
       </View>
       <Text className="text-label-lg text-primary font-bold">{entry.total_xp} XP</Text>
@@ -321,20 +328,22 @@ function OptInModal({
   onOptOut: () => void;
   onDismiss: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
       <View className="flex-1 justify-end bg-black/40">
         <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-t-3xl p-lg gap-sm">
           <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold">
-            {optedIn ? "Update display name" : "Join the leaderboard"}
+            {optedIn ? t("Update display name") : t("Join the leaderboard")}
           </Text>
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
-            Your display name will be visible to all users on the leaderboard. Pick something you're
-            comfortable sharing publicly.
+            {t(
+              "Your display name will be visible to all users on the leaderboard. Pick something you're comfortable sharing publicly.",
+            )}
           </Text>
           <TextInput
             className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md mt-sm"
-            placeholder="Display name (e.g. ravi-k)"
+            placeholder={t("Display name (e.g. ravi-k)")}
             placeholderTextColor="#8F8A82"
             value={nameInput}
             onChangeText={setNameInput}
@@ -352,19 +361,23 @@ function OptInModal({
               <ActivityIndicator color="#fff" />
             ) : (
               <Text className="text-on-primary text-label-lg font-semibold">
-                {optedIn ? "Save" : "Join"}
+                {optedIn ? t("Save") : t("Join")}
               </Text>
             )}
           </TouchableOpacity>
 
           {optedIn && (
             <TouchableOpacity className="items-center py-sm" onPress={onOptOut} disabled={saving}>
-              <Text className="text-error text-label-lg">Remove me from the leaderboard</Text>
+              <Text className="text-error text-label-lg">
+                {t("Remove me from the leaderboard")}
+              </Text>
             </TouchableOpacity>
           )}
 
           <TouchableOpacity className="items-center py-sm" onPress={onDismiss} disabled={saving}>
-            <Text className="text-on-surface-variant dark:text-d-on-surface-variant">Cancel</Text>
+            <Text className="text-on-surface-variant dark:text-d-on-surface-variant">
+              {t("Cancel")}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

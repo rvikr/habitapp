@@ -1,6 +1,7 @@
 import { View, Text, FlatList, TouchableOpacity } from "react-native";
 import { HABIT_CATALOG, type CatalogEntry } from "@/lib/data/habit-catalog";
 import Icon from "./icon";
+import { useLanguage } from "@/components/language-provider";
 
 const COLOR_BG: Record<string, string> = {
   primary: "#FFE6CF",
@@ -21,14 +22,15 @@ type Props = {
 };
 
 export default function HabitCatalogPicker({ onSelect, onSkip }: Props) {
+  const { t } = useLanguage();
   return (
     <View className="flex-1">
       <View className="px-margin-mobile py-sm">
         <Text className="text-headline-md text-on-background dark:text-d-on-background mb-xs">
-          Choose a template
+          {t("Choose a template")}
         </Text>
         <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
-          Or build a custom habit.
+          {t("Or build a custom habit.")}
         </Text>
       </View>
       <FlatList
@@ -40,7 +42,9 @@ export default function HabitCatalogPicker({ onSelect, onSkip }: Props) {
             className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center mt-sm"
             onPress={onSkip}
           >
-            <Text className="text-body-md text-primary font-semibold">Build custom habit</Text>
+            <Text className="text-body-md text-primary font-semibold">
+              {t("Build custom habit")}
+            </Text>
           </TouchableOpacity>
         }
         renderItem={({ item }) => {
@@ -60,13 +64,13 @@ export default function HabitCatalogPicker({ onSelect, onSkip }: Props) {
               </View>
               <View className="flex-1">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {item.name}
+                  {t(item.name)}
                 </Text>
                 <Text
                   className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
                   numberOfLines={1}
                 >
-                  {item.description}
+                  {t(item.description)}
                 </Text>
               </View>
             </TouchableOpacity>

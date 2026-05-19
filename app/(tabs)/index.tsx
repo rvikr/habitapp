@@ -15,6 +15,7 @@ import HabitCard from "@/components/habit-card";
 import CoachCard from "@/components/coach-card";
 import LogPrompt from "@/components/log-prompt";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import { useLanguage } from "@/components/language-provider";
 import type { Habit } from "@/types/db";
 import { progressForHabit, type HabitProgress } from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
@@ -66,6 +67,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const celebrate = useCelebrate();
   const { colorScheme } = useTheme();
+  const { language, t } = useLanguage();
   const primary = "#F26B1F";
   const primaryTrack = colorScheme === "dark" ? "#2C2C36" : "#E6E0D5";
   const [data, setData] = useState<DashboardData | null>(null);
@@ -306,8 +308,8 @@ export default function DashboardScreen() {
       const ok = await syncStepHabit(habit, true, true);
       if (!ok) {
         Alert.alert(
-          "Step tracking unavailable",
-          "Open the habit to log steps manually, or enable motion access in your device settings.",
+          t("Step tracking unavailable"),
+          t("Open the habit to log steps manually, or enable motion access in your device settings."),
         );
       }
       return;
@@ -323,7 +325,7 @@ export default function DashboardScreen() {
     const result = await toggleHabit(habitId, wasDone, habit.target as number | null);
     if (!result.ok) {
       setData((current) => (current ? { ...current, completedToday: previous } : current));
-      Alert.alert("Could not update habit", result.error ?? "Try again.");
+      Alert.alert(t("Could not update habit"), result.error ?? t("Try again."));
       return;
     }
     if (!wasDone) {
@@ -350,7 +352,7 @@ export default function DashboardScreen() {
         "Logged from AI coach",
       );
       if (!result.ok) {
-        Alert.alert("Could not log progress", result.error ?? "Try again.");
+        Alert.alert(t("Could not log progress"), result.error ?? t("Try again."));
         return;
       }
       celebrate();
@@ -362,9 +364,9 @@ export default function DashboardScreen() {
   }
 
   async function handleSleepCoachLog(value: number, note: string) {
-    if (!sleepLogHabit) return { ok: false, error: "Habit not loaded." };
+    if (!sleepLogHabit) return { ok: false, error: t("Habit not loaded.") };
     const result = await logCompletion(sleepLogHabit.id, value, note || "Logged from AI coach");
-    if (!result.ok) return { ok: false, error: result.error ?? "Try again." };
+    if (!result.ok) return { ok: false, error: result.error ?? t("Try again.") };
     setSleepLogHabit(null);
     celebrate();
     recordCompletionAndMaybeReview();
@@ -400,10 +402,10 @@ export default function DashboardScreen() {
             <MaterialCommunityIcons name="party-popper" size={22} color={primary} />
             <View className="flex-1">
               <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
-                {FIRST_LOGIN_WELCOME_TITLE}
+                {t(FIRST_LOGIN_WELCOME_TITLE)}
               </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                {FIRST_LOGIN_WELCOME_BODY}
+                {t(FIRST_LOGIN_WELCOME_BODY)}
               </Text>
             </View>
             <MaterialCommunityIcons name="close" size={18} color={primary} />
@@ -417,7 +419,7 @@ export default function DashboardScreen() {
               className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
               style={{ letterSpacing: 0.3, textTransform: "uppercase" }}
             >
-              {new Date().toLocaleDateString("en-US", {
+              {new Date().toLocaleDateString(language === "hi" ? "hi-IN" : "en-US", {
                 weekday: "long",
                 month: "long",
                 day: "numeric",
@@ -427,7 +429,7 @@ export default function DashboardScreen() {
               className="text-headline-lg text-on-background dark:text-d-on-background"
               style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
             >
-              {isInitialLoading ? "" : `Hey, ${data.profile.displayName}`}
+              {isInitialLoading ? "" : t("Hey, {name}", { name: data.profile.displayName })}
             </Text>
             {isInitialLoading && <SkeletonText className="mt-xs h-8" width={152} />}
           </View>
@@ -456,8 +458,13 @@ export default function DashboardScreen() {
               />
               <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
                 {completedCount === total && total > 0
-                  ? "All done! Great work 🎉"
-                  : `${total - completedCount} habit${total - completedCount === 1 ? "" : "s"} remaining`}
+                  ? t("All done! Great work 🎉")
+                  : t(
+                      total - completedCount === 1
+                        ? "{count} habit remaining"
+                        : "{count} habits remaining",
+                      { count: total - completedCount },
+                    )}
               </Text>
             </>
           )}
@@ -472,10 +479,10 @@ export default function DashboardScreen() {
             <MaterialCommunityIcons name="trophy-outline" size={22} color={primary} />
             <View className="flex-1">
               <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
-                Join the global leaderboard
+                {t("Join the global leaderboard")}
               </Text>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                Set a display name to rank with others
+                {t("Set a display name to rank with others")}
               </Text>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color={primary} />
@@ -522,7 +529,7 @@ export default function DashboardScreen() {
             className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs"
             style={{ letterSpacing: 0.6 }}
           >
-            TODAY'S HABITS
+            {t("TODAY'S HABITS")}
           </Text>
           {isInitialLoading ? (
             <DashboardHabitSkeleton />
@@ -533,10 +540,10 @@ export default function DashboardScreen() {
                   <MaterialCommunityIcons name="auto-fix" size={28} color={primary} />
                 </View>
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  Build your first routine
+                  {t("Build your first routine")}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
-                  Answer a few questions and get a small habit routine matched to your day.
+                  {t("Answer a few questions and get a small habit routine matched to your day.")}
                 </Text>
               </View>
               <TouchableOpacity
@@ -544,14 +551,16 @@ export default function DashboardScreen() {
                 onPress={() => router.push("/habits/wizard")}
               >
                 <Text className="text-on-primary text-label-lg font-semibold">
-                  Build my routine
+                  {t("Build my routine")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 className="bg-surface-lowest dark:bg-d-surface-lowest rounded-full py-sm items-center"
                 onPress={() => router.push("/habits/new")}
               >
-                <Text className="text-primary text-label-lg font-semibold">Choose manually</Text>
+                <Text className="text-primary text-label-lg font-semibold">
+                  {t("Choose manually")}
+                </Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -609,9 +618,10 @@ function DashboardHabitSkeleton() {
 }
 
 function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
+  const { t } = useLanguage();
   const busy = state.status === "checking" || state.status === "syncing";
   const disabled = busy || state.status === "unsupported";
-  const title =
+  const titleKey =
     state.status === "unsupported"
       ? "Step tracking is unavailable"
       : state.status === "providerUpdateRequired"
@@ -621,17 +631,17 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
           : state.status === "error"
             ? "Step tracking needs attention"
             : "Enable step tracking";
-  const body =
+  const bodyKey =
     state.status === "unsupported"
       ? "This device does not expose a pedometer here. Manual step logging still works."
       : state.status === "providerUpdateRequired"
         ? "Update or install Health Connect, then retry. Manual step logging still works."
         : state.status === "denied"
           ? "Enable Health Connect steps access or motion access, or log steps manually from the habit screen."
-          : state.status === "error"
-            ? (state.error ?? "Could not sync steps. Try again.")
-            : "Use Health Connect to update your Walk habit from today's Android step total.";
-  const action = busy ? "Checking..." : state.status === "denied" ? "Retry" : "Enable";
+          : "Use Health Connect to update your Walk habit from today's Android step total.";
+  const body =
+    state.status === "error" ? (state.error ?? t("Could not sync steps. Try again.")) : t(bodyKey);
+  const action = busy ? t("Checking...") : state.status === "denied" ? t("Retry") : t("Enable");
 
   return (
     <TouchableOpacity
@@ -643,7 +653,7 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
       <MaterialCommunityIcons name="walk" size={24} color={primary} />
       <View className="flex-1">
         <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
-          {title}
+          {t(titleKey)}
         </Text>
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
           {body}
