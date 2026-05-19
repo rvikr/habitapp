@@ -244,6 +244,7 @@ serve(async (req) => {
           temperature: 0.5,
           responseMimeType: "application/json",
           responseSchema: routineSchema(),
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     },
