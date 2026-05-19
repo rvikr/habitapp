@@ -6,8 +6,8 @@ import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_COACH_MODEL = Deno.env.get("OPENAI_COACH_MODEL") ?? "gpt-5.4-mini";
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const GEMINI_COACH_MODEL = Deno.env.get("GEMINI_COACH_MODEL") ?? "gemini-2.5-flash";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -42,13 +42,11 @@ function cleanMessage(value: unknown): string | null {
 }
 
 function outputText(body: any): string | null {
-  const direct = cleanMessage(body?.output_text);
-  if (direct) return direct;
-  for (const item of body?.output ?? []) {
-    for (const content of item?.content ?? []) {
-      const text = cleanMessage(content?.text);
-      if (content?.type === "output_text" && text) return text;
-    }
+  const parts = body?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return null;
+  for (const part of parts) {
+    const text = cleanMessage(part?.text);
+    if (text) return text;
   }
   return null;
 }
@@ -93,47 +91,56 @@ serve(async (req) => {
     );
   }
 
-  if (!OPENAI_API_KEY) {
-    await recordAiUsageEvent(admin, user.id, "coach-message", "fallback", "openai_key_missing");
-    return json({ message: fallbackMessage, generated: false, reason: "openai_key_missing" }, 503);
+  if (!GEMINI_API_KEY) {
+    await recordAiUsageEvent(admin, user.id, "coach-message", "fallback", "gemini_key_missing");
+    return json({ message: fallbackMessage, generated: false, reason: "gemini_key_missing" }, 503);
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_COACH_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text:
+                "You write short habit-coach notifications. Be supportive, concrete, and non-medical. " +
+                "Respect the requested tone. Return one sentence under 160 characters. Do not mention AI.",
+            },
+          ],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: JSON.stringify({
+                  kind: signal.kind,
+                  habitName,
+                  tone: signal.tone,
+                  suggestedValue: signal.suggestedValue,
+                  unit: signal.unit,
+                  progressPct: signal.progressPct,
+                  fallbackMessage,
+                }),
+              },
+            ],
+          },
+        ],
+        generationConfig: { maxOutputTokens: 80, temperature: 0.7 },
+      }),
     },
-    body: JSON.stringify({
-      model: OPENAI_COACH_MODEL,
-      max_output_tokens: 80,
-      input: [
-        {
-          role: "system",
-          content:
-            "You write short habit-coach notifications. Be supportive, concrete, and non-medical. " +
-            "Respect the requested tone. Return one sentence under 160 characters. Do not mention AI.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            kind: signal.kind,
-            habitName,
-            tone: signal.tone,
-            suggestedValue: signal.suggestedValue,
-            unit: signal.unit,
-            progressPct: signal.progressPct,
-            fallbackMessage,
-          }),
-        },
-      ],
-    }),
-  });
+  );
 
   if (!response.ok) {
     const error = await response.text();
-    console.error("OpenAI coach-message failed", { status: response.status, error });
-    await recordAiUsageEvent(admin, user.id, "coach-message", "failed", "openai_error", {
+    console.error("Gemini coach-message failed", { status: response.status, error });
+    await recordAiUsageEvent(admin, user.id, "coach-message", "failed", "gemini_error", {
       status: response.status,
     });
     return json({ message: fallbackMessage, generated: false }, 200);
@@ -146,7 +153,7 @@ serve(async (req) => {
     user.id,
     "coach-message",
     message ? "succeeded" : "fallback",
-    message ? undefined : "empty_openai_output",
+    message ? undefined : "empty_gemini_output",
   );
   return json({ message: message ?? fallbackMessage, generated: Boolean(message) });
 });

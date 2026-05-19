@@ -203,17 +203,17 @@ test("AI quota RPC is service-only and records quota events", () => {
   assert.match(sql, /daily_quota_exceeded/i);
 });
 
-test("AI Edge Functions enforce server-side quota before OpenAI calls", () => {
+test("AI Edge Functions enforce server-side quota before Gemini calls", () => {
   for (const [path, feature] of [
     ["supabase/functions/coach-message/index.ts", "coach-message"],
     ["supabase/functions/habit-routine/index.ts", "habit-routine"],
   ]) {
     const source = readFileSync(path, "utf8");
     const guardIndex = source.indexOf("enforceAiQuota");
-    const fetchIndex = source.indexOf('fetch("https://api.openai.com/v1/responses"');
+    const fetchIndex = source.indexOf("generativelanguage.googleapis.com");
     assert.ok(guardIndex >= 0, `${path} should enforce the AI quota guard`);
-    assert.ok(fetchIndex >= 0, `${path} should call OpenAI through fetch`);
-    assert.ok(guardIndex < fetchIndex, `${path} should enforce quota before calling OpenAI`);
+    assert.ok(fetchIndex >= 0, `${path} should call Gemini through fetch`);
+    assert.ok(guardIndex < fetchIndex, `${path} should enforce quota before calling Gemini`);
     assert.match(source, new RegExp(`enforceAiQuota\\(admin, user\\.id, "${feature}"\\)`));
     assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
     assert.match(source, /recordAiUsageEvent/);

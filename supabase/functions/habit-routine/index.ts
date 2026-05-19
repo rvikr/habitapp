@@ -6,8 +6,8 @@ import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const OPENAI_ROUTINE_MODEL = Deno.env.get("OPENAI_ROUTINE_MODEL") ?? Deno.env.get("OPENAI_COACH_MODEL") ?? "gpt-5.2";
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+const GEMINI_ROUTINE_MODEL = Deno.env.get("GEMINI_ROUTINE_MODEL") ?? Deno.env.get("GEMINI_COACH_MODEL") ?? "gemini-2.5-flash";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -155,11 +155,10 @@ function sanitizeRecommendations(input: unknown, fallback: unknown) {
 }
 
 function outputText(body: any): string | null {
-  if (typeof body?.output_text === "string") return body.output_text;
-  for (const item of body?.output ?? []) {
-    for (const content of item?.content ?? []) {
-      if (content?.type === "output_text" && typeof content?.text === "string") return content.text;
-    }
+  const parts = body?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return null;
+  for (const part of parts) {
+    if (typeof part?.text === "string" && part.text.length > 0) return part.text;
   }
   return null;
 }
@@ -203,51 +202,57 @@ serve(async (req) => {
     );
   }
 
-  if (!OPENAI_API_KEY) {
-    await recordAiUsageEvent(admin, user.id, "habit-routine", "fallback", "openai_key_missing");
-    return json({ recommendations: localRecommendations, generated: false, reason: "openai_key_missing" }, 503);
+  if (!GEMINI_API_KEY) {
+    await recordAiUsageEvent(admin, user.id, "habit-routine", "fallback", "gemini_key_missing");
+    return json({ recommendations: localRecommendations, generated: false, reason: "gemini_key_missing" }, 503);
   }
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OPENAI_ROUTINE_MODEL,
-      max_output_tokens: 1400,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "habit_routine",
-          strict: true,
-          schema: routineSchema(),
-        },
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_ROUTINE_MODEL}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": GEMINI_API_KEY,
+        "Content-Type": "application/json",
       },
-      input: [
-        {
-          role: "system",
-          content:
-            "You refine habit recommendations for an onboarding routine. Return JSON only. " +
-            "Keep habits concrete, non-medical, beginner-safe, and compatible with the provided enum values. " +
-            "Return 3 to 5 recommendations. Preserve core local habit metadata unless a small improvement is clearly useful.",
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text:
+                "You refine habit recommendations for an onboarding routine. Return JSON only. " +
+                "Keep habits concrete, non-medical, beginner-safe, and compatible with the provided enum values. " +
+                "Return 3 to 5 recommendations. Preserve core local habit metadata unless a small improvement is clearly useful.",
+            },
+          ],
         },
-        {
-          role: "user",
-          content: JSON.stringify({
-            answers: body.answers,
-            localRecommendations,
-          }),
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: JSON.stringify({
+                  answers: body.answers,
+                  localRecommendations,
+                }),
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: 1400,
+          temperature: 0.5,
+          responseMimeType: "application/json",
+          responseSchema: routineSchema(),
         },
-      ],
-    }),
-  });
+      }),
+    },
+  );
 
   if (!response.ok) {
     const error = await response.text();
-    console.error("OpenAI habit-routine failed", { status: response.status, error });
-    await recordAiUsageEvent(admin, user.id, "habit-routine", "failed", "openai_error", {
+    console.error("Gemini habit-routine failed", { status: response.status, error });
+    await recordAiUsageEvent(admin, user.id, "habit-routine", "failed", "gemini_error", {
       status: response.status,
     });
     return json({ recommendations: localRecommendations, generated: false });
@@ -262,14 +267,14 @@ serve(async (req) => {
       user.id,
       "habit-routine",
       recommendations !== localRecommendations ? "succeeded" : "fallback",
-      recommendations !== localRecommendations ? undefined : "invalid_openai_output",
+      recommendations !== localRecommendations ? undefined : "invalid_gemini_output",
     );
     return json({
       recommendations,
       generated: recommendations !== localRecommendations,
     });
   } catch (error) {
-    console.error("OpenAI habit-routine parse failed", error);
+    console.error("Gemini habit-routine parse failed", error);
     await recordAiUsageEvent(admin, user.id, "habit-routine", "failed", "parse_failed");
     return json({ recommendations: localRecommendations, generated: false });
   }
@@ -278,7 +283,6 @@ serve(async (req) => {
 function routineSchema() {
   const recommendation = {
     type: "object",
-    additionalProperties: false,
     required: [
       "id",
       "reason",
@@ -305,27 +309,26 @@ function routineSchema() {
       reason: { type: "string" },
       selected: { type: "boolean" },
       name: { type: "string" },
-      description: { anyOf: [{ type: "string" }, { type: "null" }] },
+      description: { type: "string", nullable: true },
       icon: { type: "string" },
       color: { type: "string", enum: [...COLORS] },
       unit: { type: "string" },
-      target: { anyOf: [{ type: "number" }, { type: "null" }] },
+      target: { type: "number", nullable: true },
       remindersEnabled: { type: "boolean" },
       reminderTimes: { type: "array", items: { type: "string" } },
-      reminderDays: { type: "array", items: { type: "number" } },
+      reminderDays: { type: "array", items: { type: "integer" } },
       habitType: { type: "string", enum: [...HABIT_TYPES] },
       metricType: { type: "string", enum: [...METRIC_TYPES] },
       visualType: { type: "string", enum: [...VISUAL_TYPES] },
       reminderStrategy: { type: "string", enum: [...REMINDER_STRATEGIES] },
-      reminderIntervalMinutes: { anyOf: [{ type: "number" }, { type: "null" }] },
-      defaultLogValue: { anyOf: [{ type: "number" }, { type: "null" }] },
+      reminderIntervalMinutes: { type: "integer", nullable: true },
+      defaultLogValue: { type: "number", nullable: true },
       mergeSimilar: { type: "boolean" },
     },
   };
 
   return {
     type: "object",
-    additionalProperties: false,
     required: ["recommendations"],
     properties: {
       recommendations: {
