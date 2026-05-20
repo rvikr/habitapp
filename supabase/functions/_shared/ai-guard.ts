@@ -1,4 +1,4 @@
-type AiFeature = "coach-message" | "habit-routine";
+type AiFeature = "coach-message" | "habit-routine" | "smart-reminders";
 
 type SupabaseAdminClient = {
   rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>;
@@ -14,6 +14,7 @@ type AiQuotaResult =
 const AI_LIMITS: Record<AiFeature, { hourly: number; daily: number }> = {
   "coach-message": { hourly: 12, daily: 40 },
   "habit-routine": { hourly: 4, daily: 10 },
+  "smart-reminders": { hourly: 8, daily: 20 },
 };
 
 function asRecord(value: unknown): Record<string, unknown> {

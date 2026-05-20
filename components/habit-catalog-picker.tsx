@@ -1,22 +1,8 @@
 import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
 import { HABIT_CATALOG, type CatalogEntry } from "@/lib/data/habit-catalog";
-import { HABIT_IMAGES } from "@/lib/data/habit-images";
+import { getHabitImage } from "@/lib/data/habit-images";
 import type { HabitType } from "@/types/db";
-import Icon from "./icon";
 import { useLanguage } from "@/components/language-provider";
-
-const COLOR_BG: Record<string, string> = {
-  primary: "#FFE6CF",
-  secondary: "#CFEBDF",
-  tertiary: "#FFF0CC",
-  neutral: "#E6E0D5",
-};
-const COLOR_FG: Record<string, string> = {
-  primary: "#F26B1F",
-  secondary: "#3EBB7F",
-  tertiary: "#E4A23A",
-  neutral: "#5A554D",
-};
 
 type Props = {
   onSelect: (entry: CatalogEntry) => void;
@@ -50,31 +36,20 @@ export default function HabitCatalogPicker({ onSelect, onSkip }: Props) {
           </TouchableOpacity>
         }
         renderItem={({ item }) => {
-          const bg = COLOR_BG[item.color] ?? "#e6deff";
-          const fg = COLOR_FG[item.color] ?? "#F26B1F";
-          const imageUrl = HABIT_IMAGES[item.template as HabitType];
+          const imageUrl = getHabitImage(item.template as HabitType);
           return (
             <TouchableOpacity
               className="flex-row items-center bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-md"
               onPress={() => onSelect(item)}
               activeOpacity={0.7}
             >
-              {imageUrl ? (
-                <View style={{ width: 48, height: 48, borderRadius: 12, overflow: "hidden" }}>
-                  <Image
-                    source={{ uri: imageUrl }}
-                    style={{ width: 48, height: 48 }}
-                    resizeMode="cover"
-                  />
-                </View>
-              ) : (
-                <View
-                  className="w-12 h-12 rounded-full items-center justify-center"
-                  style={{ backgroundColor: bg }}
-                >
-                  <Icon name={item.icon} size={22} color={fg} />
-                </View>
-              )}
+              <View style={{ width: 48, height: 48, borderRadius: 12, overflow: "hidden" }}>
+                <Image
+                  source={{ uri: imageUrl }}
+                  style={{ width: 48, height: 48 }}
+                  resizeMode="cover"
+                />
+              </View>
               <View className="flex-1">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
                   {t(item.name)}

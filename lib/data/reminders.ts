@@ -3,7 +3,8 @@ import { localDateDaysAgo, localDateKey } from "../utils/date";
 import { streakFromDates } from "../coach/streak";
 import {
   progressForHabit,
-  smartReminderTimesForDay,
+  type HabitType,
+  type MetricType,
   type ReminderStrategy,
   type HabitProgress,
 } from "../coach/habit-intelligence";
@@ -11,6 +12,11 @@ import type { Habit } from "../../types/db";
 import { buildCoachSignals, chooseTopCoachSignal, normalizeCoachTone } from "../coach/coach";
 import { resolveCoachMessage } from "../coach/coach-ai";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
+import {
+  learnedSmartReminderTimesForDay,
+  type SmartReminderDecisionContext,
+} from "../coach/smart-reminders";
+import { resolveAiSmartReminderPlans } from "../coach/smart-reminder-ai";
 
 export type ReminderContext = {
   streak: number;
@@ -123,6 +129,12 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
   }
 
   const schedule: ScheduledReminder[] = [];
+  const smartReminderCandidates: {
+    decisionContext: SmartReminderDecisionContext;
+    reminderContext: ReminderContext;
+    habit: Habit;
+    coachMessage?: string;
+  }[] = [];
   const todayKey = localDateKey();
   const now = new Date();
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
@@ -134,7 +146,7 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
     const hc = byHabit.get(h.id as string) ?? [];
     const streak = streakFromDates(hc.map((c) => c.completed_on));
     const typicalHour = typicalHourFromTimestamps(hc.map((c) => c.created_at));
-    const context = { streak, typicalHour, percentileAhead };
+    const reminderContext = { streak, typicalHour, percentileAhead };
     const localCoachSignal = chooseTopCoachSignal(
       buildCoachSignals({
         habits: [habit],
@@ -158,7 +170,7 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
         strategy: "manual",
         time,
         days,
-        context,
+        context: reminderContext,
         progress: todayProgress,
         unit: habit.unit,
         coachMessage,
@@ -173,20 +185,56 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
     if (!smartDays.includes(now.getDay())) continue;
 
     if (todayProgress.isDone) continue;
-    if (strategy === "conditional_interval" && todayCompletion) continue;
 
     const interval = habit.reminder_interval_minutes ?? (strategy === "interval" ? 120 : 60);
-    for (const fireAt of smartReminderTimesForDay(now, interval)) {
-      schedule.push({
+    smartReminderCandidates.push({
+      decisionContext: {
         habitId: habit.id,
         habitName: habit.name,
-        icon: habit.icon ?? "spa",
+        habitType: (habit.habit_type ?? "custom") as HabitType,
+        metricType: (habit.metric_type ?? "boolean") as MetricType,
         strategy,
-        fireAt,
-        context,
-        progress: todayProgress,
+        intervalMinutes: interval,
+        target: habit.target,
         unit: habit.unit,
-        coachMessage,
+        progress: todayProgress,
+        completions: hc.map((c) => ({
+          completedOn: c.completed_on,
+          createdAt: c.created_at,
+          value: c.value,
+        })),
+        manualTimes: times,
+        reminderDays: smartDays,
+        streak,
+        typicalHour,
+        now,
+      },
+      reminderContext,
+      habit,
+      coachMessage,
+    });
+  }
+
+  const aiSmartPlans = await resolveAiSmartReminderPlans(
+    smartReminderCandidates.map((candidate) => candidate.decisionContext),
+    { enabled: aiCoachEnabled, now },
+  );
+
+  for (const candidate of smartReminderCandidates) {
+    const fireTimes =
+      aiSmartPlans.get(candidate.habit.id) ??
+      learnedSmartReminderTimesForDay(candidate.decisionContext);
+    for (const fireAt of fireTimes) {
+      schedule.push({
+        habitId: candidate.habit.id,
+        habitName: candidate.habit.name,
+        icon: candidate.habit.icon ?? "spa",
+        strategy: candidate.decisionContext.strategy,
+        fireAt,
+        context: candidate.reminderContext,
+        progress: candidate.decisionContext.progress,
+        unit: candidate.habit.unit,
+        coachMessage: candidate.coachMessage,
       });
     }
   }

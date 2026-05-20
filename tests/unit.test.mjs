@@ -53,6 +53,11 @@ import {
   scoreHabitSimilarity,
   smartReminderTimesForDay,
 } from "../lib/coach/habit-intelligence.ts";
+import {
+  learnedSmartReminderTimesForDay,
+  sanitizeSmartReminderPlanTimes,
+} from "../lib/coach/smart-reminders.ts";
+import { resolveAiSmartReminderPlans } from "../lib/coach/smart-reminder-ai.ts";
 import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
@@ -209,6 +214,7 @@ test("AI Edge Functions enforce server-side quota before Gemini calls", () => {
   for (const [path, feature] of [
     ["supabase/functions/coach-message/index.ts", "coach-message"],
     ["supabase/functions/habit-routine/index.ts", "habit-routine"],
+    ["supabase/functions/smart-reminders/index.ts", "smart-reminders"],
   ]) {
     const source = readFileSync(path, "utf8");
     const guardIndex = source.indexOf("enforceAiQuota");
@@ -919,6 +925,88 @@ test("smart reminder slots respect active hours and intervals", () => {
   );
   const midday = smartReminderTimesForDay(new Date(2026, 4, 10, 12, 30), 60);
   assert.equal(midday[0].getHours(), 13);
+});
+
+test("learned smart reminders prefer the user's recent successful hour", () => {
+  const slots = learnedSmartReminderTimesForDay({
+    habitId: "workout-1",
+    habitName: "Workout",
+    habitType: "workout",
+    metricType: "minutes",
+    strategy: "conditional_interval",
+    intervalMinutes: 480,
+    target: 45,
+    unit: "min",
+    progress: { current: 0, target: 45, ratio: 0, isDone: false, label: "0 / 45 min" },
+    completions: [
+      { completedOn: "2026-05-07", createdAt: "2026-05-07T18:10:00", value: 45 },
+      { completedOn: "2026-05-08", createdAt: "2026-05-08T18:20:00", value: 45 },
+      { completedOn: "2026-05-09", createdAt: "2026-05-09T18:00:00", value: 45 },
+    ],
+    manualTimes: [],
+    reminderDays: [0, 1, 2, 3, 4, 5, 6],
+    streak: 3,
+    typicalHour: 18,
+    now: new Date(2026, 4, 10, 9, 0),
+  });
+
+  assert.deepEqual(
+    slots.map((slot) => slot.getHours()),
+    [17, 18],
+  );
+});
+
+test("strict smart reminder AI times reject past, invalid, and crowded slots", () => {
+  const now = new Date(2026, 4, 10, 9, 15);
+  assert.equal(sanitizeSmartReminderPlanTimes(["09:00"], now, { maxCount: 3 }), null);
+  assert.equal(sanitizeSmartReminderPlanTimes(["10:00", "10:30"], now, { maxCount: 3 }), null);
+  assert.equal(sanitizeSmartReminderPlanTimes(["25:00"], now, { maxCount: 3 }), null);
+
+  const valid = sanitizeSmartReminderPlanTimes(["10:00", "13:00"], now, { maxCount: 3 });
+  assert.deepEqual(
+    valid?.map((slot) => slot.getHours()),
+    [10, 13],
+  );
+});
+
+test("AI smart reminder plans keep valid habit plans and drop invalid ones", async () => {
+  const baseContext = {
+    habitName: "Drink water",
+    habitType: "water_intake",
+    metricType: "volume_ml",
+    strategy: "interval",
+    intervalMinutes: 120,
+    target: 2000,
+    unit: "ml",
+    progress: { current: 250, target: 2000, ratio: 0.125, isDone: false, label: "250 / 2000 ml" },
+    completions: [],
+    manualTimes: [],
+    reminderDays: [0, 1, 2, 3, 4, 5, 6],
+    streak: 1,
+    typicalHour: null,
+    now: new Date(2026, 4, 10, 9, 15),
+  };
+
+  const plans = await resolveAiSmartReminderPlans(
+    [
+      { ...baseContext, habitId: "valid-habit" },
+      { ...baseContext, habitId: "invalid-habit" },
+    ],
+    {
+      enabled: true,
+      now: new Date(2026, 4, 10, 9, 15),
+      invoke: async () => ({
+        plans: [
+          { habitId: "valid-habit", times: ["10:00", "14:00"] },
+          { habitId: "invalid-habit", times: ["08:00"] },
+        ],
+        generated: true,
+      }),
+    },
+  );
+
+  assert.deepEqual(plans.get("valid-habit")?.map((slot) => slot.getHours()), [10, 14]);
+  assert.equal(plans.has("invalid-habit"), false);
 });
 
 test("routine builder gives office workers water posture walking and sleep habits", () => {

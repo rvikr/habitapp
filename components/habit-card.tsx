@@ -3,9 +3,8 @@ import { View, Text, TouchableOpacity, ImageBackground } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Habit } from "@/types/db";
 import type { HabitProgress } from "@/lib/coach/habit-intelligence";
-import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
-import { HABIT_IMAGES } from "@/lib/data/habit-images";
+import { getHabitImage } from "@/lib/data/habit-images";
 
 type Props = {
   habit: Habit;
@@ -43,11 +42,8 @@ function CheckIcon({ size = 14, color }: { size?: number; color: string }) {
 
 export default function HabitCard({ habit, done, progress, streak = 0, onToggle, onPress }: Props) {
   const [toggling, setToggling] = useState(false);
-  const { colorScheme } = useTheme();
   const { t } = useLanguage();
-  const isDark = colorScheme === "dark";
 
-  const borderColor = isDark ? "#2C2C36" : "#E6E0D5";
   const accentColor = "#FFC56B";
   const primaryColor = "#F26B1F";
 
@@ -58,7 +54,7 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
         ? t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit ?? "" }).trim()
         : null));
 
-  const imageUrl = habit.habit_type ? HABIT_IMAGES[habit.habit_type] : undefined;
+  const imageUrl = getHabitImage(habit.habit_type);
 
   async function handleToggleTap(e: { stopPropagation: () => void }) {
     e.stopPropagation();
@@ -71,152 +67,81 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
     }
   }
 
-  const toggleButton = (
-    <TouchableOpacity
-      onPress={handleToggleTap}
-      disabled={toggling}
-      activeOpacity={0.8}
-      style={{
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        backgroundColor: done ? primaryColor : "transparent",
-        borderWidth: done ? 0 : 2,
-        borderColor: imageUrl ? "rgba(255,255,255,0.6)" : borderColor,
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: toggling ? 0.6 : 1,
-        zIndex: 1,
-      }}
-    >
-      {done && <CheckIcon size={14} color="#fff" />}
-    </TouchableOpacity>
-  );
-
-  if (imageUrl) {
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.85}
-        style={{ borderRadius: 16, overflow: "hidden" }}
-      >
-        <ImageBackground
-          source={{ uri: imageUrl }}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            padding: 14,
-            paddingLeft: 16,
-            gap: 12,
-            minHeight: 80,
-          }}
-        >
-          {/* Dark overlay for readability */}
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.52)",
-            }}
-          />
-
-          {/* Text content */}
-          <View style={{ flex: 1, zIndex: 1 }}>
-            <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }} numberOfLines={1}>
-              {habit.name}
-            </Text>
-            {subtitle ? (
-              <Text
-                style={{
-                  fontSize: 11,
-                  fontWeight: "500",
-                  color: "rgba(255,255,255,0.75)",
-                  marginTop: 2,
-                }}
-                numberOfLines={1}
-              >
-                {subtitle}
-              </Text>
-            ) : null}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 }}>
-              <FlameIcon size={11} color={accentColor} />
-              <Text
-                style={{ fontSize: 11, fontWeight: "700", color: accentColor, letterSpacing: 0.2 }}
-              >
-                {streak > 0 ? t("{count} day streak", { count: streak }) : t("Start your streak")}
-              </Text>
-            </View>
-          </View>
-
-          {toggleButton}
-        </ImageBackground>
-      </TouchableOpacity>
-    );
-  }
-
   return (
     <TouchableOpacity
       onPress={onPress}
-      activeOpacity={0.7}
-      className="flex-row items-center bg-surface dark:bg-d-surface rounded-2xl gap-md"
-      style={{
-        borderWidth: 1,
-        borderColor,
-        padding: 14,
-        paddingLeft: 16,
-      }}
+      activeOpacity={0.85}
+      style={{ borderRadius: 16, overflow: "hidden" }}
     >
-      {/* Text content */}
-      <View className="flex-1">
-        <Text
-          className="text-on-surface dark:text-d-on-surface"
-          style={{ fontSize: 15, fontWeight: "700" }}
-          numberOfLines={1}
-        >
-          {habit.name}
-        </Text>
-
-        {subtitle ? (
-          <Text
-            className="text-on-surface-variant dark:text-d-on-surface-variant"
-            style={{ fontSize: 11, fontWeight: "500", marginTop: 2 }}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
-        ) : null}
-
-        {/* Streak row */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 }}>
-          <FlameIcon size={11} color={accentColor} />
-          <Text style={{ fontSize: 11, fontWeight: "700", color: accentColor, letterSpacing: 0.2 }}>
-            {streak > 0 ? t("{count} day streak", { count: streak }) : t("Start your streak")}
-          </Text>
-        </View>
-      </View>
-
-      {/* Circle check button */}
-      <TouchableOpacity
-        onPress={handleToggleTap}
-        disabled={toggling}
-        activeOpacity={0.8}
+      <ImageBackground
+        source={{ uri: imageUrl }}
         style={{
-          width: 34,
-          height: 34,
-          borderRadius: 17,
-          backgroundColor: done ? primaryColor : "transparent",
-          borderWidth: done ? 0 : 2,
-          borderColor,
+          flexDirection: "row",
           alignItems: "center",
-          justifyContent: "center",
-          opacity: toggling ? 0.6 : 1,
+          padding: 14,
+          paddingLeft: 16,
+          gap: 12,
+          minHeight: 80,
         }}
       >
-        {done && <CheckIcon size={14} color="#fff" />}
-      </TouchableOpacity>
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.52)",
+          }}
+        />
+
+        <View style={{ flex: 1, zIndex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }} numberOfLines={1}>
+            {habit.name}
+          </Text>
+          {subtitle ? (
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "500",
+                color: "rgba(255,255,255,0.75)",
+                marginTop: 2,
+              }}
+              numberOfLines={1}
+            >
+              {subtitle}
+            </Text>
+          ) : null}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 }}>
+            <FlameIcon size={11} color={accentColor} />
+            <Text
+              style={{ fontSize: 11, fontWeight: "700", color: accentColor, letterSpacing: 0.2 }}
+            >
+              {streak > 0 ? t("{count} day streak", { count: streak }) : t("Start your streak")}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          onPress={handleToggleTap}
+          disabled={toggling}
+          activeOpacity={0.8}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: done ? primaryColor : "transparent",
+            borderWidth: done ? 0 : 2,
+            borderColor: "rgba(255,255,255,0.6)",
+            alignItems: "center",
+            justifyContent: "center",
+            opacity: toggling ? 0.6 : 1,
+            zIndex: 1,
+          }}
+        >
+          {done && <CheckIcon size={14} color="#fff" />}
+        </TouchableOpacity>
+      </ImageBackground>
     </TouchableOpacity>
   );
 }

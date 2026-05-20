@@ -1,5 +1,13 @@
 import { useState, useCallback } from "react";
-import { Alert, View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import {
+  Alert,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  ImageBackground,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -14,13 +22,8 @@ import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/utils/date";
 import { formatAmount, progressForHabit } from "@/lib/coach/habit-intelligence";
+import { getHabitImage } from "@/lib/data/habit-images";
 
-const COLOR_BG: Record<string, string> = {
-  primary: "#FFE6CF",
-  secondary: "#CFEBDF",
-  tertiary: "#FFF0CC",
-  neutral: "#E6E0D5",
-};
 const COLOR_FG: Record<string, string> = {
   primary: "#F26B1F",
   secondary: "#3EBB7F",
@@ -123,7 +126,8 @@ export default function HabitDetailScreen() {
 
   if (!habit) return <HabitDetailSkeleton onBack={() => router.back()} />;
 
-  const bg = COLOR_BG[habit.color] ?? "#e6deff";
+  const imageUrl = getHabitImage(habit.habit_type);
+  const accentColor = "#FFC56B";
   const fg = COLOR_FG[habit.color] ?? "#F26B1F";
 
   return (
@@ -147,38 +151,52 @@ export default function HabitDetailScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header card */}
-        <View className="mx-margin-mobile mb-lg rounded-2xl p-lg" style={{ backgroundColor: bg }}>
-          <View className="flex-row items-center gap-md mb-md">
+        {/* Header hero with habit image background */}
+        <View className="mx-margin-mobile mb-lg" style={{ borderRadius: 20, overflow: "hidden" }}>
+          <ImageBackground source={{ uri: imageUrl }} style={{ padding: 20, minHeight: 200 }}>
             <View
-              className="w-14 h-14 rounded-full items-center justify-center"
-              style={{ backgroundColor: fg + "20" }}
-            >
-              <Icon name={habit.icon} size={28} color={fg} />
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.45)",
+              }}
+            />
+            <View style={{ zIndex: 1 }}>
+              <View className="flex-row items-center gap-md mb-md">
+                <View
+                  className="w-14 h-14 rounded-full items-center justify-center"
+                  style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
+                >
+                  <Icon name={habit.icon} size={28} color="#fff" />
+                </View>
+                {progress && (
+                  <HabitProgressVisual
+                    visualType={habit.visual_type}
+                    progress={progress.ratio}
+                    size="large"
+                    color={accentColor}
+                    trackColor="rgba(255,255,255,0.22)"
+                  />
+                )}
+              </View>
+              <Text className="text-headline-lg font-bold mb-xs" style={{ color: "#fff" }}>
+                {habit.name}
+              </Text>
+              {habit.description && (
+                <Text className="text-body-md" style={{ color: "rgba(255,255,255,0.85)" }}>
+                  {habit.description}
+                </Text>
+              )}
+              {progress && (
+                <Text className="text-body-md font-semibold mt-sm" style={{ color: accentColor }}>
+                  {progress.label}
+                </Text>
+              )}
             </View>
-            {progress && (
-              <HabitProgressVisual
-                visualType={habit.visual_type}
-                progress={progress.ratio}
-                size="large"
-                color={fg}
-                trackColor={fg + "22"}
-              />
-            )}
-          </View>
-          <Text className="text-headline-lg font-bold mb-xs" style={{ color: fg }}>
-            {habit.name}
-          </Text>
-          {habit.description && (
-            <Text className="text-body-md" style={{ color: fg + "cc" }}>
-              {habit.description}
-            </Text>
-          )}
-          {progress && (
-            <Text className="text-body-md font-semibold mt-sm" style={{ color: fg }}>
-              {progress.label}
-            </Text>
-          )}
+          </ImageBackground>
         </View>
 
         {/* Stats */}
