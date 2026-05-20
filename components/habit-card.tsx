@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, ImageBackground } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Habit } from "@/types/db";
 import type { HabitProgress } from "@/lib/coach/habit-intelligence";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
+import { HABIT_IMAGES } from "@/lib/data/habit-images";
 
 type Props = {
   habit: Habit;
@@ -57,6 +58,8 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
         ? t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit ?? "" }).trim()
         : null));
 
+  const imageUrl = habit.habit_type ? HABIT_IMAGES[habit.habit_type] : undefined;
+
   async function handleToggleTap(e: { stopPropagation: () => void }) {
     e.stopPropagation();
     if (toggling) return;
@@ -66,6 +69,92 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
     } finally {
       setToggling(false);
     }
+  }
+
+  const toggleButton = (
+    <TouchableOpacity
+      onPress={handleToggleTap}
+      disabled={toggling}
+      activeOpacity={0.8}
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: done ? primaryColor : "transparent",
+        borderWidth: done ? 0 : 2,
+        borderColor: imageUrl ? "rgba(255,255,255,0.6)" : borderColor,
+        alignItems: "center",
+        justifyContent: "center",
+        opacity: toggling ? 0.6 : 1,
+        zIndex: 1,
+      }}
+    >
+      {done && <CheckIcon size={14} color="#fff" />}
+    </TouchableOpacity>
+  );
+
+  if (imageUrl) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        style={{ borderRadius: 16, overflow: "hidden" }}
+      >
+        <ImageBackground
+          source={{ uri: imageUrl }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 14,
+            paddingLeft: 16,
+            gap: 12,
+            minHeight: 80,
+          }}
+        >
+          {/* Dark overlay for readability */}
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.52)",
+            }}
+          />
+
+          {/* Text content */}
+          <View style={{ flex: 1, zIndex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }} numberOfLines={1}>
+              {habit.name}
+            </Text>
+            {subtitle ? (
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: "500",
+                  color: "rgba(255,255,255,0.75)",
+                  marginTop: 2,
+                }}
+                numberOfLines={1}
+              >
+                {subtitle}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 }}>
+              <FlameIcon size={11} color={accentColor} />
+              <Text
+                style={{ fontSize: 11, fontWeight: "700", color: accentColor, letterSpacing: 0.2 }}
+              >
+                {streak > 0 ? t("{count} day streak", { count: streak }) : t("Start your streak")}
+              </Text>
+            </View>
+          </View>
+
+          {toggleButton}
+        </ImageBackground>
+      </TouchableOpacity>
+    );
   }
 
   return (
@@ -104,9 +193,7 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8 }}>
           <FlameIcon size={11} color={accentColor} />
           <Text style={{ fontSize: 11, fontWeight: "700", color: accentColor, letterSpacing: 0.2 }}>
-            {streak > 0
-              ? t("{count} day streak", { count: streak })
-              : t("Start your streak")}
+            {streak > 0 ? t("{count} day streak", { count: streak }) : t("Start your streak")}
           </Text>
         </View>
       </View>
