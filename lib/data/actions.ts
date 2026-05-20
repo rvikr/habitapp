@@ -6,6 +6,7 @@ import {
   configurationError,
   clearLocalAuthSession,
   getCurrentUser,
+  markUserInitiatedSignOut,
 } from "../supabase/client";
 import type { AvatarStyle } from "../utils/avatar";
 import { normalizeCoachTone, type CoachTone } from "../coach/coach";
@@ -154,6 +155,7 @@ export async function resetPassword(email: string) {
 
 export async function signOut() {
   if (isSupabaseConfigured()) {
+    markUserInitiatedSignOut();
     try {
       const { error } = await supabase.auth.signOut();
       if (error) await clearLocalAuthSession();

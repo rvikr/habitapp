@@ -10,7 +10,11 @@ import type { Insights, StreaksMap } from "@/lib/data/habits";
 import { useCelebrate } from "@/components/celebration";
 import { useTheme } from "@/components/theme-provider";
 import { recordCompletionAndMaybeReview } from "@/lib/platform/store-review";
-import { FIRST_LOGIN_WELCOME_BODY, FIRST_LOGIN_WELCOME_TITLE } from "@/lib/auth/auth-welcome";
+import {
+  FIRST_LOGIN_WELCOME_BODY,
+  FIRST_LOGIN_WELCOME_TITLE,
+  shouldRequireFirstRunOnboarding,
+} from "@/lib/auth/auth-welcome";
 import HabitCard from "@/components/habit-card";
 import CoachCard from "@/components/coach-card";
 import LogPrompt from "@/components/log-prompt";
@@ -117,6 +121,15 @@ export default function DashboardScreen() {
 
   const habits = data?.habits ?? [];
   const stepHabit = habits.find(isStepHabit) ?? null;
+  const requiresFirstRunOnboarding = data
+    ? shouldRequireFirstRunOnboarding({ newUser, habitCount: data.habits.length })
+    : false;
+
+  useEffect(() => {
+    if (requiresFirstRunOnboarding) {
+      router.replace("/habits/wizard" as never);
+    }
+  }, [requiresFirstRunOnboarding, router]);
 
   const stopStepWatcher = useCallback(() => {
     stepSubscriptionRef.current?.remove();
@@ -309,7 +322,9 @@ export default function DashboardScreen() {
       if (!ok) {
         Alert.alert(
           t("Step tracking unavailable"),
-          t("Open the habit to log steps manually, or enable motion access in your device settings."),
+          t(
+            "Open the habit to log steps manually, or enable motion access in your device settings.",
+          ),
         );
       }
       return;

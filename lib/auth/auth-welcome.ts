@@ -22,6 +22,16 @@ export function isPendingSignupForEmail(
   return Boolean(pending && signedIn && pending === signedIn);
 }
 
+export function shouldRequireFirstRunOnboarding({
+  newUser,
+  habitCount,
+}: {
+  newUser: string | null | undefined;
+  habitCount: number;
+}): boolean {
+  return newUser === "1" && habitCount === 0;
+}
+
 export async function rememberPendingSignup(email: string): Promise<void> {
   const normalized = normalizeAuthEmail(email);
   if (!normalized) return;

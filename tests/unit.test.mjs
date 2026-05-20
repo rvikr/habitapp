@@ -17,13 +17,10 @@ import {
   FIRST_LOGIN_WELCOME_TITLE,
   SIGNUP_CONFIRMATION_MESSAGE,
   isPendingSignupForEmail,
+  shouldRequireFirstRunOnboarding,
 } from "../lib/auth/auth-welcome.ts";
 import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
-import {
-  isSupportedLanguage,
-  languageLabel,
-  translate,
-} from "../lib/i18n/translations.ts";
+import { isSupportedLanguage, languageLabel, translate } from "../lib/i18n/translations.ts";
 import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
 import {
   isValidReminderTime,
@@ -362,13 +359,16 @@ test("signup and email confirmation copy gives a clear next step", () => {
   assert.match(FIRST_LOGIN_WELCOME_BODY, /all set/i);
 });
 
+test("first-run onboarding is required for new users without habits", () => {
+  assert.equal(shouldRequireFirstRunOnboarding({ newUser: "1", habitCount: 0 }), true);
+  assert.equal(shouldRequireFirstRunOnboarding({ newUser: "1", habitCount: 2 }), false);
+  assert.equal(shouldRequireFirstRunOnboarding({ newUser: undefined, habitCount: 0 }), false);
+});
+
 test("i18n translates Hindi copy with interpolation and English fallback", () => {
   assert.equal(translate("hi", "Settings"), "सेटिंग्स");
   assert.equal(translate("hi", "Hey, {name}", { name: "Ravi" }), "नमस्ते, Ravi");
-  assert.equal(
-    translate("hi", "{count} habits remaining", { count: 3 }),
-    "3 आदतें बाकी हैं",
-  );
+  assert.equal(translate("hi", "{count} habits remaining", { count: 3 }), "3 आदतें बाकी हैं");
   assert.equal(translate("hi", "Untranslated {thing}", { thing: "copy" }), "Untranslated copy");
   assert.equal(translate("en", "Settings"), "Settings");
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { signIn, signUp, resetPassword, signInWithGoogle } from "@/lib/data/actions";
 import { validatePassword } from "@/lib/auth/password";
 import {
@@ -29,6 +29,7 @@ type Mode = "signin" | "signup";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ reason?: string }>();
   const { languageName, t, toggleLanguage } = useLanguage();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -40,12 +41,22 @@ export default function LoginScreen() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [showForgot, setShowForgot] = useState(false);
+
+  useEffect(() => {
+    if (params.reason === "expired") {
+      setNotice(t("Session expired — please sign in again."));
+      // Clear the param so the notice doesn't reappear on re-renders.
+      router.setParams({ reason: undefined } as never);
+    }
+  }, [params.reason, t, router]);
 
   function switchMode(next: Mode) {
     setMode(next);
     setError(null);
     setMessage(null);
+    setNotice(null);
     setConfirmPassword("");
     setShowPassword(false);
     setShowConfirmPassword(false);
@@ -55,6 +66,7 @@ export default function LoginScreen() {
     setGoogleLoading(true);
     setError(null);
     setMessage(null);
+    setNotice(null);
     try {
       const { error: e, cancelled } = await signInWithGoogle();
       if (cancelled) return;
@@ -90,6 +102,7 @@ export default function LoginScreen() {
     setLoading(true);
     setError(null);
     setMessage(null);
+    setNotice(null);
     try {
       if (mode === "signin") {
         const { error: e } = await signIn(trimmedEmail, password);
@@ -249,6 +262,11 @@ export default function LoginScreen() {
                 </View>
               )}
 
+              {notice && !error && (
+                <View className="bg-tertiary-container rounded-xl px-md py-sm">
+                  <Text className="text-on-tertiary-container text-label-sm">{notice}</Text>
+                </View>
+              )}
               {error && (
                 <View className="bg-error-container rounded-xl px-md py-sm">
                   <Text className="text-on-error-container text-label-sm">{error}</Text>

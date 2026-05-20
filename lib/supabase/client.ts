@@ -46,6 +46,20 @@ export function configurationError() {
 
 export { isMissingRefreshTokenError };
 
+// Used by AuthGuard to distinguish a user-initiated sign-out (no notice)
+// from a forced sign-out due to a stale/invalid refresh token (show notice).
+let signOutWasUserInitiated = false;
+
+export function markUserInitiatedSignOut(): void {
+  signOutWasUserInitiated = true;
+}
+
+export function consumeSignOutWasUserInitiated(): boolean {
+  const value = signOutWasUserInitiated;
+  signOutWasUserInitiated = false;
+  return value;
+}
+
 export async function clearLocalAuthSession(): Promise<void> {
   if (!isSupabaseConfigured()) return;
 

@@ -1,0 +1,71 @@
+<h2>Pick the onboarding personality</h2>
+<p class="subtitle">All options are mandatory for first-time users and end with a review-and-confirm habit routine.</p>
+
+<div class="cards">
+  <div class="card" data-choice="guided_coach" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#fff7ed;padding:18px;border-radius:14px;border:1px solid #fed7aa;">
+      <div style="height:22px;width:48%;background:#f97316;border-radius:999px;margin-bottom:14px;"></div>
+      <div style="display:grid;gap:10px;">
+        <div style="background:white;border:1px solid #fed7aa;border-radius:14px;padding:14px;">
+          <div style="font-weight:800;color:#111827;margin-bottom:6px;">What should feel better this week?</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="background:#ffedd5;color:#9a3412;border-radius:12px;padding:10px;font-weight:700;">Energy</div>
+            <div style="background:#fef3c7;color:#92400e;border-radius:12px;padding:10px;font-weight:700;">Focus</div>
+            <div style="background:#dcfce7;color:#166534;border-radius:12px;padding:10px;font-weight:700;">Sleep</div>
+            <div style="background:#e0f2fe;color:#075985;border-radius:12px;padding:10px;font-weight:700;">Stress</div>
+          </div>
+        </div>
+        <div style="height:12px;width:70%;background:#fdba74;border-radius:999px;"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Guided Coach</h3>
+      <p>Warm, conversational steps with animated cards, coach copy, and a clear sense that the app is learning the user.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="game_path" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#ecfeff;padding:18px;border-radius:14px;border:1px solid #a5f3fc;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        <div style="height:34px;width:34px;background:#06b6d4;border-radius:50%;"></div>
+        <div style="height:8px;flex:1;background:#bae6fd;border-radius:999px;"></div>
+        <div style="height:34px;width:34px;background:#f59e0b;border-radius:50%;"></div>
+        <div style="height:8px;flex:1;background:#bae6fd;border-radius:999px;"></div>
+        <div style="height:34px;width:34px;background:#22c55e;border-radius:50%;"></div>
+      </div>
+      <div style="background:white;border-radius:16px;padding:16px;border:1px solid #bae6fd;">
+        <div style="font-weight:800;color:#111827;margin-bottom:10px;">Build your starter quest</div>
+        <div style="display:flex;gap:8px;">
+          <div style="height:64px;flex:1;background:#cffafe;border-radius:14px;"></div>
+          <div style="height:64px;flex:1;background:#fef3c7;border-radius:14px;"></div>
+          <div style="height:64px;flex:1;background:#dcfce7;border-radius:14px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Game Path</h3>
+      <p>More playful and animated: progress map, badges, celebration moments, and habit suggestions framed like a starter quest.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="calm_assessment" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:18px;border-radius:14px;border:1px solid #cbd5e1;">
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:14px;padding:16px;">
+        <div style="height:10px;width:38%;background:#64748b;border-radius:999px;margin-bottom:18px;"></div>
+        <div style="height:96px;border-radius:14px;background:linear-gradient(135deg,#e2e8f0,#f8fafc);border:1px solid #e2e8f0;margin-bottom:14px;"></div>
+        <div style="display:grid;gap:8px;">
+          <div style="height:14px;background:#cbd5e1;border-radius:999px;"></div>
+          <div style="height:14px;width:78%;background:#e2e8f0;border-radius:999px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Calm Assessment</h3>
+      <p>Minimal, focused, and polished. Fewer flourishes, more confidence: questions feel like a premium wellness intake.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p><strong>My recommendation:</strong> Guided Coach. It matches Lagan’s existing coach/routine language, feels personal, and can reuse the current habit builder logic without feeling like a plain form.</p>
+</div>

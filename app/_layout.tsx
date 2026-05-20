@@ -23,7 +23,12 @@ import { LanguageProvider, useLanguage } from "@/components/language-provider";
 import { CelebrationProvider } from "@/components/celebration";
 import ErrorBoundary from "@/components/error-boundary";
 import NotificationScheduler from "@/components/notification-scheduler";
-import { supabase, isSupabaseConfigured, getCurrentSession } from "@/lib/supabase/client";
+import {
+  supabase,
+  isSupabaseConfigured,
+  getCurrentSession,
+  consumeSignOutWasUserInitiated,
+} from "@/lib/supabase/client";
 import { initSentry, setUser as setSentryUser } from "@/lib/services/sentry";
 import { initAnalytics, track } from "@/lib/services/analytics";
 
@@ -48,13 +53,17 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
   useEffect(() => {
     let mounted = true;
 
-    function evaluate(session: { user?: { id: string } } | null) {
+    function evaluate(session: { user?: { id: string } } | null, expired = false) {
       const segs = segmentsRef.current;
       const publicRoute = ["login", "auth", "reset-password", "account-deletion"].includes(
         String(segs[0] ?? ""),
       );
       if (!session && !publicRoute) {
-        router.replace("/login");
+        if (expired) {
+          router.replace({ pathname: "/login", params: { reason: "expired" } } as never);
+        } else {
+          router.replace("/login");
+        }
       } else if (session && segs[0] === "login") {
         router.replace("/");
       }
@@ -64,15 +73,18 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
     (async () => {
       const session = await getCurrentSession();
       if (!mounted) return;
+      // If getCurrentSession returned null after detecting a stale refresh token,
+      // a SIGNED_OUT will follow via onAuthStateChange and surface the notice.
       evaluate(session);
       onReady();
     })();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      evaluate(session);
+      const forced = event === "SIGNED_OUT" && !consumeSignOutWasUserInitiated();
+      evaluate(session, forced);
     });
 
     return () => {
