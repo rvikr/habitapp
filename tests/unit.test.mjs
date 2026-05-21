@@ -62,6 +62,7 @@ import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
+import { resolveProAccess, subscriptionStatusLabel } from "../lib/subscription/access.ts";
 import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
 import {
@@ -226,6 +227,102 @@ test("AI Edge Functions enforce server-side quota before Gemini calls", () => {
     assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
     assert.match(source, /recordAiUsageEvent/);
   }
+});
+
+test("subscription migration grants only new signups a seven day Pro trial", () => {
+  const sql = readFileSync("supabase/migrations/0018_free_pro_subscriptions.sql", "utf8");
+  assert.match(sql, /pro_trial_started_at timestamptz/i);
+  assert.match(sql, /pro_trial_ends_at\s+timestamptz/i);
+  assert.match(sql, /revenuecat_app_user_id text/i);
+  assert.match(sql, /revenuecat_entitlement_id text/i);
+  assert.match(sql, /pro_expires_at\s+timestamptz/i);
+  assert.match(sql, /create or replace function public\.has_pro_access\(p_user_id uuid\)/i);
+  assert.match(
+    sql,
+    /insert into public\.profiles \(user_id, pro_trial_started_at, pro_trial_ends_at\)/i,
+  );
+  assert.match(sql, /now\(\) \+ interval '7 days'/i);
+  assert.doesNotMatch(sql, /update public\.profiles\s+set\s+pro_trial_started_at/i);
+});
+
+test("Pro access helper covers trial subscription and admin override states", () => {
+  const now = new Date("2026-05-22T00:00:00.000Z");
+  assert.deepEqual(
+    resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-21T23:59:59.000Z" }, now),
+    { hasPro: false, source: "free", expiresAt: null },
+  );
+  assert.deepEqual(
+    resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-22T00:00:01.000Z" }, now),
+    { hasPro: true, source: "trial", expiresAt: "2026-05-22T00:00:01.000Z" },
+  );
+  assert.deepEqual(
+    resolveProAccess(
+      {
+        is_pro: false,
+        revenuecat_entitlement_active: true,
+        pro_expires_at: "2026-06-01T00:00:00.000Z",
+      },
+      now,
+    ),
+    { hasPro: true, source: "subscription", expiresAt: "2026-06-01T00:00:00.000Z" },
+  );
+  assert.deepEqual(resolveProAccess({ is_pro: true }, now), {
+    hasPro: true,
+    source: "admin",
+    expiresAt: null,
+  });
+  assert.equal(subscriptionStatusLabel({ is_pro: true }, now), "Pro");
+  assert.equal(
+    subscriptionStatusLabel({ pro_trial_ends_at: "2026-05-22T00:00:01.000Z" }, now),
+    "Trial",
+  );
+  assert.equal(subscriptionStatusLabel({}, now), "Free");
+});
+
+test("AI Edge Functions enforce Pro access before quota and Gemini calls", () => {
+  for (const [path, feature] of [
+    ["supabase/functions/coach-message/index.ts", "coach-message"],
+    ["supabase/functions/habit-routine/index.ts", "habit-routine"],
+    ["supabase/functions/smart-reminders/index.ts", "smart-reminders"],
+  ]) {
+    const source = readFileSync(path, "utf8");
+    const proIndex = source.indexOf("await enforceProAccess");
+    const quotaIndex = source.indexOf("await enforceAiQuota");
+    const fetchIndex = source.indexOf("generativelanguage.googleapis.com");
+    assert.ok(proIndex >= 0, `${path} should enforce Pro access`);
+    assert.ok(quotaIndex >= 0, `${path} should still enforce quota`);
+    assert.ok(proIndex < quotaIndex, `${path} should enforce Pro access before quota`);
+    assert.ok(proIndex < fetchIndex, `${path} should enforce Pro access before Gemini`);
+    assert.match(source, new RegExp(`enforceProAccess\\(admin, user\\.id, "${feature}"\\)`));
+    assert.match(source, /reason: "pro_required"/);
+  }
+});
+
+test("RevenueCat Pro integration exposes sync webhook and product identifiers", () => {
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(packageJson.dependencies["react-native-purchases"], "^10.1.2");
+
+  const subscriptionClient = readFileSync("lib/subscription/revenuecat.ts", "utf8");
+  assert.match(subscriptionClient, /PRO_ENTITLEMENT_ID = "pro"/);
+  assert.match(subscriptionClient, /PRO_MONTHLY_PRODUCT_ID = "pro_monthly"/);
+  assert.match(subscriptionClient, /PRO_ANNUAL_PRODUCT_ID = "pro_annual"/);
+  assert.match(subscriptionClient, /EXPO_PUBLIC_REVENUECAT_IOS_API_KEY/);
+  assert.match(subscriptionClient, /EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY/);
+  assert.match(subscriptionClient, /sync-subscription/);
+
+  const syncFunction = readFileSync("supabase/functions/sync-subscription/index.ts", "utf8");
+  assert.match(syncFunction, /REVENUECAT_SECRET_API_KEY/);
+  assert.match(syncFunction, /api\.revenuecat\.com\/v1\/subscribers/);
+  assert.match(syncFunction, /revenuecat_entitlement_active/);
+
+  const webhookFunction = readFileSync("supabase/functions/revenuecat-webhook/index.ts", "utf8");
+  assert.match(webhookFunction, /REVENUECAT_WEBHOOK_AUTH_TOKEN/);
+  assert.match(webhookFunction, /entitlement_ids/);
+  assert.match(webhookFunction, /revenuecat_latest_event_id/);
+
+  const supabaseConfig = readFileSync("supabase/config.toml", "utf8");
+  assert.match(supabaseConfig, /\[functions\.revenuecat-webhook\]/);
+  assert.match(supabaseConfig, /verify_jwt = false/);
 });
 
 test("account deletion requires password confirmation and recent sign-in", () => {
@@ -1005,7 +1102,10 @@ test("AI smart reminder plans keep valid habit plans and drop invalid ones", asy
     },
   );
 
-  assert.deepEqual(plans.get("valid-habit")?.map((slot) => slot.getHours()), [10, 14]);
+  assert.deepEqual(
+    plans.get("valid-habit")?.map((slot) => slot.getHours()),
+    [10, 14],
+  );
   assert.equal(plans.has("invalid-habit"), false);
 });
 

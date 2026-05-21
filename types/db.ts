@@ -17,10 +17,54 @@ export type HabitType =
   | "stretch"
   | "cooking"
   | "custom";
-export type MetricType = "volume_ml" | "steps" | "hours" | "pages" | "minutes" | "distance_km" | "boolean";
-export type VisualType = "water_bottle" | "step_path" | "sleep_moon" | "reading_book" | "progress_ring";
+export type MetricType =
+  | "volume_ml"
+  | "steps"
+  | "hours"
+  | "pages"
+  | "minutes"
+  | "distance_km"
+  | "boolean";
+export type VisualType =
+  | "water_bottle"
+  | "step_path"
+  | "sleep_moon"
+  | "reading_book"
+  | "progress_ring";
 export type ReminderStrategy = "manual" | "interval" | "conditional_interval";
 export type CoachTone = "friendly" | "motivational" | "calm" | "strict" | "military";
+export type SubscriptionStatus =
+  | "free"
+  | "trial"
+  | "active"
+  | "grace_period"
+  | "billing_issue"
+  | "expired"
+  | "cancelled";
+
+export type Profile = {
+  user_id: string;
+  display_name: string | null;
+  avatar_style: string | null;
+  avatar_seed: string | null;
+  is_pro: boolean;
+  platform: string | null;
+  coach_tone: CoachTone | null;
+  pro_trial_started_at: string | null;
+  pro_trial_ends_at: string | null;
+  revenuecat_app_user_id: string | null;
+  revenuecat_entitlement_id: string | null;
+  revenuecat_product_id: string | null;
+  revenuecat_store: string | null;
+  revenuecat_period_type: string | null;
+  revenuecat_latest_event_id: string | null;
+  revenuecat_entitlement_active: boolean;
+  revenuecat_status: SubscriptionStatus;
+  pro_expires_at: string | null;
+  subscription_synced_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export type Habit = {
   id: string;

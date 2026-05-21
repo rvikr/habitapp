@@ -49,6 +49,18 @@ create table if not exists public.global_notifications (
 alter table public.profiles add column if not exists is_pro boolean not null default false;
 alter table public.profiles add column if not exists platform text;  -- 'ios' | 'android' | 'web'
 alter table public.profiles add column if not exists coach_tone text not null default 'friendly';
+alter table public.profiles add column if not exists pro_trial_started_at timestamptz;
+alter table public.profiles add column if not exists pro_trial_ends_at timestamptz;
+alter table public.profiles add column if not exists revenuecat_app_user_id text;
+alter table public.profiles add column if not exists revenuecat_entitlement_id text;
+alter table public.profiles add column if not exists revenuecat_product_id text;
+alter table public.profiles add column if not exists revenuecat_store text;
+alter table public.profiles add column if not exists revenuecat_period_type text;
+alter table public.profiles add column if not exists revenuecat_latest_event_id text;
+alter table public.profiles add column if not exists revenuecat_entitlement_active boolean not null default false;
+alter table public.profiles add column if not exists revenuecat_status text not null default 'free';
+alter table public.profiles add column if not exists pro_expires_at timestamptz;
+alter table public.profiles add column if not exists subscription_synced_at timestamptz;
 
 do $$
 begin

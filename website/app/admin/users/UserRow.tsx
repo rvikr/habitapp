@@ -8,6 +8,11 @@ export interface AdminUser {
   email: string | undefined;
   display_name: string | undefined;
   is_pro: boolean;
+  pro_trial_ends_at: string | null;
+  revenuecat_entitlement_active: boolean;
+  revenuecat_status: string | null;
+  revenuecat_product_id: string | null;
+  pro_expires_at: string | null;
   created_at: string;
   last_sign_in_at: string | undefined | null;
   email_confirmed_at: string | undefined | null;
@@ -60,11 +65,21 @@ export function UserRow({ user }: { user: AdminUser }) {
   const lastSeen = user.last_sign_in_at
     ? new Date(user.last_sign_in_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
     : "Never";
+  const now = Date.now();
+  const trialActive = user.pro_trial_ends_at ? Date.parse(user.pro_trial_ends_at) > now : false;
+  const subscriptionActive =
+    user.revenuecat_entitlement_active &&
+    (!user.pro_expires_at || Date.parse(user.pro_expires_at) > now);
+  const accessLabel = isPro || subscriptionActive ? "PRO" : trialActive ? "TRIAL" : "FREE";
+  const accessDate = user.pro_expires_at ?? user.pro_trial_ends_at;
+  const accessDateLabel = accessDate
+    ? new Date(accessDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
 
   return (
     <div className="border-b border-slate-100 last:border-0">
       <div className="grid min-w-[920px] items-center gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors"
-        style={{ gridTemplateColumns: "36px 1fr 120px 90px 80px 1fr auto" }}>
+        style={{ gridTemplateColumns: "36px 1fr 120px 90px 120px 1fr auto" }}>
 
         {/* Avatar */}
         <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary text-sm flex-shrink-0">
@@ -90,8 +105,20 @@ export function UserRow({ user }: { user: AdminUser }) {
 
         {/* Badges */}
         <div className="flex flex-col gap-1">
-          {isPro && (
-            <span className="text-[10px] font-extrabold bg-secondary/10 text-secondary px-2 py-0.5 rounded-full w-fit">PRO</span>
+          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full w-fit ${
+            accessLabel === "PRO"
+              ? "bg-secondary/10 text-secondary"
+              : accessLabel === "TRIAL"
+                ? "bg-primary/10 text-primary"
+                : "bg-slate-100 text-slate-400"
+          }`}>{accessLabel}</span>
+          {accessDateLabel && (
+            <span className="text-[10px] font-semibold text-slate-400">Until {accessDateLabel}</span>
+          )}
+          {user.revenuecat_status && (
+            <span className="text-[10px] font-semibold text-slate-400 truncate max-w-[110px]">
+              {user.revenuecat_status}{user.revenuecat_product_id ? ` · ${user.revenuecat_product_id}` : ""}
+            </span>
           )}
           {!user.email_confirmed_at && (
             <span className="text-[10px] font-extrabold bg-red-100 text-red-500 px-2 py-0.5 rounded-full w-fit">UNVERIFIED</span>

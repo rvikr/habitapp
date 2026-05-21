@@ -20,6 +20,7 @@ import {
 } from "@/lib/coach/routine-builder";
 import { refineRoutineRecommendations } from "@/lib/coach/routine-ai";
 import { useLanguage } from "@/components/language-provider";
+import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 
 type StepId = "goals" | "lifestyle" | "sleep" | "workload" | "stress" | "fitnessLevel";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
@@ -143,6 +144,21 @@ export default function HabitWizardScreen() {
     }
     const local = buildRoutineRecommendations(answers);
     setRecommendations(local);
+    const access = await getCurrentProAccess();
+    if (!access.hasPro) {
+      setGeneratedByAi(false);
+      Alert.alert(
+        t("Pro required"),
+        t(
+          "AI routine refinement is included in Pro. You can continue with the starter routine for free.",
+        ),
+        [
+          { text: t("Continue free"), style: "cancel" },
+          { text: t("Upgrade"), onPress: () => router.push("/pro" as never) },
+        ],
+      );
+      return;
+    }
     setLoadingRoutine(true);
     const refined = await refineRoutineRecommendations(answers, local);
     setRecommendations(refined.recommendations);

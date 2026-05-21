@@ -12,7 +12,11 @@ async function getUsers(q: string): Promise<{ users: AdminUser[]; error?: string
     // Fetch all auth users + all profiles in parallel
     const [authResult, profileResult] = await Promise.all([
       admin.auth.admin.listUsers({ perPage: 1000 }),
-      admin.from("profiles").select("user_id, display_name, is_pro, platform"),
+      admin
+        .from("profiles")
+        .select(
+          "user_id, display_name, is_pro, platform, pro_trial_ends_at, revenuecat_entitlement_active, revenuecat_status, revenuecat_product_id, pro_expires_at",
+        ),
     ]);
 
     if (authResult.error) return { users: [], error: authResult.error.message };
@@ -20,7 +24,17 @@ async function getUsers(q: string): Promise<{ users: AdminUser[]; error?: string
     const profileMap = new Map(
       (profileResult.data ?? []).map((p) => [
         p.user_id as string,
-        p as { user_id: string; display_name: string | null; is_pro: boolean; platform: string | null },
+        p as {
+          user_id: string;
+          display_name: string | null;
+          is_pro: boolean;
+          platform: string | null;
+          pro_trial_ends_at: string | null;
+          revenuecat_entitlement_active: boolean;
+          revenuecat_status: string | null;
+          revenuecat_product_id: string | null;
+          pro_expires_at: string | null;
+        },
       ])
     );
 
@@ -44,6 +58,11 @@ async function getUsers(q: string): Promise<{ users: AdminUser[]; error?: string
           email:               u.email,
           display_name:        p?.display_name ?? undefined,
           is_pro:              p?.is_pro ?? false,
+          pro_trial_ends_at:   p?.pro_trial_ends_at ?? null,
+          revenuecat_entitlement_active: p?.revenuecat_entitlement_active ?? false,
+          revenuecat_status:   p?.revenuecat_status ?? null,
+          revenuecat_product_id: p?.revenuecat_product_id ?? null,
+          pro_expires_at:      p?.pro_expires_at ?? null,
           created_at:          u.created_at,
           last_sign_in_at:     u.last_sign_in_at ?? null,
           email_confirmed_at:  u.email_confirmed_at ?? null,
@@ -120,7 +139,7 @@ export default async function UsersPage({
         {/* Column headers */}
         <div
           className="grid min-w-[920px] gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200"
-          style={{ gridTemplateColumns: "36px 1fr 120px 90px 80px 1fr auto" }}
+          style={{ gridTemplateColumns: "36px 1fr 120px 90px 120px 1fr auto" }}
         >
           {["", "User", "Joined", "Platform", "Status", "Pro", "Actions"].map((h) => (
             <span key={h} className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">

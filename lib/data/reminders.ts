@@ -17,6 +17,7 @@ import {
   type SmartReminderDecisionContext,
 } from "../coach/smart-reminders";
 import { resolveAiSmartReminderPlans } from "../coach/smart-reminder-ai";
+import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
 
 export type ReminderContext = {
   streak: number;
@@ -93,7 +94,13 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
       .gte("completed_on", cutoff),
     supabase.from("leaderboard").select("user_id", { count: "exact", head: true }),
     supabase.from("leaderboard").select("total_xp").eq("user_id", user.id).maybeSingle(),
-    supabase.from("profiles").select("coach_tone").eq("user_id", user.id).maybeSingle(),
+    supabase
+      .from("profiles")
+      .select(
+        "coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at",
+      )
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
   let habits = smartHabits as Record<string, unknown>[] | null;
   if (smartHabitError && isMissingSmartHabitColumn(smartHabitError)) {
@@ -138,7 +145,8 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
   const todayKey = localDateKey();
   const now = new Date();
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
-  const aiCoachEnabled = await getAiSuggestionsEnabled();
+  const proAccess = resolveProAccess(profile as ProAccessProfile | null, now);
+  const aiCoachEnabled = proAccess.hasPro && (await getAiSuggestionsEnabled());
   for (const h of habits ?? []) {
     const habit = h as Habit;
     const times = (h.reminder_times ?? []) as string[];

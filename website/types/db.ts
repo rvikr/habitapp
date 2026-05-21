@@ -19,6 +19,14 @@ export type HabitType =
   | "custom";
 export type MetricType = "volume_ml" | "steps" | "hours" | "pages" | "minutes" | "distance_km" | "boolean";
 export type VisualType = "water_bottle" | "step_path" | "sleep_moon" | "reading_book" | "progress_ring";
+export type SubscriptionStatus =
+  | "free"
+  | "trial"
+  | "active"
+  | "grace_period"
+  | "billing_issue"
+  | "expired"
+  | "cancelled";
 export type ReminderStrategy = "manual" | "interval" | "conditional_interval";
 export type CoachTone = "friendly" | "motivational" | "calm" | "strict" | "military";
 

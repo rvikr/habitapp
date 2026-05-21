@@ -31,6 +31,7 @@ import {
 } from "@/lib/supabase/client";
 import { initSentry, setUser as setSentryUser } from "@/lib/services/sentry";
 import { initAnalytics, track } from "@/lib/services/analytics";
+import { logOutRevenueCat, syncRevenueCatSubscription } from "@/lib/subscription/revenuecat";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -68,6 +69,8 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
         router.replace("/");
       }
       setSentryUser(session?.user ? { id: session.user.id } : null);
+      if (session?.user?.id) void syncRevenueCatSubscription(session.user.id);
+      else void logOutRevenueCat();
     }
 
     (async () => {
@@ -149,6 +152,7 @@ function RootLayoutContent() {
       <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
       <Stack.Screen name="reset-password" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="account-deletion" options={{ headerShown: false }} />
+      <Stack.Screen name="pro" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="habits/new" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="habits/wizard" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen

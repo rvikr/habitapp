@@ -19,12 +19,23 @@ import { signOut } from "@/lib/data/actions";
 import { avatarFromUser } from "@/lib/utils/avatar";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
+import {
+  resolveProAccess,
+  subscriptionStatusLabel,
+  type ProAccessProfile,
+} from "@/lib/subscription/access";
 
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || "https://lagan.health/terms";
 const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || "support@lagan.health";
 const APP_VERSION = Constants.expoConfig?.version ?? "—";
 
-type UserInfo = { displayName: string; email: string | null; avatarUrl: string };
+type UserInfo = {
+  displayName: string;
+  email: string | null;
+  avatarUrl: string;
+  subscriptionLabel: string;
+  hasPro: boolean;
+};
 
 function SettingsRow({
   icon,
@@ -64,9 +75,13 @@ export default function SettingsScreen() {
     if (u) {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("display_name")
+        .select(
+          "display_name, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at",
+        )
         .eq("user_id", u.id)
         .maybeSingle();
+      const proProfile = profile as ProAccessProfile | null;
+      const proAccess = resolveProAccess(proProfile);
       setUser({
         displayName:
           (profile?.display_name as string | null | undefined) ??
@@ -75,6 +90,8 @@ export default function SettingsScreen() {
           t("there"),
         email: u.email ?? null,
         avatarUrl: avatarFromUser(u),
+        subscriptionLabel: subscriptionStatusLabel(proProfile),
+        hasPro: proAccess.hasPro,
       });
     }
   }, [t]);
@@ -95,6 +112,11 @@ export default function SettingsScreen() {
       { text: t("Cancel"), style: "cancel" },
       { text: t("Sign out"), style: "destructive", onPress: () => signOut() },
     ]);
+  }
+
+  function openAiCoach() {
+    if (user?.hasPro) router.push("/settings/coach");
+    else router.push("/pro" as never);
   }
 
   return (
@@ -128,6 +150,9 @@ export default function SettingsScreen() {
             </Text>
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
               {user?.email}
+            </Text>
+            <Text className="text-label-sm text-primary font-semibold">
+              {t(user?.subscriptionLabel ?? "Free")}
             </Text>
           </View>
           <MaterialCommunityIcons name="chevron-right" size={20} color="#8F8A82" />
@@ -181,15 +206,16 @@ export default function SettingsScreen() {
             {t("ACCOUNT")}
           </Text>
           <SettingsRow
+            icon="workspace-premium"
+            label={t("Lagan Pro")}
+            onPress={() => router.push("/pro" as never)}
+          />
+          <SettingsRow
             icon="bell"
             label={t("Reminders")}
             onPress={() => router.push("/settings/reminders")}
           />
-          <SettingsRow
-            icon="message-text-outline"
-            label={t("AI Coach")}
-            onPress={() => router.push("/settings/coach")}
-          />
+          <SettingsRow icon="message-text-outline" label={t("AI Coach")} onPress={openAiCoach} />
           <SettingsRow
             icon="message-alert-outline"
             label={t("Send Feedback")}
@@ -205,7 +231,10 @@ export default function SettingsScreen() {
             label={t("Contact Support")}
             onPress={() => {
               if (!SUPPORT_EMAIL) {
-                Alert.alert(t("Not configured"), t("Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment."));
+                Alert.alert(
+                  t("Not configured"),
+                  t("Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment."),
+                );
                 return;
               }
               Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
@@ -226,7 +255,10 @@ export default function SettingsScreen() {
             label={t("Terms & Conditions")}
             onPress={() => {
               if (!TERMS_URL) {
-                Alert.alert(t("Not configured"), t("Set EXPO_PUBLIC_TERMS_URL in your environment."));
+                Alert.alert(
+                  t("Not configured"),
+                  t("Set EXPO_PUBLIC_TERMS_URL in your environment."),
+                );
                 return;
               }
               Linking.openURL(TERMS_URL);

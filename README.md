@@ -42,6 +42,8 @@ EXPO_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 EXPO_PUBLIC_PRIVACY_POLICY_URL=https://your-domain.example/privacy
 EXPO_PUBLIC_ACCOUNT_DELETION_URL=https://your-domain.example/account-deletion
 EXPO_PUBLIC_SUPPORT_EMAIL=support@your-domain.example
+EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_your-public-ios-key
+EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_your-public-android-key
 ```
 
 All `EXPO_PUBLIC_*` vars are bundled into the client at build time. Don't put service-role
@@ -214,8 +216,14 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
 - Admin tables: [`supabase/admin_schema.sql`](supabase/admin_schema.sql).
 - Leaderboard RPC: [`supabase/get_leaderboard.sql`](supabase/get_leaderboard.sql).
 - Edge Functions: [`supabase/functions/`](supabase/functions/) — `coach-message`,
-  `delete-account`, `habit-routine`. Deploy with
+  `delete-account`, `habit-routine`, `smart-reminders`, `sync-subscription`, and
+  `revenuecat-webhook`. Deploy with
   `supabase functions deploy <name> --project-ref <ref>`.
+- Pro subscriptions use RevenueCat entitlement `pro` with product ids
+  `pro_monthly` and `pro_annual`. Set `REVENUECAT_SECRET_API_KEY` and
+  `REVENUECAT_WEBHOOK_AUTH_TOKEN` as Supabase Edge Function secrets. Deploy
+  `revenuecat-webhook` without JWT verification, or keep the included
+  `supabase/config.toml` setting when deploying all functions.
 
 The admin Next site under [`website/`](website/) is built separately
 (`cd website && npm run build`); it ships with its own deployment story not covered here.

@@ -7,6 +7,7 @@ import { getCurrentUser, supabase } from "@/lib/supabase/client";
 import { updateCoachTone } from "@/lib/data/actions";
 import { normalizeCoachTone, type CoachTone } from "@/lib/coach/coach";
 import { useLanguage } from "@/components/language-provider";
+import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 
 const TONES: { id: CoachTone; label: string; sample: string }[] = [
   { id: "friendly", label: "Friendly", sample: "You can still make progress today." },
@@ -23,6 +24,11 @@ export default function CoachSettingsScreen() {
   const [saving, setSaving] = useState<CoachTone | null>(null);
 
   const load = useCallback(async () => {
+    const access = await getCurrentProAccess();
+    if (!access.hasPro) {
+      router.replace("/pro" as never);
+      return;
+    }
     const user = await getCurrentUser();
     if (!user) return;
     const { data } = await supabase
@@ -31,7 +37,7 @@ export default function CoachSettingsScreen() {
       .eq("user_id", user.id)
       .maybeSingle();
     setTone(normalizeCoachTone(data?.coach_tone as string | null | undefined));
-  }, []);
+  }, [router]);
 
   useFocusEffect(
     useCallback(() => {
@@ -85,7 +91,9 @@ export default function CoachSettingsScreen() {
                     {t(item.sample)}
                   </Text>
                 </View>
-                {saving === item.id && <Text className="text-label-sm text-primary">{t("Saving")}</Text>}
+                {saving === item.id && (
+                  <Text className="text-label-sm text-primary">{t("Saving")}</Text>
+                )}
               </TouchableOpacity>
             );
           })}

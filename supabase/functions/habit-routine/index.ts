@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
+import { enforceProAccess } from "../_shared/pro-access.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -193,6 +194,15 @@ serve(async (req) => {
   }
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const proAccess = await enforceProAccess(admin, user.id, "habit-routine");
+  if (!proAccess.allowed) {
+    console.warn("AI habit-routine blocked", { userId: user.id, reason: proAccess.reason });
+    return json(
+      { recommendations: localRecommendations, generated: false, reason: "pro_required" },
+      proAccess.status,
+    );
+  }
+
   const quota = await enforceAiQuota(admin, user.id, "habit-routine");
   if (!quota.allowed) {
     console.warn("AI habit-routine blocked", { userId: user.id, reason: quota.reason });

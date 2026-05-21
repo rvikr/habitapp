@@ -8,16 +8,16 @@ deploy. Items marked **(automatable)** I've already wired into the codebase; ite
 
 ## 1. Developer accounts
 
-| Item | Who | Cost | Notes |
-|---|---|---|---|
-| Apple Developer Program | you | $99/yr | https://developer.apple.com/programs/ — required for App Store. Allow 1–2 days for verification. |
-| Google Play Developer | you | $25 one-time | https://play.google.com/console/signup — required for Play Store. |
-| Expo / EAS account | you | Free / paid | https://expo.dev — free tier covers small apps. `npx eas-cli login` after sign-up. |
-| Supabase production project | you | Free / paid | Create a *separate* project for production (don't reuse dev). Apply `supabase/schema.sql`, then `supabase/migrations/` in order. |
-| Sentry | you | Free | https://sentry.io — create a React Native project, copy DSN to `EXPO_PUBLIC_SENTRY_DSN`. |
-| PostHog | you | Free | https://posthog.com — copy project key to `EXPO_PUBLIC_POSTHOG_KEY`. |
-| Vercel / Netlify (for web) | you | Free | Either works. Free tier handles low traffic. |
-| Privacy policy generator | you | Free | https://termly.io or https://www.freeprivacypolicy.com. Required by Apple/Google/CCPA. |
+| Item                        | Who | Cost         | Notes                                                                                                                            |
+| --------------------------- | --- | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| Apple Developer Program     | you | $99/yr       | https://developer.apple.com/programs/ — required for App Store. Allow 1–2 days for verification.                                 |
+| Google Play Developer       | you | $25 one-time | https://play.google.com/console/signup — required for Play Store.                                                                |
+| Expo / EAS account          | you | Free / paid  | https://expo.dev — free tier covers small apps. `npx eas-cli login` after sign-up.                                               |
+| Supabase production project | you | Free / paid  | Create a _separate_ project for production (don't reuse dev). Apply `supabase/schema.sql`, then `supabase/migrations/` in order. |
+| Sentry                      | you | Free         | https://sentry.io — create a React Native project, copy DSN to `EXPO_PUBLIC_SENTRY_DSN`.                                         |
+| PostHog                     | you | Free         | https://posthog.com — copy project key to `EXPO_PUBLIC_POSTHOG_KEY`.                                                             |
+| Vercel / Netlify (for web)  | you | Free         | Either works. Free tier handles low traffic.                                                                                     |
+| Privacy policy generator    | you | Free         | https://termly.io or https://www.freeprivacypolicy.com. Required by Apple/Google/CCPA.                                           |
 
 ---
 
@@ -26,14 +26,14 @@ deploy. Items marked **(automatable)** I've already wired into the codebase; ite
 The required app/PWA PNGs are present under `assets/` and `public/`. Regenerate them from
 source artwork before submission if the branding changes.
 
-| File | Size | Notes |
-|---|---|---|
-| `assets/icon.png` | 1024 × 1024 | App icon (square, no transparency for iOS, rounded automatically) |
-| `assets/adaptive-icon.png` | 1024 × 1024 | Android foreground (transparent background, centered logo) |
-| `assets/splash.png` | 2048 × 2048 | Centered logo on solid bg — fills screen |
-| `assets/notification-icon.png` | 96 × 96 | Android: white/monochrome on transparent |
-| `assets/favicon.png` | 192 × 192 | Web — referenced by PWA manifest |
-| `assets/og-image.png` | 1200 × 630 | OG share preview (Twitter, Slack, etc.) |
+| File                           | Size        | Notes                                                             |
+| ------------------------------ | ----------- | ----------------------------------------------------------------- |
+| `assets/icon.png`              | 1024 × 1024 | App icon (square, no transparency for iOS, rounded automatically) |
+| `assets/adaptive-icon.png`     | 1024 × 1024 | Android foreground (transparent background, centered logo)        |
+| `assets/splash.png`            | 2048 × 2048 | Centered logo on solid bg — fills screen                          |
+| `assets/notification-icon.png` | 96 × 96     | Android: white/monochrome on transparent                          |
+| `assets/favicon.png`           | 192 × 192   | Web — referenced by PWA manifest                                  |
+| `assets/og-image.png`          | 1200 × 630  | OG share preview (Twitter, Slack, etc.)                           |
 
 Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive icons.
 
@@ -42,6 +42,7 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 ## 3. Store listing assets
 
 ### App Store (iOS)
+
 - Screenshots — 6.7" iPhone (Pro Max) **required**, 5.5" iPhone optional. iPad screenshots are not needed while `supportsTablet=false`.
 - App preview videos optional
 - App description (max 4000 chars) + promotional text (170 chars) + keywords (100 chars total, comma-separated)
@@ -50,6 +51,7 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 - App Store category (Health & Fitness recommended)
 
 ### Play Store (Android)
+
 - Screenshots — minimum 2, max 8, phone + tablet
 - Feature graphic — 1024 × 500 (shown at top of listing)
 - High-res icon — 512 × 512
@@ -147,15 +149,18 @@ npx eas-cli update --branch production --message "Fix streak counter rollover"
 Use this worksheet when completing **Policy > App content** in Play Console.
 
 **Target API**
+
 - Expo SDK 54 targets Android API 36 by default, which satisfies the current Play requirement for new apps and app updates to target Android 15 / API 35 or higher.
 - Keep `npx expo-doctor` and `npx expo install --check` green before every release.
 
 **Account deletion**
+
 - In-app path: Android app > Settings > Privacy & Data > Request account deletion.
 - External URL: `https://lagan.health/account-deletion`.
 - Before submission this URL must load publicly, mention Lagan by name, and provide a way to request deletion without reinstalling the app.
 
 **Health Apps declaration**
+
 - Declare that the app provides health/fitness features.
 - Select **Activity and Fitness** for walking/steps and **Sleep Management** for sleep tracking.
 - Do not select medical-device, medical-diagnosis, clinical decision support, disease management, emergency, or children-only use cases unless the product changes.
@@ -165,6 +170,7 @@ Use this worksheet when completing **Policy > App content** in Play Console.
 - Reviewer note: Health Connect sync is optional; users can log habits manually if they do not grant health permissions.
 
 **Data Safety form draft**
+
 - Personal info: email address and Supabase auth user ID. Purpose: account management, app functionality.
 - Health and fitness: habit logs, step totals, sleep duration/stage summaries. Purpose: app functionality, analytics/personalization inside the app. Do not mark as sold or used for ads.
 - App activity: screen/app interactions and habit events through PostHog when analytics are enabled. Purpose: analytics, product improvement.
@@ -177,7 +183,12 @@ Use this worksheet when completing **Policy > App content** in Play Console.
 ## 8. Pricing & monetization
 
 The app currently has no purchase flow. If you add IAP later:
-- Use `expo-in-app-purchases` or `react-native-iap`
+
+- Lagan Pro uses RevenueCat (`react-native-purchases`) with entitlement `pro`
+  and product ids `pro_monthly` / `pro_annual`.
+- Set `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`,
+  `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, `REVENUECAT_SECRET_API_KEY`, and
+  `REVENUECAT_WEBHOOK_AUTH_TOKEN` before release.
 - Apple takes 30% (15% for under $1M/yr revenue)
 - Google takes 30% (15% for first $1M/yr per developer)
 - Subscriptions need server-side validation — Supabase Edge Functions can verify receipts.
