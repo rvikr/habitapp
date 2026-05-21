@@ -171,6 +171,7 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
   if (!isSupabaseConfigured()) return { error: configurationError() as unknown as Error };
   try {
     const redirectTo = authCallbackUrl();
+    if (__DEV__) console.log("[Google OAuth] redirectTo =", redirectTo);
 
     if (Platform.OS === "web") {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -187,7 +188,10 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
     if (error) return { error: error as unknown as Error };
     if (!data.url) return { error: new Error("No authentication URL returned.") };
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, {
+      showInRecents: true,
+      preferEphemeralSession: false,
+    });
     if (result.type === "cancel" || result.type === "dismiss")
       return { error: null, cancelled: true };
     if (result.type !== "success") return { error: new Error("Authentication was not completed.") };
