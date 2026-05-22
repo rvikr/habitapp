@@ -12,6 +12,12 @@ import type { AvatarStyle } from "../utils/avatar";
 import { normalizeCoachTone, type CoachTone } from "../coach/coach";
 import { track, resetAnalytics } from "../services/analytics";
 import { authCallbackUrl, parseAuthCallbackUrl } from "../auth/auth-redirect";
+import {
+  getGoogleNativeIdToken,
+  googleNativeAuthConfig,
+  googleNativeSignInButtonMode,
+  isGoogleNativeCancellationError,
+} from "../auth/google-native";
 import { buildCompletionValuePayload } from "./completions";
 import { clearDataCache } from "./cache";
 import { localDateKey } from "../utils/date";
@@ -169,6 +175,42 @@ export async function signOut() {
 
 export async function signInWithGoogle(): Promise<{ error: Error | null; cancelled?: boolean }> {
   if (!isSupabaseConfigured()) return { error: configurationError() as unknown as Error };
+  if (googleNativeSignInButtonMode({ platform: Platform.OS }) === "native") {
+    return signInWithNativeGoogle();
+  }
+
+  return signInWithGoogleOAuth();
+}
+
+async function signInWithNativeGoogle(): Promise<{ error: Error | null; cancelled?: boolean }> {
+  try {
+    const { GoogleSignin } = await import("@react-native-google-signin/google-signin");
+
+    GoogleSignin.configure(googleNativeAuthConfig());
+    const hasPlayServices = await GoogleSignin.hasPlayServices({
+      showPlayServicesUpdateDialog: true,
+    });
+    if (!hasPlayServices) return { error: new Error("Google Play Services are not available.") };
+
+    const response = await GoogleSignin.signIn();
+    if (response.type === "cancelled") return { error: null, cancelled: true };
+
+    const idToken = getGoogleNativeIdToken(response);
+    if (!idToken) return { error: new Error("No Google ID token received.") };
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "google",
+      token: idToken,
+    });
+    if (!error) clearDataCache();
+    return { error: error as Error | null };
+  } catch (error) {
+    if (isGoogleNativeCancellationError(error)) return { error: null, cancelled: true };
+    return { error: error instanceof Error ? error : new Error("Google Sign-In failed.") };
+  }
+}
+
+async function signInWithGoogleOAuth(): Promise<{ error: Error | null; cancelled?: boolean }> {
   try {
     const redirectTo = authCallbackUrl();
     if (__DEV__) console.log("[Google OAuth] redirectTo =", redirectTo);

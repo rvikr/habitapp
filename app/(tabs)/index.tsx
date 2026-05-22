@@ -13,6 +13,7 @@ import { recordCompletionAndMaybeReview } from "@/lib/platform/store-review";
 import {
   FIRST_LOGIN_WELCOME_BODY,
   FIRST_LOGIN_WELCOME_TITLE,
+  shouldShowFirstLoginWelcome,
   shouldRequireFirstRunOnboarding,
 } from "@/lib/auth/auth-welcome";
 import HabitCard from "@/components/habit-card";
@@ -124,12 +125,20 @@ export default function DashboardScreen() {
   const requiresFirstRunOnboarding = data
     ? shouldRequireFirstRunOnboarding({ newUser, habitCount: data.habits.length })
     : false;
+  const showWelcomeBanner =
+    showWelcome && data
+      ? shouldShowFirstLoginWelcome({ newUser, habitCount: data.habits.length })
+      : false;
 
   useEffect(() => {
     if (requiresFirstRunOnboarding) {
       router.replace("/habits/wizard" as never);
     }
   }, [requiresFirstRunOnboarding, router]);
+
+  useEffect(() => {
+    if (data && !showWelcomeBanner) setShowWelcome(false);
+  }, [data, showWelcomeBanner]);
 
   const stopStepWatcher = useCallback(() => {
     stepSubscriptionRef.current?.remove();
@@ -409,7 +418,7 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {/* Welcome banner - shown once after new account creation */}
-        {showWelcome && (
+        {showWelcomeBanner && (
           <TouchableOpacity
             onPress={() => setShowWelcome(false)}
             className="mx-margin-mobile mt-md mb-xs bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"

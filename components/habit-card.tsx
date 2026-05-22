@@ -4,7 +4,7 @@ import Svg, { Path } from "react-native-svg";
 import type { Habit } from "@/types/db";
 import type { HabitProgress } from "@/lib/coach/habit-intelligence";
 import { useLanguage } from "@/components/language-provider";
-import { getHabitImage } from "@/lib/data/habit-images";
+import { getHabitImageForHabit } from "@/lib/data/habit-images";
 
 type Props = {
   habit: Habit;
@@ -54,7 +54,7 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
         ? t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit ?? "" }).trim()
         : null));
 
-  const imageUrl = getHabitImage(habit.habit_type);
+  const imageUrl = getHabitImageForHabit(habit);
 
   async function handleToggleTap(e: { stopPropagation: () => void }) {
     e.stopPropagation();

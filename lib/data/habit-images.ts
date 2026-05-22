@@ -1,4 +1,5 @@
-import type { HabitType } from "@/types/db";
+import type { Habit, HabitType } from "@/types/db";
+import { inferHabitType } from "../coach/habit-intelligence.ts";
 
 // Default image used for custom habits or any habit_type without a curated photo.
 // A sunrise-over-mountains scene — universally evocative of "start fresh / build something".
@@ -33,4 +34,20 @@ export const HABIT_IMAGES: Partial<Record<HabitType, string>> = {
 export function getHabitImage(habitType: HabitType | null | undefined): string {
   if (!habitType) return DEFAULT_HABIT_IMAGE;
   return HABIT_IMAGES[habitType] ?? DEFAULT_HABIT_IMAGE;
+}
+
+export function getHabitImageForHabit(
+  habit: Pick<Habit, "habit_type" | "name" | "icon" | "unit">,
+): string {
+  const inferredType =
+    habit.habit_type && habit.habit_type !== "custom"
+      ? habit.habit_type
+      : inferHabitType({
+          name: habit.name,
+          icon: habit.icon,
+          unit: habit.unit,
+          habitType: habit.habit_type,
+        });
+
+  return getHabitImage(inferredType);
 }

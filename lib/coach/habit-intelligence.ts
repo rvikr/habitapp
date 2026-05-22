@@ -229,6 +229,7 @@ export function inferHabitType(
   if (/\b(cycle|cycling|bike|bicycle)\b/.test(text)) return "cycling";
   if (/\b(meditate|meditation)\b/.test(text)) return "meditate";
   if (/\b(workout|gym|exercise|fitness)\b/.test(text)) return "workout";
+  if (/\b(cold shower|ice bath|cold bath|shower)\b/.test(text)) return "cold_shower";
   if (/\b(journal|write diary)\b/.test(text)) return "journal";
   if (/\b(vitamin|supplement|medication|medicine|pill)\b/.test(text)) return "vitamins";
   if (/\b(stretch|yoga)\b/.test(text)) return "stretch";

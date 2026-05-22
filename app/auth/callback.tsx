@@ -7,9 +7,11 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { supabase } from "@/lib/supabase/client";
 import { AUTH_CALLBACK_PATH, parseAuthCallbackUrl } from "@/lib/auth/auth-redirect";
 import { authCallbackUrlFromParams } from "@/lib/auth/auth-callback-params";
+import { clearDataCache } from "@/lib/data/cache";
 import {
   AUTH_CALLBACK_CONFIRMED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
+  consumePendingSignupWelcome,
 } from "@/lib/auth/auth-welcome";
 import { useLanguage } from "@/components/language-provider";
 
@@ -24,6 +26,7 @@ export default function AuthCallbackScreen() {
   const handledUrlRef = useRef<string | null>(null);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [shouldWelcome, setShouldWelcome] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,18 +46,25 @@ export default function AuthCallbackScreen() {
       if (parsed.code) {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(parsed.code);
         if (exchangeError) throw exchangeError;
+        clearDataCache();
       } else if (parsed.accessToken && parsed.refreshToken) {
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: parsed.accessToken,
           refresh_token: parsed.refreshToken,
         });
         if (sessionError) throw sessionError;
+        clearDataCache();
       }
 
       const { data: sessionData } = await supabase.auth.getSession();
-      const hasSession = Boolean(sessionData.session);
+      const session = sessionData.session;
+      const hasSession = Boolean(session);
+      const welcome = session?.user.email
+        ? await consumePendingSignupWelcome(session.user.email).catch(() => false)
+        : false;
 
       if (cancelled) return;
+      setShouldWelcome(welcome);
 
       if (parsed.type === "recovery") {
         router.replace("/reset-password" as never);
@@ -64,7 +74,7 @@ export default function AuthCallbackScreen() {
       setStatus("success");
       if (Platform.OS !== "web" && hasSession) {
         requestAnimationFrame(() => {
-          if (!cancelled) router.replace({ pathname: "/", params: { newUser: "1" } } as never);
+          if (!cancelled) router.replace(homeDestination(welcome) as never);
         });
       }
     }
@@ -106,7 +116,7 @@ export default function AuthCallbackScreen() {
           <View className="w-full gap-sm mt-lg">
             <TouchableOpacity
               className="bg-primary rounded-full py-md items-center"
-              onPress={() => router.replace({ pathname: "/", params: { newUser: "1" } } as never)}
+              onPress={() => router.replace(homeDestination(shouldWelcome) as never)}
             >
               <Text className="text-on-primary text-label-lg font-semibold">
                 {t("Continue to app")}
@@ -135,4 +145,8 @@ export default function AuthCallbackScreen() {
 function browserLocationUrl(): string | null {
   if (Platform.OS !== "web" || typeof window === "undefined") return null;
   return window.location.href || null;
+}
+
+function homeDestination(shouldWelcome: boolean) {
+  return shouldWelcome ? { pathname: "/", params: { newUser: "1" } } : "/";
 }

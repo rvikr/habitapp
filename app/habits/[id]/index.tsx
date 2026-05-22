@@ -22,7 +22,7 @@ import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/utils/date";
 import { formatAmount, progressForHabit } from "@/lib/coach/habit-intelligence";
-import { getHabitImage } from "@/lib/data/habit-images";
+import { getHabitImageForHabit } from "@/lib/data/habit-images";
 
 const COLOR_FG: Record<string, string> = {
   primary: "#F26B1F",
@@ -126,7 +126,7 @@ export default function HabitDetailScreen() {
 
   if (!habit) return <HabitDetailSkeleton onBack={() => router.back()} />;
 
-  const imageUrl = getHabitImage(habit.habit_type);
+  const imageUrl = getHabitImageForHabit(habit);
   const accentColor = "#FFC56B";
   const fg = COLOR_FG[habit.color] ?? "#F26B1F";
 

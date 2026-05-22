@@ -17,9 +17,19 @@ import {
   FIRST_LOGIN_WELCOME_TITLE,
   SIGNUP_CONFIRMATION_MESSAGE,
   isPendingSignupForEmail,
+  shouldShowFirstLoginWelcome,
   shouldRequireFirstRunOnboarding,
 } from "../lib/auth/auth-welcome.ts";
+import { getHabitImageForHabit } from "../lib/data/habit-images.ts";
 import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
+import {
+  googleNativeAuthConfig,
+  googleNativeAuthReady,
+  googleNativeAuthUnavailableReason,
+  googleNativeSignInButtonMode,
+  getGoogleNativeIdToken,
+  isGoogleNativeCancellationError,
+} from "../lib/auth/google-native.ts";
 import { isSupportedLanguage, languageLabel, translate } from "../lib/i18n/translations.ts";
 import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
 import {
@@ -468,6 +478,12 @@ test("first-run onboarding is required for new users without habits", () => {
   assert.equal(shouldRequireFirstRunOnboarding({ newUser: undefined, habitCount: 0 }), false);
 });
 
+test("first-login welcome is hidden for existing users with habits", () => {
+  assert.equal(shouldShowFirstLoginWelcome({ newUser: "1", habitCount: 0 }), true);
+  assert.equal(shouldShowFirstLoginWelcome({ newUser: "1", habitCount: 2 }), false);
+  assert.equal(shouldShowFirstLoginWelcome({ newUser: undefined, habitCount: 0 }), false);
+});
+
 test("i18n translates Hindi copy with interpolation and English fallback", () => {
   assert.equal(translate("hi", "Settings"), "सेटिंग्स");
   assert.equal(translate("hi", "Hey, {name}", { name: "Ravi" }), "नमस्ते, Ravi");
@@ -497,6 +513,55 @@ test("auth callback params can reconstruct a callback URL when native Linking ha
 test("native Supabase OAuth uses PKCE so Android callbacks carry query params", () => {
   const clientSource = readFileSync("lib/supabase/client.ts", "utf8");
   assert.match(clientSource, /flowType:\s*["']pkce["']/);
+});
+
+test("native Google auth config is driven by the public web client id", () => {
+  assert.equal(googleNativeAuthReady({ webClientId: "" }), false);
+  assert.equal(
+    googleNativeAuthUnavailableReason({ webClientId: "" }),
+    "Google Sign-In is not configured. Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.",
+  );
+  assert.deepEqual(googleNativeAuthConfig({ webClientId: "web-client.apps.googleusercontent.com" }), {
+    webClientId: "web-client.apps.googleusercontent.com",
+    offlineAccess: false,
+  });
+});
+
+test("native Google sign-in handles new and legacy token response shapes", () => {
+  assert.equal(getGoogleNativeIdToken({ data: { idToken: "new-token" } }), "new-token");
+  assert.equal(getGoogleNativeIdToken({ idToken: "legacy-token" }), "legacy-token");
+  assert.equal(getGoogleNativeIdToken({ data: {} }), null);
+});
+
+test("native Google sign-in keeps browser OAuth as fallback outside configured Android builds", () => {
+  assert.equal(
+    googleNativeSignInButtonMode({ platform: "android", webClientId: "web-client" }),
+    "native",
+  );
+  assert.equal(googleNativeSignInButtonMode({ platform: "android", webClientId: "" }), "oauth");
+  assert.equal(googleNativeSignInButtonMode({ platform: "web", webClientId: "web-client" }), "oauth");
+});
+
+test("native Google sign-in maps cancellation errors to cancelled results", () => {
+  assert.equal(isGoogleNativeCancellationError({ code: "SIGN_IN_CANCELLED" }), true);
+  assert.equal(isGoogleNativeCancellationError({ code: "cancelled" }), true);
+  assert.equal(isGoogleNativeCancellationError(new Error("cancelled")), false);
+});
+
+test("Android Google sign-in uses native ID-token auth before browser OAuth fallback", () => {
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.ok(packageJson.dependencies["@react-native-google-signin/google-signin"]);
+
+  const actionSource = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(actionSource, /@react-native-google-signin\/google-signin/);
+  assert.match(actionSource, /googleNativeSignInButtonMode/);
+  assert.match(actionSource, /signInWithIdToken\(\{\s*provider:\s*"google"/);
+  assert.match(actionSource, /signInWithOAuth/);
+});
+
+test("Google web client id is documented for native Android sign-in", () => {
+  const envExample = readFileSync(".env.local.example", "utf8");
+  assert.match(envExample, /EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=/);
 });
 
 test("queued reminder sync cancels the latest stored IDs before the next sync schedules", async () => {
@@ -662,6 +727,22 @@ test("habit intelligence assigns habit-specific metrics", () => {
   const timedReading = inferHabitIntelligence({ name: "Read for 30 minutes" });
   assert.equal(timedReading.metricType, "minutes");
   assert.equal(timedReading.target, 30);
+});
+
+test("habit intelligence recognizes cold shower custom names", () => {
+  const coldShower = inferHabitIntelligence({ name: "Cold Shower", icon: "shower" });
+  assert.equal(coldShower.habitType, "cold_shower");
+  assert.equal(coldShower.metricType, "minutes");
+});
+
+test("cold shower habits resolve the curated image even for legacy custom rows", () => {
+  const image = getHabitImageForHabit({
+    name: "Cold Shower",
+    icon: "shower",
+    unit: "min",
+    habit_type: "custom",
+  });
+  assert.notEqual(image, getHabitImageForHabit({ name: "Custom habit", icon: "star", unit: "" }));
 });
 
 test("habit intelligence normalizes water litre goals to ml", () => {
