@@ -87,6 +87,7 @@ export default function DashboardScreen() {
   const dataRef = useRef<DashboardData | null>(null);
   const stepSubscriptionRef = useRef<StepSubscription | null>(null);
   const stepTrackingHabitIdRef = useRef<string | null>(null);
+  const stepTrackingHabitSyncKeyRef = useRef<string | null>(null);
   const stepBaseRef = useRef(0);
   const lastStepValueRef = useRef(0);
   const lastStepSaveAtRef = useRef(0);
@@ -122,6 +123,15 @@ export default function DashboardScreen() {
 
   const habits = data?.habits ?? [];
   const stepHabit = habits.find(isStepHabit) ?? null;
+  const stepHabitSyncKey = stepHabit
+    ? [
+        stepHabit.id,
+        stepHabit.habit_type,
+        stepHabit.metric_type,
+        stepHabit.target,
+        stepHabit.unit,
+      ].join(":")
+    : null;
   const requiresFirstRunOnboarding = data
     ? shouldRequireFirstRunOnboarding({ newUser, habitCount: data.habits.length })
     : false;
@@ -144,6 +154,7 @@ export default function DashboardScreen() {
     stepSubscriptionRef.current?.remove();
     stepSubscriptionRef.current = null;
     stepTrackingHabitIdRef.current = null;
+    stepTrackingHabitSyncKeyRef.current = null;
   }, []);
 
   useFocusEffect(
@@ -159,6 +170,7 @@ export default function DashboardScreen() {
         stepSubscriptionRef.current?.remove();
         stepSubscriptionRef.current = null;
         stepTrackingHabitIdRef.current = null;
+        stepTrackingHabitSyncKeyRef.current = null;
       };
     }, []),
   );
@@ -261,6 +273,7 @@ export default function DashboardScreen() {
       stepBaseRef.current = baseline;
       lastStepValueRef.current = baseline;
       stepTrackingHabitIdRef.current = habit.id;
+      stepTrackingHabitSyncKeyRef.current = stepHabitSyncKey;
 
       if (baseline > 0) {
         updateLocalStepProgress(habit, baseline);
@@ -295,7 +308,7 @@ export default function DashboardScreen() {
       setStepTracking((current) => ({ status: "tracking", lastSyncedAt: current.lastSyncedAt }));
       return true;
     },
-    [persistStepCount, stopStepWatcher, updateLocalStepProgress],
+    [persistStepCount, stepHabitSyncKey, stopStepWatcher, updateLocalStepProgress],
   );
 
   useEffect(() => {
@@ -305,9 +318,15 @@ export default function DashboardScreen() {
       return;
     }
 
-    if (stepTrackingHabitIdRef.current === stepHabit.id && stepSubscriptionRef.current) return;
+    if (
+      stepTrackingHabitIdRef.current === stepHabit.id &&
+      stepTrackingHabitSyncKeyRef.current === stepHabitSyncKey &&
+      stepSubscriptionRef.current
+    ) {
+      return;
+    }
     void syncStepHabit(stepHabit, false, true);
-  }, [stepHabit?.id, stopStepWatcher, syncStepHabit]);
+  }, [stepHabit, stepHabitSyncKey, stopStepWatcher, syncStepHabit]);
 
   useEffect(() => {
     return () => {

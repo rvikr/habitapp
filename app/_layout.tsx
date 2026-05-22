@@ -1,5 +1,5 @@
 import "../global.css";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, Text, View } from "react-native";
 import { Stack, usePathname, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -94,7 +94,7 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [onReady, router]);
 
   return null;
 }
@@ -122,6 +122,7 @@ function RootLayoutContent() {
   const { colorScheme } = useTheme();
   const [isAuthReady, setIsAuthReady] = useState(false);
   const supabaseConfigured = isSupabaseConfigured();
+  const handleAuthReady = useCallback(() => setIsAuthReady(true), []);
 
   useEffect(() => {
     if (!supabaseConfigured) {
@@ -170,7 +171,7 @@ function RootLayoutContent() {
     <>
       <StatusBar style={colorScheme === "dark" ? "light" : "dark"} />
       <ScreenTracker />
-      <AuthGuard onReady={() => setIsAuthReady(true)} />
+      <AuthGuard onReady={handleAuthReady} />
       <NotificationScheduler />
       {Platform.OS === "web" ? <WebFrame>{stack}</WebFrame> : stack}
     </>

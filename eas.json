@@ -32,8 +32,7 @@
         "EXPO_PUBLIC_TERMS_URL": "https://lagan.health/terms",
         "EXPO_PUBLIC_ACCOUNT_DELETION_URL": "https://lagan.health/account-deletion",
         "EXPO_PUBLIC_SUPPORT_EMAIL": "support@lagan.health",
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "test_KnkhpsDvCxDogSBDdhczBCuEFQg",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "test_KnkhpsDvCxDogSBDdhczBCuEFQg"
+        "EXPO_PUBLIC_SENTRY_DSN": "https://efb1a7c31216123735438f0a2e8571d0@o4511332581244928.ingest.de.sentry.io/4511332590157904"
       }
     }
   }

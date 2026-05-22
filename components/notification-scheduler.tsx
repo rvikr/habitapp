@@ -27,7 +27,7 @@ export default function NotificationScheduler() {
       cancelled = true;
       remove?.();
     };
-  }, []);
+  }, [router]);
 
   return null;
 }

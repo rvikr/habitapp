@@ -69,6 +69,18 @@ export default function ShareCardModal({ data, onClose }: Props) {
 
   const { tagline, subtitle, cardPath } = getMessage();
 
+  const handleShareText = useCallback(async () => {
+    const shareUrl = data?.kind === "rank" ? `${APP_URL}/leaderboard` : `${APP_URL}/achievements`;
+    try {
+      await Share.share({
+        message: `${tagline}\n\n${shareUrl}`,
+        ...(Platform.OS === "ios" ? { url: shareUrl } : {}),
+      });
+    } catch {
+      // dismissed
+    }
+  }, [data, tagline]);
+
   const handleShareImage = useCallback(async () => {
     setSharing(true);
     try {
@@ -89,19 +101,7 @@ export default function ShareCardModal({ data, onClose }: Props) {
     } finally {
       setSharing(false);
     }
-  }, [cardPath, tagline]);
-
-  const handleShareText = useCallback(async () => {
-    const shareUrl = data?.kind === "rank" ? `${APP_URL}/leaderboard` : `${APP_URL}/achievements`;
-    try {
-      await Share.share({
-        message: `${tagline}\n\n${shareUrl}`,
-        ...(Platform.OS === "ios" ? { url: shareUrl } : {}),
-      });
-    } catch {
-      // dismissed
-    }
-  }, [data, tagline]);
+  }, [cardPath, handleShareText]);
 
   if (!data) return null;
 

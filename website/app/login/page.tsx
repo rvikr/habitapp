@@ -3,6 +3,8 @@ import { Suspense } from "react";
 import { getPublicStats, formatCount } from "@/lib/stats";
 import LoginForm from "./LoginForm";
 
+export const dynamic = "force-dynamic";
+
 function Icon({
   name,
   className = "",
