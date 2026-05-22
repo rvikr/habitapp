@@ -53,7 +53,7 @@ export default function PrivacyPage() {
               Privacy Policy
             </h1>
             <p className="text-lg leading-8 text-on-surface-variant">
-              Last updated: 17 May 2026
+              Last updated: 22 May 2026
             </p>
             <p className="text-base leading-8 text-on-surface-variant">
               Lagan (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your personal information. This policy explains what data we collect, why we collect it, and your rights over it.
@@ -65,6 +65,7 @@ export default function PrivacyPage() {
             <p><strong className="text-on-surface">Habit and health data.</strong> The habits you create, your daily completion logs, streak counts, and any sleep entries you record are stored and associated with your account.</p>
             <p><strong className="text-on-surface">Device and usage data.</strong> We collect anonymised analytics events (screens viewed, features used) and crash reports to improve the product. These are collected only with your consent and can be opted out of in Settings → Privacy & Data.</p>
             <p><strong className="text-on-surface">Health Connect (Android).</strong> If you grant permission, we read step-count and sleep data from Android Health Connect. This data is processed on-device and synced to your account only so you can view it inside Lagan. We do not sell or share it with advertisers.</p>
+            <p><strong className="text-on-surface">Subscription and purchase data.</strong> If you subscribe to Lagan Pro, we receive confirmation of your subscription status, entitlement, product ID, billing period, and store identifier (App Store or Google Play) from RevenueCat, our subscription management provider. We store this information solely to verify and manage your Pro access. We do not receive or store your payment card details — all payment processing is handled by Apple or Google.</p>
           </Section>
 
           <Section title="How we use your data">
@@ -83,6 +84,7 @@ export default function PrivacyPage() {
             <div className="space-y-2">
               {[
                 { name: "Supabase", purpose: "Authentication and database storage. Data is hosted in the EU (Frankfurt)." },
+                { name: "RevenueCat", purpose: "Subscription management and in-app purchase verification. RevenueCat processes subscription events from the Apple App Store and Google Play Store on our behalf and provides us with your subscription status and entitlement data." },
                 { name: "PostHog", purpose: "Product analytics (anonymised events). You can opt out in Settings → Privacy & Data." },
                 { name: "Sentry", purpose: "Crash reporting and error monitoring. Reports may include device info and anonymised stack traces." },
                 { name: "Google Cloud (Firebase / GCM)", purpose: "Push notification delivery on Android." },

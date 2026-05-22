@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   ScrollView,
   Text,
@@ -195,6 +196,39 @@ export default function ProScreen() {
                 {busy === "refresh" ? t("Syncing") : t("Refresh")}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          <View className="gap-xs">
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
+              {t(
+                "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Payment is charged to your {store} account at confirmation of purchase.",
+                {
+                  store: Platform.OS === "ios" ? t("Apple ID") : t("Google Play"),
+                },
+              )}
+            </Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
+              {Platform.OS === "ios"
+                ? t("Manage or cancel: App Store → your profile → Subscriptions.")
+                : t(
+                    "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
+                  )}
+            </Text>
+            <View className="flex-row justify-center gap-md pt-xs">
+              <TouchableOpacity onPress={() => Linking.openURL("https://lagan.health/terms")}>
+                <Text className="text-label-sm text-primary font-semibold">
+                  {t("Terms of Use")}
+                </Text>
+              </TouchableOpacity>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                ·
+              </Text>
+              <TouchableOpacity onPress={() => Linking.openURL("https://lagan.health/privacy")}>
+                <Text className="text-label-sm text-primary font-semibold">
+                  {t("Privacy Policy")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </ScrollView>

@@ -53,7 +53,7 @@ export default function TermsPage() {
               Terms & Conditions
             </h1>
             <p className="text-lg leading-8 text-on-surface-variant">
-              Last updated: 17 May 2026
+              Last updated: 22 May 2026
             </p>
             <p className="text-base leading-8 text-on-surface-variant">
               Please read these terms carefully before using Lagan. By creating an account or using the app you agree to be bound by them.
@@ -101,41 +101,57 @@ export default function TermsPage() {
             <p>The AI Coach feature uses a large language model to generate motivational and habit-related responses. Its outputs are not guaranteed to be accurate, complete, or suitable for your specific situation. Do not rely on AI Coach responses for medical, legal, financial, or other professional advice.</p>
           </Section>
 
-          <Section title="8. Intellectual property">
+          <Section title="8. Subscriptions &amp; Pro Plan">
+            <p><strong className="text-on-surface">Free plan.</strong> Lagan is free to use for core habit tracking, streak monitoring, sleep tracking, and one AI-powered smart reminder per day.</p>
+            <p><strong className="text-on-surface">Pro plan.</strong> Lagan Pro is a premium subscription that unlocks the AI Coach, AI routine refinement, multiple AI smart reminders per day, and future AI features.</p>
+            <p><strong className="text-on-surface">Free trial.</strong> Every new Lagan account automatically receives a 7-day free Pro trial at sign-up. No payment is required during the trial period. If you do not start a paid subscription before the trial ends, your access reverts to the free plan automatically.</p>
+            <p><strong className="text-on-surface">Paid subscriptions.</strong> Lagan Pro is available as a monthly or annual auto-renewable subscription, purchased through the Apple App Store (iOS) or Google Play Store (Android). The price is displayed in your local currency in the app before you confirm your purchase.</p>
+            <p><strong className="text-on-surface">Auto-renewal.</strong> Subscriptions automatically renew at the same price unless you disable auto-renewal at least 24 hours before the end of the current billing period. Your account will be charged for renewal within 24 hours prior to the end of the current period. If we change our pricing, we will notify you in advance and your subscription will renew at the new price only after your consent where required by applicable law.</p>
+            <p><strong className="text-on-surface">Managing or cancelling your subscription.</strong></p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className="text-on-surface">iOS:</strong> Open the App Store → tap your profile picture → Subscriptions → select Lagan → Cancel Subscription.</li>
+              <li><strong className="text-on-surface">Android:</strong> Open Google Play Store → tap your profile picture → Payments &amp; subscriptions → Subscriptions → select Lagan → Cancel subscription.</li>
+            </ul>
+            <p>Cancelling stops future renewals. You retain Pro access until the end of the current paid billing period. No partial refunds are issued for unused time within a billing period.</p>
+            <p><strong className="text-on-surface">Refunds.</strong> All subscription purchases are processed by Apple or Google. Refund requests are subject to their respective refund policies. Lagan Health does not issue refunds directly for App Store or Google Play purchases. To request a refund, contact Apple Support or Google Play Support.</p>
+            <p><strong className="text-on-surface">Family Sharing.</strong> Lagan Pro does not currently support Apple Family Sharing or Google Play Family Library.</p>
+          </Section>
+
+          <Section title="9. Intellectual property">
             <p>All rights in the Service — including the app, website, design, branding, and content produced by us — are owned by or licensed to Lagan Health. Nothing in these Terms grants you any rights in our intellectual property except the limited right to use the Service as described here.</p>
           </Section>
 
-          <Section title="9. Privacy">
+          <Section title="10. Privacy">
             <p>Our <Link href="/privacy" className="text-primary font-semibold hover:underline">Privacy Policy</Link> explains how we handle your personal data. By using the Service you agree to our data practices as described there.</p>
           </Section>
 
-          <Section title="10. Third-party services">
-            <p>The Service relies on third-party providers (Supabase, PostHog, Sentry, Google Cloud, Apple). Your use of the Service is also subject to their respective terms of service. We are not responsible for the actions or policies of these third parties.</p>
+          <Section title="11. Third-party services">
+            <p>The Service relies on third-party providers including Supabase, PostHog, Sentry, Google Cloud, Apple, and RevenueCat (subscription management). Your use of the Service is also subject to their respective terms of service. We are not responsible for the actions or policies of these third parties.</p>
           </Section>
 
-          <Section title="11. Disclaimers">
+          <Section title="12. Disclaimers">
             <p>THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF HARMFUL COMPONENTS.</p>
           </Section>
 
-          <Section title="12. Limitation of liability">
+          <Section title="13. Limitation of liability">
             <p>TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, LAGAN HEALTH SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF DATA, PROFITS, OR GOODWILL, ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF THE SERVICE, EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.</p>
             <p>OUR TOTAL LIABILITY TO YOU FOR ANY CLAIM ARISING FROM OR RELATED TO THE SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID US (IF ANY) IN THE 12 MONTHS PRECEDING THE CLAIM.</p>
           </Section>
 
-          <Section title="13. Termination">
+          <Section title="14. Termination">
             <p>You may stop using the Service at any time and delete your account via Settings → Privacy & Data or our <Link href="/account-deletion" className="text-primary font-semibold hover:underline">account deletion page</Link>.</p>
             <p>We may suspend or terminate your account if you breach these Terms or if we reasonably believe your use of the Service poses a risk to us, other users, or third parties. Termination does not relieve you of any obligations incurred before termination.</p>
           </Section>
 
-          <Section title="14. Changes to these Terms">
+          <Section title="15. Changes to these Terms">
             <p>We may update these Terms from time to time. We will update the &quot;Last updated&quot; date at the top of this page and, for material changes, notify you via email or an in-app message. Continued use of the Service after the effective date of any changes constitutes acceptance of the updated Terms.</p>
           </Section>
 
-          <Section title="15. Governing law">
+          <Section title="16. Governing law">
             <p>These Terms are governed by and construed in accordance with applicable law. Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of the courts in the applicable jurisdiction.</p>
           </Section>
 
-          <Section title="16. Contact us">
+          <Section title="17. Contact us">
             <p>If you have questions about these Terms, please contact us at <a href="mailto:support@lagan.health" className="text-primary font-semibold hover:underline">support@lagan.health</a>.</p>
           </Section>
         </div>
