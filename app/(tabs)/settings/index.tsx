@@ -206,7 +206,7 @@ export default function SettingsScreen() {
             {t("ACCOUNT")}
           </Text>
           <SettingsRow
-            icon="workspace-premium"
+            icon="star-four-points"
             label={t("Lagan Pro")}
             onPress={() => router.push("/pro" as never)}
           />

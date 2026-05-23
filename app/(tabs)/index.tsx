@@ -532,13 +532,14 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
-        {stepHabit && !["idle", "tracking", "synced"].includes(stepTracking.status) && (
-          <StepTrackingCard
-            state={stepTracking}
-            primary={primary}
-            onEnable={() => syncStepHabit(stepHabit, true, true)}
-          />
-        )}
+        {stepHabit &&
+          !["idle", "tracking", "synced", "checking", "syncing"].includes(stepTracking.status) && (
+            <StepTrackingCard
+              state={stepTracking}
+              primary={primary}
+              onEnable={() => syncStepHabit(stepHabit, true, true)}
+            />
+          )}
 
         {data?.coachSignal && !data.completedToday.has(data.coachSignal.habitId) && (
           <CoachCard
