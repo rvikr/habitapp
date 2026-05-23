@@ -138,3 +138,13 @@ export type Milestone = {
   description: string;
   progress: number;
 };
+
+export type WeeklyProgressReport = {
+  id: string;
+  user_id: string;
+  week_start: string;
+  summary_text: string;
+  stats_snapshot: Record<string, unknown>;
+  model: string | null;
+  generated_at: string;
+};

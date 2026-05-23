@@ -82,9 +82,13 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 
 - [ ] Configure App Store Connect credentials locally or in EAS before `eas submit -p ios`
 - [ ] Add `play-service-account.json` locally or configure Google Play credentials in EAS before `eas submit -p android`
-- [ ] Confirm `com.habbitapp.app` bundle ID is unique to you (or change to your reverse domain)
+- [x] Bundle ID / Android package set to `health.lagan.app`
 - [ ] Set production env vars in EAS: Supabase URL/key, privacy policy URL, Sentry DSN, and PostHog key/host
-- [ ] Add `habbitapp://auth/callback` to Supabase Auth -> URL Configuration -> Redirect URLs for Google sign-in
+- [ ] Add `lagan://auth/callback` to Supabase Auth -> URL Configuration -> Redirect URLs for Google sign-in
+- [ ] Upgrade Supabase from Free if needed; custom domains require a paid plan/add-on
+- [ ] Configure and activate a Supabase custom domain such as `auth.lagan.health`
+- [ ] Add `https://auth.lagan.health/auth/v1/callback` to the Google OAuth client's authorized redirect URIs
+- [ ] After the custom domain is active, update `EXPO_PUBLIC_SUPABASE_URL` to `https://auth.lagan.health` in `.env.local`, EAS env, and web build env
 - [ ] Deploy the public account deletion page and set `EXPO_PUBLIC_ACCOUNT_DELETION_URL` to `https://your-domain/account-deletion`
 - [ ] Set `NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL` for the web account deletion page
 - [ ] Verify the Play Console account deletion URL returns HTTP 200 without sign-in before submitting

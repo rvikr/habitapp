@@ -1,3 +1,4 @@
+import "../platform/webcrypto-polyfill";
 import { createClient as _createClient, type Session, type User } from "@supabase/supabase-js";
 import { secureStorage } from "../platform/secure-storage";
 import { isMissingRefreshTokenError } from "./auth-error";

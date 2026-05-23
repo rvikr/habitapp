@@ -521,10 +521,13 @@ test("native Google auth config is driven by the public web client id", () => {
     googleNativeAuthUnavailableReason({ webClientId: "" }),
     "Google Sign-In is not configured. Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID.",
   );
-  assert.deepEqual(googleNativeAuthConfig({ webClientId: "web-client.apps.googleusercontent.com" }), {
-    webClientId: "web-client.apps.googleusercontent.com",
-    offlineAccess: false,
-  });
+  assert.deepEqual(
+    googleNativeAuthConfig({ webClientId: "web-client.apps.googleusercontent.com" }),
+    {
+      webClientId: "web-client.apps.googleusercontent.com",
+      offlineAccess: false,
+    },
+  );
 });
 
 test("native Google sign-in handles new and legacy token response shapes", () => {
@@ -539,7 +542,19 @@ test("native Google sign-in keeps browser OAuth as fallback outside configured A
     "native",
   );
   assert.equal(googleNativeSignInButtonMode({ platform: "android", webClientId: "" }), "oauth");
-  assert.equal(googleNativeSignInButtonMode({ platform: "web", webClientId: "web-client" }), "oauth");
+  assert.equal(
+    googleNativeSignInButtonMode({ platform: "web", webClientId: "web-client" }),
+    "oauth",
+  );
+  // Expo Go has no @react-native-google-signin native module — must fall back to OAuth.
+  assert.equal(
+    googleNativeSignInButtonMode({
+      platform: "android",
+      webClientId: "web-client",
+      isExpoGo: true,
+    }),
+    "oauth",
+  );
 });
 
 test("native Google sign-in maps cancellation errors to cancelled results", () => {

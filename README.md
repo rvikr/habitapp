@@ -1,4 +1,4 @@
-# HabbitApp
+# Lagan
 
 ![CI](https://github.com/rvikr/habbitapp/actions/workflows/ci.yml/badge.svg)
 
@@ -49,17 +49,30 @@ EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_your-public-android-key
 All `EXPO_PUBLIC_*` vars are bundled into the client at build time. Don't put service-role
 keys here.
 
+Use the default Supabase project URL until a custom domain is verified and activated. After
+activating a Supabase custom domain such as `auth.lagan.health`, replace
+`EXPO_PUBLIC_SUPABASE_URL` with `https://auth.lagan.health` in local, EAS, and web build
+environments.
+
 ### Supabase Auth redirects
 
 In Supabase Dashboard -> Authentication -> URL Configuration, add the native app redirect
 URL before testing Google sign-in in a production Android/iOS build:
 
 ```
-habbitapp://auth/callback
+lagan://auth/callback
 ```
 
 Keep the production web callback URL, such as `https://your-domain.example/auth/callback`,
 in the same allow list if web auth is enabled.
+
+To prevent Google from showing the raw Supabase project URL on the "Sign in with Google"
+screen, configure a Supabase custom domain such as `auth.lagan.health`. After activation,
+add this callback URL to the Google OAuth client in Google Cloud:
+
+```
+https://auth.lagan.health/auth/v1/callback
+```
 
 `website/.env.local`:
 

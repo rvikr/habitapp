@@ -1,45 +1,60 @@
 import { useState, useCallback } from "react";
-import { View, Text, ScrollView, RefreshControl } from "react-native";
+import { View, Text, ScrollView, RefreshControl, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getStats, getMilestones } from "@/lib/data/habits";
 import { BADGE_DEFS, type ComputedBadge } from "@/lib/coach/badges";
 import BadgeGrid from "@/components/badge-grid";
 import ShareCardModal, { type ShareCardData } from "@/components/share-card-modal";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { useLanguage } from "@/components/language-provider";
-import type { Milestone } from "@/types/db";
+import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
+import { formatReportWeekRange, getLatestProgressReport } from "@/lib/data/progress-reports";
+import type { Milestone, WeeklyProgressReport } from "@/types/db";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
 
 export default function AchievementsScreen() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [stats, setStats] = useState<StatsData>(null);
   const [badges, setBadges] = useState<ComputedBadge[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [shareData, setShareData] = useState<ShareCardData | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [report, setReport] = useState<WeeklyProgressReport | null>(null);
+  const [hasPro, setHasPro] = useState<boolean | null>(null);
 
-  const load = useCallback(async (options?: { force?: boolean }) => {
-    const s = await getStats(options);
-    setStats(s);
-    if (s) {
-      const computed: ComputedBadge[] = BADGE_DEFS.map((def) => ({
-        id: def.id,
-        name: t(def.name),
-        description: t(def.description),
-        icon: def.icon,
-        tone: def.tone,
-        earned: def.check(s),
-        progressPct: def.progress(s),
-        hintText: def.hint(s),
-      }));
-      setBadges(computed);
-    }
-    setMilestones(getMilestones(s));
-    setLoaded(true);
-  }, [t]);
+  const load = useCallback(
+    async (options?: { force?: boolean }) => {
+      const [s, access, latestReport] = await Promise.all([
+        getStats(options),
+        getCurrentProAccess(),
+        getLatestProgressReport(options),
+      ]);
+      setStats(s);
+      setHasPro(access.hasPro);
+      setReport(latestReport);
+      if (s) {
+        const computed: ComputedBadge[] = BADGE_DEFS.map((def) => ({
+          id: def.id,
+          name: t(def.name),
+          description: t(def.description),
+          icon: def.icon,
+          tone: def.tone,
+          earned: def.check(s),
+          progressPct: def.progress(s),
+          hintText: def.hint(s),
+        }));
+        setBadges(computed);
+      }
+      setMilestones(getMilestones(s));
+      setLoaded(true);
+    },
+    [t],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -123,6 +138,27 @@ export default function AchievementsScreen() {
           <AchievementsSummarySkeleton />
         )}
 
+        {/* Weekly AI progress report (Pro) */}
+        <View className="px-margin-mobile mb-lg">
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
+            {t("WEEKLY REPORT")}
+          </Text>
+          {loaded ? (
+            <WeeklyReportCard
+              report={report}
+              hasPro={hasPro}
+              t={t}
+              onUpgrade={() => router.push("/pro")}
+            />
+          ) : (
+            <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs">
+              <SkeletonText width={120} />
+              <SkeletonText width="90%" />
+              <SkeletonText width="70%" />
+            </View>
+          )}
+        </View>
+
         {/* Badges */}
         <View className="px-margin-mobile mb-lg">
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
@@ -186,6 +222,64 @@ function AchievementsSummarySkeleton() {
           </View>
         ))}
       </View>
+    </View>
+  );
+}
+
+function WeeklyReportCard({
+  report,
+  hasPro,
+  t,
+  onUpgrade,
+}: {
+  report: WeeklyProgressReport | null;
+  hasPro: boolean | null;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  onUpgrade: () => void;
+}) {
+  if (hasPro === false) {
+    return (
+      <TouchableOpacity
+        onPress={onUpgrade}
+        className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+      >
+        <View className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center">
+          <MaterialCommunityIcons name="star-four-points" size={20} color="#F26B1F" />
+        </View>
+        <View className="flex-1">
+          <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+            {t("Unlock weekly AI reports")}
+          </Text>
+          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+            {t("Pro members get a personalised summary every Monday.")}
+          </Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={22} color="#8F8A82" />
+      </TouchableOpacity>
+    );
+  }
+
+  if (!report) {
+    return (
+      <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs">
+        <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+          {t("Your first report is on the way")}
+        </Text>
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+          {t("We'll generate a summary every Monday based on the previous week's habits.")}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs">
+      <Text className="text-label-sm text-primary font-semibold">
+        {formatReportWeekRange(report.week_start)}
+      </Text>
+      <Text className="text-body-md text-on-surface dark:text-d-on-surface leading-6">
+        {report.summary_text}
+      </Text>
     </View>
   );
 }

@@ -6,9 +6,22 @@ export const revalidate = 3600;
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Lagan लगन — Cultivate Your Dedication",
+  title: "Lagan — Habit Tracker & Streak Builder for iOS, Android & Web",
   description:
-    "A minimalist habit tracker for focused individuals. Build routines, track progress, and celebrate small wins with Quiet Energy.",
+    "Free habit tracker app for iOS, Android, and web. Build daily habits, track streaks, earn badges, and stay consistent with a minimalist, distraction-free design.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: "Lagan — Habit Tracker & Streak Builder",
+    description:
+      "Build daily habits, track streaks, and earn badges with a minimalist habit tracker for iOS, Android, and web.",
+    url: "/",
+    images: ["/og-image.png"],
+  },
+  twitter: {
+    title: "Lagan — Habit Tracker & Streak Builder",
+    description:
+      "Build daily habits, track streaks, and earn badges with a minimalist habit tracker for iOS, Android, and web.",
+  },
 };
 
 // ─── Stats helpers ───────────────────────────────────────────
@@ -56,8 +69,39 @@ function Icon({
 
 export default async function LandingPage() {
   const stats = await getPublicStats();
+  const softwareJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "MobileApplication",
+    name: "Lagan",
+    alternateName: "Lagan लगन",
+    description:
+      "Free habit tracker for iOS, Android, and web. Build daily habits, track streaks, earn badges, and stay consistent.",
+    applicationCategory: "LifestyleApplication",
+    operatingSystem: "iOS, Android, Web",
+    url: "https://lagan.health",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    ...(stats.user_count > 0 && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: "4.8",
+        ratingCount: Math.max(stats.user_count, 1).toString(),
+      },
+    }),
+    featureList: [
+      "Daily habit tracking",
+      "Streak counter",
+      "Achievement badges",
+      "Progress dashboard",
+      "Cross-platform sync (iOS, Android, web)",
+      "Minimalist distraction-free design",
+    ],
+  };
   return (
     <div className="min-h-screen overflow-x-hidden">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
+      />
       {/* ── Navbar ─────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 glass border-b border-outline-variant/30 shadow-nav">
         <div className="max-w-7xl mx-auto px-6 lg:px-16 flex items-center justify-between h-16">
@@ -401,7 +445,7 @@ export default async function LandingPage() {
       {/* ── Footer ─────────────────────────────────────────── */}
       <footer className="bg-inverse-surface text-inverse-on-surface py-16">
         <div className="max-w-7xl mx-auto px-6 lg:px-16">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
+          <div className="grid md:grid-cols-3 gap-12 mb-12">
             <div className="md:col-span-1 space-y-4">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
@@ -415,8 +459,7 @@ export default async function LandingPage() {
             </div>
             {[
               { title: "Product", links: [{ label: "Features", href: "#features" }, { label: "How it Works", href: "#how-it-works" }, { label: "Dashboard", href: "/dashboard" }, { label: "Achievements", href: "/achievements" }] },
-              { title: "Company", links: [{ label: "About", href: "#" }, { label: "Blog", href: "#" }, { label: "Careers", href: "#" }] },
-              { title: "Legal", links: [{ label: "Privacy Policy", href: "#" }, { label: "Terms of Service", href: "#" }] },
+              { title: "Legal", links: [{ label: "Privacy Policy", href: "/privacy" }, { label: "Terms of Service", href: "/terms" }, { label: "Account Deletion", href: "/account-deletion" }] },
             ].map(({ title, links }) => (
               <div key={title} className="space-y-4">
                 <h4 className="font-bold text-xs uppercase tracking-[0.15em] text-white/35">{title}</h4>

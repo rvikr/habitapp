@@ -33,9 +33,12 @@ export function googleNativeAuthConfig(env: GoogleNativeAuthEnvironment = {}) {
 export function googleNativeSignInButtonMode({
   platform,
   webClientId,
+  isExpoGo = false,
 }: GoogleNativeAuthEnvironment & {
   platform: GoogleNativePlatform;
+  isExpoGo?: boolean;
 }): GoogleNativeSignInMode {
+  if (isExpoGo) return "oauth";
   return platform === "android" && googleNativeAuthReady({ webClientId }) ? "native" : "oauth";
 }
 

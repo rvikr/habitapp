@@ -1,4 +1,4 @@
-type AiFeature = "coach-message" | "habit-routine" | "smart-reminders";
+type AiFeature = "coach-message" | "habit-routine" | "smart-reminders" | "progress-report";
 
 type SupabaseAdminClient = {
   rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message?: string } | null }>;

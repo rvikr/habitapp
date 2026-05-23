@@ -23,9 +23,18 @@ import {
   rememberPendingSignup,
 } from "@/lib/auth/auth-welcome";
 import LogoChainL from "@/components/logo-chain-l";
+import LoginOrbitalBackground from "@/components/login-orbital-background";
 import { useLanguage } from "@/components/language-provider";
 
 type Mode = "signin" | "signup";
+
+const LOGIN_COLORS = {
+  text: "#FFFFFF",
+  muted: "#A0A0A8",
+  subtle: "#77777D",
+  field: "#252528",
+  fieldBorder: "#343438",
+};
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -133,7 +142,8 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background dark:bg-d-background">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#1A1A1A" }}>
+      <LoginOrbitalBackground />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
@@ -145,31 +155,47 @@ export default function LoginScreen() {
               <View className="mb-md flex-row items-center justify-between">
                 <LogoChainL size={44} />
                 <TouchableOpacity
-                  className="flex-row items-center gap-xs rounded-full bg-surface-container dark:bg-d-surface-container px-sm py-xs"
+                  className="flex-row items-center gap-xs rounded-full px-sm py-xs"
                   onPress={toggleLanguage}
+                  style={{
+                    backgroundColor: "rgba(255, 255, 255, 0.08)",
+                    borderColor: "rgba(255, 255, 255, 0.12)",
+                    borderWidth: 1,
+                  }}
                 >
                   <Ionicons name="language-outline" size={18} color="#F26B1F" />
-                  <Text className="text-label-sm text-on-surface dark:text-d-on-surface font-semibold">
+                  <Text
+                    className="text-label-sm font-semibold"
+                    style={{ color: LOGIN_COLORS.text }}
+                  >
                     {languageName}
                   </Text>
                 </TouchableOpacity>
               </View>
               <Text
-                className="text-display-sm text-on-background dark:text-d-on-background"
-                style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+                className="text-display-sm"
+                style={{
+                  color: LOGIN_COLORS.text,
+                  fontFamily: "SpaceGrotesk_600SemiBold",
+                  letterSpacing: -0.5,
+                }}
               >
                 Lagan
               </Text>
-              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mb-lg">
+              <Text className="text-body-md mb-lg" style={{ color: LOGIN_COLORS.muted }}>
                 {t("A habit tracking app")}
               </Text>
               <Text
-                className="text-headline-lg text-on-background dark:text-d-on-background"
-                style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+                className="text-headline-lg"
+                style={{
+                  color: LOGIN_COLORS.text,
+                  fontFamily: "SpaceGrotesk_600SemiBold",
+                  letterSpacing: -0.5,
+                }}
               >
                 {mode === "signin" ? t("Welcome back") : t("Create account")}
               </Text>
-              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
+              <Text className="text-body-md mt-xs" style={{ color: LOGIN_COLORS.muted }}>
                 {mode === "signin"
                   ? t("Pick up where you left off.")
                   : t("Start building better habits today.")}
@@ -179,25 +205,34 @@ export default function LoginScreen() {
             {/* Form */}
             <View className="gap-md">
               <View className="gap-xs">
-                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
+                <Text className="text-label-sm font-semibold" style={{ color: LOGIN_COLORS.muted }}>
                   {t("Email")}
                 </Text>
                 <TextInput
-                  className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
+                  className="rounded-xl px-md py-sm text-body-md"
                   placeholder="you@example.com"
-                  placeholderTextColor="#8F8A82"
+                  placeholderTextColor={LOGIN_COLORS.subtle}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                   textContentType="emailAddress"
+                  style={{
+                    backgroundColor: LOGIN_COLORS.field,
+                    borderColor: LOGIN_COLORS.fieldBorder,
+                    borderWidth: 1,
+                    color: LOGIN_COLORS.text,
+                  }}
                 />
               </View>
 
               <View className="gap-xs">
                 <View className="flex-row justify-between items-center">
-                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
+                  <Text
+                    className="text-label-sm font-semibold"
+                    style={{ color: LOGIN_COLORS.muted }}
+                  >
                     {t("Password")}
                   </Text>
                   {mode === "signin" && (
@@ -208,17 +243,25 @@ export default function LoginScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-                <View className="flex-row bg-surface-container dark:bg-d-surface-container rounded-xl overflow-hidden items-center">
+                <View
+                  className="flex-row rounded-xl overflow-hidden items-center"
+                  style={{
+                    backgroundColor: LOGIN_COLORS.field,
+                    borderColor: LOGIN_COLORS.fieldBorder,
+                    borderWidth: 1,
+                  }}
+                >
                   <TextInput
-                    className="flex-1 text-on-surface dark:text-d-on-surface px-md py-sm text-body-md"
+                    className="flex-1 px-md py-sm text-body-md"
                     placeholder={
                       mode === "signup" ? t("8+ chars, mixed case + number") : "••••••••"
                     }
-                    placeholderTextColor="#8F8A82"
+                    placeholderTextColor={LOGIN_COLORS.subtle}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     textContentType={mode === "signup" ? "newPassword" : "password"}
+                    style={{ color: LOGIN_COLORS.text }}
                   />
                   <TouchableOpacity
                     className="px-md py-sm"
@@ -235,18 +278,29 @@ export default function LoginScreen() {
 
               {mode === "signup" && (
                 <View className="gap-xs">
-                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
+                  <Text
+                    className="text-label-sm font-semibold"
+                    style={{ color: LOGIN_COLORS.muted }}
+                  >
                     {t("Confirm Password")}
                   </Text>
-                  <View className="flex-row bg-surface-container dark:bg-d-surface-container rounded-xl overflow-hidden items-center">
+                  <View
+                    className="flex-row rounded-xl overflow-hidden items-center"
+                    style={{
+                      backgroundColor: LOGIN_COLORS.field,
+                      borderColor: LOGIN_COLORS.fieldBorder,
+                      borderWidth: 1,
+                    }}
+                  >
                     <TextInput
-                      className="flex-1 text-on-surface dark:text-d-on-surface px-md py-sm text-body-md"
+                      className="flex-1 px-md py-sm text-body-md"
                       placeholder={t("Re-enter your password")}
-                      placeholderTextColor="#8F8A82"
+                      placeholderTextColor={LOGIN_COLORS.subtle}
                       value={confirmPassword}
                       onChangeText={setConfirmPassword}
                       secureTextEntry={!showConfirmPassword}
                       textContentType="newPassword"
+                      style={{ color: LOGIN_COLORS.text }}
                     />
                     <TouchableOpacity
                       className="px-md py-sm"
@@ -293,24 +347,34 @@ export default function LoginScreen() {
               </TouchableOpacity>
 
               <View className="flex-row items-center gap-sm my-xs">
-                <View className="flex-1 h-px bg-outline-variant dark:bg-d-outline-variant" />
-                <Text className="text-on-surface-variant dark:text-d-on-surface-variant text-label-sm">
+                <View
+                  className="flex-1 h-px"
+                  style={{ backgroundColor: "rgba(255, 255, 255, 0.14)" }}
+                />
+                <Text className="text-label-sm" style={{ color: LOGIN_COLORS.muted }}>
                   {t("or")}
                 </Text>
-                <View className="flex-1 h-px bg-outline-variant dark:bg-d-outline-variant" />
+                <View
+                  className="flex-1 h-px"
+                  style={{ backgroundColor: "rgba(255, 255, 255, 0.14)" }}
+                />
               </View>
 
               <TouchableOpacity
-                className="flex-row items-center justify-center gap-sm border border-outline-variant dark:border-d-outline-variant rounded-full py-md"
+                className="flex-row items-center justify-center gap-sm rounded-full py-md"
                 onPress={handleGoogleSignIn}
                 disabled={loading || googleLoading}
+                style={{ borderColor: "rgba(255, 255, 255, 0.16)", borderWidth: 1 }}
               >
                 {googleLoading ? (
                   <ActivityIndicator color="#8F8A82" />
                 ) : (
                   <>
                     <AntDesign name="google" size={20} color="#4285F4" />
-                    <Text className="text-on-surface dark:text-d-on-surface text-label-lg font-semibold">
+                    <Text
+                      className="text-label-lg font-semibold"
+                      style={{ color: LOGIN_COLORS.text }}
+                    >
                       {t("Continue with Google")}
                     </Text>
                   </>
@@ -321,7 +385,7 @@ export default function LoginScreen() {
                 className="items-center py-sm"
                 onPress={() => switchMode(mode === "signin" ? "signup" : "signin")}
               >
-                <Text className="text-on-surface-variant dark:text-d-on-surface-variant text-label-lg">
+                <Text className="text-label-lg" style={{ color: LOGIN_COLORS.muted }}>
                   {mode === "signin"
                     ? t("Don't have an account? ")
                     : t("Already have an account? ")}
@@ -339,13 +403,17 @@ export default function LoginScreen() {
                   <TouchableOpacity
                     onPress={() => Linking.openURL(process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL!)}
                   >
-                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                    <Text className="text-label-sm" style={{ color: LOGIN_COLORS.muted }}>
                       {t("Privacy Policy")}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
-                <Text className="text-label-sm text-outline">·</Text>
-                <Text className="text-label-sm text-outline">© 2026 Lagan</Text>
+                <Text className="text-label-sm" style={{ color: LOGIN_COLORS.subtle }}>
+                  ·
+                </Text>
+                <Text className="text-label-sm" style={{ color: LOGIN_COLORS.subtle }}>
+                  © 2026 Lagan
+                </Text>
               </View>
             </View>
           </View>
@@ -406,21 +474,27 @@ function ForgotPasswordModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
       <View className="flex-1 justify-end bg-black/40">
-        <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-t-3xl p-lg gap-sm">
-          <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold">
+        <View className="rounded-t-3xl p-lg gap-sm" style={{ backgroundColor: "#1A1A1A" }}>
+          <Text className="text-headline-md font-bold" style={{ color: LOGIN_COLORS.text }}>
             {t("Reset password")}
           </Text>
-          <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
+          <Text className="text-body-md" style={{ color: LOGIN_COLORS.muted }}>
             {t("We'll email you a link to set a new password.")}
           </Text>
           <TextInput
-            className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
+            className="rounded-xl px-md py-sm text-body-md"
             placeholder={t("Email")}
-            placeholderTextColor="#8F8A82"
+            placeholderTextColor={LOGIN_COLORS.subtle}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
             autoCapitalize="none"
+            style={{
+              backgroundColor: LOGIN_COLORS.field,
+              borderColor: LOGIN_COLORS.fieldBorder,
+              borderWidth: 1,
+              color: LOGIN_COLORS.text,
+            }}
           />
           {feedback && (
             <Text
@@ -443,9 +517,7 @@ function ForgotPasswordModal({
             )}
           </TouchableOpacity>
           <TouchableOpacity className="items-center py-sm" onPress={onDismiss}>
-            <Text className="text-on-surface-variant dark:text-d-on-surface-variant">
-              {t("Cancel")}
-            </Text>
+            <Text style={{ color: LOGIN_COLORS.muted }}>{t("Cancel")}</Text>
           </TouchableOpacity>
         </View>
       </View>

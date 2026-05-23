@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -39,7 +39,7 @@ function statusLabel(
   status: SleepPermissionStatus | "checking" | "syncing" | "idle",
   t: (message: string) => string,
 ): string {
-  if (status === "granted") return t("Ready to sync");
+  if (status === "granted") return t("Auto-sync on");
   if (status === "undetermined") return t("Permission needed");
   if (status === "denied") return t("Permission is off");
   if (status === "providerUpdateRequired") return t("Health Connect update needed");
@@ -48,6 +48,8 @@ function statusLabel(
   if (status === "checking") return t("Checking");
   return t("Not checked");
 }
+
+const AUTO_SYNC_THROTTLE_MS = 15 * 60 * 1000;
 
 function sourceLabel(source: SleepEntry["source"], t: (message: string) => string): string {
   if (source === "healthConnect") return "Health Connect";
@@ -72,6 +74,8 @@ export default function SleepScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [manualHours, setManualHours] = useState("");
   const [busy, setBusy] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const lastAutoSyncAt = useRef(0);
 
   const load = useCallback(async (options?: { force?: boolean }) => {
     const [dashboard, permission] = await Promise.all([
@@ -80,12 +84,32 @@ export default function SleepScreen() {
     ]);
     setData(dashboard);
     setStatus(permission);
+    return permission;
   }, []);
+
+  const runSync = useCallback(async () => {
+    const result = await syncLastNightSleep();
+    if (!result.ok) {
+      setStatus(result.status ?? "idle");
+      setSyncError(result.error ?? null);
+    } else {
+      setSyncError(null);
+    }
+    await load({ force: true });
+  }, [load]);
 
   useFocusEffect(
     useCallback(() => {
-      void load();
-    }, [load]),
+      void (async () => {
+        const permission = await load();
+        if (permission !== "granted") return;
+        const now = Date.now();
+        if (now - lastAutoSyncAt.current < AUTO_SYNC_THROTTLE_MS) return;
+        lastAutoSyncAt.current = now;
+        setStatus("syncing");
+        await runSync();
+      })();
+    }, [load, runSync]),
   );
 
   const latest = data?.latestEntry ?? null;
@@ -95,7 +119,12 @@ export default function SleepScreen() {
 
   async function handleRefresh() {
     setRefreshing(true);
-    await load({ force: true });
+    const permission = await load({ force: true });
+    if (permission === "granted") {
+      lastAutoSyncAt.current = Date.now();
+      setStatus("syncing");
+      await runSync();
+    }
     setRefreshing(false);
   }
 
@@ -106,7 +135,11 @@ export default function SleepScreen() {
     const result = await syncLastNightSleep();
     if (!result.ok) {
       setStatus(result.status ?? "idle");
+      setSyncError(result.error ?? null);
       Alert.alert(t("Could not sync sleep"), result.error ?? t("Try again."));
+    } else {
+      setSyncError(null);
+      lastAutoSyncAt.current = Date.now();
     }
     await load({ force: true });
     setBusy(false);
@@ -218,26 +251,35 @@ export default function SleepScreen() {
                   {statusLabel(status, t)}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {t(
-                    "iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.",
-                  )}
+                  {status === "granted" && !syncError
+                    ? t("Last night's sleep syncs automatically when you open this screen.")
+                    : t(
+                        "iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.",
+                      )}
                 </Text>
+                {syncError ? (
+                  <Text className="text-label-sm mt-xs" style={{ color: SLEEP_FG }}>
+                    {syncError}
+                  </Text>
+                ) : null}
               </View>
             </View>
-            <TouchableOpacity
-              className="bg-primary rounded-full py-sm items-center"
-              onPress={handleSync}
-              disabled={busy}
-              style={{ opacity: busy ? 0.6 : 1 }}
-            >
-              {busy && status === "syncing" ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-on-primary text-label-lg font-semibold">
-                  {t("Sync recent sleep")}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {status !== "granted" || syncError ? (
+              <TouchableOpacity
+                className="bg-primary rounded-full py-sm items-center"
+                onPress={handleSync}
+                disabled={busy}
+                style={{ opacity: busy ? 0.6 : 1 }}
+              >
+                {busy && status === "syncing" ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-on-primary text-label-lg font-semibold">
+                    {status === "granted" ? t("Try sync again") : t("Sync recent sleep")}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           <SleepStatusSkeleton />

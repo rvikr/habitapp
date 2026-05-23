@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
+import Constants from "expo-constants";
 import {
   supabase,
   isSupabaseConfigured,
@@ -175,7 +176,8 @@ export async function signOut() {
 
 export async function signInWithGoogle(): Promise<{ error: Error | null; cancelled?: boolean }> {
   if (!isSupabaseConfigured()) return { error: configurationError() as unknown as Error };
-  if (googleNativeSignInButtonMode({ platform: Platform.OS }) === "native") {
+  const isExpoGo = Constants.appOwnership === "expo";
+  if (googleNativeSignInButtonMode({ platform: Platform.OS, isExpoGo }) === "native") {
     return signInWithNativeGoogle();
   }
 

@@ -1,7 +1,8 @@
 {
-  "name": "Lagan लगन",
+  "name": "Lagan — Habit Tracker & Streak Builder",
   "short_name": "Lagan",
-  "description": "Build habits, track progress, earn badges.",
+  "description": "Lagan is a free habit tracker for iOS, Android, and web. Build daily habits, track streaks, earn badges, and stay consistent with a minimalist, distraction-free design.",
+  "categories": ["productivity", "lifestyle", "health"],
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

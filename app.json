@@ -5,16 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "scheme": "habbitapp",
+    "scheme": "lagan",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#451ebb"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -25,7 +23,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.habbitapp.app",
+      "bundleIdentifier": "health.lagan.app",
       "buildNumber": "1",
       "infoPlist": {
         "NSUserNotificationsUsageDescription": "Lagan uses notifications to remind you about your habits.",
@@ -36,7 +34,7 @@
       }
     },
     "android": {
-      "package": "com.habbitapp.app",
+      "package": "health.lagan.app",
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -58,9 +56,9 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png",
-      "name": "Lagan लगन",
+      "name": "Lagan — Habit Tracker",
       "shortName": "Lagan",
-      "description": "Build habits, track progress, earn badges.",
+      "description": "Lagan is a free habit tracker for iOS, Android, and web. Build daily habits, track streaks, earn badges, and stay consistent with a minimalist, distraction-free design.",
       "themeColor": "#451ebb",
       "backgroundColor": "#f8f9fa",
       "display": "standalone",
@@ -83,7 +81,7 @@
       [
         "./plugins/with-health-connect-rationale",
         {
-          "privacyPolicyUrl": "https://www.termsfeed.com/live/faa47955-b975-4086-9dca-89663d8882d2"
+          "privacyPolicyUrl": "https://lagan.health/privacy"
         }
       ],
       "expo-health-connect",
@@ -115,7 +113,14 @@
           "username": "rk12333"
         }
       ],
-      "@sentry/react-native",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "habbitapp",
+          "project": "javascript-react",
+          "url": "https://sentry.io/"
+        }
+      ],
       "expo-localization",
       "expo-web-browser"
     ],
