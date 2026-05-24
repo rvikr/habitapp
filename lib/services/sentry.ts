@@ -10,14 +10,14 @@ let initialized = false;
 let SentryRef: typeof import("@sentry/react-native") | null = null;
 
 export async function initSentry(): Promise<void> {
-  if (initialized || !DSN) return;
+  if (initialized || !DSN || __DEV__) return;
   try {
     SentryRef = await import("@sentry/react-native");
     SentryRef.init({
       dsn: DSN,
       enableAutoSessionTracking: true,
-      tracesSampleRate: 0.2,
-      debug: __DEV__,
+      tracesSampleRate: 0.05,
+      debug: false,
     });
     initialized = true;
   } catch (e) {

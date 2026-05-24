@@ -228,7 +228,7 @@ export async function getSleepDashboardData(
           .select("*")
           .eq("user_id", user.id)
           .order("sleep_date", { ascending: false })
-          .limit(14),
+          .limit(31),
       ]);
 
       const habit = ((habits ?? []) as Habit[])[0] ?? null;

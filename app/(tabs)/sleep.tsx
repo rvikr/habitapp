@@ -65,6 +65,18 @@ function scoreTone(score: number | null | undefined, t: (message: string) => str
   return t("Low sleep");
 }
 
+type TrendRange = 7 | 30;
+
+function shiftSleepDate(sleepDate: string, days: number): string {
+  const [y, m, d] = sleepDate.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  const yy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 export default function SleepScreen() {
   const { language, t } = useLanguage();
   const [data, setData] = useState<SleepDashboardData | null>(null);
@@ -75,6 +87,7 @@ export default function SleepScreen() {
   const [manualHours, setManualHours] = useState("");
   const [busy, setBusy] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [range, setRange] = useState<TrendRange>(7);
   const lastAutoSyncAt = useRef(0);
 
   const load = useCallback(async (options?: { force?: boolean }) => {
@@ -114,8 +127,38 @@ export default function SleepScreen() {
 
   const latest = data?.latestEntry ?? null;
   const targetMinutes = data?.targetMinutes ?? 480;
-  const durationRatio = latest ? Math.min(latest.duration_minutes / targetMinutes, 1) : 0;
-  const trend = [...(data?.entries ?? [])].slice(0, 7).reverse();
+  const latestDurationRatio = latest ? Math.min(latest.duration_minutes / targetMinutes, 1) : 0;
+
+  const allEntries = data?.entries ?? [];
+  const todaySleepDate = (() => {
+    const now = new Date();
+    const date = new Date(now);
+    if (date.getHours() >= 18) date.setDate(date.getDate() + 1);
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  })();
+  const cutoffDate = shiftSleepDate(todaySleepDate, -(range - 1));
+  const windowEntries = allEntries.filter((entry) => entry.sleep_date >= cutoffDate);
+  const windowCount = windowEntries.length;
+  const avgScore =
+    windowCount > 0
+      ? Math.round(windowEntries.reduce((sum, e) => sum + (e.score ?? 0), 0) / windowCount)
+      : null;
+  const avgDurationMinutes =
+    windowCount > 0
+      ? windowEntries.reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0) / windowCount
+      : 0;
+  const avgDurationRatio = Math.min(avgDurationMinutes / targetMinutes, 1);
+  const trend = [...windowEntries].slice(0, range).reverse();
+
+  const latestSleepLabel = latest
+    ? new Date(`${latest.sleep_date}T12:00:00`).toLocaleDateString(
+        language === "hi" ? "hi-IN" : "en-US",
+        { weekday: "short", month: "short", day: "numeric" },
+      )
+    : null;
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -174,7 +217,7 @@ export default function SleepScreen() {
             {t("Sleep tracker")}
           </Text>
           <Text className="text-headline-lg text-on-background dark:text-d-on-background">
-            {t("Last night")}
+            {t("Overview")}
           </Text>
         </View>
 
@@ -186,22 +229,22 @@ export default function SleepScreen() {
             <View className="flex-row items-center justify-between">
               <View className="flex-1">
                 <Text className="text-label-lg font-semibold" style={{ color: SLEEP_FG }}>
-                  {scoreTone(latest?.score, t)}
+                  {scoreTone(avgScore, t)}
                 </Text>
                 <Text className="text-display-sm font-bold" style={{ color: SLEEP_FG }}>
-                  {latest ? latest.score : "--"}
+                  {avgScore ?? "--"}
                 </Text>
                 <Text className="text-body-sm" style={{ color: SLEEP_FG }}>
-                  {latest
-                    ? t("{hours} synced from {source}", {
-                        hours: formatHours(latest.duration_minutes, t),
-                        source: sourceLabel(latest.source, t),
+                  {windowCount > 0
+                    ? t("Average across last {days} days · {count} nights", {
+                        days: range,
+                        count: windowCount,
                       })
                     : t("Sync or log sleep to calculate your score.")}
                 </Text>
               </View>
               <ProgressRing
-                progress={latest ? latest.score / 100 : 0}
+                progress={avgScore != null ? avgScore / 100 : 0}
                 size={104}
                 strokeWidth={9}
                 color={SLEEP_FG}
@@ -209,7 +252,7 @@ export default function SleepScreen() {
               >
                 <HabitProgressVisual
                   visualType="sleep_moon"
-                  progress={durationRatio}
+                  progress={avgDurationRatio}
                   size="compact"
                   color={SLEEP_FG}
                   trackColor="#FFC56B"
@@ -217,22 +260,32 @@ export default function SleepScreen() {
               </ProgressRing>
             </View>
 
-            <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md">
-              <View className="flex-row items-center justify-between">
-                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {formatHours(latest?.duration_minutes, t)} / {formatHours(targetMinutes, t)}
-                </Text>
-                <Text className="text-label-lg text-primary font-semibold">
-                  {Math.round(durationRatio * 100)}%
-                </Text>
+            {latest ? (
+              <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-xs">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                    {t("Last logged · {date}", { date: latestSleepLabel ?? "" })}
+                  </Text>
+                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                    {sourceLabel(latest.source, t)}
+                  </Text>
+                </View>
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                    {formatHours(latest.duration_minutes, t)} / {formatHours(targetMinutes, t)}
+                  </Text>
+                  <Text className="text-label-lg text-primary font-semibold">
+                    {t("Score {score}", { score: latest.score })}
+                  </Text>
+                </View>
+                <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden mt-xs">
+                  <View
+                    className="h-2 rounded-full"
+                    style={{ width: `${latestDurationRatio * 100}%`, backgroundColor: SLEEP_FG }}
+                  />
+                </View>
               </View>
-              <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden mt-sm">
-                <View
-                  className="h-2 rounded-full"
-                  style={{ width: `${durationRatio * 100}%`, backgroundColor: SLEEP_FG }}
-                />
-              </View>
-            </View>
+            ) : null}
           </View>
         ) : (
           <SleepHeroSkeleton />
@@ -310,9 +363,31 @@ export default function SleepScreen() {
         </View>
 
         <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
-            {t("7-DAY TREND")}
-          </Text>
+          <View className="flex-row items-center justify-between mb-md">
+            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant">
+              {t("{days}-DAY TREND", { days: range })}
+            </Text>
+            <View className="flex-row bg-surface-lowest dark:bg-d-surface-lowest rounded-full p-1">
+              {([7, 30] as TrendRange[]).map((option) => {
+                const active = option === range;
+                return (
+                  <TouchableOpacity
+                    key={option}
+                    onPress={() => setRange(option)}
+                    className="px-md py-1 rounded-full"
+                    style={{ backgroundColor: active ? SLEEP_FG : "transparent" }}
+                  >
+                    <Text
+                      className="text-label-sm font-semibold"
+                      style={{ color: active ? "#fff" : SLEEP_FG }}
+                    >
+                      {t("{days}d", { days: option })}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
           {!data ? (
             <SleepTrendSkeleton />
           ) : trend.length === 0 ? (
@@ -322,7 +397,7 @@ export default function SleepScreen() {
                 {t("Sleep scores will appear here after your first sync or manual log.")}
               </Text>
             </View>
-          ) : (
+          ) : range === 7 ? (
             <View className="flex-row items-end justify-between" style={{ height: 142 }}>
               {trend.map((entry) => {
                 const height = Math.max(12, Math.round((entry.score / 100) * 92));
@@ -346,6 +421,38 @@ export default function SleepScreen() {
                   </View>
                 );
               })}
+            </View>
+          ) : (
+            <View>
+              <View className="flex-row items-end justify-between gap-1" style={{ height: 110 }}>
+                {trend.map((entry) => {
+                  const height = Math.max(6, Math.round((entry.score / 100) * 100));
+                  return (
+                    <View
+                      key={entry.id}
+                      className="flex-1 rounded-sm"
+                      style={{ height, backgroundColor: SLEEP_FG, minWidth: 4 }}
+                    />
+                  );
+                })}
+              </View>
+              <View className="flex-row justify-between mt-sm">
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  {new Date(`${trend[0].sleep_date}T12:00:00`).toLocaleDateString(
+                    language === "hi" ? "hi-IN" : "en-US",
+                    { month: "short", day: "numeric" },
+                  )}
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  {new Date(`${trend[trend.length - 1].sleep_date}T12:00:00`).toLocaleDateString(
+                    language === "hi" ? "hi-IN" : "en-US",
+                    {
+                      month: "short",
+                      day: "numeric",
+                    },
+                  )}
+                </Text>
+              </View>
             </View>
           )}
         </View>
