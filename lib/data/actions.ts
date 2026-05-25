@@ -176,7 +176,7 @@ export async function signOut() {
 
 export async function signInWithGoogle(): Promise<{ error: Error | null; cancelled?: boolean }> {
   if (!isSupabaseConfigured()) return { error: configurationError() as unknown as Error };
-  const isExpoGo = Constants.appOwnership === "expo";
+  const isExpoGo = Constants.executionEnvironment === "storeClient";
   if (googleNativeSignInButtonMode({ platform: Platform.OS, isExpoGo }) === "native") {
     return signInWithNativeGoogle();
   }
@@ -258,8 +258,9 @@ async function signInWithGoogleOAuth(): Promise<{ error: Error | null; cancelled
     }
 
     return { error: new Error("No authentication tokens received.") };
-  } catch {
-    return { error: networkError() };
+  } catch (err) {
+    if (__DEV__) console.error("[Google OAuth] error:", err);
+    return { error: err instanceof Error ? err : networkError() };
   }
 }
 
