@@ -22,11 +22,11 @@ function Toggle({
       type="button"
       onClick={() => onChange(!checked)}
       className={`w-11 h-6 rounded-full relative transition-colors duration-200 flex-shrink-0 ${
-        checked ? "bg-primary" : "bg-surface-container-high"
+        checked ? "bg-primary" : "bg-surface-container-highest"
       }`}
     >
       <span
-        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+        className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-surface shadow-sm transition-transform duration-200 ${
           checked ? "translate-x-5" : "translate-x-0"
         }`}
       />
@@ -129,8 +129,8 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
     <form onSubmit={handleSave} className="space-y-6">
 
       {/* ── Account ─────────────────────────────────────────── */}
-      <section className="bg-white rounded-3xl shadow-card border border-outline-variant/15 overflow-hidden">
-        <div className="px-6 py-5 border-b border-outline-variant/15 flex items-center gap-3">
+      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+        <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span
             className="material-symbols-outlined text-primary text-xl"
             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -205,8 +205,8 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
       </section>
 
       {/* ── Notifications ───────────────────────────────────── */}
-      <section className="bg-white rounded-3xl shadow-card border border-outline-variant/15 overflow-hidden">
-        <div className="px-6 py-5 border-b border-outline-variant/15 flex items-center gap-3">
+      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+        <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span
             className="material-symbols-outlined text-primary text-xl"
             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -250,8 +250,8 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
       </section>
 
       {/* ── App Experience ──────────────────────────────────── */}
-      <section className="bg-white rounded-3xl shadow-card border border-outline-variant/15 overflow-hidden">
-        <div className="px-6 py-5 border-b border-outline-variant/15 flex items-center gap-3">
+      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+        <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span
             className="material-symbols-outlined text-primary text-xl"
             style={{ fontVariationSettings: "'FILL' 1" }}
@@ -285,8 +285,8 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
       </section>
 
       {/* ── Danger zone ─────────────────────────────────────── */}
-      <section className="bg-white rounded-3xl shadow-card border border-outline-variant/15 overflow-hidden">
-        <div className="px-6 py-5 border-b border-outline-variant/15 flex items-center gap-3">
+      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+        <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span className="material-symbols-outlined text-error text-xl">
             warning
           </span>
@@ -305,14 +305,14 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
               onChange={(e) => setDeleteReason(e.target.value)}
               placeholder="Optional reason"
               rows={3}
-              className="w-full px-4 py-3 bg-white border border-outline-variant rounded-xl text-on-background placeholder:text-outline text-sm font-medium focus:outline-none focus:border-error focus:ring-2 focus:ring-error/15 transition-all"
+              className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-on-background placeholder:text-outline text-sm font-medium focus:outline-none focus:border-error focus:ring-2 focus:ring-error/15 transition-all"
             />
             <input
               type="password"
               value={deletePassword}
               onChange={(e) => setDeletePassword(e.target.value)}
               placeholder="Confirm password"
-              className="w-full px-4 py-3 bg-white border border-outline-variant rounded-xl text-on-background placeholder:text-outline text-sm font-medium focus:outline-none focus:border-error focus:ring-2 focus:ring-error/15 transition-all"
+              className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-on-background placeholder:text-outline text-sm font-medium focus:outline-none focus:border-error focus:ring-2 focus:ring-error/15 transition-all"
             />
             {deleteMsg && <p className="text-xs text-error font-medium">{deleteMsg}</p>}
             <button
@@ -370,7 +370,7 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
         <button
           type="submit"
           disabled={saving || name.trim() === displayName}
-          className="px-6 py-2.5 rounded-xl font-bold text-sm bg-primary text-white hover:bg-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgba(93,63,211,0.28)]"
+          className="px-6 py-2.5 rounded-xl font-bold text-sm bg-primary text-white hover:bg-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgba(242,107,31,0.3)]"
         >
           {saving ? "Saving…" : "Save Changes"}
         </button>

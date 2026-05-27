@@ -35,6 +35,8 @@ import {
   type VisualType,
 } from "../coach/habit-intelligence";
 import type { Habit } from "../../types/db";
+import { validateHabitLocally, type HabitValidationResult } from "../habits/validate";
+import { validateHabitRemote } from "../habits/validate-remote";
 
 type ActionResult = { ok: boolean; error?: string };
 type HabitMutationData = {
@@ -54,7 +56,25 @@ type HabitMutationData = {
   reminderIntervalMinutes?: number | null;
   defaultLogValue?: number | null;
   mergeSimilar?: boolean;
+  acknowledgeWarning?: boolean;
 };
+
+async function runHabitValidation(
+  intelligence: { habitType: HabitType; metricType: MetricType },
+  data: HabitMutationData,
+): Promise<HabitValidationResult> {
+  const input = {
+    name: data.name,
+    description: data.description,
+    unit: data.unit,
+    target: data.target,
+    habitType: intelligence.habitType,
+    metricType: intelligence.metricType,
+  };
+  const local = validateHabitLocally(input);
+  if (local.status !== "uncertain") return local;
+  return validateHabitRemote(input);
+}
 
 async function getUser() {
   return getCurrentUser();
@@ -437,6 +457,14 @@ export async function createHabit(data: HabitMutationData) {
     defaultLogValue: data.defaultLogValue,
   });
 
+  const validation = await runHabitValidation(intelligence, data);
+  if (validation.status === "block") {
+    return { ok: false, id: null, validation };
+  }
+  if (validation.status === "warn" && !data.acknowledgeWarning) {
+    return { ok: false, id: null, validation };
+  }
+
   const candidate = {
     ...data,
     habitType: intelligence.habitType,
@@ -546,7 +574,7 @@ export async function createHabit(data: HabitMutationData) {
 export async function updateHabitFull(
   habitId: string,
   data: HabitMutationData,
-): Promise<ActionResult> {
+): Promise<ActionResult & { validation?: HabitValidationResult }> {
   const user = await getUser();
   if (!user) return notSignedIn();
   const intelligence = inferHabitIntelligence({
@@ -561,6 +589,15 @@ export async function updateHabitFull(
     reminderIntervalMinutes: data.reminderIntervalMinutes,
     defaultLogValue: data.defaultLogValue,
   });
+
+  const validation = await runHabitValidation(intelligence, data);
+  if (validation.status === "block") {
+    return { ok: false, validation };
+  }
+  if (validation.status === "warn" && !data.acknowledgeWarning) {
+    return { ok: false, validation };
+  }
+
   const { error } = await supabase
     .from("habits")
     .update(smartHabitPayload(data, intelligence))

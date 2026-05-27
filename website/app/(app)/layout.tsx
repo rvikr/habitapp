@@ -37,7 +37,7 @@ export default async function AppLayout({
     <div className="min-h-screen bg-background lg:flex">
       <TimezoneCookie />
       <Sidebar displayName={displayName} email={user.email ?? null} isAdmin={isAdmin} />
-      <main className="min-h-screen flex-1 pb-20 lg:ml-60 lg:pb-0">{children}</main>
+      <main className="min-h-screen flex-1 pb-32 lg:ml-60 lg:pb-0">{children}</main>
     </div>
   );
 }

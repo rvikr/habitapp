@@ -6,10 +6,10 @@ import { localDateKey } from "@/lib/date";
 import type { Habit } from "@/types/db";
 
 const COLOR_MAP: Record<string, { bg: string; ic: string }> = {
-  primary:   { bg: "bg-primary-fixed/30",        ic: "text-primary" },
-  secondary: { bg: "bg-secondary-container/30",   ic: "text-secondary" },
-  tertiary:  { bg: "bg-tertiary-fixed/30",        ic: "text-on-tertiary-fixed-variant" },
-  neutral:   { bg: "bg-surface-container",        ic: "text-on-surface-variant" },
+  primary:   { bg: "bg-primary-fixed",        ic: "text-primary" },
+  secondary: { bg: "bg-secondary-container",  ic: "text-secondary" },
+  tertiary:  { bg: "bg-tertiary-fixed",       ic: "text-on-tertiary-container" },
+  neutral:   { bg: "bg-surface-container-high", ic: "text-on-surface-variant" },
 };
 
 function HabitRow({
@@ -28,7 +28,7 @@ function HabitRow({
 
   return (
     <div
-      className={`bg-white rounded-2xl p-4 flex items-center gap-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-outline-variant/15 hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200 ${
+      className={`bg-surface rounded-2xl p-4 flex items-center gap-4 border border-outline-variant hover:bg-surface-container-high hover:-translate-y-0.5 transition-all duration-200 ${
         pending ? "opacity-70" : ""
       }`}
     >
@@ -86,7 +86,7 @@ export default function HabitList({
 }) {
   if (habits.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-8 text-center border border-outline-variant/15 shadow-card">
+      <div className="bg-surface rounded-2xl p-8 text-center border border-outline-variant/15 shadow-card">
         <span className="material-symbols-outlined text-5xl text-outline mb-3 block" style={{ fontVariationSettings: "'FILL' 1" }}>
           add_circle
         </span>

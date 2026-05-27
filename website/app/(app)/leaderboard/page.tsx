@@ -132,9 +132,9 @@ export default async function LeaderboardPage({
   // Podium order: 2nd, 1st, 3rd
   const podiumOrder = [top3[1], top3[0], top3[2]];
   const podiumStyles = [
-    { height: "h-24", bg: "from-slate-200 to-slate-100", label: "2nd", labelColor: "text-slate-500", ring: "ring-slate-300" },
-    { height: "h-32", bg: "from-yellow-300 to-yellow-200", label: "1st", labelColor: "text-yellow-600", ring: "ring-yellow-300" },
-    { height: "h-16", bg: "from-amber-400 to-amber-300", label: "3rd", labelColor: "text-amber-700", ring: "ring-amber-300" },
+    { height: "h-24", bg: "from-[#2C2C36] to-[#1F1F27]", label: "2nd", labelColor: "text-on-surface-variant", ring: "ring-outline-variant" },
+    { height: "h-32", bg: "from-[#3A2205] to-[#2A1A03]", label: "1st", labelColor: "text-[#FFC56B]", ring: "ring-[#FFC56B]/40" },
+    { height: "h-16", bg: "from-[#2A1208] to-[#1F0D05]", label: "3rd", labelColor: "text-primary", ring: "ring-primary/40" },
   ];
 
   return (
@@ -164,7 +164,7 @@ export default async function LeaderboardPage({
               href={`/leaderboard?period=${p}`}
               className={`px-5 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${
                 period === p
-                  ? "bg-white text-primary shadow-sm"
+                  ? "bg-surface text-primary shadow-sm"
                   : "text-on-surface-variant hover:text-on-background"
               }`}
             >
@@ -204,7 +204,7 @@ export default async function LeaderboardPage({
 
             {/* Podium — top 3 */}
             {top3.length >= 2 && (
-              <div className="bg-white rounded-3xl p-5 shadow-card border border-outline-variant/15 sm:p-8">
+              <div className="bg-surface rounded-3xl p-5 border border-outline-variant sm:p-8">
                 <div className="flex items-end justify-center gap-4">
                   {podiumOrder.map((entry, podiumIdx) => {
                     if (!entry) return <div key={podiumIdx} className="flex-1" />;
@@ -228,7 +228,7 @@ export default async function LeaderboardPage({
                           </div>
                           {isCenter && (
                             <span
-                              className="absolute -top-2 -right-2 material-symbols-outlined text-yellow-500 text-xl drop-shadow"
+                              className="absolute -top-2 -right-2 material-symbols-outlined text-[#FFC56B] text-xl drop-shadow"
                               style={{ fontVariationSettings: "'FILL' 1" }}
                             >
                               emoji_events
@@ -263,9 +263,9 @@ export default async function LeaderboardPage({
             )}
 
             {/* Full table */}
-              <div className="overflow-x-auto rounded-3xl bg-white shadow-card border border-outline-variant/15">
+              <div className="overflow-x-auto rounded-3xl bg-surface border border-outline-variant">
                 {/* Column headers */}
-              <div className="grid min-w-[560px] grid-cols-[48px_1fr_80px_100px] gap-3 px-6 py-3 bg-surface-container/50 border-b border-outline-variant/15">
+              <div className="grid min-w-[560px] grid-cols-[48px_1fr_80px_100px] gap-3 px-6 py-3 bg-surface-container-high border-b border-outline-variant">
                 <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider text-center">#</span>
                 <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Player</span>
                 <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider text-center">Streak</span>
@@ -276,14 +276,14 @@ export default async function LeaderboardPage({
               {board.map((entry, i) => {
                 const rank = i + 1;
                 const isTop3 = rank <= 3;
-                const medalColors = ["text-yellow-500", "text-slate-400", "text-amber-600"];
+                const medalColors = ["text-[#FFC56B]", "text-on-surface-variant", "text-primary"];
                 return (
                   <div
                     key={entry.user_id}
-                    className={`grid min-w-[560px] grid-cols-[48px_1fr_80px_100px] gap-3 items-center px-6 py-3.5 border-b border-outline-variant/10 last:border-0 transition-colors ${
+                    className={`grid min-w-[560px] grid-cols-[48px_1fr_80px_100px] gap-3 items-center px-6 py-3.5 border-b border-outline-variant/40 last:border-0 transition-colors ${
                       entry.is_current_user
-                        ? "bg-primary/5"
-                        : "hover:bg-surface-container/40"
+                        ? "bg-primary/10"
+                        : "hover:bg-surface-container-high"
                     }`}
                   >
                     {/* Rank */}
@@ -353,7 +353,7 @@ export default async function LeaderboardPage({
           </div>
         ) : (
           /* Empty state */
-          <div className="bg-white rounded-3xl p-14 shadow-card border border-outline-variant/15 text-center space-y-4">
+          <div className="bg-surface rounded-3xl p-14 border border-outline-variant text-center space-y-4">
             <span
               className="material-symbols-outlined text-6xl text-on-surface-variant/30"
               style={{ fontVariationSettings: "'FILL' 1" }}
@@ -380,9 +380,10 @@ export default async function LeaderboardPage({
 
         {/* Your rank card */}
         <div
-          className="rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_8px_32px_rgba(93,63,211,0.25)]"
+          className="rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_8px_32px_rgba(242,107,31,0.15)]"
           style={{
-            background: "linear-gradient(145deg, #451ebb 0%, #5d3fd3 55%, #2d7d7a 100%)",
+            background: "linear-gradient(145deg, #2A1208 0%, #3D1A08 55%, #1A1207 100%)",
+            border: "1px solid rgba(242,107,31,0.25)",
           }}
         >
           <div className="absolute -right-4 -bottom-4 opacity-10 pointer-events-none">
@@ -407,7 +408,7 @@ export default async function LeaderboardPage({
               <span className="text-white/55 font-medium">globally</span>
             </div>
             {topPct && (
-              <span className="inline-block bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full">
+              <span className="inline-block bg-surface/20 text-white text-xs font-bold px-3 py-1 rounded-full">
                 Top {topPct}%
               </span>
             )}
@@ -425,9 +426,9 @@ export default async function LeaderboardPage({
                 <span className="text-white/60">Level {userLevel} XP</span>
                 <span className="text-white font-bold">{levelXP.toLocaleString()} / {XP_PER_LEVEL.toLocaleString()}</span>
               </div>
-              <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-surface/20 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-white rounded-full"
+                  className="h-full bg-surface rounded-full"
                   style={{ width: `${levelPct}%` }}
                 />
               </div>
@@ -437,7 +438,7 @@ export default async function LeaderboardPage({
 
         {/* Next rank progress */}
         {xpToNext !== null && xpToNext > 0 && nextEntry && (
-          <div className="bg-white rounded-3xl p-5 shadow-card border border-outline-variant/15 space-y-3">
+          <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
             <div className="flex items-center gap-2">
               <span
                 className="material-symbols-outlined text-primary text-xl"
@@ -459,7 +460,7 @@ export default async function LeaderboardPage({
         )}
 
         {/* Your stats */}
-        <div className="bg-white rounded-3xl p-5 shadow-card border border-outline-variant/15 space-y-4">
+        <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-4">
           <h3 className="font-bold text-on-background text-sm">Your Stats</h3>
           <div className="space-y-3">
             {[

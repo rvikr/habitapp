@@ -25,7 +25,13 @@ export default function NewHabitScreen() {
         );
       }
       router.replace("/");
-    } else Alert.alert(t("Could not create habit"), result.error ?? t("Try again."));
+      return { ok: true };
+    }
+    if ("validation" in result && result.validation) {
+      return { ok: false, validation: result.validation };
+    }
+    Alert.alert(t("Could not create habit"), result.error ?? t("Try again."));
+    return { ok: false };
   }
 
   return (

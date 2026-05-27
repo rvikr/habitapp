@@ -1,132 +1,263 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { getPublicStats, formatCount } from "@/lib/stats";
 import LoginForm from "./LoginForm";
 
 export const dynamic = "force-dynamic";
 
-function Icon({
-  name,
-  className = "",
-  fill = false,
-}: {
-  name: string;
-  className?: string;
-  fill?: boolean;
-}) {
+const C = {
+  bg: "#0B0B0E",
+  surface: "#16161C",
+  border: "#2C2C36",
+  text: "#FFFFFF",
+  textMute: "#B5B8C0",
+  primary: "#F26B1F",
+  accent: "#FFC56B",
+  success: "#3EBB7F",
+} as const;
+
+const SG = 'var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif';
+const MR = 'var(--font-manrope), Manrope, system-ui, sans-serif';
+
+function LogoMark() {
   return (
-    <span
-      className={`material-symbols-outlined ${className}`}
-      style={fill ? { fontVariationSettings: "'FILL' 1" } : undefined}
-    >
-      {name}
-    </span>
+    <svg width="32" height="32" viewBox="0 0 36 36" fill="none">
+      <rect x="4" y="4" width="12" height="12" rx="3" fill="#F26B1F" />
+      <rect x="20" y="4" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.75" />
+      <rect x="4" y="20" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.5" />
+      <rect x="20" y="20" width="12" height="12" rx="3" fill="#F26B1F" opacity="0.8" />
+    </svg>
   );
 }
 
-export default async function LoginPage() {
-  const stats = await getPublicStats();
-
-  const statCards = [
-    { value: formatCount(stats.userCount), label: "Users" },
-    { value: formatCount(stats.habitCount), label: "Habits" },
-    { value: formatCount(stats.checkInCount), label: "Check-ins" },
-  ];
-
+export default function LoginPage() {
   return (
-    <div className="min-h-screen flex antialiased">
-      {/* ── Left Panel (branding) ─────────────────────────── */}
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        background: C.bg,
+        fontFamily: MR,
+      }}
+    >
+      {/* ── Left Panel ─────────────────────────────────── */}
       <div
-        className="w-1/2 min-h-screen hidden lg:flex flex-col justify-between p-16 relative overflow-hidden"
         style={{
+          width: "50%",
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          padding: "clamp(40px, 5vw, 80px)",
+          position: "relative",
+          overflow: "hidden",
           background:
-            "linear-gradient(145deg, #451ebb 0%, #5d3fd3 45%, #2d7d7a 100%)",
+            "radial-gradient(ellipse at 0% 0%, rgba(242,107,31,0.12) 0%, #0B0B0E 55%), #0B0B0E",
         }}
+        className="hidden lg:flex"
       >
-        {/* Decorative rings */}
-        {[
-          "w-[480px] h-[480px] -top-32 -left-32 opacity-15",
-          "w-72 h-72 top-1/3 -right-20 opacity-10",
-          "w-52 h-52 bottom-20 left-10 opacity-12",
-        ].map((cls, i) => (
-          <div
-            key={i}
-            className={`absolute rounded-full border border-white/20 ${cls}`}
-          />
-        ))}
+        {/* Subtle grid pattern */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+            pointerEvents: "none",
+          }}
+        />
+        {/* Orange glow orb */}
+        <div
+          style={{
+            position: "absolute",
+            top: -120,
+            left: -80,
+            width: 400,
+            height: 400,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, rgba(242,107,31,0.12) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }}
+        />
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
-            <Icon name="auto_awesome" className="text-white text-xl" fill />
-          </div>
-          <span className="text-white font-extrabold text-2xl">Lagan लगन</span>
+        <Link
+          href="/"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            textDecoration: "none",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
+          <LogoMark />
+          <span
+            style={{
+              fontFamily: SG,
+              fontWeight: 700,
+              fontSize: 20,
+              color: C.text,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Lagan
+          </span>
         </Link>
 
-        {/* Headline + features */}
-        <div className="relative z-10 space-y-10">
-          <div className="space-y-3">
-            <h2
-              className="font-extrabold text-white"
-              style={{ fontSize: "42px", lineHeight: 1.1, letterSpacing: "-0.025em" }}
-            >
-              Your daily progress,
-              <br />
-              beautifully tracked.
-            </h2>
-            <p className="text-white/65 text-base leading-relaxed max-w-sm">
-              Join focused individuals building better routines with calm,
-              intentional design.
-            </p>
-          </div>
+        {/* Middle content */}
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 420 }}>
+          <p
+            style={{
+              fontFamily: SG,
+              fontSize: 13,
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: C.primary,
+              marginBottom: 16,
+            }}
+          >
+            Habit Tracker
+          </p>
+          <h2
+            style={{
+              fontFamily: SG,
+              fontWeight: 800,
+              fontSize: "clamp(32px, 3.5vw, 44px)",
+              lineHeight: 1.1,
+              letterSpacing: "-0.025em",
+              color: C.text,
+              marginBottom: 16,
+            }}
+          >
+            Your habits,
+            <br />
+            <span style={{ color: C.primary }}>gently held.</span>
+          </h2>
+          <p
+            style={{
+              fontSize: 16,
+              lineHeight: 1.6,
+              color: C.textMute,
+              marginBottom: 40,
+            }}
+          >
+            Build better routines with calm, intentional design. Track streaks,
+            earn chill time, and grow consistently.
+          </p>
 
-          <div className="space-y-4">
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {[
               "Build habits with gentle consistency",
-              "Track streaks and earn achievements",
-              "Distraction-free minimalist design",
+              "Track streaks and earn chill time",
+              "AI Coach that understands your life",
             ].map((feat) => (
-              <div key={feat} className="flex items-center gap-3 text-white/90">
-                <div className="w-8 h-8 rounded-full bg-white/18 flex items-center justify-center flex-shrink-0">
-                  <Icon name="check" className="text-white text-base" fill />
-                </div>
-                <span className="font-medium">{feat}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-5">
-            {statCards.map(({ value, label }) => (
               <div
-                key={label}
-                className="bg-white/14 backdrop-blur-sm rounded-2xl px-5 py-4 text-center border border-white/10"
+                key={feat}
+                style={{ display: "flex", alignItems: "center", gap: 12 }}
               >
-                <p className="font-extrabold text-white text-2xl">{value}</p>
-                <p className="text-white/60 text-xs mt-0.5">{label}</p>
+                <div
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: "50%",
+                    background: "rgba(62,187,127,0.15)",
+                    border: "1px solid rgba(62,187,127,0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    className="material-symbols-outlined"
+                    style={{
+                      fontSize: 14,
+                      color: C.success,
+                      fontVariationSettings: "'FILL' 1",
+                    }}
+                  >
+                    check
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: C.textMute,
+                  }}
+                >
+                  {feat}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="text-white/35 text-sm relative z-10 italic">
+        <p
+          style={{
+            fontSize: 13,
+            color: "rgba(181,184,192,0.4)",
+            fontStyle: "italic",
+            position: "relative",
+            zIndex: 1,
+          }}
+        >
           &ldquo;True dedication doesn&apos;t need to be loud; it just needs to
           be consistent.&rdquo;
         </p>
       </div>
 
-      {/* ── Right Panel (form) ───────────────────────────── */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 min-h-screen bg-background">
-        {/* Mobile logo */}
-        <div className="w-full max-w-md space-y-8">
-          <Link href="/" className="flex items-center gap-2 lg:hidden">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Icon name="auto_awesome" className="text-white text-[18px]" fill />
-            </div>
-            <span className="font-extrabold text-xl text-on-background">
-              Lagan <span className="text-primary">लगन</span>
+      {/* ── Right Panel (form) ──────────────────────────── */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "clamp(24px, 4vw, 64px) clamp(20px, 4vw, 48px)",
+          minHeight: "100vh",
+          borderLeft: `1px solid ${C.border}`,
+        }}
+        className="lg:border-l-[1px]"
+      >
+        <div style={{ width: "100%", maxWidth: 420 }}>
+          {/* Mobile logo */}
+          <Link
+            href="/"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              textDecoration: "none",
+              marginBottom: 40,
+            }}
+            className="flex lg:hidden"
+          >
+            <LogoMark />
+            <span
+              style={{
+                fontFamily: SG,
+                fontWeight: 700,
+                fontSize: 18,
+                color: C.text,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              Lagan
             </span>
           </Link>
-          <Suspense fallback={<div className="text-sm text-on-surface-variant">Loading sign in...</div>}>
+
+          <Suspense
+            fallback={
+              <p style={{ fontSize: 14, color: C.textMute }}>
+                Loading sign in…
+              </p>
+            }
+          >
             <LoginForm />
           </Suspense>
         </div>

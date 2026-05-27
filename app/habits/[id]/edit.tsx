@@ -29,10 +29,17 @@ export default function EditHabitScreen() {
   }, [id]);
 
   async function handleUpdate(data: Parameters<typeof updateHabitFull>[1]) {
-    if (!id) return;
+    if (!id) return { ok: false };
     const result = await updateHabitFull(id, data);
-    if (result.ok) router.back();
-    else Alert.alert(t("Could not save habit"), result.error ?? t("Try again."));
+    if (result.ok) {
+      router.back();
+      return { ok: true };
+    }
+    if (result.validation) {
+      return { ok: false, validation: result.validation };
+    }
+    Alert.alert(t("Could not save habit"), result.error ?? t("Try again."));
+    return { ok: false };
   }
 
   if (!habit) {

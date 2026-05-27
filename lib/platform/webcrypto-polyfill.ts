@@ -19,7 +19,7 @@ function resolveAlgorithm(algorithm: AlgorithmIdentifier): ExpoCrypto.CryptoDige
   return mapped;
 }
 
-function toUint8Array(data: BufferSource): Uint8Array {
+function toUint8Array(data: BufferSource): Uint8Array<ArrayBuffer> {
   const source =
     data instanceof ArrayBuffer
       ? new Uint8Array(data)

@@ -199,9 +199,12 @@ export default function HabitWizardScreen() {
     setCreating(false);
 
     const failures = results
-      .map((result, i) =>
-        result.ok ? null : `${selected[i].name}: ${result.error ?? t("Could not create habit.")}`,
-      )
+      .map((result, i) => {
+        if (result.ok) return null;
+        const validationMessage =
+          "validation" in result && result.validation?.message ? result.validation.message : null;
+        return `${selected[i].name}: ${validationMessage ?? result.error ?? t("Could not create habit.")}`;
+      })
       .filter((msg): msg is string => msg !== null);
 
     if (failures.length > 0) {

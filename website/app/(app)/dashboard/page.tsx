@@ -100,13 +100,13 @@ export default async function DashboardPage() {
         {/* Progress + streak bento */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           {/* Progress ring */}
-          <div className="bg-white rounded-3xl p-5 shadow-card border border-outline-variant/20 flex flex-col gap-5 sm:col-span-2 sm:flex-row sm:items-center sm:p-6">
+          <div className="bg-surface rounded-3xl p-5 border border-outline-variant/20 flex flex-col gap-5 sm:col-span-2 sm:flex-row sm:items-center sm:p-6">
             <div className="relative w-28 h-28 flex-shrink-0">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="46" fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                <circle cx="50" cy="50" r="46" fill="none" stroke="#2C2C36" strokeWidth="8" />
                 <circle
                   cx="50" cy="50" r="46" fill="none"
-                  stroke="#5D3FD3" strokeWidth="8"
+                  stroke="#F26B1F" strokeWidth="8"
                   strokeDasharray={circumference}
                   strokeDashoffset={dashOffset}
                   strokeLinecap="round"
@@ -153,7 +153,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Weekly chart */}
-        <section className="bg-white rounded-3xl p-6 shadow-card border border-outline-variant/15 space-y-4">
+        <section className="bg-surface rounded-3xl p-6 border border-outline-variant space-y-4">
           <h2 className="font-bold text-on-background text-xl">Weekly Overview</h2>
           <div className="flex items-end gap-3 h-24">
             {weekDays.map((date) => {
@@ -186,7 +186,7 @@ export default async function DashboardPage() {
       {/* ── Right Aside ──────────────────────────────────── */}
       <aside className="w-full flex-shrink-0 space-y-6 p-4 sm:p-6 xl:w-72">
         {/* Quick tip */}
-        <div className="bg-white rounded-3xl p-5 shadow-card border border-outline-variant/15 space-y-3">
+        <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>tips_and_updates</span>
             <h3 className="font-bold text-on-background">Quick Tip</h3>
@@ -198,7 +198,7 @@ export default async function DashboardPage() {
 
         {/* Weekly insights */}
         {INSIGHT_CONFIGS.some((c) => insights[c.key] !== null) && (
-          <div className="bg-white rounded-3xl p-5 shadow-card border border-outline-variant/15 space-y-3">
+          <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>insights</span>
               <h3 className="font-bold text-on-background">Your Insights</h3>
@@ -241,7 +241,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Progress summary */}
-        <div className="bg-white rounded-3xl p-5 shadow-card border border-outline-variant/15 space-y-3">
+        <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
           <h3 className="font-bold text-on-background">Progress</h3>
           <div className="space-y-3">
             <div>

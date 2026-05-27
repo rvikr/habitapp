@@ -7,14 +7,14 @@
     scroll-behavior: smooth;
   }
   body {
-    background-color: #f8f9fa;
-    color: #191c1d;
+    background-color: #0B0B0E;
+    color: #FFFFFF;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #c9c4d7; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb { background: #2C2C36; border-radius: 9999px; }
 }
 
 @layer utilities {
@@ -29,6 +29,17 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
   }
+}
+
+/* Landing page scroll animations */
+.landing-fade-in {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.landing-fade-in.visible {
+  opacity: 1;
+  transform: none;
 }
 
 /* Material Symbols */

@@ -50,7 +50,7 @@ export default async function SettingsPage() {
         </div>
 
         {/* Plan badge */}
-        <div className="bg-gradient-to-br from-primary/10 to-primary-fixed/40 rounded-2xl px-4 py-3 text-center border border-primary/15 flex-shrink-0">
+        <div className="bg-primary-fixed rounded-2xl px-4 py-3 text-center border border-outline-variant flex-shrink-0">
           <span
             className="material-symbols-outlined text-primary text-xl"
             style={{ fontVariationSettings: "'FILL' 1" }}
