@@ -71,6 +71,8 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={t("Open {name} details", { name: habit.name })}
       style={{ borderRadius: 16, overflow: "hidden" }}
     >
       <ImageBackground
@@ -126,6 +128,13 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
           onPress={handleToggleTap}
           disabled={toggling}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={
+            done
+              ? t("Mark {name} not done", { name: habit.name })
+              : t("Mark {name} done", { name: habit.name })
+          }
+          accessibilityState={{ checked: done, disabled: toggling }}
           style={{
             width: 34,
             height: 34,

@@ -53,7 +53,7 @@ export default function PrivacyPage() {
               Privacy Policy
             </h1>
             <p className="text-lg leading-8 text-on-surface-variant">
-              Last updated: 22 May 2026
+              Last updated: 28 May 2026
             </p>
             <p className="text-base leading-8 text-on-surface-variant">
               Lagan (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your personal information. This policy explains what data we collect, why we collect it, and your rights over it.
@@ -65,6 +65,7 @@ export default function PrivacyPage() {
             <p><strong className="text-on-surface">Habit and health data.</strong> The habits you create, your daily completion logs, streak counts, and any sleep entries you record are stored and associated with your account.</p>
             <p><strong className="text-on-surface">Device and usage data.</strong> We collect anonymised analytics events (screens viewed, features used) and crash reports to improve the product. These are collected only with your consent and can be opted out of in Settings → Privacy & Data.</p>
             <p><strong className="text-on-surface">Health Connect (Android).</strong> If you grant permission, we read step-count and sleep data from Android Health Connect. This data is processed on-device and synced to your account only so you can view it inside Lagan. We do not sell or share it with advertisers.</p>
+            <p><strong className="text-on-surface">Apple HealthKit (iOS).</strong> If you grant permission, we read sleep data from Apple HealthKit on iOS. HealthKit data stays on your device and within your Lagan account; we do not share it with third parties, use it for advertising, or derive secondary inferences from it.</p>
             <p><strong className="text-on-surface">Subscription and purchase data.</strong> If you subscribe to Lagan Pro, we receive confirmation of your subscription status, entitlement, product ID, billing period, and store identifier (App Store or Google Play) from RevenueCat, our subscription management provider. We store this information solely to verify and manage your Pro access. We do not receive or store your payment card details — all payment processing is handled by Apple or Google.</p>
           </Section>
 

@@ -24,6 +24,15 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 type ProUserRow = { user_id: string };
 type HabitRow = { id: string; name: string; unit: string | null; target: number | null };
 type CompletionRow = { habit_id: string; completed_on: string; value: number | null };
@@ -340,7 +349,7 @@ serve(async (req) => {
 
   const cronSecret = req.headers.get("x-cron-secret");
   if (!cronSecret) return json({ error: "Cron secret required" }, 401);
-  if (!CRON_SECRET || cronSecret !== CRON_SECRET) {
+  if (!CRON_SECRET || !timingSafeEqual(cronSecret, CRON_SECRET)) {
     return json({ error: "Invalid cron secret" }, 401);
   }
 

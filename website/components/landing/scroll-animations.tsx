@@ -4,6 +4,8 @@ import { useEffect } from "react";
 
 export default function ScrollAnimations() {
   useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
     const els = Array.from(
       document.querySelectorAll<HTMLElement>(".landing-section, .landing-footer")
     );

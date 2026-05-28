@@ -34,6 +34,9 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
           <TouchableOpacity
             key={s.id}
             onPress={() => onStyleChange(s.id)}
+            accessibilityRole="button"
+            accessibilityLabel={t("Avatar style {label}", { label: s.label })}
+            accessibilityState={{ selected: style === s.id }}
             className={`px-md py-xs rounded-full ${style === s.id ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
           >
             <Text
@@ -57,6 +60,9 @@ export default function AvatarPicker({ style, seed, onStyleChange, onSeedChange 
         renderItem={({ item }) => (
           <TouchableOpacity
             onPress={() => onSeedChange(item)}
+            accessibilityRole="button"
+            accessibilityLabel={t("Avatar variant {name}", { name: item })}
+            accessibilityState={{ selected: seed === item }}
             className="mr-sm items-center gap-xs"
           >
             <Image

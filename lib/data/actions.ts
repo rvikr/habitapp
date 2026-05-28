@@ -291,28 +291,12 @@ export async function logCompletion(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
-  const completedOn = localDateKey();
-  const { data: existing, error: readError } = await supabase
-    .from("habit_completions")
-    .select("value")
-    .eq("habit_id", habitId)
-    .eq("user_id", user.id)
-    .eq("completed_on", completedOn)
-    .maybeSingle();
-  if (readError) return mutationResult(readError);
-
-  const increment = value ?? 1;
-  const nextValue = Number(existing?.value ?? 0) + increment;
-  const { error } = await supabase.from("habit_completions").upsert(
-    {
-      habit_id: habitId,
-      user_id: user.id,
-      completed_on: completedOn,
-      value: nextValue,
-      note: note?.trim() || null,
-    },
-    { onConflict: "habit_id,completed_on" },
-  );
+  const { error } = await supabase.rpc("log_habit_completion", {
+    p_habit_id: habitId,
+    p_completed_on: localDateKey(),
+    p_increment: value ?? 1,
+    p_note: note?.trim() || null,
+  });
   if (error) return mutationResult(error);
   clearDataCache();
   void syncScheduledReminders();

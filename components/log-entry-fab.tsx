@@ -1,11 +1,18 @@
 import { TouchableOpacity, StyleSheet } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 
-type Props = { onPress: () => void };
+type Props = { onPress: () => void; accessibilityLabel?: string };
 
-export default function LogEntryFab({ onPress }: Props) {
+export default function LogEntryFab({ onPress, accessibilityLabel = "Log progress" }: Props) {
   return (
-    <TouchableOpacity style={styles.fab} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={styles.fab}
+      onPress={onPress}
+      activeOpacity={0.85}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+    >
       <MaterialCommunityIcons name="plus" size={28} color="#fff" />
     </TouchableOpacity>
   );

@@ -16,6 +16,7 @@ type ResolveCoachMessageOptions = {
 };
 
 const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
+const inflightInvocations = new Map<string, Promise<void>>();
 
 export async function resolveCoachMessage(
   signal: CoachSignal,
@@ -31,16 +32,23 @@ export async function resolveCoachMessage(
   if (cached) return cached;
 
   if (options.nonBlocking) {
-    void (async () => {
-      try {
-        const generated = (await (options.invoke ?? invokeCoachMessage)(signal))?.trim();
-        if (generated)
-          await storage?.setItem(
-            key,
-            JSON.stringify({ message: generated, cachedAt: now.getTime() }),
-          );
-      } catch {}
-    })();
+    if (!inflightInvocations.has(key)) {
+      const promise = (async () => {
+        try {
+          const generated = (await (options.invoke ?? invokeCoachMessage)(signal))?.trim();
+          if (generated)
+            await storage?.setItem(
+              key,
+              JSON.stringify({ message: generated, cachedAt: now.getTime() }),
+            );
+        } catch {
+          /* swallow; the synchronous fallback message was already returned */
+        } finally {
+          inflightInvocations.delete(key);
+        }
+      })();
+      inflightInvocations.set(key, promise);
+    }
     return signal.message;
   }
 
