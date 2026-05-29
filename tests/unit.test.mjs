@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import { addLocalDays, localDateDaysAgo, localDateKey } from "../lib/utils/date.ts";
 import {
@@ -90,6 +90,15 @@ import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from 
 const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
 
 let testChain = Promise.resolve();
+
+function readMigration(name) {
+  const file = readdirSync("supabase/migrations")
+    .filter((entry) => entry.endsWith(`_${name}.sql`))
+    .sort()
+    .at(-1);
+  assert.ok(file, `missing migration ${name}`);
+  return readFileSync(`supabase/migrations/${file}`, "utf8");
+}
 
 function test(name, fn) {
   testChain = testChain.then(async () => {
@@ -189,13 +198,65 @@ test("XP constants are canonical across app, website, and SQL", () => {
   assert.match(sql, /\/ 500 \+ 1 as level/);
 });
 
-test("leaderboard RPC is restricted to authenticated callers", () => {
-  const sql = readFileSync("supabase/migrations/0012_restrict_leaderboard_rpc.sql", "utf8");
-  assert.match(sql, /revoke execute on function public\.get_leaderboard\(text\) from public/i);
-  assert.match(sql, /revoke execute on function public\.get_leaderboard\(text\) from anon/i);
-  assert.match(sql, /grant execute on function public\.get_leaderboard\(text\) to authenticated/i);
-  assert.match(sql, /if auth\.uid\(\) is null then/i);
-  assert.match(sql, /raise exception 'authenticated user required'/i);
+test("leaderboard SQL API is service-only and public views are invoker locked", () => {
+  const serviceSql = readMigration("0021_leaderboard_service_api");
+  assert.match(serviceSql, /create or replace function public\.get_leaderboard_entries/i);
+  assert.match(serviceSql, /create or replace function public\.get_leaderboard_position/i);
+  assert.match(serviceSql, /security invoker/i);
+  assert.match(
+    serviceSql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from public/i,
+  );
+  assert.match(
+    serviceSql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from anon/i,
+  );
+  assert.match(
+    serviceSql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from authenticated/i,
+  );
+  assert.match(
+    serviceSql,
+    /grant execute on function public\.get_leaderboard_entries\(text, integer, uuid\) to service_role/i,
+  );
+  assert.match(
+    serviceSql,
+    /grant execute on function public\.get_leaderboard_position\(uuid, text\) to service_role/i,
+  );
+
+  const lockDownSql = readMigration("0022_lock_down_leaderboard_views");
+  assert.match(
+    lockDownSql,
+    /alter view public\.public_profiles\s+set \(security_invoker = true\)/i,
+  );
+  assert.match(lockDownSql, /alter view public\.leaderboard\s+set \(security_invoker = true\)/i);
+  assert.match(
+    lockDownSql,
+    /revoke all privileges on table public\.public_profiles from public, anon, authenticated/i,
+  );
+  assert.match(
+    lockDownSql,
+    /revoke all privileges on table public\.leaderboard from public, anon, authenticated/i,
+  );
+  assert.match(
+    lockDownSql,
+    /revoke execute on function public\.get_leaderboard\(text\) from public, anon, authenticated/i,
+  );
+  assert.match(lockDownSql, /drop function if exists public\.get_leaderboard\(text\)/i);
+});
+
+test("checked-in clients use the leaderboard Edge Function only", () => {
+  const appLeaderboard = readFileSync("lib/data/leaderboard.ts", "utf8");
+  const reminders = readFileSync("lib/data/reminders.ts", "utf8");
+  const websiteLeaderboard = readFileSync("website/app/(app)/leaderboard/page.tsx", "utf8");
+
+  for (const source of [appLeaderboard, reminders]) {
+    assert.doesNotMatch(source, /\.from\("leaderboard"\)/);
+    assert.match(source, /functions\.invoke[^{\n]*\(\s*"leaderboard"/);
+  }
+
+  assert.doesNotMatch(websiteLeaderboard, /\.rpc\("get_leaderboard"/);
+  assert.match(websiteLeaderboard, /functions\.invoke[^{\n]*\(\s*"leaderboard"/);
 });
 
 test("AI quota RPC is service-only and records quota events", () => {

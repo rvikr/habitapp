@@ -20,6 +20,26 @@ export type Profile = {
   avatar_seed: string | null;
 };
 
+type LeaderboardFunctionEntry = LeaderboardEntry & {
+  rank: number;
+  xp: number;
+  streak: number;
+  is_current_user: boolean;
+};
+
+type LeaderboardPosition = {
+  rank: number;
+  totalUsers: number;
+  totalXp: number;
+  percentileAhead: number | null;
+};
+
+type LeaderboardFunctionResponse = {
+  entries?: LeaderboardFunctionEntry[];
+  position?: LeaderboardPosition | null;
+  error?: string;
+};
+
 type DataFetchOptions = { force?: boolean };
 const DATA_CACHE_TTL_MS = 30_000;
 
@@ -36,13 +56,19 @@ export async function getLeaderboard(
     `${DATA_CACHE_PREFIX}leaderboard:${user.id}:${limit}`,
     DATA_CACHE_TTL_MS,
     async () => {
-      const { data, error } = await supabase
-        .from("leaderboard")
-        .select("*")
-        .order("total_xp", { ascending: false })
-        .limit(limit);
+      const { data, error } = await supabase.functions.invoke<LeaderboardFunctionResponse>(
+        "leaderboard",
+        {
+          body: {
+            period: "all",
+            limit,
+            includeEntries: true,
+            includePosition: false,
+          },
+        },
+      );
       if (error) return [];
-      return (data ?? []) as LeaderboardEntry[];
+      return (data?.entries ?? []) as LeaderboardEntry[];
     },
     options,
   );
@@ -100,17 +126,18 @@ export async function getMyRank(options?: DataFetchOptions): Promise<number | nu
     `${DATA_CACHE_PREFIX}my-rank:${user.id}`,
     DATA_CACHE_TTL_MS,
     async () => {
-      const { data: me } = await supabase
-        .from("leaderboard")
-        .select("total_xp")
-        .eq("user_id", user.id)
-        .single();
-      if (!me) return null;
-      const { count } = await supabase
-        .from("leaderboard")
-        .select("user_id", { count: "exact", head: true })
-        .gt("total_xp", me.total_xp);
-      return (count ?? 0) + 1;
+      const { data, error } = await supabase.functions.invoke<LeaderboardFunctionResponse>(
+        "leaderboard",
+        {
+          body: {
+            period: "all",
+            includeEntries: false,
+            includePosition: true,
+          },
+        },
+      );
+      if (error) return null;
+      return data?.position?.rank ?? null;
     },
     options,
   );

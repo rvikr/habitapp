@@ -39,6 +39,17 @@ export type ScheduledReminder = {
   coachMessage?: string;
 };
 
+type LeaderboardPosition = {
+  rank: number;
+  totalUsers: number;
+  totalXp: number;
+  percentileAhead: number | null;
+};
+
+type LeaderboardFunctionResponse = {
+  position?: LeaderboardPosition | null;
+};
+
 type ReminderScheduleOptions = {
   aiSmartReminders?: boolean;
 };
@@ -82,8 +93,7 @@ export async function getReminderSchedule(
   const [
     { data: smartHabits, error: smartHabitError },
     { data: completions },
-    { count: totalOnLeaderboard },
-    { data: myEntry },
+    leaderboardPosition,
     { data: profile },
   ] = await Promise.all([
     supabase
@@ -99,8 +109,16 @@ export async function getReminderSchedule(
       .select("habit_id, completed_on, created_at, value")
       .eq("user_id", user.id)
       .gte("completed_on", cutoff),
-    supabase.from("leaderboard").select("user_id", { count: "exact", head: true }),
-    supabase.from("leaderboard").select("total_xp").eq("user_id", user.id).maybeSingle(),
+    supabase.functions
+      .invoke<LeaderboardFunctionResponse>("leaderboard", {
+        body: {
+          period: "all",
+          includeEntries: false,
+          includePosition: true,
+        },
+      })
+      .then(({ data, error }) => (error ? null : (data?.position ?? null)))
+      .catch(() => null),
     supabase
       .from("profiles")
       .select(
@@ -121,14 +139,7 @@ export async function getReminderSchedule(
   }
 
   // Count users below me on the leaderboard to compute percentile.
-  let percentileAhead: number | null = null;
-  if (myEntry && totalOnLeaderboard && totalOnLeaderboard > 1) {
-    const { count: belowMe } = await supabase
-      .from("leaderboard")
-      .select("user_id", { count: "exact", head: true })
-      .lt("total_xp", (myEntry as { total_xp: number }).total_xp);
-    percentileAhead = Math.round(((belowMe ?? 0) / totalOnLeaderboard) * 100);
-  }
+  const percentileAhead = leaderboardPosition?.percentileAhead ?? null;
 
   // Group completions by habit for fast per-habit access.
   type Completion = { completed_on: string; created_at: string; value: number | null };
