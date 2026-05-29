@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
+import { generateContent } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -217,48 +218,38 @@ serve(async (req) => {
     return json({ recommendations: localRecommendations, generated: false, reason: "gemini_key_missing" }, 503);
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_ROUTINE_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                "You refine habit recommendations for an onboarding routine. Return JSON only. " +
-                "Keep habits concrete, non-medical, beginner-safe, and compatible with the provided enum values. " +
-                "Return 3 to 5 recommendations. Preserve core local habit metadata unless a small improvement is clearly useful.",
-            },
-          ],
+  const response = await generateContent(GEMINI_ROUTINE_MODEL, GEMINI_API_KEY, {
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            "You refine habit recommendations for an onboarding routine. Return JSON only. " +
+            "Keep habits concrete, non-medical, beginner-safe, and compatible with the provided enum values. " +
+            "Return 3 to 5 recommendations. Preserve core local habit metadata unless a small improvement is clearly useful.",
         },
-        contents: [
+      ],
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
           {
-            role: "user",
-            parts: [
-              {
-                text: JSON.stringify({
-                  answers: body.answers,
-                  localRecommendations,
-                }),
-              },
-            ],
+            text: JSON.stringify({
+              answers: body.answers,
+              localRecommendations,
+            }),
           },
         ],
-        generationConfig: {
-          maxOutputTokens: 1400,
-          temperature: 0.5,
-          responseMimeType: "application/json",
-          responseSchema: routineSchema(),
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: 1400,
+      temperature: 0.5,
+      responseMimeType: "application/json",
+      responseSchema: routineSchema(),
+      thinkingConfig: { thinkingBudget: 0 },
     },
-  );
+  });
 
   if (!response.ok) {
     const error = await response.text();

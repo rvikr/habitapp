@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
+import { generateContent } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -106,50 +107,40 @@ serve(async (req) => {
     return json({ message: fallbackMessage, generated: false, reason: "gemini_key_missing" }, 503);
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_COACH_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                "You write short habit-coach notifications. Be supportive, concrete, and non-medical. " +
-                "Respect the requested tone. Return one sentence under 160 characters. Do not mention AI.",
-            },
-          ],
+  const response = await generateContent(GEMINI_COACH_MODEL, GEMINI_API_KEY, {
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            "You write short habit-coach notifications. Be supportive, concrete, and non-medical. " +
+            "Respect the requested tone. Return one sentence under 160 characters. Do not mention AI.",
         },
-        contents: [
+      ],
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
           {
-            role: "user",
-            parts: [
-              {
-                text: JSON.stringify({
-                  kind: signal.kind,
-                  habitName,
-                  tone: signal.tone,
-                  suggestedValue: signal.suggestedValue,
-                  unit: signal.unit,
-                  progressPct: signal.progressPct,
-                  fallbackMessage,
-                }),
-              },
-            ],
+            text: JSON.stringify({
+              kind: signal.kind,
+              habitName,
+              tone: signal.tone,
+              suggestedValue: signal.suggestedValue,
+              unit: signal.unit,
+              progressPct: signal.progressPct,
+              fallbackMessage,
+            }),
           },
         ],
-        generationConfig: {
-          maxOutputTokens: 80,
-          temperature: 0.7,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: 80,
+      temperature: 0.7,
+      thinkingConfig: { thinkingBudget: 0 },
     },
-  );
+  });
 
   if (!response.ok) {
     const error = await response.text();

@@ -22,7 +22,11 @@ import {
 import { buildCompletionValuePayload } from "./completions";
 import { clearDataCache } from "./cache";
 import { localDateKey } from "../utils/date";
-import { cancelHabitReminders, syncScheduledReminders } from "./reminder-sync";
+import {
+  cancelHabitReminders,
+  scheduleReminderSync,
+  syncScheduledReminders,
+} from "./reminder-sync";
 import {
   DUPLICATE_SIMILARITY_THRESHOLD,
   inferHabitIntelligence,
@@ -299,7 +303,7 @@ export async function logCompletion(
   });
   if (error) return mutationResult(error);
   clearDataCache();
-  void syncScheduledReminders();
+  scheduleReminderSync();
   return { ok: true };
 }
 
@@ -318,7 +322,7 @@ export async function setCompletionValue(
     });
   if (error) return mutationResult(error);
   clearDataCache();
-  void syncScheduledReminders();
+  scheduleReminderSync();
   track("habit_progress_set", { habit_id: habitId });
   return { ok: true };
 }
@@ -340,7 +344,7 @@ export async function toggleHabit(
       .eq("completed_on", localDateKey());
     if (error) return mutationResult(error);
     clearDataCache();
-    void syncScheduledReminders();
+    scheduleReminderSync();
     track("habit_uncompleted", { habit_id: habitId });
     return { ok: true };
   }
@@ -368,7 +372,7 @@ export async function toggleHabit(
     );
   if (error) return mutationResult(error);
   clearDataCache();
-  void syncScheduledReminders();
+  scheduleReminderSync();
   track("habit_completed", { habit_id: habitId });
   return { ok: true };
 }
@@ -516,7 +520,7 @@ export async function createHabit(data: HabitMutationData) {
       if (legacyError) return { ok: false, id: null, error: legacyError.message };
     }
     clearDataCache();
-    void syncScheduledReminders();
+    scheduleReminderSync();
     track("habit_merged", { habit_type: merged.habit_type, score: match.score });
     return { ok: true, id: match.habit.id, merged: true };
   }
@@ -535,7 +539,7 @@ export async function createHabit(data: HabitMutationData) {
       .single();
     if (legacyError) return { ok: false, id: null, error: legacyError.message };
     clearDataCache();
-    if (data.remindersEnabled) void syncScheduledReminders();
+    if (data.remindersEnabled) scheduleReminderSync();
     track("habit_created", {
       color: data.color,
       has_target: intelligence.target != null,
@@ -546,7 +550,7 @@ export async function createHabit(data: HabitMutationData) {
   }
 
   clearDataCache();
-  if (data.remindersEnabled) void syncScheduledReminders();
+  if (data.remindersEnabled) scheduleReminderSync();
   track("habit_created", {
     color: data.color,
     has_target: intelligence.target != null,
@@ -598,7 +602,7 @@ export async function updateHabitFull(
   }
 
   clearDataCache();
-  if (data.remindersEnabled) void syncScheduledReminders();
+  if (data.remindersEnabled) scheduleReminderSync();
   else void cancelHabitReminders(habitId);
   return { ok: true };
 }

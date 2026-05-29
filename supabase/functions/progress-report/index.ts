@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
+import { generateContent } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -10,6 +11,11 @@ const GEMINI_REPORT_MODEL =
   Deno.env.get("GEMINI_REPORT_MODEL") ?? Deno.env.get("GEMINI_COACH_MODEL") ?? "gemini-2.5-flash";
 const CRON_SECRET = Deno.env.get("PROGRESS_REPORT_CRON_SECRET");
 const MAX_BATCH_USERS = Number(Deno.env.get("PROGRESS_REPORT_BATCH_SIZE") ?? 200);
+const BATCH_CONCURRENCY = Math.max(1, Number(Deno.env.get("PROGRESS_REPORT_CONCURRENCY") ?? 4));
+// Stop scheduling new users past this elapsed wall-clock so the function exits
+// cleanly before the platform limit; remaining users are picked up on the next
+// (idempotent) cron run.
+const BATCH_DEADLINE_MS = Math.max(1000, Number(Deno.env.get("PROGRESS_REPORT_DEADLINE_MS") ?? 120000));
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -193,39 +199,29 @@ async function computeWeeklyStats(
 async function generateSummary(stats: WeeklyStats): Promise<{ text: string; generated: boolean }> {
   if (!GEMINI_API_KEY) return { text: fallbackSummary(stats), generated: false };
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_REPORT_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                "You write a short weekly habit progress summary, 2-3 sentences, under 480 characters. " +
-                "Be specific, supportive, and concrete: cite the actual numbers from the data. " +
-                "Highlight the strongest habit and one area to focus on next week. Do not mention AI or use medical language.",
-            },
-          ],
+  const response = await generateContent(GEMINI_REPORT_MODEL, GEMINI_API_KEY, {
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            "You write a short weekly habit progress summary, 2-3 sentences, under 480 characters. " +
+            "Be specific, supportive, and concrete: cite the actual numbers from the data. " +
+            "Highlight the strongest habit and one area to focus on next week. Do not mention AI or use medical language.",
         },
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: JSON.stringify(stats) }],
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 240,
-          temperature: 0.6,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+      ],
     },
-  );
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: JSON.stringify(stats) }],
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: 240,
+      temperature: 0.6,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
 
   if (!response.ok) {
     const error = await response.text();
@@ -313,7 +309,7 @@ async function runCronBatch(admin: ReturnType<typeof createClient>) {
     .limit(MAX_BATCH_USERS);
   if (profilesRes.error) {
     console.error("progress-report user listing failed", { error: profilesRes.error.message });
-    return { processed: 0, written: 0, skipped: 0, failed: 0 };
+    return { processed: 0, written: 0, skipped: 0, failed: 0, remaining: 0, deadlineReached: false };
   }
   const users: ProUserRow[] = ((profilesRes.data ?? []) as any[])
     .filter((row) => {
@@ -329,13 +325,38 @@ async function runCronBatch(admin: ReturnType<typeof createClient>) {
   let written = 0;
   let skipped = 0;
   let failed = 0;
-  for (const { user_id } of users) {
-    const result = await generateForUser(admin, user_id, previousWeekStart);
-    if (result.status === "written") written += 1;
-    else if (result.status === "skipped") skipped += 1;
-    else failed += 1;
+  let processed = 0;
+  const startedAt = Date.now();
+
+  // Bounded-concurrency worker pool: workers pull from a shared cursor until the
+  // queue drains or the wall-clock deadline is reached. generateForUser is
+  // idempotent (skips users whose report already exists), so a partial run is
+  // safely completed by the next cron invocation.
+  let cursor = 0;
+  let deadlineReached = false;
+
+  async function worker(): Promise<void> {
+    while (true) {
+      if (Date.now() - startedAt >= BATCH_DEADLINE_MS) {
+        deadlineReached = true;
+        return;
+      }
+      const index = cursor++;
+      if (index >= users.length) return;
+      const result = await generateForUser(admin, users[index].user_id, previousWeekStart);
+      processed += 1;
+      if (result.status === "written") written += 1;
+      else if (result.status === "skipped") skipped += 1;
+      else failed += 1;
+    }
   }
-  return { processed: users.length, written, skipped, failed };
+
+  await Promise.all(
+    Array.from({ length: Math.min(BATCH_CONCURRENCY, users.length) }, () => worker()),
+  );
+
+  const remaining = Math.max(0, users.length - processed);
+  return { processed, written, skipped, failed, remaining, deadlineReached };
 }
 
 serve(async (req) => {

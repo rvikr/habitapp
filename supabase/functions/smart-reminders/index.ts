@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
+import { generateContent } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -169,48 +170,38 @@ serve(async (req) => {
     return json({ plans: [], generated: false, reason: "gemini_key_missing" }, 503);
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_REMINDER_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                "You choose same-day habit reminder times. Return JSON only. " +
-                "Use only future HH:MM local times between 08:00 and 22:00. " +
-                "Prefer times near recent successful completions, avoid notification spam, and never exceed 4 times per habit.",
-            },
-          ],
+  const response = await generateContent(GEMINI_REMINDER_MODEL, GEMINI_API_KEY, {
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            "You choose same-day habit reminder times. Return JSON only. " +
+            "Use only future HH:MM local times between 08:00 and 22:00. " +
+            "Prefer times near recent successful completions, avoid notification spam, and never exceed 4 times per habit.",
         },
-        contents: [
+      ],
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
           {
-            role: "user",
-            parts: [
-              {
-                text: JSON.stringify({
-                  date: typeof body.date === "string" ? body.date : null,
-                  contexts,
-                }),
-              },
-            ],
+            text: JSON.stringify({
+              date: typeof body.date === "string" ? body.date : null,
+              contexts,
+            }),
           },
         ],
-        generationConfig: {
-          maxOutputTokens: 900,
-          temperature: 0.3,
-          responseMimeType: "application/json",
-          responseSchema: smartReminderSchema(),
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: 900,
+      temperature: 0.3,
+      responseMimeType: "application/json",
+      responseSchema: smartReminderSchema(),
+      thinkingConfig: { thinkingBudget: 0 },
     },
-  );
+  });
 
   if (!response.ok) {
     const error = await response.text();

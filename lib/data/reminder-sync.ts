@@ -105,6 +105,20 @@ async function performScheduledReminderSync(): Promise<void> {
 
 export const syncScheduledReminders = createQueuedReminderSync(performScheduledReminderSync);
 
+const REMINDER_SYNC_DEBOUNCE_MS = 1500;
+let reminderSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Fire-and-forget reminder sync that coalesces bursts of mutations (e.g. rapid
+// habit logging) into a single rebuild. Screens that need the schedule applied
+// immediately should await syncScheduledReminders() directly instead.
+export function scheduleReminderSync(): void {
+  if (reminderSyncDebounceTimer) clearTimeout(reminderSyncDebounceTimer);
+  reminderSyncDebounceTimer = setTimeout(() => {
+    reminderSyncDebounceTimer = null;
+    void syncScheduledReminders();
+  }, REMINDER_SYNC_DEBOUNCE_MS);
+}
+
 export async function cancelHabitReminders(habitId: string): Promise<void> {
   const map = await readReminderIds();
   const ids = map[habitId] ?? [];

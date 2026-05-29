@@ -72,6 +72,7 @@ import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
+import { generateContent } from "../supabase/functions/_shared/gemini.ts";
 import * as subscriptionAccess from "../lib/subscription/access.ts";
 import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
@@ -231,14 +232,25 @@ test("AI Edge Functions enforce server-side quota before Gemini calls", () => {
   ]) {
     const source = readFileSync(path, "utf8");
     const guardIndex = source.indexOf("enforceAiQuota");
-    const fetchIndex = source.indexOf("generativelanguage.googleapis.com");
+    const callIndex = source.indexOf("generateContent(");
     assert.ok(guardIndex >= 0, `${path} should enforce the AI quota guard`);
-    assert.ok(fetchIndex >= 0, `${path} should call Gemini through fetch`);
-    assert.ok(guardIndex < fetchIndex, `${path} should enforce quota before calling Gemini`);
+    assert.ok(
+      callIndex >= 0,
+      `${path} should call Gemini through the shared generateContent helper`,
+    );
+    assert.ok(guardIndex < callIndex, `${path} should enforce quota before calling Gemini`);
     assert.match(source, new RegExp(`enforceAiQuota\\(admin, user\\.id, "${feature}"\\)`));
     assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
     assert.match(source, /recordAiUsageEvent/);
   }
+});
+
+test("Shared Gemini helper bounds requests with a timeout and a single retry", () => {
+  const source = readFileSync("supabase/functions/_shared/gemini.ts", "utf8");
+  assert.match(source, /generativelanguage\.googleapis\.com/);
+  assert.match(source, /AbortController/);
+  assert.match(source, /RETRYABLE_STATUS/);
+  assert.match(source, /const MAX_RETRIES = 1/);
 });
 
 test("subscription migration grants only new signups a seven day Pro trial", () => {
@@ -359,11 +371,11 @@ test("AI Edge Functions enforce Pro access before quota and Gemini calls", () =>
     const source = readFileSync(path, "utf8");
     const proIndex = source.indexOf("await enforceProAccess");
     const quotaIndex = source.indexOf("await enforceAiQuota");
-    const fetchIndex = source.indexOf("generativelanguage.googleapis.com");
+    const callIndex = source.indexOf("generateContent(");
     assert.ok(proIndex >= 0, `${path} should enforce Pro access`);
     assert.ok(quotaIndex >= 0, `${path} should still enforce quota`);
     assert.ok(proIndex < quotaIndex, `${path} should enforce Pro access before quota`);
-    assert.ok(proIndex < fetchIndex, `${path} should enforce Pro access before Gemini`);
+    assert.ok(proIndex < callIndex, `${path} should enforce Pro access before Gemini`);
     assert.match(source, new RegExp(`enforceProAccess\\(admin, user\\.id, "${feature}"\\)`));
     assert.match(source, /reason: "pro_required"/);
   }
@@ -1836,6 +1848,144 @@ test("AI coach message uses cache before invoking generation", async () => {
   });
   assert.equal(message, "Cached coach line.");
   assert.equal(calls, 0);
+});
+
+test("AI coach message cools down after a 429 and stops invoking", async () => {
+  const signal = {
+    kind: "encouragement",
+    priority: 10,
+    habitId: "habit-1",
+    habitName: "Read",
+    tone: "friendly",
+    suggestedAction: "open_habit",
+    message: "Read one page now.",
+  };
+  const now = new Date(2026, 4, 10, 9, 15);
+  const storage = createMemoryStorage();
+  let calls = 0;
+  const rateLimitError = new Error("quota exceeded");
+  rateLimitError.name = "FunctionsHttpError";
+  rateLimitError.context = { status: 429, headers: { get: () => null } };
+  const invoke = async () => {
+    calls++;
+    throw rateLimitError;
+  };
+
+  const first = await resolveCoachMessage(signal, {
+    enabled: true,
+    now,
+    storage,
+    cooldownMs: 60 * 60 * 1000,
+    invoke,
+  });
+  const second = await resolveCoachMessage(signal, {
+    enabled: true,
+    now: new Date(now.getTime() + 60_000),
+    storage,
+    cooldownMs: 60 * 60 * 1000,
+    invoke,
+  });
+
+  assert.equal(first, signal.message);
+  assert.equal(second, signal.message);
+  assert.equal(calls, 1);
+});
+
+test("AI coach message negative-caches empty output to avoid re-invoking", async () => {
+  const signal = {
+    kind: "streak_risk",
+    priority: 60,
+    habitId: "habit-9",
+    habitName: "Walk",
+    tone: "calm",
+    suggestedAction: "open_habit",
+    message: "Take a short walk.",
+  };
+  const now = new Date(2026, 4, 10, 9, 15);
+  const storage = createMemoryStorage();
+  let calls = 0;
+  const invoke = async () => {
+    calls++;
+    return null; // empty generation -> fallback
+  };
+
+  const first = await resolveCoachMessage(signal, { enabled: true, now, storage, invoke });
+  const second = await resolveCoachMessage(signal, {
+    enabled: true,
+    now: new Date(now.getTime() + 60_000),
+    storage,
+    invoke,
+  });
+  // After the negative TTL the suppression lifts and we try again.
+  const third = await resolveCoachMessage(signal, {
+    enabled: true,
+    now: new Date(now.getTime() + 10 * 60_000),
+    storage,
+    invoke,
+  });
+
+  assert.equal(first, signal.message);
+  assert.equal(second, signal.message);
+  assert.equal(third, signal.message);
+  assert.equal(calls, 2);
+});
+
+test("geminiFetch times out and falls back after exhausting retries", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      calls++;
+      const signal = init?.signal;
+      const abort = () => {
+        const err = new Error("aborted");
+        err.name = "AbortError";
+        reject(err);
+      };
+      if (signal?.aborted) return abort();
+      signal?.addEventListener("abort", abort);
+    });
+  try {
+    const response = await generateContent("model-x", "key", { contents: [] }, { timeoutMs: 20 });
+    assert.equal(response.ok, false);
+    assert.equal(response.status, 504);
+    assert.equal(calls, 2); // initial attempt + one retry
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("geminiFetch retries once on 429 then returns success", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) return new Response("rate limited", { status: 429 });
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+  try {
+    const response = await generateContent("model-x", "key", { contents: [] }, { timeoutMs: 5000 });
+    assert.equal(response.ok, true);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("geminiFetch returns non-retryable errors immediately", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response("bad request", { status: 400 });
+  };
+  try {
+    const response = await generateContent("model-x", "key", { contents: [] }, { timeoutMs: 5000 });
+    assert.equal(response.status, 400);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 await testChain;

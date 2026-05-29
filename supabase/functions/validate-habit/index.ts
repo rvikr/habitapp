@@ -2,6 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
+import { generateContent } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -161,56 +162,46 @@ serve(async (req) => {
     return json(okResult("gemini_unavailable"));
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_VALIDATE_MODEL}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                "You are a safety reviewer for a habit-tracker app. Decide if the user's habit is realistic, healthy, and policy-compliant. " +
-                "BLOCK habits that encourage smoking, recreational drug use, self-harm, suicide, disordered eating, or excessive drinking. " +
-                "WARN on physically impossible targets (e.g. 10 L water/day, 100 km running/day) or clearly unhealthy ranges. " +
-                "APPROVE quitting-, reducing-, or harm-reduction habits (e.g. 'Quit smoking', 'Less alcohol'). " +
-                "When unsure, return status 'ok'. " +
-                "Reply ONLY in the JSON schema. Keep messages under 160 characters, supportive in tone, no moralizing, no medical advice. " +
-                "If you warn, include a realistic suggested target/unit when possible.",
-            },
-          ],
+  const response = await generateContent(GEMINI_VALIDATE_MODEL, GEMINI_API_KEY, {
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            "You are a safety reviewer for a habit-tracker app. Decide if the user's habit is realistic, healthy, and policy-compliant. " +
+            "BLOCK habits that encourage smoking, recreational drug use, self-harm, suicide, disordered eating, or excessive drinking. " +
+            "WARN on physically impossible targets (e.g. 10 L water/day, 100 km running/day) or clearly unhealthy ranges. " +
+            "APPROVE quitting-, reducing-, or harm-reduction habits (e.g. 'Quit smoking', 'Less alcohol'). " +
+            "When unsure, return status 'ok'. " +
+            "Reply ONLY in the JSON schema. Keep messages under 160 characters, supportive in tone, no moralizing, no medical advice. " +
+            "If you warn, include a realistic suggested target/unit when possible.",
         },
-        contents: [
+      ],
+    },
+    contents: [
+      {
+        role: "user",
+        parts: [
           {
-            role: "user",
-            parts: [
-              {
-                text: JSON.stringify({
-                  name: habit.name,
-                  description: habit.description,
-                  target: habit.target,
-                  unit: habit.unit,
-                  habitType: habit.habitType,
-                  metricType: habit.metricType,
-                }),
-              },
-            ],
+            text: JSON.stringify({
+              name: habit.name,
+              description: habit.description,
+              target: habit.target,
+              unit: habit.unit,
+              habitType: habit.habitType,
+              metricType: habit.metricType,
+            }),
           },
         ],
-        generationConfig: {
-          maxOutputTokens: 200,
-          temperature: 0.2,
-          responseMimeType: "application/json",
-          responseSchema: validateHabitSchema(),
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+      },
+    ],
+    generationConfig: {
+      maxOutputTokens: 200,
+      temperature: 0.2,
+      responseMimeType: "application/json",
+      responseSchema: validateHabitSchema(),
+      thinkingConfig: { thinkingBudget: 0 },
     },
-  );
+  });
 
   if (!response.ok) {
     const error = await response.text();
