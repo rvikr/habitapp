@@ -5,6 +5,7 @@ import {
   Alert,
   Linking,
   Platform,
+  Switch,
   View,
   Text,
   ScrollView,
@@ -19,6 +20,7 @@ import { signOut } from "@/lib/data/actions";
 import { avatarFromUser } from "@/lib/utils/avatar";
 import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
+import { useTrackingPreferences } from "@/components/tracking-preferences-provider";
 import {
   resolveProAccess,
   subscriptionStatusLabel,
@@ -64,10 +66,44 @@ function SettingsRow({
   );
 }
 
+function TrackingToggleRow({
+  icon,
+  label,
+  description,
+  value,
+  onValueChange,
+}: {
+  icon: string;
+  label: string;
+  description: string;
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+}) {
+  return (
+    <View className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl mb-xs">
+      <MaterialCommunityIcons name={icon as any} size={20} color="#F26B1F" />
+      <View className="flex-1 ml-md">
+        <Text className="text-body-md text-on-surface dark:text-d-on-surface">{label}</Text>
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+          {description}
+        </Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
+        thumbColor="#fff"
+      />
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { colorScheme, toggle } = useTheme();
   const { languageName, t, toggleLanguage } = useLanguage();
+  const { stepsEnabled, sleepEnabled, setStepsEnabled, setSleepEnabled } =
+    useTrackingPreferences();
   const [user, setUser] = useState<UserInfo | null>(null);
 
   const load = useCallback(async () => {
@@ -115,8 +151,7 @@ export default function SettingsScreen() {
   }
 
   function openAiCoach() {
-    if (user?.hasPro) router.push("/settings/coach");
-    else router.push("/pro" as never);
+    router.push("/settings/coach");
   }
 
   return (
@@ -198,6 +233,27 @@ export default function SettingsScreen() {
               {languageName}
             </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Tracking */}
+        <View className="px-margin-mobile mb-lg">
+          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
+            {t("TRACKING")}
+          </Text>
+          <TrackingToggleRow
+            icon="walk"
+            label={t("Step tracking")}
+            description={t("Auto-sync steps from your device pedometer.")}
+            value={stepsEnabled}
+            onValueChange={setStepsEnabled}
+          />
+          <TrackingToggleRow
+            icon="sleep"
+            label={t("Sleep tracking")}
+            description={t("Auto-sync sleep from Health Connect or Apple Health.")}
+            value={sleepEnabled}
+            onValueChange={setSleepEnabled}
+          />
         </View>
 
         {/* Account */}

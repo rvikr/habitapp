@@ -102,6 +102,14 @@ export default function ProScreen() {
         year: "numeric",
       })
     : null;
+  const activeMessage =
+    access?.source === "trial" && access.trialDaysLeft
+      ? access.trialDaysLeft === 1
+        ? t("1 day of Pro trial left")
+        : t("{count} days of Pro trial left", { count: access.trialDaysLeft })
+      : expiry
+        ? t("Pro active until {date}", { date: expiry })
+        : t("Pro access is active");
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
@@ -130,11 +138,7 @@ export default function ProScreen() {
             </Text>
             {access?.hasPro && (
               <View className="bg-secondary-container rounded-xl px-md py-sm">
-                <Text className="text-label-lg text-on-secondary-container">
-                  {expiry
-                    ? t("Pro active until {date}", { date: expiry })
-                    : t("Pro access is active")}
-                </Text>
+                <Text className="text-label-lg text-on-secondary-container">{activeMessage}</Text>
               </View>
             )}
           </View>

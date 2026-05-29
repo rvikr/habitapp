@@ -42,7 +42,7 @@ export default function RemindersScreen() {
     setPermission(status);
 
     // Load enriched schedule to show contextual preview messages.
-    const schedule = await getReminderSchedule();
+    const schedule = await getReminderSchedule({ aiSmartReminders: false });
     const previews: Record<string, string> = {};
     for (const entry of schedule) {
       if (!(entry.habitId in previews)) {

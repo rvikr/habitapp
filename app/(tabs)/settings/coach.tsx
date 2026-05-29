@@ -8,6 +8,7 @@ import { updateCoachTone } from "@/lib/data/actions";
 import { normalizeCoachTone, type CoachTone } from "@/lib/coach/coach";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
+import { ProUpgradeBanner } from "@/components/pro-access-banner";
 
 const TONES: { id: CoachTone; label: string; sample: string }[] = [
   { id: "friendly", label: "Friendly", sample: "You can still make progress today." },
@@ -22,11 +23,12 @@ export default function CoachSettingsScreen() {
   const { t } = useLanguage();
   const [tone, setTone] = useState<CoachTone>("friendly");
   const [saving, setSaving] = useState<CoachTone | null>(null);
+  const [hasPro, setHasPro] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     const access = await getCurrentProAccess();
+    setHasPro(access.hasPro);
     if (!access.hasPro) {
-      router.replace("/pro" as never);
       return;
     }
     const user = await getCurrentUser();
@@ -37,7 +39,7 @@ export default function CoachSettingsScreen() {
       .eq("user_id", user.id)
       .maybeSingle();
     setTone(normalizeCoachTone(data?.coach_tone as string | null | undefined));
-  }, [router]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -69,7 +71,15 @@ export default function CoachSettingsScreen() {
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile gap-sm">
-          {TONES.map((item) => {
+          {hasPro === false ? (
+            <ProUpgradeBanner
+              title="Unlock AI Coach"
+              body="Subscribe to adjust coach tone and use Pro AI guidance."
+              actionLabel="View plans"
+              onAction={() => router.push("/pro" as never)}
+            />
+          ) : null}
+          {hasPro !== false && TONES.map((item) => {
             const active = tone === item.id;
             return (
               <TouchableOpacity

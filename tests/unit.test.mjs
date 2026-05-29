@@ -72,7 +72,7 @@ import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
-import { resolveProAccess, subscriptionStatusLabel } from "../lib/subscription/access.ts";
+import * as subscriptionAccess from "../lib/subscription/access.ts";
 import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
 import {
@@ -85,6 +85,8 @@ import {
   XP_PER_LEVEL as WEBSITE_XP_PER_LEVEL,
 } from "../website/lib/xp.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
+
+const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
 
 let testChain = Promise.resolve();
 
@@ -259,11 +261,16 @@ test("Pro access helper covers trial subscription and admin override states", ()
   const now = new Date("2026-05-22T00:00:00.000Z");
   assert.deepEqual(
     resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-21T23:59:59.000Z" }, now),
-    { hasPro: false, source: "free", expiresAt: null },
+    { hasPro: false, source: "free", expiresAt: null, trialDaysLeft: null },
   );
   assert.deepEqual(
     resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-22T00:00:01.000Z" }, now),
-    { hasPro: true, source: "trial", expiresAt: "2026-05-22T00:00:01.000Z" },
+    {
+      hasPro: true,
+      source: "trial",
+      expiresAt: "2026-05-22T00:00:01.000Z",
+      trialDaysLeft: 1,
+    },
   );
   assert.deepEqual(
     resolveProAccess(
@@ -274,12 +281,35 @@ test("Pro access helper covers trial subscription and admin override states", ()
       },
       now,
     ),
-    { hasPro: true, source: "subscription", expiresAt: "2026-06-01T00:00:00.000Z" },
+    {
+      hasPro: true,
+      source: "subscription",
+      expiresAt: "2026-06-01T00:00:00.000Z",
+      trialDaysLeft: null,
+    },
+  );
+  assert.deepEqual(
+    resolveProAccess(
+      {
+        is_pro: false,
+        pro_trial_ends_at: "2026-05-29T00:00:00.000Z",
+        revenuecat_entitlement_active: true,
+        pro_expires_at: "2026-06-01T00:00:00.000Z",
+      },
+      now,
+    ),
+    {
+      hasPro: true,
+      source: "subscription",
+      expiresAt: "2026-06-01T00:00:00.000Z",
+      trialDaysLeft: null,
+    },
   );
   assert.deepEqual(resolveProAccess({ is_pro: true }, now), {
     hasPro: true,
     source: "admin",
     expiresAt: null,
+    trialDaysLeft: null,
   });
   assert.equal(subscriptionStatusLabel({ is_pro: true }, now), "Pro");
   assert.equal(
@@ -287,6 +317,37 @@ test("Pro access helper covers trial subscription and admin override states", ()
     "Trial",
   );
   assert.equal(subscriptionStatusLabel({}, now), "Free");
+});
+
+test("trial helpers expose rounded days left and session banner visibility", () => {
+  const now = new Date("2026-05-22T10:00:00.000Z");
+  assert.equal(subscriptionAccess.trialDaysLeft?.("2026-05-22T10:00:01.000Z", now), 1);
+  assert.equal(subscriptionAccess.trialDaysLeft?.("2026-05-23T09:59:59.000Z", now), 1);
+  assert.equal(subscriptionAccess.trialDaysLeft?.("2026-05-29T10:00:00.000Z", now), 7);
+  assert.equal(subscriptionAccess.trialDaysLeft?.("2026-05-22T09:59:59.000Z", now), null);
+  assert.equal(subscriptionAccess.trialDaysLeft?.("not-a-date", now), null);
+
+  const trialAccess = resolveProAccess(
+    { is_pro: false, pro_trial_ends_at: "2026-05-29T10:00:00.000Z" },
+    now,
+  );
+  const paidAccess = resolveProAccess(
+    {
+      is_pro: false,
+      revenuecat_entitlement_active: true,
+      pro_expires_at: "2026-06-01T00:00:00.000Z",
+    },
+    now,
+  );
+  const expiredAccess = resolveProAccess(
+    { is_pro: false, pro_trial_ends_at: "2026-05-22T09:59:59.000Z" },
+    now,
+  );
+
+  assert.equal(subscriptionAccess.shouldShowTrialSubscriptionBanner?.(trialAccess, false), true);
+  assert.equal(subscriptionAccess.shouldShowTrialSubscriptionBanner?.(trialAccess, true), false);
+  assert.equal(subscriptionAccess.shouldShowTrialSubscriptionBanner?.(paidAccess, false), false);
+  assert.equal(subscriptionAccess.shouldShowTrialSubscriptionBanner?.(expiredAccess, false), false);
 });
 
 test("AI Edge Functions enforce Pro access before quota and Gemini calls", () => {
@@ -333,6 +394,33 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
   const supabaseConfig = readFileSync("supabase/config.toml", "utf8");
   assert.match(supabaseConfig, /\[functions\.revenuecat-webhook\]/);
   assert.match(supabaseConfig, /verify_jwt = false/);
+});
+
+test("reminder schedule habit queries are explicitly scoped to the current user", () => {
+  const source = readFileSync("lib/data/reminders.ts", "utf8");
+  const habitQueries =
+    source.match(
+      /supabase\s*\n\s*\.from\("habits"\)[\s\S]*?\.eq\("reminders_enabled", true\);?/g,
+    ) ?? [];
+
+  assert.equal(habitQueries.length, 2);
+  for (const query of habitQueries) {
+    assert.match(query, /\.eq\("user_id", user\.id\)/);
+  }
+});
+
+test("Sentry crash reporting honors the privacy opt-out", () => {
+  const sentrySource = readFileSync("lib/services/sentry.ts", "utf8");
+  assert.match(sentrySource, /SENTRY_OPT_OUT_KEY/);
+  assert.match(sentrySource, /export async function isSentryOptedOut/);
+  assert.match(sentrySource, /export async function setSentryOptOut/);
+  assert.match(sentrySource, /optedOut = await readOptOut\(\)/);
+  assert.match(sentrySource, /if \(optedOut \|\| !initialized \|\| !SentryRef\) return;/);
+
+  const privacyScreen = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
+  assert.match(privacyScreen, /isSentryOptedOut/);
+  assert.match(privacyScreen, /setSentryOptOut/);
+  assert.match(privacyScreen, /Crash reporting opt-out/);
 });
 
 test("account deletion requires password confirmation and recent sign-in", () => {
@@ -475,7 +563,7 @@ test("signup and email confirmation copy gives a clear next step", () => {
 test("first-run onboarding is required for new users without habits", () => {
   assert.equal(shouldRequireFirstRunOnboarding({ newUser: "1", habitCount: 0 }), true);
   assert.equal(shouldRequireFirstRunOnboarding({ newUser: "1", habitCount: 2 }), false);
-  assert.equal(shouldRequireFirstRunOnboarding({ newUser: undefined, habitCount: 0 }), false);
+  assert.equal(shouldRequireFirstRunOnboarding({ newUser: undefined, habitCount: 0 }), true);
 });
 
 test("first-login welcome is hidden for existing users with habits", () => {
@@ -498,6 +586,23 @@ test("i18n exposes stable labels and rejects unsupported language values", () =>
   assert.equal(isSupportedLanguage("hi"), true);
   assert.equal(isSupportedLanguage("fr"), false);
   assert.equal(isSupportedLanguage(null), false);
+});
+
+test("tracking preference copy has Hindi translations", () => {
+  const messages = [
+    "TRACKING",
+    "Step tracking",
+    "Auto-sync steps from your device pedometer.",
+    "Sleep tracking",
+    "Auto-sync sleep from Health Connect or Apple Health.",
+    "Sleep tracking is off",
+    "Turn on Sleep tracking in Settings to sync from Health Connect or Apple Health.",
+    "Auto-sync is paused. Turn it back on in Settings, or keep logging sleep manually below.",
+  ];
+
+  for (const message of messages) {
+    assert.notEqual(translate("hi", message), message);
+  }
 });
 
 test("auth callback params can reconstruct a callback URL when native Linking has no URL", () => {
@@ -620,6 +725,37 @@ test("queued reminder sync cancels the latest stored IDs before the next sync sc
   assert.deepEqual(stored, { habit1: ["scheduled-2"] });
 });
 
+test("queued reminder sync coalesces a burst into one trailing sync", async () => {
+  let runs = 0;
+  let firstRunStarted;
+  const firstRunStartedPromise = new Promise((resolve) => {
+    firstRunStarted = resolve;
+  });
+  let releaseFirstRun;
+  const releaseFirstRunPromise = new Promise((resolve) => {
+    releaseFirstRun = resolve;
+  });
+
+  const runSync = createQueuedReminderSync(async () => {
+    runs++;
+    if (runs === 1) {
+      firstRunStarted();
+      await releaseFirstRunPromise;
+    }
+  });
+
+  const first = runSync();
+  await firstRunStartedPromise;
+  const second = runSync();
+  const third = runSync();
+  const fourth = runSync();
+
+  releaseFirstRun();
+  await Promise.all([first, second, third, fourth]);
+
+  assert.equal(runs, 2);
+});
+
 test("readThroughCache returns fresh cached values without refetching", async () => {
   clearCache("test-cache:");
   let calls = 0;
@@ -688,6 +824,14 @@ test("positive number parsing rejects invalid habit targets", () => {
   assert.deepEqual(parseOptionalPositiveNumber("2.5"), { ok: true, value: 2.5 });
   assert.equal(parseOptionalPositiveNumber("0").ok, false);
   assert.equal(parseOptionalPositiveNumber("-1").ok, false);
+});
+
+test("habit form validation errors are accessible beyond color", () => {
+  const source = readFileSync("components/habit-form.tsx", "utf8");
+  assert.match(source, /accessibilityRole="alert"/);
+  assert.match(source, /accessibilityLiveRegion="polite"/);
+  assert.match(source, /alert-circle-outline/);
+  assert.match(source, /Error: \{message\}/);
 });
 
 test("feedback validation requires useful message and valid rating", () => {
@@ -1110,6 +1254,42 @@ test("bundling unions active reminder times and days without copying disabled de
   );
 });
 
+function createMemoryStorage(initial = {}) {
+  const values = new Map(Object.entries(initial));
+  return {
+    values,
+    getItem: async (key) => values.get(key) ?? null,
+    setItem: async (key, value) => {
+      values.set(key, value);
+    },
+    removeItem: async (key) => {
+      values.delete(key);
+    },
+  };
+}
+
+function smartReminderTestContext(overrides = {}) {
+  const now = overrides.now ?? new Date(2026, 4, 10, 9, 15);
+  return {
+    habitId: "water-1",
+    habitName: "Drink water",
+    habitType: "water_intake",
+    metricType: "volume_ml",
+    strategy: "interval",
+    intervalMinutes: 120,
+    target: 2000,
+    unit: "ml",
+    progress: { current: 250, target: 2000, ratio: 0.125, isDone: false, label: "250 / 2000 ml" },
+    completions: [],
+    manualTimes: [],
+    reminderDays: [0, 1, 2, 3, 4, 5, 6],
+    streak: 1,
+    typicalHour: null,
+    now,
+    ...overrides,
+  };
+}
+
 test("smart reminder slots respect active hours and intervals", () => {
   const slots = smartReminderTimesForDay(new Date(2026, 4, 10, 7, 30), 120);
   assert.deepEqual(
@@ -1203,6 +1383,178 @@ test("AI smart reminder plans keep valid habit plans and drop invalid ones", asy
     [10, 14],
   );
   assert.equal(plans.has("invalid-habit"), false);
+});
+
+test("AI smart reminder plans reuse cached responses for matching contexts", async () => {
+  const now = new Date(2026, 4, 10, 9, 15);
+  const context = smartReminderTestContext({ now });
+  const storage = createMemoryStorage();
+  let calls = 0;
+
+  const options = {
+    enabled: true,
+    now,
+    storage,
+    invoke: async () => {
+      calls++;
+      return { plans: [{ habitId: context.habitId, times: ["10:00", "14:00"] }] };
+    },
+  };
+
+  const first = await resolveAiSmartReminderPlans([context], options);
+  const second = await resolveAiSmartReminderPlans([context], options);
+
+  assert.deepEqual(
+    first.get(context.habitId)?.map((slot) => slot.getHours()),
+    [10, 14],
+  );
+  assert.deepEqual(
+    second.get(context.habitId)?.map((slot) => slot.getHours()),
+    [10, 14],
+  );
+  assert.equal(calls, 1);
+});
+
+test("AI smart reminder plans share an in-flight invocation", async () => {
+  const now = new Date(2026, 4, 10, 9, 15);
+  const context = smartReminderTestContext({ now });
+  const storage = createMemoryStorage();
+  let calls = 0;
+  let releaseInvoke;
+  const releaseInvokePromise = new Promise((resolve) => {
+    releaseInvoke = resolve;
+  });
+
+  const invoke = async () => {
+    calls++;
+    await releaseInvokePromise;
+    return { plans: [{ habitId: context.habitId, times: ["10:00"] }] };
+  };
+
+  const first = resolveAiSmartReminderPlans([context], { enabled: true, now, storage, invoke });
+  const second = resolveAiSmartReminderPlans([context], { enabled: true, now, storage, invoke });
+  releaseInvoke();
+  const [firstPlans, secondPlans] = await Promise.all([first, second]);
+
+  assert.equal(calls, 1);
+  assert.equal(firstPlans.get(context.habitId)?.[0].getHours(), 10);
+  assert.equal(secondPlans.get(context.habitId)?.[0].getHours(), 10);
+});
+
+test("AI smart reminder plans cool down after a 429", async () => {
+  const now = new Date(2026, 4, 10, 9, 15);
+  const context = smartReminderTestContext({ now });
+  const storage = createMemoryStorage();
+  let calls = 0;
+  const rateLimitError = new Error("quota exceeded");
+  rateLimitError.name = "FunctionsHttpError";
+  rateLimitError.context = {
+    status: 429,
+    headers: { get: () => null },
+  };
+
+  const invoke = async () => {
+    calls++;
+    throw rateLimitError;
+  };
+
+  const first = await resolveAiSmartReminderPlans([context], {
+    enabled: true,
+    now,
+    storage,
+    cooldownMs: 60 * 60 * 1000,
+    invoke,
+  });
+  const second = await resolveAiSmartReminderPlans([context], {
+    enabled: true,
+    now: new Date(now.getTime() + 60_000),
+    storage,
+    cooldownMs: 60 * 60 * 1000,
+    invoke,
+  });
+
+  assert.equal(first.size, 0);
+  assert.equal(second.size, 0);
+  assert.equal(calls, 1);
+});
+
+test("AI smart reminder 429 cooldown honors retryAfterSeconds when available", async () => {
+  const now = new Date(2026, 4, 10, 9, 15);
+  const context = smartReminderTestContext({ now });
+  const storage = createMemoryStorage();
+  let calls = 0;
+  const rateLimitError = new Error("quota exceeded");
+  rateLimitError.name = "FunctionsHttpError";
+  rateLimitError.context = {
+    status: 429,
+    headers: { get: () => null },
+    clone: () => ({
+      json: async () => ({ retryAfterSeconds: 120 }),
+    }),
+  };
+
+  const invoke = async () => {
+    calls++;
+    if (calls === 1) throw rateLimitError;
+    return { plans: [{ habitId: context.habitId, times: ["11:00"] }] };
+  };
+
+  const first = await resolveAiSmartReminderPlans([context], {
+    enabled: true,
+    now,
+    storage,
+    invoke,
+  });
+  const second = await resolveAiSmartReminderPlans(
+    [smartReminderTestContext({ now: new Date(now.getTime() + 180_000) })],
+    {
+      enabled: true,
+      now: new Date(now.getTime() + 180_000),
+      storage,
+      invoke,
+    },
+  );
+
+  assert.equal(first.size, 0);
+  assert.equal(second.get(context.habitId)?.[0].getHours(), 11);
+  assert.equal(calls, 2);
+});
+
+test("AI smart reminder plans ignore stale cached times and fall back locally", async () => {
+  const firstNow = new Date(2026, 4, 10, 9, 15);
+  const secondNow = new Date(2026, 4, 10, 10, 30);
+  const firstContext = smartReminderTestContext({ now: firstNow });
+  const secondContext = smartReminderTestContext({ now: secondNow });
+  const storage = createMemoryStorage();
+  let calls = 0;
+
+  const first = await resolveAiSmartReminderPlans([firstContext], {
+    enabled: true,
+    now: firstNow,
+    storage,
+    invoke: async () => {
+      calls++;
+      return { plans: [{ habitId: firstContext.habitId, times: ["10:00"] }] };
+    },
+  });
+  const second = await resolveAiSmartReminderPlans([secondContext], {
+    enabled: true,
+    now: secondNow,
+    storage,
+    invoke: async () => {
+      calls++;
+      throw new Error("offline");
+    },
+  });
+
+  assert.equal(first.get(firstContext.habitId)?.[0].getHours(), 10);
+  assert.equal(second.size, 0);
+  assert.equal(calls, 2);
+});
+
+test("reminders screen previews skip AI smart reminder invocation", () => {
+  const source = readFileSync("app/(tabs)/settings/reminders.tsx", "utf8");
+  assert.match(source, /getReminderSchedule\(\{\s*aiSmartReminders:\s*false\s*\}\)/);
 });
 
 test("routine builder gives office workers water posture walking and sleep habits", () => {

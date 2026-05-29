@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Icon from "@/components/icon";
+import { ProUpgradeBanner } from "@/components/pro-access-banner";
 import { createHabit } from "@/lib/data/actions";
 import {
   buildRoutineRecommendations,
@@ -115,6 +116,7 @@ export default function HabitWizardScreen() {
   const [stepIndex, setStepIndex] = useState(0);
   const [recommendations, setRecommendations] = useState<HabitRecommendation[] | null>(null);
   const [generatedByAi, setGeneratedByAi] = useState(false);
+  const [showRoutineUpgrade, setShowRoutineUpgrade] = useState(false);
   const [loadingRoutine, setLoadingRoutine] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -144,19 +146,11 @@ export default function HabitWizardScreen() {
     }
     const local = buildRoutineRecommendations(answers);
     setRecommendations(local);
+    setShowRoutineUpgrade(false);
     const access = await getCurrentProAccess();
     if (!access.hasPro) {
       setGeneratedByAi(false);
-      Alert.alert(
-        t("Pro required"),
-        t(
-          "AI routine refinement is included in Pro. You can continue with the starter routine for free.",
-        ),
-        [
-          { text: t("Continue free"), style: "cancel" },
-          { text: t("Upgrade"), onPress: () => router.push("/pro" as never) },
-        ],
-      );
+      setShowRoutineUpgrade(true);
       return;
     }
     setLoadingRoutine(true);
@@ -245,6 +239,15 @@ export default function HabitWizardScreen() {
                 </View>
               )}
             </View>
+
+            {showRoutineUpgrade && (
+              <ProUpgradeBanner
+                title="Unlock AI routine refinement"
+                body="Subscribe to refine starter routines with Pro AI."
+                actionLabel="View plans"
+                onAction={() => router.push("/pro" as never)}
+              />
+            )}
 
             {recommendations.map((item) => {
               const editing = editingId === item.id;

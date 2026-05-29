@@ -23,12 +23,51 @@ function projectRefFromUrl(url: string): string {
   }
 }
 
+// Supabase persists the session as JSON. If a stored payload is missing the
+// refresh_token, supabase-js auto-refresh on startup throws
+// "AuthApiError: Invalid Refresh Token: Refresh Token Not Found" and logs it
+// before getSession() can catch it. Drop such payloads at the storage layer
+// so the client boots cleanly as signed-out.
+function hasUsableRefreshToken(raw: string): boolean {
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
+    if (!parsed || typeof parsed !== "object") return false;
+    const direct = parsed.refresh_token;
+    if (typeof direct === "string" && direct.length > 0) return true;
+    const nested = (parsed.currentSession as Record<string, unknown> | undefined)?.refresh_token;
+    return typeof nested === "string" && nested.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+const authStorage = {
+  async getItem(key: string): Promise<string | null> {
+    const value = await secureStorage.getItem(key);
+    if (value && key === SUPABASE_AUTH_STORAGE_KEY && !hasUsableRefreshToken(value)) {
+      try {
+        await secureStorage.removeItem(key);
+      } catch {
+        // Best effort — returning null still gets the client to a clean state.
+      }
+      return null;
+    }
+    return value;
+  },
+  setItem(key: string, value: string): Promise<void> {
+    return secureStorage.setItem(key, value);
+  },
+  removeItem(key: string): Promise<void> {
+    return secureStorage.removeItem(key);
+  },
+};
+
 export const supabase = _createClient(
   isSupabaseConfigured() ? SUPABASE_URL : FALLBACK_SUPABASE_URL,
   isSupabaseConfigured() ? SUPABASE_ANON_KEY : FALLBACK_SUPABASE_ANON_KEY,
   {
     auth: {
-      storage: secureStorage,
+      storage: authStorage,
       storageKey: SUPABASE_AUTH_STORAGE_KEY,
       autoRefreshToken: true,
       persistSession: true,

@@ -633,7 +633,19 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
             </View>
           )}
 
-          {formError && <Text className="text-error text-label-sm text-center">{formError}</Text>}
+          {formError && (
+            <View
+              className="flex-row items-center justify-center gap-xs"
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={t("Error: {message}", { message: formError })}
+            >
+              <Icon name="alert-circle-outline" size={16} color="#BA1A1A" />
+              <Text className="text-error text-label-sm text-center">
+                {t("Error: {message}", { message: formError })}
+              </Text>
+            </View>
+          )}
 
           {/* Submit */}
           <TouchableOpacity

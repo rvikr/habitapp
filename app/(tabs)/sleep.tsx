@@ -16,6 +16,7 @@ import HabitProgressVisual from "@/components/habit-progress-visual";
 import ProgressRing from "@/components/progress-ring";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { useLanguage } from "@/components/language-provider";
+import { useTrackingPreferences } from "@/components/tracking-preferences-provider";
 import {
   getSleepDashboardData,
   getSleepPermissionStatus,
@@ -79,6 +80,7 @@ function shiftSleepDate(sleepDate: string, days: number): string {
 
 export default function SleepScreen() {
   const { language, t } = useLanguage();
+  const { sleepEnabled } = useTrackingPreferences();
   const [data, setData] = useState<SleepDashboardData | null>(null);
   const [status, setStatus] = useState<SleepPermissionStatus | "checking" | "syncing" | "idle">(
     "idle",
@@ -115,6 +117,7 @@ export default function SleepScreen() {
     useCallback(() => {
       void (async () => {
         const permission = await load();
+        if (!sleepEnabled) return;
         if (permission !== "granted") return;
         const now = Date.now();
         if (now - lastAutoSyncAt.current < AUTO_SYNC_THROTTLE_MS) return;
@@ -122,7 +125,7 @@ export default function SleepScreen() {
         setStatus("syncing");
         await runSync();
       })();
-    }, [load, runSync]),
+    }, [load, runSync, sleepEnabled]),
   );
 
   const latest = data?.latestEntry ?? null;
@@ -163,7 +166,7 @@ export default function SleepScreen() {
   async function handleRefresh() {
     setRefreshing(true);
     const permission = await load({ force: true });
-    if (permission === "granted") {
+    if (sleepEnabled && permission === "granted") {
       lastAutoSyncAt.current = Date.now();
       setStatus("syncing");
       await runSync();
@@ -173,6 +176,13 @@ export default function SleepScreen() {
 
   async function handleSync() {
     if (busy) return;
+    if (!sleepEnabled) {
+      Alert.alert(
+        t("Sleep tracking is off"),
+        t("Turn on Sleep tracking in Settings to sync from Health Connect or Apple Health."),
+      );
+      return;
+    }
     setBusy(true);
     setStatus("syncing");
     const result = await syncLastNightSleep();
@@ -295,29 +305,39 @@ export default function SleepScreen() {
           <View className="mx-margin-mobile mt-md bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
             <View className="flex-row items-center gap-sm">
               <MaterialCommunityIcons
-                name={status === "granted" ? "check-circle" : "alert-circle-outline"}
+                name={
+                  !sleepEnabled
+                    ? "power-sleep"
+                    : status === "granted"
+                      ? "check-circle"
+                      : "alert-circle-outline"
+                }
                 size={22}
                 color={SLEEP_FG}
               />
               <View className="flex-1">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {statusLabel(status, t)}
+                  {!sleepEnabled ? t("Sleep tracking is off") : statusLabel(status, t)}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {status === "granted" && !syncError
-                    ? t("Last night's sleep syncs automatically when you open this screen.")
-                    : t(
-                        "iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.",
-                      )}
+                  {!sleepEnabled
+                    ? t(
+                        "Auto-sync is paused. Turn it back on in Settings, or keep logging sleep manually below.",
+                      )
+                    : status === "granted" && !syncError
+                      ? t("Last night's sleep syncs automatically when you open this screen.")
+                      : t(
+                          "iOS uses Apple Health. Android uses Health Connect. Web supports manual logging.",
+                        )}
                 </Text>
-                {syncError ? (
+                {syncError && sleepEnabled ? (
                   <Text className="text-label-sm mt-xs" style={{ color: SLEEP_FG }}>
                     {syncError}
                   </Text>
                 ) : null}
               </View>
             </View>
-            {status !== "granted" || syncError ? (
+            {sleepEnabled && (status !== "granted" || syncError) ? (
               <TouchableOpacity
                 className="bg-primary rounded-full py-sm items-center"
                 onPress={handleSync}

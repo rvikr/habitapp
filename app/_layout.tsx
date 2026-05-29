@@ -20,6 +20,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 import { LanguageProvider, useLanguage } from "@/components/language-provider";
+import { TrackingPreferencesProvider } from "@/components/tracking-preferences-provider";
 import { CelebrationProvider } from "@/components/celebration";
 import ErrorBoundary from "@/components/error-boundary";
 import NotificationScheduler from "@/components/notification-scheduler";
@@ -221,9 +222,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <LanguageProvider>
-            <CelebrationProvider>
-              <RootLayoutContent />
-            </CelebrationProvider>
+            <TrackingPreferencesProvider>
+              <CelebrationProvider>
+                <RootLayoutContent />
+              </CelebrationProvider>
+            </TrackingPreferencesProvider>
           </LanguageProvider>
         </ThemeProvider>
       </SafeAreaProvider>

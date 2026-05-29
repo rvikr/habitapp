@@ -1,13 +1,13 @@
 import { useState, useCallback } from "react";
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getStats, getMilestones } from "@/lib/data/habits";
 import { BADGE_DEFS, type ComputedBadge } from "@/lib/coach/badges";
 import BadgeGrid from "@/components/badge-grid";
 import ShareCardModal, { type ShareCardData } from "@/components/share-card-modal";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import { ProUpgradeBanner } from "@/components/pro-access-banner";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import { formatReportWeekRange, getLatestProgressReport } from "@/lib/data/progress-reports";
@@ -239,23 +239,12 @@ function WeeklyReportCard({
 }) {
   if (hasPro === false) {
     return (
-      <TouchableOpacity
-        onPress={onUpgrade}
-        className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
-      >
-        <View className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center">
-          <MaterialCommunityIcons name="star-four-points" size={20} color="#F26B1F" />
-        </View>
-        <View className="flex-1">
-          <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-            {t("Unlock weekly AI reports")}
-          </Text>
-          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-            {t("Pro members get a personalised summary every Monday.")}
-          </Text>
-        </View>
-        <MaterialCommunityIcons name="chevron-right" size={22} color="#8F8A82" />
-      </TouchableOpacity>
+      <ProUpgradeBanner
+        title="Unlock weekly AI reports"
+        body="Subscribe to get a personalised summary every Monday."
+        actionLabel="View plans"
+        onAction={onUpgrade}
+      />
     );
   }
 

@@ -39,6 +39,10 @@ export type ScheduledReminder = {
   coachMessage?: string;
 };
 
+type ReminderScheduleOptions = {
+  aiSmartReminders?: boolean;
+};
+
 // Returns the hour (0-23) the user most often logs this habit, or null if too few data points.
 function typicalHourFromTimestamps(timestamps: string[]): number | null {
   if (timestamps.length < 3) return null;
@@ -66,7 +70,9 @@ function isMissingSmartHabitColumn(
   );
 }
 
-export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
+export async function getReminderSchedule(
+  options: ReminderScheduleOptions = {},
+): Promise<ScheduledReminder[]> {
   if (!isSupabaseConfigured()) return [];
   const user = await getCurrentUser();
   if (!user) return [];
@@ -85,6 +91,7 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
       .select(
         "id, name, icon, target, unit, reminder_times, reminder_days, reminders_enabled, habit_type, metric_type, visual_type, reminder_strategy, reminder_interval_minutes, default_log_value",
       )
+      .eq("user_id", user.id)
       .is("archived_at", null)
       .eq("reminders_enabled", true),
     supabase
@@ -107,6 +114,7 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
     const { data: legacyHabits } = await supabase
       .from("habits")
       .select("id, name, icon, target, unit, reminder_times, reminder_days, reminders_enabled")
+      .eq("user_id", user.id)
       .is("archived_at", null)
       .eq("reminders_enabled", true);
     habits = legacyHabits as Record<string, unknown>[] | null;
@@ -223,10 +231,13 @@ export async function getReminderSchedule(): Promise<ScheduledReminder[]> {
     });
   }
 
-  const aiSmartPlans = await resolveAiSmartReminderPlans(
-    smartReminderCandidates.map((candidate) => candidate.decisionContext),
-    { enabled: aiCoachEnabled, now },
-  );
+  const aiSmartPlans =
+    options.aiSmartReminders === false
+      ? new Map<string, Date[]>()
+      : await resolveAiSmartReminderPlans(
+          smartReminderCandidates.map((candidate) => candidate.decisionContext),
+          { enabled: aiCoachEnabled, now },
+        );
 
   for (const candidate of smartReminderCandidates) {
     const fireTimes =

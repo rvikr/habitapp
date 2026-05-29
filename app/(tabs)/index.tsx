@@ -16,14 +16,21 @@ import {
   shouldShowFirstLoginWelcome,
   shouldRequireFirstRunOnboarding,
 } from "@/lib/auth/auth-welcome";
+import { TrialSubscriptionBanner } from "@/components/pro-access-banner";
 import HabitCard from "@/components/habit-card";
 import CoachCard from "@/components/coach-card";
 import LogPrompt from "@/components/log-prompt";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { useLanguage } from "@/components/language-provider";
+import { useTrackingPreferences } from "@/components/tracking-preferences-provider";
 import type { Habit } from "@/types/db";
 import { progressForHabit, type HabitProgress } from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
+import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
+import {
+  shouldShowTrialSubscriptionBanner,
+  type ProAccess,
+} from "@/lib/subscription/access";
 import {
   getStepPermissionStatus,
   getTodayStepSnapshot,
@@ -43,9 +50,11 @@ type DashboardData = {
   insights: Insights;
   leaderboardOptedIn: boolean;
   coachSignal: CoachSignal | null;
+  proAccess: ProAccess;
 };
 
 const STEP_SYNC_INTERVAL_MS = 30_000;
+let trialBannerDismissedForSession = false;
 
 type StepTrackingStatus =
   | "idle"
@@ -73,6 +82,8 @@ export default function DashboardScreen() {
   const celebrate = useCelebrate();
   const { colorScheme } = useTheme();
   const { language, t } = useLanguage();
+  const { stepsEnabled: stepTrackingEnabled, hydrated: trackingHydrated } =
+    useTrackingPreferences();
   const primary = "#F26B1F";
   const primaryTrack = colorScheme === "dark" ? "#2C2C36" : "#E6E0D5";
   const [data, setData] = useState<DashboardData | null>(null);
@@ -80,6 +91,9 @@ export default function DashboardScreen() {
   const { newUser } = useLocalSearchParams<{ newUser?: string }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
+  const [trialBannerDismissed, setTrialBannerDismissed] = useState(
+    trialBannerDismissedForSession,
+  );
   const [stepTracking, setStepTracking] = useState<StepTrackingState>({
     status: "idle",
     lastSyncedAt: null,
@@ -102,9 +116,10 @@ export default function DashboardScreen() {
   }, [newUser]);
 
   const load = useCallback(async (options?: { force?: boolean }) => {
-    const [result, insights] = await Promise.all([
+    const [result, insights, proAccess] = await Promise.all([
       getHabitsForToday(options),
       getInsights(options),
+      getCurrentProAccess(),
     ]);
     setData({
       ...result,
@@ -112,6 +127,7 @@ export default function DashboardScreen() {
       todayProgress: result.todayProgress,
       streaksMap: result.streaksMap,
       insights,
+      proAccess,
     });
   }, []);
 
@@ -139,6 +155,9 @@ export default function DashboardScreen() {
     showWelcome && data
       ? shouldShowFirstLoginWelcome({ newUser, habitCount: data.habits.length })
       : false;
+  const showTrialBanner = data
+    ? shouldShowTrialSubscriptionBanner(data.proAccess, trialBannerDismissed)
+    : false;
 
   useEffect(() => {
     if (requiresFirstRunOnboarding) {
@@ -312,7 +331,8 @@ export default function DashboardScreen() {
   );
 
   useEffect(() => {
-    if (!stepHabit) {
+    if (!trackingHydrated) return;
+    if (!stepHabit || !stepTrackingEnabled) {
       stopStepWatcher();
       setStepTracking({ status: "idle", lastSyncedAt: null });
       return;
@@ -326,7 +346,7 @@ export default function DashboardScreen() {
       return;
     }
     void syncStepHabit(stepHabit, false, true);
-  }, [stepHabit, stepHabitSyncKey, stopStepWatcher, syncStepHabit]);
+  }, [stepHabit, stepHabitSyncKey, stepTrackingEnabled, stopStepWatcher, syncStepHabit, trackingHydrated]);
 
   useEffect(() => {
     return () => {
@@ -337,15 +357,19 @@ export default function DashboardScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load({ force: true });
-    if (stepHabit && (stepTracking.status === "tracking" || stepTracking.status === "synced")) {
+    if (
+      stepHabit &&
+      stepTrackingEnabled &&
+      (stepTracking.status === "tracking" || stepTracking.status === "synced")
+    ) {
       await syncStepHabit(stepHabit, false, true);
     }
     setRefreshing(false);
-  }, [load, stepHabit, stepTracking.status, syncStepHabit]);
+  }, [load, stepHabit, stepTrackingEnabled, stepTracking.status, syncStepHabit]);
 
   async function handleToggle(habit: Habit) {
     if (!data) return;
-    if (isStepHabit(habit)) {
+    if (isStepHabit(habit) && stepTrackingEnabled) {
       const ok = await syncStepHabit(habit, true, true);
       if (!ok) {
         Alert.alert(
@@ -455,6 +479,19 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
+        {showTrialBanner && data?.proAccess.trialDaysLeft ? (
+          <View className="mx-margin-mobile mt-md mb-xs">
+            <TrialSubscriptionBanner
+              daysLeft={data.proAccess.trialDaysLeft}
+              onAction={() => router.push("/pro" as never)}
+              onDismiss={() => {
+                trialBannerDismissedForSession = true;
+                setTrialBannerDismissed(true);
+              }}
+            />
+          </View>
+        ) : null}
+
         {/* Header */}
         <View className="flex-row items-center justify-between px-margin-mobile pt-md pb-sm">
           <View>
@@ -533,6 +570,7 @@ export default function DashboardScreen() {
         )}
 
         {stepHabit &&
+          stepTrackingEnabled &&
           !["idle", "tracking", "synced", "checking", "syncing"].includes(stepTracking.status) && (
             <StepTrackingCard
               state={stepTracking}

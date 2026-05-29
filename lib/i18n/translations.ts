@@ -63,6 +63,19 @@ const HI_TRANSLATIONS: Record<string, string> = {
     "कुछ सवालों के जवाब दें और अपने दिन के हिसाब से छोटी आदत रूटीन पाएं.",
   "Build my routine": "मेरी रूटीन बनाएं",
   "Choose manually": "खुद चुनें",
+  TRACKING: "ट्रैकिंग",
+  "Step tracking": "स्टेप ट्रैकिंग",
+  "Auto-sync steps from your device pedometer.":
+    "अपने डिवाइस पेडोमीटर से स्टेप अपने-आप सिंक करें.",
+  "Sleep tracking": "नींद ट्रैकिंग",
+  "Auto-sync sleep from Health Connect or Apple Health.":
+    "Health Connect या Apple Health से नींद अपने-आप सिंक करें.",
+  "Sleep tracking is off": "नींद ट्रैकिंग बंद है",
+  "Turn on Sleep tracking in Settings to sync from Health Connect or Apple Health.":
+    "Health Connect या Apple Health से सिंक करने के लिए Settings में Sleep tracking चालू करें.",
+  "Auto-sync is paused. Turn it back on in Settings, or keep logging sleep manually below.":
+    "ऑटो-सिंक रुका हुआ है. इसे Settings में फिर चालू करें, या नीचे नींद मैन्युअल रूप से लॉग करते रहें.",
+  "Error: {message}": "त्रुटि: {message}",
   "Step tracking unavailable": "स्टेप ट्रैकिंग उपलब्ध नहीं है",
   "Open the habit to log steps manually, or enable motion access in your device settings.":
     "स्टेप्स मैन्युअली लॉग करने के लिए आदत खोलें, या डिवाइस सेटिंग्स में मोशन एक्सेस चालू करें.",

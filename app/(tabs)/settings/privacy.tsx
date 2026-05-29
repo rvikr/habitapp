@@ -17,6 +17,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { requestAccountDeletion } from "@/lib/data/actions";
 import { exportMyData } from "@/lib/utils/privacy";
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from "@/lib/services/analytics";
+import { isSentryOptedOut, setSentryOptOut } from "@/lib/services/sentry";
 
 const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || "https://lagan.health/privacy";
@@ -26,6 +27,7 @@ const ACCOUNT_DELETION_URL =
 export default function PrivacyScreen() {
   const router = useRouter();
   const [analyticsOff, setAnalyticsOff] = useState(false);
+  const [crashReportsOff, setCrashReportsOff] = useState(false);
   const [reason, setReason] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
   const [savingDeletion, setSavingDeletion] = useState(false);
@@ -33,12 +35,22 @@ export default function PrivacyScreen() {
   const [exportText, setExportText] = useState<string | null>(null);
 
   useEffect(() => {
-    isAnalyticsOptedOut().then(setAnalyticsOff);
+    Promise.all([isAnalyticsOptedOut(), isSentryOptedOut()]).then(
+      ([analyticsOptedOut, sentryOptedOut]) => {
+        setAnalyticsOff(analyticsOptedOut);
+        setCrashReportsOff(sentryOptedOut);
+      },
+    );
   }, []);
 
   async function toggleAnalytics(next: boolean) {
     setAnalyticsOff(next);
     await setAnalyticsOptOut(next);
+  }
+
+  async function toggleCrashReports(next: boolean) {
+    setCrashReportsOff(next);
+    await setSentryOptOut(next);
   }
 
   async function handleExport() {
@@ -130,6 +142,25 @@ export default function PrivacyScreen() {
               <Switch
                 value={analyticsOff}
                 onValueChange={toggleAnalytics}
+                trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
+                thumbColor="#fff"
+              />
+            </View>
+          </View>
+
+          <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 mr-md">
+                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                  Crash reporting opt-out
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  Stops crash reports from being sent from this device.
+                </Text>
+              </View>
+              <Switch
+                value={crashReportsOff}
+                onValueChange={toggleCrashReports}
                 trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
                 thumbColor="#fff"
               />

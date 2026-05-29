@@ -23,13 +23,12 @@ export function isPendingSignupForEmail(
 }
 
 export function shouldRequireFirstRunOnboarding({
-  newUser,
   habitCount,
 }: {
   newUser: string | null | undefined;
   habitCount: number;
 }): boolean {
-  return newUser === "1" && habitCount === 0;
+  return habitCount === 0;
 }
 
 export function shouldShowFirstLoginWelcome({
