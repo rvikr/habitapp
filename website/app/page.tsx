@@ -792,6 +792,7 @@ function SiteHero({ userCount }: { userCount: string }) {
       />
 
       <div
+        className="hero-grid"
         style={{
           maxWidth: 1240,
           width: "100%",
@@ -803,7 +804,7 @@ function SiteHero({ userCount }: { userCount: string }) {
         }}
       >
         {/* Copy */}
-        <div style={{ maxWidth: 540 }}>
+        <div className="hero-copy" style={{ maxWidth: 540 }}>
           <div
             style={{
               display: "inline-flex",
@@ -868,6 +869,7 @@ function SiteHero({ userCount }: { userCount: string }) {
           </p>
 
           <div
+            className="hero-cta"
             style={{
               display: "flex",
               gap: 12,
@@ -918,7 +920,7 @@ function SiteHero({ userCount }: { userCount: string }) {
           </div>
 
           {/* Social proof */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div className="hero-social" style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ display: "flex" }}>
               {["R", "S", "M", "J", "K"].map((l, i) => (
                 <div
@@ -964,6 +966,7 @@ function SiteHero({ userCount }: { userCount: string }) {
 
         {/* Phones */}
         <div
+          className="hero-phones"
           style={{
             display: "flex",
             justifyContent: "center",
@@ -986,7 +989,7 @@ function SiteHero({ userCount }: { userCount: string }) {
               <PhoneHome />
             </PhoneFrame>
           </div>
-          <div style={{ position: "relative", zIndex: 1, marginTop: 80 }}>
+          <div className="hero-phone-secondary" style={{ position: "relative", zIndex: 1, marginTop: 80 }}>
             <PhoneFrame scale={0.82}>
               <PhoneCoach light />
             </PhoneFrame>
@@ -1013,7 +1016,7 @@ function StatsStrip({
   ];
   return (
     <div
-      className="landing-section"
+      className="landing-section stats-strip"
       style={{
         borderTop: `1px solid ${C.border}`,
         borderBottom: `1px solid ${C.border}`,
@@ -1022,6 +1025,7 @@ function StatsStrip({
       }}
     >
       <div
+        className="stats-grid"
         style={{
           maxWidth: 1240,
           margin: "0 auto",
@@ -1135,6 +1139,7 @@ function SiteFeatures() {
         </div>
 
         <div
+          className="features-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(4, 1fr)",
@@ -1292,6 +1297,7 @@ function SiteHowItWorks() {
         </div>
 
         <div
+          className="how-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
@@ -1372,6 +1378,7 @@ function SiteChillSpotlight() {
     >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div
+          className="chill-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
@@ -1558,6 +1565,7 @@ function SiteTestimonials() {
           </h2>
         </div>
         <div
+          className="testi-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
