@@ -1020,7 +1020,7 @@ test("habit form and actions use shared habit input rules", () => {
   const actionsSource = readFileSync("lib/data/actions.ts", "utf8");
   assert.match(actionsSource, /validateHabitInput/);
   assert.match(actionsSource, /normalizeReminderSchedule/);
-  assert.match(actionsSource, /A habit with this name already exists/);
+  assert.match(actionsSource, /"A habit with this name already exists\."/);
 });
 
 test("feedback validation requires useful message and valid rating", () => {
