@@ -51,6 +51,7 @@ import {
   validateHabitInput,
   validateLogValueForHabit,
 } from "../lib/habits/input-rules.ts";
+import { streakForSchedule } from "../lib/coach/streak-rules.ts";
 import { streakFromDates } from "../lib/coach/streak.ts";
 import {
   COMPLETION_LOOKBACK_DAYS,
@@ -313,6 +314,32 @@ test("streakFromDates counts an unbroken run across the new year", () => {
   ];
   assert.equal(dates[1], "2025-12-31");
   assert.equal(streakFromDates(dates, newYearsDay), 3);
+});
+
+test("scheduled streak skips unscheduled days", () => {
+  const from = new Date(2026, 5, 5, 12, 0); // Friday
+  const dates = ["2026-06-05", "2026-06-03", "2026-06-01"];
+  assert.equal(streakForSchedule(dates, { from, scheduledDays: [1, 3, 5] }), 3);
+});
+
+test("scheduled streak breaks on a missed scheduled day", () => {
+  const from = new Date(2026, 5, 5, 12, 0); // Friday
+  const dates = ["2026-06-05", "2026-06-01"];
+  assert.equal(streakForSchedule(dates, { from, scheduledDays: [1, 3, 5] }), 1);
+});
+
+test("grace cutoff displays yesterday streak before cutoff only", () => {
+  const beforeCutoff = new Date(2026, 4, 31, 8, 0);
+  const afterCutoff = new Date(2026, 4, 31, 12, 0);
+  const dates = ["2026-05-30", "2026-05-29"];
+  assert.equal(streakForSchedule(dates, { from: beforeCutoff, graceCutoffHour: 10 }), 2);
+  assert.equal(streakForSchedule(dates, { from: afterCutoff, graceCutoffHour: 10 }), 0);
+});
+
+test("backfilled completion restores scheduled streak", () => {
+  const from = new Date(2026, 5, 5, 12, 0); // Friday
+  assert.equal(streakForSchedule(["2026-06-05", "2026-06-01"], { from, scheduledDays: [1, 3, 5] }), 1);
+  assert.equal(streakForSchedule(["2026-06-05", "2026-06-03", "2026-06-01"], { from, scheduledDays: [1, 3, 5] }), 3);
 });
 
 test("XP constants are canonical across app, website, and SQL", () => {
