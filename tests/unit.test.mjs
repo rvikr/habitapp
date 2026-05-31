@@ -109,6 +109,7 @@ import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from 
 const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
 
 let testChain = Promise.resolve();
+let actionImportTestLoaderRegistered = false;
 
 function test(name, fn) {
   testChain = testChain.then(async () => {
@@ -120,6 +121,72 @@ function test(name, fn) {
       throw error;
     }
   });
+}
+
+async function registerActionImportTestLoader() {
+  if (actionImportTestLoaderRegistered) return;
+
+  const { register } = await import("node:module");
+  const dataModule = (source) => `data:text/javascript,${encodeURIComponent(source)}`;
+  const externalStubs = [
+    [
+      "react-native",
+      dataModule('export const Platform = { OS: "web" }; export default { Platform };'),
+    ],
+    [
+      "expo-web-browser",
+      dataModule('export async function openAuthSessionAsync() { return { type: "cancel" }; }'),
+    ],
+    ["expo-constants", dataModule('export default { executionEnvironment: "bare" };')],
+    [
+      "expo-linking",
+      dataModule(
+        'export function createURL(path = "") { return "habbit:///" + path; } export function parse(url) { const parsed = new URL(url, "habbit:///"); return { queryParams: Object.fromEntries(parsed.searchParams.entries()) }; }',
+      ),
+    ],
+  ];
+  const platformStubs = [
+    ["/platform/webcrypto-polyfill", dataModule("")],
+    [
+      "/platform/secure-storage",
+      dataModule(
+        "const store = new Map(); export const secureStorage = { async getItem(key) { return store.get(key) ?? null; }, async setItem(key, value) { store.set(key, value); }, async removeItem(key) { store.delete(key); } };",
+      ),
+    ],
+    [
+      "/platform/storage",
+      dataModule(
+        "const store = new Map(); export async function getItem(key) { return store.get(key) ?? null; } export async function setItem(key, value) { store.set(key, value); } export async function removeItem(key) { store.delete(key); }",
+      ),
+    ],
+    [
+      "/platform/notifications",
+      dataModule(
+        'export async function requestPermission() { return false; } export async function getPermissionStatus() { return "undetermined"; } export async function scheduleHabitReminder() { return []; } export async function scheduleHabitReminderAt() { return ""; } export async function cancelScheduledReminder() {} export async function cancelAllReminders() {}',
+      ),
+    ],
+  ];
+  const loaderSource = `
+const externalStubs = new Map(${JSON.stringify(externalStubs)});
+const platformStubs = new Map(${JSON.stringify(platformStubs)});
+export async function resolve(specifier, context, nextResolve) {
+  const external = externalStubs.get(specifier);
+  if (external) return { url: external, shortCircuit: true };
+  for (const [suffix, url] of platformStubs) {
+    if (specifier.endsWith(suffix)) return { url, shortCircuit: true };
+  }
+  try {
+    return await nextResolve(specifier, context);
+  } catch (error) {
+    if (error?.code === "ERR_MODULE_NOT_FOUND" && (specifier.startsWith(".") || specifier.startsWith("/"))) {
+      return nextResolve(specifier + ".ts", context);
+    }
+    throw error;
+  }
+}`;
+
+  register(dataModule(loaderSource), import.meta.url);
+  actionImportTestLoaderRegistered = true;
 }
 
 test("localDateKey uses local calendar fields", () => {
@@ -1229,7 +1296,7 @@ test("completion value payload stores absolute values", () => {
   );
 });
 
-test("setCompletionValue preserves decimal-capable completion values", () => {
+test("setCompletionValue preserves decimal-capable completion values", async () => {
   assert.deepEqual(
     buildCompletionValuePayload("sleep-1", "user-1", "2026-05-14", 1.5, " nap ", {
       metricType: "hours",
@@ -1244,11 +1311,95 @@ test("setCompletionValue preserves decimal-capable completion values", () => {
     },
   );
 
-  const actionsSource = readFileSync("lib/data/actions.ts", "utf8");
-  assert.match(
-    actionsSource,
-    /const completionHabit = \{[\s\S]*metricType:[\s\S]*target:[\s\S]*\};[\s\S]*validateCompletionValue\(value, completionHabit\)[\s\S]*buildCompletionValuePayload\(\s*habitId,\s*user\.id,\s*completedOn,\s*normalizedValue\.value,\s*note,\s*completionHabit,\s*\)/,
-  );
+  const originalUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const originalAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const hadDev = Object.prototype.hasOwnProperty.call(globalThis, "__DEV__");
+  const originalDev = globalThis.__DEV__;
+  const OriginalDate = globalThis.Date;
+  const originalSetTimeout = globalThis.setTimeout;
+  const fixedNow = new OriginalDate(2026, 4, 14, 12, 0);
+  let capturedPayload = null;
+
+  process.env.EXPO_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+  globalThis.__DEV__ = false;
+  globalThis.Date = class FixedDate extends OriginalDate {
+    constructor(...args) {
+      super(...(args.length === 0 ? [fixedNow.getTime()] : args));
+    }
+
+    static now() {
+      return fixedNow.getTime();
+    }
+  };
+  globalThis.setTimeout = () => 0;
+
+  await registerActionImportTestLoader();
+  const { supabase } = await import("../lib/supabase/client.ts");
+  const originalGetUser = supabase.auth.getUser;
+  const originalFrom = supabase.from;
+
+  try {
+    supabase.auth.getUser = async () => ({
+      data: { user: { id: "user-1", email: "u@example.com", user_metadata: {} } },
+      error: null,
+    });
+    supabase.from = (table) => {
+      if (table === "habits") {
+        const filters = [];
+        return {
+          select(columns) {
+            assert.equal(columns, "target, metric_type");
+            return this;
+          },
+          eq(column, value) {
+            filters.push([column, value]);
+            return this;
+          },
+          async single() {
+            assert.deepEqual(filters, [
+              ["id", "sleep-1"],
+              ["user_id", "user-1"],
+            ]);
+            return { data: { target: 8, metric_type: "hours" }, error: null };
+          },
+        };
+      }
+      if (table === "habit_completions") {
+        return {
+          upsert(payload, options) {
+            capturedPayload = payload;
+            assert.deepEqual(options, { onConflict: "habit_id,completed_on" });
+            return { error: null };
+          },
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    };
+
+    const { setCompletionValue } = await import("../lib/data/actions.ts");
+    assert.deepEqual(await setCompletionValue("sleep-1", 1.5, " nap ", "2026-05-14"), {
+      ok: true,
+    });
+    assert.deepEqual(capturedPayload, {
+      habit_id: "sleep-1",
+      user_id: "user-1",
+      completed_on: "2026-05-14",
+      value: 1.5,
+      note: "nap",
+    });
+  } finally {
+    supabase.auth.getUser = originalGetUser;
+    supabase.from = originalFrom;
+    globalThis.Date = OriginalDate;
+    globalThis.setTimeout = originalSetTimeout;
+    if (hadDev) globalThis.__DEV__ = originalDev;
+    else delete globalThis.__DEV__;
+    if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalAnonKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = originalAnonKey;
+  }
 });
 
 test("health connect step range starts at local midnight", () => {
