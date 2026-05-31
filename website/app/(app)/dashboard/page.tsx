@@ -79,7 +79,7 @@ export default async function DashboardPage() {
   return (
     <div className="flex min-h-screen flex-col xl:flex-row">
       {/* ── Main ─────────────────────────────────────────── */}
-      <div className="w-full flex-1 space-y-6 p-4 sm:p-6 lg:p-8 xl:max-w-3xl">
+      <div className="app-stagger w-full flex-1 space-y-6 p-4 sm:p-6 lg:p-8 xl:max-w-3xl">
 
         {/* Header */}
         <div className="flex items-start justify-between">
@@ -100,7 +100,7 @@ export default async function DashboardPage() {
         {/* Progress + streak bento */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           {/* Progress ring */}
-          <div className="bg-surface rounded-3xl p-5 border border-outline-variant/20 flex flex-col gap-5 sm:col-span-2 sm:flex-row sm:items-center sm:p-6">
+          <div className="hover-raise bg-surface rounded-3xl p-5 border border-outline-variant/20 flex flex-col gap-5 sm:col-span-2 sm:flex-row sm:items-center sm:p-6">
             <div className="relative w-28 h-28 flex-shrink-0">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="46" fill="none" stroke="#2C2C36" strokeWidth="8" />
@@ -132,7 +132,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* Weekly mastery */}
-          <div className="bg-gradient-to-br from-primary to-primary-container rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_4px_24px_rgba(93,63,211,0.28)]">
+          <div className="hover-raise bg-gradient-to-br from-primary to-primary-container rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_4px_24px_rgba(93,63,211,0.28)]">
             <div className="absolute -right-4 -bottom-4 opacity-20 pointer-events-none">
               <span className="material-symbols-outlined text-[90px]" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
             </div>
@@ -153,7 +153,7 @@ export default async function DashboardPage() {
         </section>
 
         {/* Weekly chart */}
-        <section className="bg-surface rounded-3xl p-6 border border-outline-variant space-y-4">
+        <section className="hover-raise bg-surface rounded-3xl p-6 border border-outline-variant space-y-4">
           <h2 className="font-bold text-on-background text-xl">Weekly Overview</h2>
           <div className="flex items-end gap-3 h-24">
             {weekDays.map((date) => {
@@ -184,9 +184,9 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── Right Aside ──────────────────────────────────── */}
-      <aside className="w-full flex-shrink-0 space-y-6 p-4 sm:p-6 xl:w-72">
+      <aside className="app-stagger w-full flex-shrink-0 space-y-6 p-4 sm:p-6 xl:w-72">
         {/* Quick tip */}
-        <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
+        <div className="hover-raise bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>tips_and_updates</span>
             <h3 className="font-bold text-on-background">Quick Tip</h3>
@@ -198,7 +198,7 @@ export default async function DashboardPage() {
 
         {/* Weekly insights */}
         {INSIGHT_CONFIGS.some((c) => insights[c.key] !== null) && (
-          <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
+          <div className="hover-raise bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>insights</span>
               <h3 className="font-bold text-on-background">Your Insights</h3>
@@ -230,7 +230,7 @@ export default async function DashboardPage() {
         )}
 
         {/* Today&apos;s date */}
-        <div className="bg-gradient-to-br from-secondary/10 to-secondary-container/20 rounded-3xl p-5 border border-secondary-container/30 space-y-1">
+        <div className="hover-raise bg-gradient-to-br from-secondary/10 to-secondary-container/20 rounded-3xl p-5 border border-secondary-container/30 space-y-1">
           <p className="text-xs font-bold text-secondary uppercase tracking-widest">Today</p>
           <p className="font-extrabold text-on-background text-2xl" style={{ letterSpacing: "-0.01em" }}>
             {new Date().toLocaleDateString("en-US", { weekday: "long" })}
@@ -241,7 +241,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Progress summary */}
-        <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
+        <div className="hover-raise bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
           <h3 className="font-bold text-on-background">Progress</h3>
           <div className="space-y-3">
             <div>

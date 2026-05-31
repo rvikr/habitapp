@@ -53,7 +53,7 @@ export default async function SystemPage() {
   const otherFlags = flags.filter((f) => f.key !== "maintenance_mode");
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-4xl">
+    <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-8 max-w-4xl">
       <div>
         <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
           System Control

@@ -724,14 +724,17 @@ function PhoneCoach({ light = false }: { light?: boolean }) {
 function PhoneFrame({
   children,
   scale = 1,
+  className,
 }: {
   children: React.ReactNode;
   scale?: number;
+  className?: string;
 }) {
   const W = 300,
     H = 600;
   return (
     <div
+      className={className}
       style={{
         width: W * scale,
         height: H * scale,
@@ -772,6 +775,7 @@ function SiteHero({ userCount }: { userCount: string }) {
       }}
     >
       <div
+        className="glow-pulse"
         style={{
           position: "absolute",
           inset: 0,
@@ -780,6 +784,7 @@ function SiteHero({ userCount }: { userCount: string }) {
         }}
       />
       <div
+        className="glow-drift"
         style={{
           position: "absolute",
           top: "20%",
@@ -792,6 +797,7 @@ function SiteHero({ userCount }: { userCount: string }) {
       />
 
       <div
+        className="hero-grid"
         style={{
           maxWidth: 1240,
           width: "100%",
@@ -803,8 +809,9 @@ function SiteHero({ userCount }: { userCount: string }) {
         }}
       >
         {/* Copy */}
-        <div style={{ maxWidth: 540 }}>
+        <div className="hero-copy" style={{ maxWidth: 540 }}>
           <div
+            className="hero-rise"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -814,9 +821,11 @@ function SiteHero({ userCount }: { userCount: string }) {
               border: `1px solid ${hexA(C.primary, 0.28)}`,
               borderRadius: 999,
               padding: "5px 14px",
+              animationDelay: "0.05s",
             }}
           >
             <div
+              className="pulse-ring"
               style={{
                 width: 6,
                 height: 6,
@@ -837,6 +846,7 @@ function SiteHero({ userCount }: { userCount: string }) {
           </div>
 
           <h1
+            className="hero-rise"
             style={{
               fontFamily: SG,
               fontSize: "clamp(46px, 6vw, 86px)",
@@ -845,14 +855,16 @@ function SiteHero({ userCount }: { userCount: string }) {
               lineHeight: 1.0,
               color: C.text,
               margin: "0 0 22px",
+              animationDelay: "0.12s",
             }}
           >
             Habits,
             <br />
-            <span style={{ color: C.primary }}>gently</span> held.
+            <span className="text-shimmer">gently</span> held.
           </h1>
 
           <p
+            className="hero-rise"
             style={{
               fontFamily: MR,
               fontSize: 18,
@@ -861,6 +873,7 @@ function SiteHero({ userCount }: { userCount: string }) {
               lineHeight: 1.65,
               margin: "0 0 34px",
               maxWidth: 440,
+              animationDelay: "0.2s",
             }}
           >
             Build streaks that last. Earn chill time when you show up. Daily
@@ -868,15 +881,18 @@ function SiteHero({ userCount }: { userCount: string }) {
           </p>
 
           <div
+            className="hero-cta hero-rise"
             style={{
               display: "flex",
               gap: 12,
               marginBottom: 36,
               flexWrap: "wrap",
+              animationDelay: "0.28s",
             }}
           >
             <a
               href="https://play.google.com/store"
+              className="btn-press"
               style={{
                 background: C.primary,
                 color: "#fff",
@@ -898,6 +914,7 @@ function SiteHero({ userCount }: { userCount: string }) {
             </a>
             <a
               href="#how-it-works"
+              className="btn-press"
               style={{
                 background: "transparent",
                 color: C.text,
@@ -918,7 +935,7 @@ function SiteHero({ userCount }: { userCount: string }) {
           </div>
 
           {/* Social proof */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div className="hero-social hero-rise" style={{ display: "flex", alignItems: "center", gap: 14, animationDelay: "0.36s" }}>
             <div style={{ display: "flex" }}>
               {["R", "S", "M", "J", "K"].map((l, i) => (
                 <div
@@ -964,6 +981,7 @@ function SiteHero({ userCount }: { userCount: string }) {
 
         {/* Phones */}
         <div
+          className="hero-phones"
           style={{
             display: "flex",
             justifyContent: "center",
@@ -973,6 +991,7 @@ function SiteHero({ userCount }: { userCount: string }) {
           }}
         >
           <div
+            className="glow-pulse"
             style={{
               position: "absolute",
               inset: -80,
@@ -981,13 +1000,16 @@ function SiteHero({ userCount }: { userCount: string }) {
               background: `radial-gradient(circle, ${hexA(C.primary, 0.18)}, transparent 65%)`,
             }}
           />
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <PhoneFrame>
+          <div className="hero-rise" style={{ position: "relative", zIndex: 1, animationDelay: "0.32s" }}>
+            <PhoneFrame className="float-slow">
               <PhoneHome />
             </PhoneFrame>
           </div>
-          <div style={{ position: "relative", zIndex: 1, marginTop: 80 }}>
-            <PhoneFrame scale={0.82}>
+          <div
+            className="hero-phone-secondary hero-rise"
+            style={{ position: "relative", zIndex: 1, marginTop: 80, animationDelay: "0.44s" }}
+          >
+            <PhoneFrame scale={0.82} className="float-slow-alt">
               <PhoneCoach light />
             </PhoneFrame>
           </div>
@@ -1013,7 +1035,7 @@ function StatsStrip({
   ];
   return (
     <div
-      className="landing-section"
+      className="landing-section stats-strip"
       style={{
         borderTop: `1px solid ${C.border}`,
         borderBottom: `1px solid ${C.border}`,
@@ -1022,6 +1044,7 @@ function StatsStrip({
       }}
     >
       <div
+        className="stats-grid stagger"
         style={{
           maxWidth: 1240,
           margin: "0 auto",
@@ -1104,7 +1127,7 @@ function SiteFeatures() {
       }}
     >
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 56 }}>
+        <div className="reveal-up" style={{ textAlign: "center", marginBottom: 56 }}>
           <div
             style={{
               fontSize: 11,
@@ -1135,6 +1158,7 @@ function SiteFeatures() {
         </div>
 
         <div
+          className="features-grid stagger"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(4, 1fr)",
@@ -1146,6 +1170,7 @@ function SiteFeatures() {
             return (
               <div
                 key={f.tag}
+                className="lift-card"
                 style={{
                   background: hi
                     ? `linear-gradient(155deg, ${hexA(C.primary, 0.14)}, ${C.surface})`
@@ -1264,7 +1289,7 @@ function SiteHowItWorks() {
         }}
       />
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 66 }}>
+        <div className="reveal-up" style={{ textAlign: "center", marginBottom: 66 }}>
           <div
             style={{
               fontSize: 11,
@@ -1292,6 +1317,7 @@ function SiteHowItWorks() {
         </div>
 
         <div
+          className="how-grid stagger"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
@@ -1350,7 +1376,9 @@ function SiteHowItWorks() {
                   {step.desc}
                 </div>
               </div>
-              <PhoneFrame scale={0.78}>{step.phone}</PhoneFrame>
+              <PhoneFrame scale={0.78} className="float-slow">
+                {step.phone}
+              </PhoneFrame>
             </div>
           ))}
         </div>
@@ -1372,6 +1400,7 @@ function SiteChillSpotlight() {
     >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
         <div
+          className="chill-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
@@ -1387,6 +1416,7 @@ function SiteChillSpotlight() {
             }}
           >
             <div
+              className="glow-pulse"
               style={{
                 position: "absolute",
                 inset: -60,
@@ -1396,7 +1426,7 @@ function SiteChillSpotlight() {
               }}
             />
             <div style={{ position: "relative", zIndex: 1 }}>
-              <PhoneFrame>
+              <PhoneFrame className="float-slow">
                 <PhoneChill />
               </PhoneFrame>
             </div>
@@ -1531,7 +1561,7 @@ function SiteTestimonials() {
       }}
     >
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div style={{ textAlign: "center", marginBottom: 52 }}>
+        <div className="reveal-up" style={{ textAlign: "center", marginBottom: 52 }}>
           <div
             style={{
               fontSize: 11,
@@ -1558,6 +1588,7 @@ function SiteTestimonials() {
           </h2>
         </div>
         <div
+          className="testi-grid stagger"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
@@ -1569,6 +1600,7 @@ function SiteTestimonials() {
             return (
               <div
                 key={i}
+                className="lift-card"
                 style={{
                   background: C.surfaceHi,
                   border: `1px solid ${C.border}`,
@@ -1661,6 +1693,7 @@ function SiteCTA() {
       }}
     >
       <div
+        className="glow-pulse"
         style={{
           position: "absolute",
           inset: 0,
@@ -1699,7 +1732,7 @@ function SiteCTA() {
         >
           Start your streak
           <br />
-          <span style={{ color: C.primary }}>today.</span>
+          <span className="text-shimmer">today.</span>
         </h2>
         <p
           style={{
@@ -1724,6 +1757,7 @@ function SiteCTA() {
         >
           <a
             href="https://play.google.com/store"
+            className="btn-press"
             style={{
               background: C.primary,
               color: "#fff",
@@ -1857,7 +1891,10 @@ export default async function LandingPage() {
       style={{
         background: C.bg,
         color: C.text,
-        overflowX: "hidden",
+        // `clip` (not `hidden`) prevents horizontal overflow WITHOUT turning this
+        // wrapper into a scroll container — `overflow-x: hidden` forces
+        // `overflow-y` to compute to `auto`, which breaks touch scrolling on mobile.
+        overflowX: "clip",
         fontFamily: MR,
         WebkitFontSmoothing: "antialiased" as React.CSSProperties["WebkitFontSmoothing"],
       }}

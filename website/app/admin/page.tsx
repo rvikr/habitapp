@@ -34,7 +34,7 @@ function StatCard({
   icon: string; label: string; value: string | number; sub?: string; color?: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+    <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{label}</p>
         <span className={`material-symbols-outlined text-xl ${color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -90,7 +90,7 @@ export default async function AdminPage() {
   const enabledFlags  = flags.filter((f) => f.enabled && f.key !== "maintenance_mode").length;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-6xl">
+    <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-8 max-w-6xl">
       {/* Header */}
       <div>
         <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
@@ -143,7 +143,7 @@ export default async function AdminPage() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Quick actions */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
           <h2 className="font-bold text-slate-900 text-sm">Quick Actions</h2>
           <div className="space-y-1">
             {QUICK_LINKS.map(({ href, icon, label, color }) => (
@@ -165,7 +165,7 @@ export default async function AdminPage() {
         </div>
 
         {/* System status */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm">System Status</h2>
             <Link href="/admin/system" className="text-xs text-primary font-bold hover:opacity-70">
@@ -194,7 +194,7 @@ export default async function AdminPage() {
         </div>
 
         {/* Recent audit */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-slate-900 text-sm">Recent Actions</h2>
             <Link href="/admin/audit" className="text-xs text-primary font-bold hover:opacity-70">

@@ -84,7 +84,7 @@ export default async function UsersPage({
   const { users, error } = await getUsers(q);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl">
+    <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl">
       {/* Header */}
       <div>
         <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>

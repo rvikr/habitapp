@@ -94,7 +94,7 @@ export default async function AchievementsPage() {
   const activeDatesSet = new Set(stats?.activeDates ?? []);
 
   return (
-    <div className="max-w-5xl space-y-8 p-4 sm:p-6 lg:p-8">
+    <div className="app-stagger max-w-5xl space-y-8 p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div>
         <h1 className="font-extrabold text-on-background" style={{ fontSize: "28px", letterSpacing: "-0.01em" }}>
@@ -185,7 +185,7 @@ export default async function AchievementsPage() {
       )}
 
       {/* Streak history */}
-      <div className="bg-surface rounded-3xl p-6 border border-outline-variant space-y-4">
+      <div className="hover-raise bg-surface rounded-3xl p-6 border border-outline-variant space-y-4">
         <h2 className="font-bold text-on-background text-xl">Last 30 Days</h2>
         <div className="flex gap-1.5 flex-wrap">
           {thirtyDays.map((date) => {

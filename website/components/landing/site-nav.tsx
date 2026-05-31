@@ -102,6 +102,7 @@ export default function SiteNav() {
           <a
             key={label}
             href={href}
+            className="nav-link"
             style={{
               fontSize: 14,
               fontWeight: 600,
@@ -129,6 +130,7 @@ export default function SiteNav() {
           Sign in
         </Link>
         <button
+          className="btn-press"
           style={{
             background: C.primary,
             color: "#fff",

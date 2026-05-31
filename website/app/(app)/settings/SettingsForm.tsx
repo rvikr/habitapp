@@ -129,7 +129,7 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
     <form onSubmit={handleSave} className="space-y-6">
 
       {/* ── Account ─────────────────────────────────────────── */}
-      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+      <section className="hover-raise bg-surface rounded-3xl border border-outline-variant overflow-hidden">
         <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span
             className="material-symbols-outlined text-primary text-xl"
@@ -205,7 +205,7 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
       </section>
 
       {/* ── Notifications ───────────────────────────────────── */}
-      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+      <section className="hover-raise bg-surface rounded-3xl border border-outline-variant overflow-hidden">
         <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span
             className="material-symbols-outlined text-primary text-xl"
@@ -250,7 +250,7 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
       </section>
 
       {/* ── App Experience ──────────────────────────────────── */}
-      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+      <section className="hover-raise bg-surface rounded-3xl border border-outline-variant overflow-hidden">
         <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span
             className="material-symbols-outlined text-primary text-xl"
@@ -285,7 +285,7 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
       </section>
 
       {/* ── Danger zone ─────────────────────────────────────── */}
-      <section className="bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+      <section className="hover-raise bg-surface rounded-3xl border border-outline-variant overflow-hidden">
         <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
           <span className="material-symbols-outlined text-error text-xl">
             warning

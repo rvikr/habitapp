@@ -24,7 +24,7 @@ function FunnelBar({ label, value, total, color }: { label: string; value: numbe
 
 function RetentionCard({ label, value, sub, icon }: { label: string; value: string; sub: string; icon: string }) {
   return (
-    <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-2">
+    <div className="hover-raise bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</p>
         <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
@@ -117,7 +117,7 @@ export default async function AnalyticsPage() {
   const maxCount = Math.max(...last7DaysByDate.map((d) => d.count), 1);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-5xl">
+    <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-8 max-w-5xl">
       <div>
         <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
           Analytics
@@ -142,7 +142,7 @@ export default async function AnalyticsPage() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Conversion funnel */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+        <div className="hover-raise bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
           <div>
             <h2 className="font-bold text-slate-900">Conversion Funnel</h2>
             <p className="text-xs text-slate-400 mt-0.5">From sign-up to active habit completion.</p>
@@ -160,7 +160,7 @@ export default async function AnalyticsPage() {
         </div>
 
         {/* 7-day activity chart */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="hover-raise bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
           <div>
             <h2 className="font-bold text-slate-900">Daily Active Users</h2>
             <p className="text-xs text-slate-400 mt-0.5">Unique users who completed ≥1 habit per day.</p>

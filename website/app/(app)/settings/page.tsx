@@ -33,7 +33,7 @@ export default async function SettingsPage() {
   const level = levelForXp(totalXP);
 
   return (
-    <div className="max-w-2xl space-y-8 p-4 sm:p-6 lg:p-8">
+    <div className="app-stagger max-w-2xl space-y-8 p-4 sm:p-6 lg:p-8">
 
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="flex items-start justify-between">

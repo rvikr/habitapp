@@ -70,7 +70,7 @@ export default async function AuditPage({
   const totalPages = Math.ceil(total / perPage);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl">
+    <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl">
       <div>
         <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
           Audit Trail

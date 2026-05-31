@@ -11,6 +11,10 @@
     color: #FFFFFF;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Contain horizontal overflow without creating a nested scroll container.
+       `overflow-x: clip` keeps vertical scrolling on the document (touch scroll
+       stays smooth on mobile); `hidden` would force overflow-y to `auto`. */
+    overflow-x: clip;
   }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -40,6 +44,212 @@
 .landing-fade-in.visible {
   opacity: 1;
   transform: none;
+}
+
+/* Single-element scroll reveal (section headings). Armed by JS only when the
+   element starts off-screen, so above-the-fold content is never hidden. */
+.reveal-armed {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal-armed.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Staggered reveal — direct children cascade in one-by-one when the group
+   scrolls into view. */
+.stagger-armed > * {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.stagger-armed.visible > * {
+  opacity: 1;
+  transform: none;
+}
+.stagger-armed.visible > *:nth-child(1) { transition-delay: 0.02s; }
+.stagger-armed.visible > *:nth-child(2) { transition-delay: 0.10s; }
+.stagger-armed.visible > *:nth-child(3) { transition-delay: 0.18s; }
+.stagger-armed.visible > *:nth-child(4) { transition-delay: 0.26s; }
+
+/* ───── Landing page responsive overrides ─────
+   The landing page is built with inline styles (which can't hold media
+   queries), so these class hooks override the fixed multi-column grids and
+   fixed-width phone mockups on small screens. !important beats the inline styles. */
+@media (max-width: 1024px) {
+  .features-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr !important; gap: 48px !important; }
+  .hero-copy {
+    max-width: 600px !important;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+  }
+  .hero-copy p { margin-left: auto !important; margin-right: auto !important; }
+  .hero-cta { justify-content: center; }
+  .hero-social { justify-content: center; }
+  .how-grid { grid-template-columns: 1fr !important; gap: 56px !important; }
+  .chill-grid { grid-template-columns: 1fr !important; gap: 48px !important; }
+  .testi-grid { grid-template-columns: 1fr !important; }
+  /* Show a single phone in the hero so it fits the viewport */
+  .hero-phone-secondary { display: none !important; }
+}
+@media (max-width: 640px) {
+  .features-grid { grid-template-columns: 1fr !important; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .landing-section {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+    padding-top: 72px !important;
+    padding-bottom: 72px !important;
+  }
+  /* Stats strip keeps its borders flush — no vertical padding on the wrapper */
+  .stats-strip { padding-top: 0 !important; padding-bottom: 0 !important; }
+}
+@media (max-width: 380px) {
+  /* Scale the hero phone mockup so it never clips on small devices */
+  .hero-phones { transform: scale(0.85); transform-origin: top center; }
+}
+
+/* ───── Landing page motion ─────
+   Transform/opacity only (GPU-friendly). All looping/entrance motion is gated
+   behind `prefers-reduced-motion: no-preference` so it fully disables for users
+   who ask for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes laganRise {
+    from { opacity: 0; transform: translateY(30px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes laganFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-14px); }
+  }
+  @keyframes laganFloatAlt {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-22px); }
+  }
+  @keyframes laganGlowPulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.12); }
+  }
+  @keyframes laganGlowDrift {
+    0%, 100% { transform: translate(0, 0); }
+    33%      { transform: translate(30px, -24px); }
+    66%      { transform: translate(-24px, 16px); }
+  }
+  @keyframes laganShimmer {
+    to { background-position: 200% center; }
+  }
+  @keyframes laganPulseRing {
+    0%   { box-shadow: 0 0 0 0 rgba(242, 107, 31, 0.55); }
+    70%  { box-shadow: 0 0 0 7px rgba(242, 107, 31, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(242, 107, 31, 0); }
+  }
+
+  /* Hero load entrance — pair with an inline animation-delay for stagger */
+  .hero-rise { opacity: 0; animation: laganRise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Gentle perpetual float for the phone mockups (starts after the entrance) */
+  .float-slow     { animation: laganFloat 6s ease-in-out 1.2s infinite; }
+  .float-slow-alt { animation: laganFloatAlt 7.5s ease-in-out 1.4s infinite; }
+
+  /* Ambient background glows */
+  .glow-pulse { animation: laganGlowPulse 8s ease-in-out infinite; }
+  .glow-drift { animation: laganGlowDrift 18s ease-in-out infinite; }
+
+  /* Pulsing beacon dot (the "NEW" badge) */
+  .pulse-ring { animation: laganPulseRing 2.4s ease-out infinite; }
+
+  /* Animated sheen on gradient headline words */
+  .text-shimmer { animation: laganShimmer 4.5s linear infinite; }
+}
+
+/* Gradient headline text — stays readable even when the sheen is disabled */
+.text-shimmer {
+  color: #F26B1F;
+  background-image: linear-gradient(
+    100deg,
+    #F26B1F 20%, #FFC56B 40%, #FFE3B0 50%, #FFC56B 60%, #F26B1F 80%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Hover micro-interactions — only on real pointer devices, never on touch */
+.lift-card {
+  /* opacity is included so cards in a `.stagger` group animate their scroll
+     reveal with this same transition (this rule wins over `.stagger-armed > *`
+     by source order); the nth-child stagger delays still apply. */
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s ease, border-color 0.35s ease, opacity 0.5s ease;
+}
+.btn-press {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.2s ease, box-shadow 0.2s ease;
+}
+.btn-press:active { transform: translateY(0) scale(0.97); }
+
+.nav-link { position: relative; }
+.nav-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  height: 2px;
+  width: 0;
+  background: #F26B1F;
+  border-radius: 2px;
+  transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) {
+  .lift-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+    border-color: rgba(242, 107, 31, 0.45) !important;
+  }
+  .btn-press:hover { transform: translateY(-2px); filter: brightness(1.08); }
+  .nav-link:hover::after { width: 100%; }
+}
+
+/* ───── In-app pages (dashboard / admin) ─────
+   A calm entrance on each route change, plus a neutral card hover-raise. Kept
+   lighter than the marketing page — these are working surfaces, not a pitch. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes laganEnter {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .app-enter { animation: laganEnter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Staggered card cascade for in-app content groups. Uses `backwards` fill (not
+     `forwards`/`both`) so the finished animation doesn't pin `transform` and
+     override `.hover-raise` on the same card afterwards. */
+  .app-stagger > * {
+    animation: laganEnter 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .app-stagger > *:nth-child(1) { animation-delay: 0.04s; }
+  .app-stagger > *:nth-child(2) { animation-delay: 0.11s; }
+  .app-stagger > *:nth-child(3) { animation-delay: 0.18s; }
+  .app-stagger > *:nth-child(4) { animation-delay: 0.25s; }
+  .app-stagger > *:nth-child(5) { animation-delay: 0.32s; }
+  .app-stagger > *:nth-child(6) { animation-delay: 0.39s; }
+}
+.hover-raise {
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease;
+}
+@media (hover: hover) {
+  .hover-raise:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12);
+  }
 }
 
 /* Material Symbols */

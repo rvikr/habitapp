@@ -141,7 +141,7 @@ export default async function LeaderboardPage({
     <div className="flex min-h-screen flex-col gap-6 p-4 sm:p-6 lg:p-8 xl:flex-row xl:gap-8">
 
       {/* ── Main leaderboard column ──────────────────────────── */}
-      <div className="flex-1 min-w-0 space-y-6">
+      <div className="app-stagger flex-1 min-w-0 space-y-6">
 
         {/* Header */}
         <div>
@@ -376,11 +376,11 @@ export default async function LeaderboardPage({
       </div>
 
       {/* ── Right stats sidebar ──────────────────────────────── */}
-      <aside className="w-full flex-shrink-0 space-y-4 xl:w-72 xl:pt-[68px]">
+      <aside className="app-stagger w-full flex-shrink-0 space-y-4 xl:w-72 xl:pt-[68px]">
 
         {/* Your rank card */}
         <div
-          className="rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_8px_32px_rgba(242,107,31,0.15)]"
+          className="hover-raise rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_8px_32px_rgba(242,107,31,0.15)]"
           style={{
             background: "linear-gradient(145deg, #2A1208 0%, #3D1A08 55%, #1A1207 100%)",
             border: "1px solid rgba(242,107,31,0.25)",
@@ -438,7 +438,7 @@ export default async function LeaderboardPage({
 
         {/* Next rank progress */}
         {xpToNext !== null && xpToNext > 0 && nextEntry && (
-          <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
+          <div className="hover-raise bg-surface rounded-3xl p-5 border border-outline-variant space-y-3">
             <div className="flex items-center gap-2">
               <span
                 className="material-symbols-outlined text-primary text-xl"
@@ -460,7 +460,7 @@ export default async function LeaderboardPage({
         )}
 
         {/* Your stats */}
-        <div className="bg-surface rounded-3xl p-5 border border-outline-variant space-y-4">
+        <div className="hover-raise bg-surface rounded-3xl p-5 border border-outline-variant space-y-4">
           <h3 className="font-bold text-on-background text-sm">Your Stats</h3>
           <div className="space-y-3">
             {[
