@@ -37,6 +37,13 @@ import {
   parseOptionalPositiveNumber,
   validateFeedback,
 } from "../lib/auth/validation.ts";
+import {
+  HABIT_NAME_MAX_LENGTH,
+  normalizeHabitName,
+  normalizeReminderSchedule,
+  validateHabitInput,
+  validateLogValueForHabit,
+} from "../lib/habits/input-rules.ts";
 import { streakFromDates } from "../lib/coach/streak.ts";
 import { buildCompletionValuePayload } from "../lib/data/completions.ts";
 import {
@@ -836,6 +843,146 @@ test("positive number parsing rejects invalid habit targets", () => {
   assert.deepEqual(parseOptionalPositiveNumber("2.5"), { ok: true, value: 2.5 });
   assert.equal(parseOptionalPositiveNumber("0").ok, false);
   assert.equal(parseOptionalPositiveNumber("-1").ok, false);
+});
+
+test("habit input rules reject empty long and duplicate names", () => {
+  const existing = [
+    { id: "h1", name: "Drink Water", archived_at: null },
+    { id: "h2", name: "Archived Habit", archived_at: "2026-05-01T00:00:00Z" },
+  ];
+
+  assert.deepEqual(normalizeHabitName("  Drink   Water  "), "Drink Water");
+  assert.equal(
+    validateHabitInput({ name: "   ", metricType: "boolean", target: null, existingHabits: [] })
+      .ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: "x".repeat(HABIT_NAME_MAX_LENGTH + 1),
+      metricType: "boolean",
+      target: null,
+      existingHabits: [],
+    }).ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: " drink water ",
+      metricType: "boolean",
+      target: null,
+      existingHabits: existing,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: "Archived Habit",
+      metricType: "boolean",
+      target: null,
+      existingHabits: existing,
+    }).ok,
+    true,
+  );
+});
+
+test("habit input rules require bounded quantitative targets", () => {
+  assert.equal(
+    validateHabitInput({ name: "Walk", metricType: "steps", target: null, existingHabits: [] }).ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({ name: "Walk", metricType: "steps", target: 0, existingHabits: [] }).ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: "Walk",
+      metricType: "steps",
+      target: 50001,
+      existingHabits: [],
+    }).ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: "Walk",
+      metricType: "steps",
+      target: 10000,
+      existingHabits: [],
+    }).ok,
+    true,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: "Meditate",
+      metricType: "boolean",
+      target: null,
+      existingHabits: [],
+    }).ok,
+    true,
+  );
+});
+
+test("schedule rules reject contradictory reminder settings and normalize values", () => {
+  assert.equal(
+    normalizeReminderSchedule({
+      remindersEnabled: true,
+      reminderStrategy: "manual",
+      reminderTimes: [],
+      reminderDays: [1],
+      reminderIntervalMinutes: null,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    normalizeReminderSchedule({
+      remindersEnabled: true,
+      reminderStrategy: "interval",
+      reminderTimes: [],
+      reminderDays: [1],
+      reminderIntervalMinutes: 0,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    normalizeReminderSchedule({
+      remindersEnabled: true,
+      reminderStrategy: "manual",
+      reminderTimes: ["08:30"],
+      reminderDays: [],
+      reminderIntervalMinutes: null,
+    }).ok,
+    false,
+  );
+
+  const normalized = normalizeReminderSchedule({
+    remindersEnabled: true,
+    reminderStrategy: "manual",
+    reminderTimes: ["08:30", "08:30", "20:00"],
+    reminderDays: [5, 1, 1],
+    reminderIntervalMinutes: null,
+  });
+  assert.deepEqual(normalized, {
+    ok: true,
+    data: {
+      remindersEnabled: true,
+      reminderTimes: ["08:30", "20:00"],
+      reminderDays: [1, 5],
+      reminderIntervalMinutes: null,
+    },
+  });
+});
+
+test("log value rules reject non-positive and unreasonable values", () => {
+  assert.deepEqual(validateLogValueForHabit(5, { metricType: "minutes", target: 30 }), {
+    ok: true,
+    value: 5,
+  });
+  assert.equal(validateLogValueForHabit(0, { metricType: "minutes", target: 30 }).ok, false);
+  assert.equal(validateLogValueForHabit(-1, { metricType: "minutes", target: 30 }).ok, false);
+  assert.equal(validateLogValueForHabit(31, { metricType: "minutes", target: 30 }).ok, false);
+  assert.equal(validateLogValueForHabit(2500, { metricType: "volume_ml", target: 2000 }).ok, true);
 });
 
 test("habit form validation errors are accessible beyond color", () => {
