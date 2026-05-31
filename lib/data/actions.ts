@@ -20,6 +20,7 @@ import {
   isGoogleNativeCancellationError,
 } from "../auth/google-native";
 import { buildCompletionValuePayload } from "./completions";
+import { validateCompletionPeriod, validateCompletionValue } from "./completion-rules";
 import { clearDataCache } from "./cache";
 import { localDateKey } from "../utils/date";
 import {
@@ -34,11 +35,10 @@ import {
   mergeHabitSettings,
   scoreHabitSimilarity,
   type HabitType,
-  type MetricType,
   type ReminderStrategy,
   type VisualType,
 } from "../coach/habit-intelligence";
-import type { Habit } from "../../types/db";
+import type { Habit, MetricType } from "../../types/db";
 import {
   normalizeReminderSchedule,
   validateHabitInput,
@@ -349,12 +349,15 @@ export async function logCompletion(
   habitId: string,
   value?: number,
   note?: string,
+  completedOn = localDateKey(),
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  const period = validateCompletionPeriod(completedOn, { operation: "log" });
+  if (!period.ok) return { ok: false, error: period.error };
   const { error } = await supabase.rpc("log_habit_completion", {
     p_habit_id: habitId,
-    p_completed_on: localDateKey(),
+    p_completed_on: completedOn,
     p_increment: value ?? 1,
     p_note: note?.trim() || null,
   });
@@ -368,15 +371,35 @@ export async function setCompletionValue(
   habitId: string,
   value: number,
   note?: string,
+  completedOn = localDateKey(),
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
 
+  const period = validateCompletionPeriod(completedOn, { operation: "set" });
+  if (!period.ok) return { ok: false, error: period.error };
+
+  const { data: habit, error: habitError } = await supabase
+    .from("habits")
+    .select("target, metric_type")
+    .eq("id", habitId)
+    .eq("user_id", user.id)
+    .single();
+  if (habitError) return mutationResult(habitError);
+  const normalizedValue = validateCompletionValue(value, {
+    metricType: ((habit as { metric_type: MetricType | null }).metric_type ?? "boolean"),
+    target: (habit as { target: number | null }).target,
+  });
+  if (!normalizedValue.ok) return { ok: false, error: normalizedValue.error };
+
   const { error } = await supabase
     .from("habit_completions")
-    .upsert(buildCompletionValuePayload(habitId, user.id, localDateKey(), value, note), {
-      onConflict: "habit_id,completed_on",
-    });
+    .upsert(
+      buildCompletionValuePayload(habitId, user.id, completedOn, normalizedValue.value, note),
+      {
+        onConflict: "habit_id,completed_on",
+      },
+    );
   if (error) return mutationResult(error);
   clearDataCache();
   scheduleReminderSync();
@@ -388,9 +411,16 @@ export async function toggleHabit(
   habitId: string,
   currentlyDone: boolean,
   knownTarget?: number | null,
+  completedOn = localDateKey(),
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+
+  const period = validateCompletionPeriod(completedOn, {
+    operation: currentlyDone ? "undo" : "done",
+    existingCompletion: currentlyDone,
+  });
+  if (!period.ok) return { ok: false, error: period.error };
 
   if (currentlyDone) {
     const { error } = await supabase
@@ -398,7 +428,7 @@ export async function toggleHabit(
       .delete()
       .eq("habit_id", habitId)
       .eq("user_id", user.id)
-      .eq("completed_on", localDateKey());
+      .eq("completed_on", completedOn);
     if (error) return mutationResult(error);
     clearDataCache();
     scheduleReminderSync();
@@ -424,7 +454,7 @@ export async function toggleHabit(
   const { error } = await supabase
     .from("habit_completions")
     .upsert(
-      { habit_id: habitId, user_id: user.id, completed_on: localDateKey(), value: resolvedTarget },
+      { habit_id: habitId, user_id: user.id, completed_on: completedOn, value: resolvedTarget },
       { onConflict: "habit_id,completed_on" },
     );
   if (error) return mutationResult(error);

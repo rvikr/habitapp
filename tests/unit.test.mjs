@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { addLocalDays, localDateDaysAgo, localDateKey } from "../lib/utils/date.ts";
+import {
+  addDateKeyDays,
+  addLocalDays,
+  dayIndexForDateKey,
+  isValidDateKey as isValidAppDateKey,
+  localDateDaysAgo,
+  localDateKey,
+} from "../lib/utils/date.ts";
 import {
   XP_PER_COMPLETION,
   XP_PER_LEVEL,
@@ -45,6 +52,11 @@ import {
   validateLogValueForHabit,
 } from "../lib/habits/input-rules.ts";
 import { streakFromDates } from "../lib/coach/streak.ts";
+import {
+  COMPLETION_LOOKBACK_DAYS,
+  validateCompletionPeriod,
+  validateCompletionValue,
+} from "../lib/data/completion-rules.ts";
 import { buildCompletionValuePayload } from "../lib/data/completions.ts";
 import {
   healthConnectTodayRange,
@@ -112,6 +124,50 @@ function test(name, fn) {
 
 test("localDateKey uses local calendar fields", () => {
   assert.equal(localDateKey(new Date(2026, 0, 2, 23, 30)), "2026-01-02");
+});
+
+test("app date helpers validate date keys and add calendar days", () => {
+  assert.equal(isValidAppDateKey("2026-05-31"), true);
+  assert.equal(isValidAppDateKey("2026-02-30"), false);
+  assert.equal(addDateKeyDays("2026-12-31", 1), "2027-01-01");
+  assert.equal(dayIndexForDateKey("2026-05-31"), 0);
+});
+
+test("completion period rules reject future and too-old new logs", () => {
+  const now = new Date(2026, 4, 31, 12, 0);
+  assert.deepEqual(validateCompletionPeriod("2026-05-31", { now }), { ok: true });
+  assert.equal(validateCompletionPeriod("2026-06-01", { now }).ok, false);
+  assert.equal(
+    validateCompletionPeriod(addDateKeyDays("2026-05-31", -(COMPLETION_LOOKBACK_DAYS + 1)), {
+      now,
+    }).ok,
+    false,
+  );
+});
+
+test("completion period rules always allow undo of existing periods", () => {
+  const now = new Date(2026, 4, 31, 12, 0);
+  assert.equal(
+    validateCompletionPeriod("2026-01-01", {
+      now,
+      operation: "undo",
+      existingCompletion: true,
+    }).ok,
+    true,
+  );
+});
+
+test("completion value rules require positive bounded numbers", () => {
+  assert.deepEqual(validateCompletionValue(10, { metricType: "minutes", target: 30 }), {
+    ok: true,
+    value: 10,
+  });
+  assert.equal(validateCompletionValue(0, { metricType: "minutes", target: 30 }).ok, false);
+  assert.equal(
+    validateCompletionValue(Number.POSITIVE_INFINITY, { metricType: "steps", target: 10000 }).ok,
+    false,
+  );
+  assert.equal(validateCompletionValue(31, { metricType: "minutes", target: 30 }).ok, false);
 });
 
 test("localDateDaysAgo crosses month boundaries", () => {
