@@ -955,6 +955,16 @@ test("schedule rules reject contradictory reminder settings and normalize values
     }).ok,
     false,
   );
+  assert.equal(
+    normalizeReminderSchedule({
+      remindersEnabled: true,
+      reminderStrategy: "interval",
+      reminderTimes: ["08:00"],
+      reminderDays: [1],
+      reminderIntervalMinutes: -5,
+    }).ok,
+    false,
+  );
 
   const normalized = normalizeReminderSchedule({
     remindersEnabled: true,
@@ -983,6 +993,15 @@ test("log value rules reject non-positive and unreasonable values", () => {
   assert.equal(validateLogValueForHabit(-1, { metricType: "minutes", target: 30 }).ok, false);
   assert.equal(validateLogValueForHabit(31, { metricType: "minutes", target: 30 }).ok, false);
   assert.equal(validateLogValueForHabit(2500, { metricType: "volume_ml", target: 2000 }).ok, true);
+  assert.deepEqual(validateLogValueForHabit(0.5, { metricType: "distance_km", target: 5 }), {
+    ok: true,
+    value: 0.5,
+  });
+  assert.deepEqual(validateLogValueForHabit(1.5, { metricType: "hours", target: 8 }), {
+    ok: true,
+    value: 1.5,
+  });
+  assert.equal(validateLogValueForHabit(0.5, { metricType: "steps", target: 10000 }).ok, false);
 });
 
 test("habit form validation errors are accessible beyond color", () => {

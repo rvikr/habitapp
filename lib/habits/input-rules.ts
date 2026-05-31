@@ -15,6 +15,7 @@ const TARGET_MAX_BY_METRIC: Record<MetricType, number> = {
 };
 
 const CUMULATIVE_METRICS = new Set<MetricType>(["steps", "volume_ml"]);
+const DECIMAL_LOG_METRICS = new Set<MetricType>(["distance_km", "hours"]);
 
 type ExistingHabit = Pick<Habit, "id" | "name" | "archived_at">;
 
@@ -124,8 +125,17 @@ export function normalizeReminderSchedule(
   }
   if (
     input.reminderStrategy !== "manual" &&
+    input.reminderIntervalMinutes != null &&
+    (!Number.isFinite(input.reminderIntervalMinutes) || input.reminderIntervalMinutes <= 0)
+  ) {
+    errors.push("Choose a positive smart reminder interval.");
+  }
+  if (
+    input.reminderStrategy !== "manual" &&
     reminderTimes.length === 0 &&
-    (!input.reminderIntervalMinutes || input.reminderIntervalMinutes <= 0)
+    (input.reminderIntervalMinutes == null ||
+      !Number.isFinite(input.reminderIntervalMinutes) ||
+      input.reminderIntervalMinutes <= 0)
   ) {
     errors.push("Choose a positive smart reminder interval or add an override time.");
   }
@@ -149,7 +159,10 @@ export function validateLogValueForHabit(
   if (!Number.isFinite(value) || value <= 0) {
     return { ok: false, error: "Value must be a positive number." };
   }
-  const normalized = Math.floor(value);
+  if (!DECIMAL_LOG_METRICS.has(habit.metricType) && !Number.isInteger(value)) {
+    return { ok: false, error: "Value must be a whole number." };
+  }
+  const normalized = value;
   if (normalized > targetMax(habit.metricType)) {
     return { ok: false, error: `Value must be ${targetMax(habit.metricType)} or less.` };
   }
