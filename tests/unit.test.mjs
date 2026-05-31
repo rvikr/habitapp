@@ -1012,6 +1012,17 @@ test("habit form validation errors are accessible beyond color", () => {
   assert.match(source, /Error: \{message\}/);
 });
 
+test("habit form and actions use shared habit input rules", () => {
+  const formSource = readFileSync("components/habit-form.tsx", "utf8");
+  assert.match(formSource, /validateHabitInput/);
+  assert.match(formSource, /normalizeReminderSchedule/);
+
+  const actionsSource = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(actionsSource, /validateHabitInput/);
+  assert.match(actionsSource, /normalizeReminderSchedule/);
+  assert.match(actionsSource, /A habit with this name already exists/);
+});
+
 test("feedback validation requires useful message and valid rating", () => {
   assert.equal(validateFeedback({ rating: 5, message: "Great, but reminders need snooze." }), null);
   assert.equal(

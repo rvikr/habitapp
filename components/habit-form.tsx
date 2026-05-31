@@ -14,6 +14,10 @@ import type { Habit } from "@/types/db";
 import type { CatalogEntry } from "@/lib/data/habit-catalog";
 import { isValidReminderTime, parseOptionalPositiveNumber } from "@/lib/auth/validation";
 import {
+  normalizeReminderSchedule,
+  validateHabitInput,
+} from "@/lib/habits/input-rules";
+import {
   inferHabitIntelligence,
   unitOptionsForHabit,
   type HabitType,
@@ -207,42 +211,46 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
       reminderIntervalMinutes,
       defaultLogValue,
     });
-    if (
-      remindersEnabled &&
-      intelligence.reminderStrategy === "manual" &&
-      reminderTimes.length === 0
-    ) {
-      setFormError(t("Add at least one reminder time or turn reminders off."));
+    const habitRules = validateHabitInput({
+      name,
+      metricType: intelligence.metricType,
+      target: parsedTarget.value,
+      existingHabits: [],
+      currentHabitId: initial?.id ?? null,
+    });
+    if (!habitRules.ok) {
+      setFormError(t(habitRules.errors[0]));
       return;
     }
-    if (remindersEnabled && reminderTimes.some((time) => !isValidReminderTime(time))) {
-      setFormError(t("Use valid 24-hour reminder times."));
+
+    const scheduleRules = normalizeReminderSchedule({
+      remindersEnabled,
+      reminderStrategy: intelligence.reminderStrategy,
+      reminderTimes,
+      reminderDays,
+      reminderIntervalMinutes: intelligence.reminderIntervalMinutes,
+    });
+    if (!scheduleRules.ok) {
+      setFormError(t(scheduleRules.errors[0]));
       return;
     }
-    if (reminderDays.some((day) => day < 0 || day > 6)) {
-      setFormError(t("Choose valid reminder days."));
-      return;
-    }
+
     setFormError(null);
     const payload: FormData = {
-      name: name.trim(),
+      name: habitRules.data.name,
       description: description.trim() || null,
       icon,
       color,
       unit: unit.trim(),
-      target: parsedTarget.value,
-      remindersEnabled,
-      reminderTimes: remindersEnabled ? reminderTimes : [],
-      reminderDays: remindersEnabled
-        ? reminderDays.length > 0
-          ? reminderDays
-          : [0, 1, 2, 3, 4, 5, 6]
-        : [0, 1, 2, 3, 4, 5, 6],
+      target: habitRules.data.target,
+      remindersEnabled: scheduleRules.data.remindersEnabled,
+      reminderTimes: scheduleRules.data.reminderTimes,
+      reminderDays: scheduleRules.data.reminderDays,
       habitType: intelligence.habitType,
       metricType: intelligence.metricType,
       visualType: intelligence.visualType,
       reminderStrategy: intelligence.reminderStrategy,
-      reminderIntervalMinutes: intelligence.reminderIntervalMinutes,
+      reminderIntervalMinutes: scheduleRules.data.reminderIntervalMinutes,
       defaultLogValue: intelligence.defaultLogValue,
       mergeSimilar,
     };

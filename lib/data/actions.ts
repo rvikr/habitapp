@@ -39,6 +39,10 @@ import {
   type VisualType,
 } from "../coach/habit-intelligence";
 import type { Habit } from "../../types/db";
+import {
+  normalizeReminderSchedule,
+  validateHabitInput,
+} from "../habits/input-rules";
 import { validateHabitLocally, type HabitValidationResult } from "../habits/validate";
 import { validateHabitRemote } from "../habits/validate-remote";
 
@@ -78,6 +82,59 @@ async function runHabitValidation(
   const local = validateHabitLocally(input);
   if (local.status !== "uncertain") return local;
   return validateHabitRemote(input);
+}
+
+const DUPLICATE_HABIT_NAME_ERROR = "A habit with this name already exists.";
+
+function habitInputActionError(error: string): string {
+  return error === DUPLICATE_HABIT_NAME_ERROR ? DUPLICATE_HABIT_NAME_ERROR : error;
+}
+
+async function validateHabitMutationInput(
+  userId: string,
+  data: HabitMutationData,
+  intelligence: ReturnType<typeof inferHabitIntelligence>,
+  currentHabitId?: string,
+): Promise<
+  | { ok: true; data: HabitMutationData }
+  | { ok: false; error: string }
+> {
+  const { data: existingHabits, error } = await supabase
+    .from("habits")
+    .select("id, name, archived_at")
+    .eq("user_id", userId);
+  if (error) return { ok: false, error: error.message };
+
+  const habitRules = validateHabitInput({
+    name: data.name,
+    metricType: intelligence.metricType,
+    target: intelligence.target,
+    existingHabits: (existingHabits ?? []) as Pick<Habit, "id" | "name" | "archived_at">[],
+    currentHabitId: currentHabitId ?? null,
+  });
+  if (!habitRules.ok) return { ok: false, error: habitInputActionError(habitRules.errors[0]) };
+
+  const scheduleRules = normalizeReminderSchedule({
+    remindersEnabled: data.remindersEnabled,
+    reminderStrategy: intelligence.reminderStrategy,
+    reminderTimes: data.reminderTimes,
+    reminderDays: data.reminderDays,
+    reminderIntervalMinutes: intelligence.reminderIntervalMinutes,
+  });
+  if (!scheduleRules.ok) return { ok: false, error: scheduleRules.errors[0] };
+
+  return {
+    ok: true,
+    data: {
+      ...data,
+      name: habitRules.data.name,
+      target: habitRules.data.target,
+      remindersEnabled: scheduleRules.data.remindersEnabled,
+      reminderTimes: scheduleRules.data.reminderTimes,
+      reminderDays: scheduleRules.data.reminderDays,
+      reminderIntervalMinutes: scheduleRules.data.reminderIntervalMinutes,
+    },
+  };
 }
 
 async function getUser() {
@@ -445,6 +502,10 @@ export async function createHabit(data: HabitMutationData) {
     defaultLogValue: data.defaultLogValue,
   });
 
+  const inputRules = await validateHabitMutationInput(user.id, data, intelligence);
+  if (!inputRules.ok) return { ok: false, id: null, error: inputRules.error };
+  data = inputRules.data;
+
   const validation = await runHabitValidation(intelligence, data);
   if (validation.status === "block") {
     return { ok: false, id: null, validation };
@@ -577,6 +638,10 @@ export async function updateHabitFull(
     reminderIntervalMinutes: data.reminderIntervalMinutes,
     defaultLogValue: data.defaultLogValue,
   });
+
+  const inputRules = await validateHabitMutationInput(user.id, data, intelligence, habitId);
+  if (!inputRules.ok) return { ok: false, error: inputRules.error };
+  data = inputRules.data;
 
   const validation = await runHabitValidation(intelligence, data);
   if (validation.status === "block") {
