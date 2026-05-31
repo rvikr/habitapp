@@ -1852,6 +1852,62 @@ test("offline queue compaction deep clones JSON-like payload values", () => {
   assert.deepEqual(mutation.payload.reminder_settings.days, [1, 3, 5]);
 });
 
+test("offline queue compaction deep clones synthesized completion payload values", () => {
+  const setThenIncrement = [
+    {
+      id: "set-with-meta",
+      entityKey: "completion:h1:2026-05-31",
+      type: "completion.set",
+      payload: { habitId: "h1", completedOn: "2026-05-31", value: 1 },
+      createdAt: "2026-05-31T08:00:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+    },
+    {
+      id: "increment-with-meta",
+      entityKey: "completion:h1:2026-05-31",
+      type: "completion.increment",
+      payload: {
+        habitId: "h1",
+        completedOn: "2026-05-31",
+        value: 2,
+        meta: { tags: ["a"] },
+      },
+      createdAt: "2026-05-31T08:01:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:01:00.000Z",
+    },
+  ];
+  const incrementOnly = {
+    id: "folded-increment-with-meta",
+    entityKey: "completion:h2:2026-05-31",
+    type: "completion.increment",
+    payload: {
+      habitId: "h2",
+      completedOn: "2026-05-31",
+      value: 1,
+      meta: { tags: ["b"] },
+    },
+    createdAt: "2026-05-31T08:02:00.000Z",
+    clientUpdatedAt: "2026-05-31T08:02:00.000Z",
+  };
+
+  const compacted = compactOfflineMutations([...setThenIncrement, incrementOnly]);
+  const compactedSet = compacted.find((mutation) => mutation.entityKey === "completion:h1:2026-05-31");
+  const compactedIncrement = compacted.find(
+    (mutation) => mutation.entityKey === "completion:h2:2026-05-31",
+  );
+
+  assert.notEqual(compactedSet.payload.meta, setThenIncrement[1].payload.meta);
+  assert.notEqual(compactedSet.payload.meta.tags, setThenIncrement[1].payload.meta.tags);
+  assert.notEqual(compactedIncrement.payload.meta, incrementOnly.payload.meta);
+  assert.notEqual(compactedIncrement.payload.meta.tags, incrementOnly.payload.meta.tags);
+
+  compactedSet.payload.meta.tags.push("mutated");
+  compactedIncrement.payload.meta.tags.push("mutated");
+
+  assert.deepEqual(setThenIncrement[1].payload.meta.tags, ["a"]);
+  assert.deepEqual(incrementOnly.payload.meta.tags, ["b"]);
+});
+
 test("offline queue folds completion increments and honors newest delete", () => {
   const compacted = compactOfflineMutations([
     {

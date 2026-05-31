@@ -121,6 +121,13 @@ function numericPayloadValue(mutation: OfflineMutation): number {
     : 0;
 }
 
+function clonePayloadWithValue(mutation: OfflineMutation, value: number): Record<string, unknown> {
+  return {
+    ...(cloneJsonLikeValue(mutation.payload) as Record<string, unknown>),
+    value,
+  };
+}
+
 function compactCompletionMutations(mutations: readonly OfflineMutation[]): OfflineMutation {
   const ordered = [...mutations].sort(compareMutationTime);
   let latestTerminal: OfflineMutation | null = null;
@@ -151,20 +158,14 @@ function compactCompletionMutations(mutations: readonly OfflineMutation[]): Offl
     return {
       ...cloneMutation(latestContributor),
       type: "completion.set",
-      payload: {
-        ...latestContributor.payload,
-        value: baseline + incrementTotal,
-      },
+      payload: clonePayloadWithValue(latestContributor, baseline + incrementTotal),
     };
   }
 
   const latestIncrement = increments.reduce((latest, mutation) => newestMutation(latest, mutation));
   return {
     ...cloneMutation(latestIncrement),
-    payload: {
-      ...latestIncrement.payload,
-      value: incrementTotal,
-    },
+    payload: clonePayloadWithValue(latestIncrement, incrementTotal),
   };
 }
 
