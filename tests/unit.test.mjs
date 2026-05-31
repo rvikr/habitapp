@@ -2315,6 +2315,17 @@ test("reminders screen previews skip AI smart reminder invocation", () => {
   assert.match(source, /getReminderSchedule\(\{\s*aiSmartReminders:\s*false\s*\}\)/);
 });
 
+test("habit mutations enqueue retryable offline operations", () => {
+  const source = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(source, /createOfflineQueue/);
+  assert.match(source, /queueRetryableMutation/);
+  assert.match(source, /habit\.upsert/);
+  assert.match(source, /habit\.archive/);
+  assert.match(source, /completion\.set/);
+  assert.match(source, /completion\.increment/);
+  assert.match(source, /completion\.delete/);
+});
+
 test("routine builder gives office workers water posture walking and sleep habits", () => {
   const routine = buildRoutineRecommendations({
     goals: ["energy", "health"],

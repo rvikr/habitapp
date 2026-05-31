@@ -23,6 +23,8 @@ import { buildCompletionValuePayload } from "./completions";
 import { validateCompletionPeriod, validateCompletionValue } from "./completion-rules";
 import { clearDataCache } from "./cache";
 import { localDateKey } from "../utils/date";
+import { getItem, removeItem, setItem } from "../platform/storage";
+import { createOfflineQueue, type OfflineMutation, type OfflineMutationType } from "./offline-queue";
 import {
   cancelHabitReminders,
   scheduleReminderSync,
@@ -47,6 +49,7 @@ import { validateHabitLocally, type HabitValidationResult } from "../habits/vali
 import { validateHabitRemote } from "../habits/validate-remote";
 
 type ActionResult = { ok: boolean; error?: string };
+type QueuedMutationResult = { ok: true; queued: true } | { ok: false; error: string };
 type HabitMutationData = {
   name: string;
   description: string | null;
@@ -151,6 +154,43 @@ function mutationResult(error: { message?: string } | null | undefined): ActionR
 
 function networkError(): Error {
   return new Error("Network error. Check your connection and try again.");
+}
+
+const offlineQueue = createOfflineQueue({ getItem, setItem, removeItem });
+
+function isRetryableError(error: { message?: string } | null | undefined): boolean {
+  return /network|fetch|timeout|offline|connection/i.test(error?.message ?? "");
+}
+
+async function queueRetryableMutation(
+  type: OfflineMutationType,
+  entityKey: string,
+  payload: Record<string, unknown>,
+  error: { message?: string } | null | undefined,
+): Promise<QueuedMutationResult> {
+  if (!isRetryableError(error)) {
+    return { ok: false, error: error?.message ?? "Something went wrong." };
+  }
+
+  const now = new Date().toISOString();
+  const mutation: OfflineMutation = {
+    id: `${type}:${entityKey}:${now}`,
+    type,
+    entityKey,
+    payload,
+    createdAt: now,
+    clientUpdatedAt: now,
+  };
+
+  try {
+    await offlineQueue.enqueue(mutation);
+    return { ok: true, queued: true };
+  } catch (queueError) {
+    return {
+      ok: false,
+      error: queueError instanceof Error ? queueError.message : "Could not queue offline change.",
+    };
+  }
 }
 
 function isMissingSmartHabitColumn(
@@ -361,7 +401,14 @@ export async function logCompletion(
     p_increment: value ?? 1,
     p_note: note?.trim() || null,
   });
-  if (error) return mutationResult(error);
+  if (error) {
+    return queueRetryableMutation(
+      "completion.increment",
+      `completion:${habitId}:${completedOn}`,
+      { habitId, completedOn, value: value ?? 1, note: note?.trim() || null },
+      error,
+    );
+  }
   clearDataCache();
   scheduleReminderSync();
   return { ok: true };
@@ -408,7 +455,14 @@ export async function setCompletionValue(
         onConflict: "habit_id,completed_on",
       },
     );
-  if (error) return mutationResult(error);
+  if (error) {
+    return queueRetryableMutation(
+      "completion.set",
+      `completion:${habitId}:${completedOn}`,
+      { habitId, completedOn, value: normalizedValue.value, note: note?.trim() || null },
+      error,
+    );
+  }
   clearDataCache();
   scheduleReminderSync();
   track("habit_progress_set", { habit_id: habitId });
@@ -437,7 +491,14 @@ export async function toggleHabit(
       .eq("habit_id", habitId)
       .eq("user_id", user.id)
       .eq("completed_on", completedOn);
-    if (error) return mutationResult(error);
+    if (error) {
+      return queueRetryableMutation(
+        "completion.delete",
+        `completion:${habitId}:${completedOn}`,
+        { habitId, completedOn },
+        error,
+      );
+    }
     clearDataCache();
     scheduleReminderSync();
     track("habit_uncompleted", { habit_id: habitId });
@@ -465,7 +526,14 @@ export async function toggleHabit(
       { habit_id: habitId, user_id: user.id, completed_on: completedOn, value: resolvedTarget },
       { onConflict: "habit_id,completed_on" },
     );
-  if (error) return mutationResult(error);
+  if (error) {
+    return queueRetryableMutation(
+      "completion.set",
+      `completion:${habitId}:${completedOn}`,
+      { habitId, completedOn, value: resolvedTarget },
+      error,
+    );
+  }
   clearDataCache();
   scheduleReminderSync();
   track("habit_completed", { habit_id: habitId });
@@ -602,7 +670,15 @@ export async function createHabit(data: HabitMutationData) {
       .eq("id", match.habit.id)
       .eq("user_id", user.id);
     if (error) {
-      if (!isMissingSmartHabitColumn(error)) return { ok: false, id: null, error: error.message };
+      if (!isMissingSmartHabitColumn(error)) {
+        const result = await queueRetryableMutation(
+          "habit.upsert",
+          `habit:${match.habit.id}`,
+          mergePayload,
+          error,
+        );
+        return { ...result, id: null };
+      }
       const { error: legacyError } = await supabase
         .from("habits")
         .update({
@@ -616,7 +692,23 @@ export async function createHabit(data: HabitMutationData) {
         })
         .eq("id", match.habit.id)
         .eq("user_id", user.id);
-      if (legacyError) return { ok: false, id: null, error: legacyError.message };
+      if (legacyError) {
+        const result = await queueRetryableMutation(
+          "habit.upsert",
+          `habit:${match.habit.id}`,
+          {
+            name: merged.name,
+            description: merged.description,
+            unit: merged.unit,
+            target: merged.target,
+            reminders_enabled: reminders.enabled,
+            reminder_times: reminders.times,
+            reminder_days: reminders.days,
+          },
+          legacyError,
+        );
+        return { ...result, id: null };
+      }
     }
     clearDataCache();
     scheduleReminderSync();
@@ -630,13 +722,29 @@ export async function createHabit(data: HabitMutationData) {
     .select("id")
     .single();
   if (error) {
-    if (!isMissingSmartHabitColumn(error)) return { ok: false, id: null, error: error.message };
+    if (!isMissingSmartHabitColumn(error)) {
+      const result = await queueRetryableMutation(
+        "habit.upsert",
+        `habit:new:${user.id}:${data.name}`,
+        smartHabitPayload(data, intelligence, user.id),
+        error,
+      );
+      return { ...result, id: null };
+    }
     const { data: legacyRow, error: legacyError } = await supabase
       .from("habits")
       .insert(legacyHabitPayload(data, intelligence, user.id))
       .select("id")
       .single();
-    if (legacyError) return { ok: false, id: null, error: legacyError.message };
+    if (legacyError) {
+      const result = await queueRetryableMutation(
+        "habit.upsert",
+        `habit:new:${user.id}:${data.name}`,
+        legacyHabitPayload(data, intelligence, user.id),
+        legacyError,
+      );
+      return { ...result, id: null };
+    }
     clearDataCache();
     if (data.remindersEnabled) scheduleReminderSync();
     track("habit_created", {
@@ -695,13 +803,27 @@ export async function updateHabitFull(
     .eq("id", habitId)
     .eq("user_id", user.id);
   if (error) {
-    if (!isMissingSmartHabitColumn(error)) return mutationResult(error);
+    if (!isMissingSmartHabitColumn(error)) {
+      return queueRetryableMutation(
+        "habit.upsert",
+        `habit:${habitId}`,
+        smartHabitPayload(data, intelligence),
+        error,
+      );
+    }
     const { error: legacyError } = await supabase
       .from("habits")
       .update(legacyHabitPayload(data, intelligence))
       .eq("id", habitId)
       .eq("user_id", user.id);
-    if (legacyError) return mutationResult(legacyError);
+    if (legacyError) {
+      return queueRetryableMutation(
+        "habit.upsert",
+        `habit:${habitId}`,
+        legacyHabitPayload(data, intelligence),
+        legacyError,
+      );
+    }
   }
 
   clearDataCache();
@@ -713,12 +835,20 @@ export async function updateHabitFull(
 export async function deleteHabit(habitId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  const archivedAt = new Date().toISOString();
   const { error } = await supabase
     .from("habits")
-    .update({ archived_at: new Date().toISOString(), reminders_enabled: false })
+    .update({ archived_at: archivedAt, reminders_enabled: false })
     .eq("id", habitId)
     .eq("user_id", user.id);
-  if (error) return mutationResult(error);
+  if (error) {
+    return queueRetryableMutation(
+      "habit.archive",
+      `habit:${habitId}`,
+      { habitId, archived_at: archivedAt },
+      error,
+    );
+  }
 
   clearDataCache();
   await cancelHabitReminders(habitId);
