@@ -95,6 +95,12 @@ import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
 import { generateContent } from "../supabase/functions/_shared/gemini.ts";
 import * as subscriptionAccess from "../lib/subscription/access.ts";
 import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
+import {
+  OFFLINE_QUEUE_STORAGE_KEY,
+  compactOfflineMutations,
+  createOfflineQueue,
+  reconcileOfflineMutations,
+} from "../lib/data/offline-queue.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
 import {
   dateKeyInTimeZone,
@@ -1723,6 +1729,189 @@ function createMemoryStorage(initial = {}) {
     },
   };
 }
+
+test("offline queue persists operations across storage reload", async () => {
+  const storage = createMemoryStorage();
+  const firstQueue = createOfflineQueue(storage);
+  const mutation = {
+    id: "m1",
+    entityKey: "habit:h1",
+    operation: "habit.upsert",
+    payload: { id: "h1", name: "Drink water" },
+    createdAt: "2026-05-31T08:00:00.000Z",
+    clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+  };
+
+  await firstQueue.enqueue(mutation);
+  const secondQueue = createOfflineQueue(storage);
+
+  assert.deepEqual(await secondQueue.read(), [mutation]);
+  assert.equal(storage.values.has(OFFLINE_QUEUE_STORAGE_KEY), true);
+});
+
+test("offline queue compacts habit updates by last write", () => {
+  const compacted = compactOfflineMutations([
+    {
+      id: "m-old",
+      entityKey: "habit:h1",
+      operation: "habit.upsert",
+      payload: { id: "h1", name: "Old name" },
+      createdAt: "2026-05-31T08:00:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+    },
+    {
+      id: "m-archive",
+      entityKey: "habit:h2",
+      operation: "habit.archive",
+      payload: { id: "h2", archived_at: "2026-05-31T08:10:00.000Z" },
+      createdAt: "2026-05-31T08:10:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:10:00.000Z",
+    },
+    {
+      id: "m-new",
+      entityKey: "habit:h1",
+      operation: "habit.upsert",
+      payload: { id: "h1", name: "New name" },
+      createdAt: "2026-05-31T08:05:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:05:00.000Z",
+    },
+  ]);
+
+  assert.deepEqual(
+    compacted.map((mutation) => [mutation.id, mutation.operation, mutation.payload]),
+    [
+      ["m-new", "habit.upsert", { id: "h1", name: "New name" }],
+      ["m-archive", "habit.archive", { id: "h2", archived_at: "2026-05-31T08:10:00.000Z" }],
+    ],
+  );
+});
+
+test("offline queue folds completion increments and honors newest delete", () => {
+  const compacted = compactOfflineMutations([
+    {
+      id: "older-delete",
+      entityKey: "completion:h1:2026-05-31",
+      operation: "completion.delete",
+      payload: { habitId: "h1", completedOn: "2026-05-31" },
+      createdAt: "2026-05-31T07:59:00.000Z",
+      clientUpdatedAt: "2026-05-31T07:59:00.000Z",
+    },
+    {
+      id: "newer-set",
+      entityKey: "completion:h1:2026-05-31",
+      operation: "completion.set",
+      payload: { habitId: "h1", completedOn: "2026-05-31", value: 3 },
+      createdAt: "2026-05-31T08:00:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+    },
+    {
+      id: "increment-after-set",
+      entityKey: "completion:h1:2026-05-31",
+      operation: "completion.increment",
+      payload: { habitId: "h1", completedOn: "2026-05-31", value: 2 },
+      createdAt: "2026-05-31T08:01:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:01:00.000Z",
+    },
+    {
+      id: "deleted-last",
+      entityKey: "completion:h2:2026-05-31",
+      operation: "completion.delete",
+      payload: { habitId: "h2", completedOn: "2026-05-31" },
+      createdAt: "2026-05-31T08:03:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:03:00.000Z",
+    },
+    {
+      id: "ignored-increment",
+      entityKey: "completion:h2:2026-05-31",
+      operation: "completion.increment",
+      payload: { habitId: "h2", completedOn: "2026-05-31", value: 4 },
+      createdAt: "2026-05-31T08:02:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:02:00.000Z",
+    },
+    {
+      id: "delete-before-increment",
+      entityKey: "completion:h3:2026-05-31",
+      operation: "completion.delete",
+      payload: { habitId: "h3", completedOn: "2026-05-31" },
+      createdAt: "2026-05-31T08:04:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:04:00.000Z",
+    },
+    {
+      id: "increment-after-delete",
+      entityKey: "completion:h3:2026-05-31",
+      operation: "completion.increment",
+      payload: { habitId: "h3", completedOn: "2026-05-31", value: 2 },
+      createdAt: "2026-05-31T08:05:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:05:00.000Z",
+    },
+  ]);
+
+  assert.deepEqual(
+    compacted.map((mutation) => [mutation.id, mutation.operation, mutation.payload]),
+    [
+      [
+        "increment-after-set",
+        "completion.set",
+        { habitId: "h1", completedOn: "2026-05-31", value: 5 },
+      ],
+      ["deleted-last", "completion.delete", { habitId: "h2", completedOn: "2026-05-31" }],
+      [
+        "increment-after-delete",
+        "completion.set",
+        { habitId: "h3", completedOn: "2026-05-31", value: 2 },
+      ],
+    ],
+  );
+});
+
+test("offline reconciliation keeps retryable failures queued and removes permanent failures", async () => {
+  const storage = createMemoryStorage();
+  const queue = createOfflineQueue(storage);
+  await queue.replace([
+    {
+      id: "sent",
+      entityKey: "habit:h1",
+      operation: "habit.upsert",
+      payload: { id: "h1", name: "Drink water" },
+      createdAt: "2026-05-31T08:00:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+    },
+    {
+      id: "retry",
+      entityKey: "completion:h1:2026-05-31",
+      operation: "completion.increment",
+      payload: { habitId: "h1", completedOn: "2026-05-31", value: 1 },
+      createdAt: "2026-05-31T08:01:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:01:00.000Z",
+    },
+    {
+      id: "invalid",
+      entityKey: "completion:h2:2026-05-31",
+      operation: "completion.set",
+      payload: { habitId: "h2", completedOn: "2026-05-31", value: -1 },
+      createdAt: "2026-05-31T08:02:00.000Z",
+      clientUpdatedAt: "2026-05-31T08:02:00.000Z",
+    },
+  ]);
+  const sent = [];
+
+  const result = await reconcileOfflineMutations(queue, async (mutation) => {
+    sent.push(mutation.id);
+    if (mutation.id === "retry") throw new Error("offline");
+    if (mutation.id === "invalid") {
+      const error = new Error("invalid value");
+      error.permanent = true;
+      throw error;
+    }
+  });
+
+  assert.deepEqual(sent, ["sent", "retry", "invalid"]);
+  assert.deepEqual(result, { sent: 1, removed: 1, remaining: 1 });
+  assert.deepEqual(
+    (await queue.read()).map((mutation) => mutation.id),
+    ["retry"],
+  );
+});
 
 function smartReminderTestContext(overrides = {}) {
   const now = overrides.now ?? new Date(2026, 4, 10, 9, 15);
