@@ -20,11 +20,11 @@ export function validateCompletionPeriod(
   options: PeriodOptions = {},
 ): CompletionRuleResult {
   if (!isValidDateKey(completedOn)) return { ok: false, error: "Use a valid completion date." };
-  if (options.operation === "undo" && options.existingCompletion) return { ok: true };
 
   const now = options.now ?? new Date();
   const today = localDateKey(now);
   if (completedOn > today) return { ok: false, error: "Completion date cannot be in the future." };
+  if (options.operation === "undo" && options.existingCompletion) return { ok: true };
 
   const lookbackDays = options.lookbackDays ?? COMPLETION_LOOKBACK_DAYS;
   const earliest = addDateKeyDays(today, -lookbackDays);

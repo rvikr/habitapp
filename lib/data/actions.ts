@@ -386,16 +386,24 @@ export async function setCompletionValue(
     .eq("user_id", user.id)
     .single();
   if (habitError) return mutationResult(habitError);
-  const normalizedValue = validateCompletionValue(value, {
+  const completionHabit = {
     metricType: ((habit as { metric_type: MetricType | null }).metric_type ?? "boolean"),
     target: (habit as { target: number | null }).target,
-  });
+  };
+  const normalizedValue = validateCompletionValue(value, completionHabit);
   if (!normalizedValue.ok) return { ok: false, error: normalizedValue.error };
 
   const { error } = await supabase
     .from("habit_completions")
     .upsert(
-      buildCompletionValuePayload(habitId, user.id, completedOn, normalizedValue.value, note),
+      buildCompletionValuePayload(
+        habitId,
+        user.id,
+        completedOn,
+        normalizedValue.value,
+        note,
+        completionHabit,
+      ),
       {
         onConflict: "habit_id,completed_on",
       },

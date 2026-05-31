@@ -157,6 +157,17 @@ test("completion period rules always allow undo of existing periods", () => {
   );
 });
 
+test("completion period rules reject future undo of existing periods", () => {
+  assert.equal(
+    validateCompletionPeriod("2026-06-01", {
+      now: new Date(2026, 4, 31, 12, 0),
+      operation: "undo",
+      existingCompletion: true,
+    }).ok,
+    false,
+  );
+});
+
 test("completion value rules require positive bounded numbers", () => {
   assert.deepEqual(validateCompletionValue(10, { metricType: "minutes", target: 30 }), {
     ok: true,
@@ -1215,6 +1226,28 @@ test("completion value payload stores absolute values", () => {
       value: 1234,
       note: "synced",
     },
+  );
+});
+
+test("setCompletionValue preserves decimal-capable completion values", () => {
+  assert.deepEqual(
+    buildCompletionValuePayload("sleep-1", "user-1", "2026-05-14", 1.5, " nap ", {
+      metricType: "hours",
+      target: 8,
+    }),
+    {
+      habit_id: "sleep-1",
+      user_id: "user-1",
+      completed_on: "2026-05-14",
+      value: 1.5,
+      note: "nap",
+    },
+  );
+
+  const actionsSource = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(
+    actionsSource,
+    /const completionHabit = \{[\s\S]*metricType:[\s\S]*target:[\s\S]*\};[\s\S]*validateCompletionValue\(value, completionHabit\)[\s\S]*buildCompletionValuePayload\(\s*habitId,\s*user\.id,\s*completedOn,\s*normalizedValue\.value,\s*note,\s*completionHabit,\s*\)/,
   );
 });
 
