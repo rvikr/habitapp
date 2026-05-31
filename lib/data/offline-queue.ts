@@ -56,10 +56,26 @@ function isOfflineMutationType(value: string): value is OfflineMutationType {
   );
 }
 
+function cloneJsonLikeValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(cloneJsonLikeValue);
+  }
+
+  if (value && typeof value === "object") {
+    const cloned: Record<string, unknown> = {};
+    for (const [key, nestedValue] of Object.entries(value)) {
+      cloned[key] = cloneJsonLikeValue(nestedValue);
+    }
+    return cloned;
+  }
+
+  return value;
+}
+
 function cloneMutation(mutation: OfflineMutation): OfflineMutation {
   return {
     ...mutation,
-    payload: { ...mutation.payload },
+    payload: cloneJsonLikeValue(mutation.payload) as Record<string, unknown>,
   };
 }
 
@@ -197,6 +213,10 @@ export function createOfflineQueue(
 
     async replace(mutations) {
       const cloned = mutations.map(cloneMutation);
+      if (cloned.length === 0 && storage.removeItem) {
+        await storage.removeItem(key);
+        return;
+      }
       await storage.setItem(key, JSON.stringify(cloned));
     },
 

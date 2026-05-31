@@ -1765,6 +1765,25 @@ test("offline queue reads persisted type-shaped mutations", async () => {
   assert.deepEqual(await createOfflineQueue(storage).read(), [mutation]);
 });
 
+test("offline queue removes persisted storage when replacing with an empty queue", async () => {
+  const storage = createMemoryStorage();
+  const queue = createOfflineQueue(storage);
+  const mutation = {
+    id: "m1",
+    entityKey: "habit:h1",
+    type: "habit.upsert",
+    payload: { id: "h1", name: "Drink water" },
+    createdAt: "2026-05-31T08:00:00.000Z",
+    clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+  };
+
+  await queue.enqueue(mutation);
+  await queue.replace([]);
+
+  assert.equal(storage.values.has(OFFLINE_QUEUE_STORAGE_KEY), false);
+  assert.deepEqual(await queue.read(), []);
+});
+
 test("offline queue compacts habit updates by last write", () => {
   const compacted = compactOfflineMutations([
     {
@@ -1800,6 +1819,37 @@ test("offline queue compacts habit updates by last write", () => {
       ["m-archive", "habit.archive", { id: "h2", archived_at: "2026-05-31T08:10:00.000Z" }],
     ],
   );
+});
+
+test("offline queue compaction deep clones JSON-like payload values", () => {
+  const mutation = {
+    id: "m1",
+    entityKey: "habit:h1",
+    type: "habit.upsert",
+    payload: {
+      id: "h1",
+      reminder_times: ["08:00", "18:00"],
+      reminder_settings: { enabled: true, days: [1, 3, 5] },
+    },
+    createdAt: "2026-05-31T08:00:00.000Z",
+    clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+  };
+
+  const [compacted] = compactOfflineMutations([mutation]);
+
+  assert.notEqual(compacted.payload, mutation.payload);
+  assert.notEqual(compacted.payload.reminder_times, mutation.payload.reminder_times);
+  assert.notEqual(compacted.payload.reminder_settings, mutation.payload.reminder_settings);
+  assert.notEqual(
+    compacted.payload.reminder_settings.days,
+    mutation.payload.reminder_settings.days,
+  );
+
+  compacted.payload.reminder_times.push("20:00");
+  compacted.payload.reminder_settings.days.push(6);
+
+  assert.deepEqual(mutation.payload.reminder_times, ["08:00", "18:00"]);
+  assert.deepEqual(mutation.payload.reminder_settings.days, [1, 3, 5]);
 });
 
 test("offline queue folds completion increments and honors newest delete", () => {
