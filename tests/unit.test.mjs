@@ -1730,13 +1730,13 @@ function createMemoryStorage(initial = {}) {
   };
 }
 
-test("offline queue persists operations across storage reload", async () => {
+test("offline queue persists mutations across storage reload", async () => {
   const storage = createMemoryStorage();
   const firstQueue = createOfflineQueue(storage);
   const mutation = {
     id: "m1",
     entityKey: "habit:h1",
-    operation: "habit.upsert",
+    type: "habit.upsert",
     payload: { id: "h1", name: "Drink water" },
     createdAt: "2026-05-31T08:00:00.000Z",
     clientUpdatedAt: "2026-05-31T08:00:00.000Z",
@@ -1749,12 +1749,28 @@ test("offline queue persists operations across storage reload", async () => {
   assert.equal(storage.values.has(OFFLINE_QUEUE_STORAGE_KEY), true);
 });
 
+test("offline queue reads persisted type-shaped mutations", async () => {
+  const mutation = {
+    id: "m1",
+    entityKey: "completion:h1:2026-05-31",
+    type: "completion.set",
+    payload: { habitId: "h1", completedOn: "2026-05-31", value: 1 },
+    createdAt: "2026-05-31T08:00:00.000Z",
+    clientUpdatedAt: "2026-05-31T08:00:00.000Z",
+  };
+  const storage = createMemoryStorage({
+    [OFFLINE_QUEUE_STORAGE_KEY]: JSON.stringify([mutation]),
+  });
+
+  assert.deepEqual(await createOfflineQueue(storage).read(), [mutation]);
+});
+
 test("offline queue compacts habit updates by last write", () => {
   const compacted = compactOfflineMutations([
     {
       id: "m-old",
       entityKey: "habit:h1",
-      operation: "habit.upsert",
+      type: "habit.upsert",
       payload: { id: "h1", name: "Old name" },
       createdAt: "2026-05-31T08:00:00.000Z",
       clientUpdatedAt: "2026-05-31T08:00:00.000Z",
@@ -1762,7 +1778,7 @@ test("offline queue compacts habit updates by last write", () => {
     {
       id: "m-archive",
       entityKey: "habit:h2",
-      operation: "habit.archive",
+      type: "habit.archive",
       payload: { id: "h2", archived_at: "2026-05-31T08:10:00.000Z" },
       createdAt: "2026-05-31T08:10:00.000Z",
       clientUpdatedAt: "2026-05-31T08:10:00.000Z",
@@ -1770,7 +1786,7 @@ test("offline queue compacts habit updates by last write", () => {
     {
       id: "m-new",
       entityKey: "habit:h1",
-      operation: "habit.upsert",
+      type: "habit.upsert",
       payload: { id: "h1", name: "New name" },
       createdAt: "2026-05-31T08:05:00.000Z",
       clientUpdatedAt: "2026-05-31T08:05:00.000Z",
@@ -1778,7 +1794,7 @@ test("offline queue compacts habit updates by last write", () => {
   ]);
 
   assert.deepEqual(
-    compacted.map((mutation) => [mutation.id, mutation.operation, mutation.payload]),
+    compacted.map((mutation) => [mutation.id, mutation.type, mutation.payload]),
     [
       ["m-new", "habit.upsert", { id: "h1", name: "New name" }],
       ["m-archive", "habit.archive", { id: "h2", archived_at: "2026-05-31T08:10:00.000Z" }],
@@ -1791,7 +1807,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
     {
       id: "older-delete",
       entityKey: "completion:h1:2026-05-31",
-      operation: "completion.delete",
+      type: "completion.delete",
       payload: { habitId: "h1", completedOn: "2026-05-31" },
       createdAt: "2026-05-31T07:59:00.000Z",
       clientUpdatedAt: "2026-05-31T07:59:00.000Z",
@@ -1799,7 +1815,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
     {
       id: "newer-set",
       entityKey: "completion:h1:2026-05-31",
-      operation: "completion.set",
+      type: "completion.set",
       payload: { habitId: "h1", completedOn: "2026-05-31", value: 3 },
       createdAt: "2026-05-31T08:00:00.000Z",
       clientUpdatedAt: "2026-05-31T08:00:00.000Z",
@@ -1807,7 +1823,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
     {
       id: "increment-after-set",
       entityKey: "completion:h1:2026-05-31",
-      operation: "completion.increment",
+      type: "completion.increment",
       payload: { habitId: "h1", completedOn: "2026-05-31", value: 2 },
       createdAt: "2026-05-31T08:01:00.000Z",
       clientUpdatedAt: "2026-05-31T08:01:00.000Z",
@@ -1815,7 +1831,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
     {
       id: "deleted-last",
       entityKey: "completion:h2:2026-05-31",
-      operation: "completion.delete",
+      type: "completion.delete",
       payload: { habitId: "h2", completedOn: "2026-05-31" },
       createdAt: "2026-05-31T08:03:00.000Z",
       clientUpdatedAt: "2026-05-31T08:03:00.000Z",
@@ -1823,7 +1839,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
     {
       id: "ignored-increment",
       entityKey: "completion:h2:2026-05-31",
-      operation: "completion.increment",
+      type: "completion.increment",
       payload: { habitId: "h2", completedOn: "2026-05-31", value: 4 },
       createdAt: "2026-05-31T08:02:00.000Z",
       clientUpdatedAt: "2026-05-31T08:02:00.000Z",
@@ -1831,7 +1847,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
     {
       id: "delete-before-increment",
       entityKey: "completion:h3:2026-05-31",
-      operation: "completion.delete",
+      type: "completion.delete",
       payload: { habitId: "h3", completedOn: "2026-05-31" },
       createdAt: "2026-05-31T08:04:00.000Z",
       clientUpdatedAt: "2026-05-31T08:04:00.000Z",
@@ -1839,7 +1855,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
     {
       id: "increment-after-delete",
       entityKey: "completion:h3:2026-05-31",
-      operation: "completion.increment",
+      type: "completion.increment",
       payload: { habitId: "h3", completedOn: "2026-05-31", value: 2 },
       createdAt: "2026-05-31T08:05:00.000Z",
       clientUpdatedAt: "2026-05-31T08:05:00.000Z",
@@ -1847,7 +1863,7 @@ test("offline queue folds completion increments and honors newest delete", () =>
   ]);
 
   assert.deepEqual(
-    compacted.map((mutation) => [mutation.id, mutation.operation, mutation.payload]),
+    compacted.map((mutation) => [mutation.id, mutation.type, mutation.payload]),
     [
       [
         "increment-after-set",
@@ -1865,13 +1881,11 @@ test("offline queue folds completion increments and honors newest delete", () =>
 });
 
 test("offline reconciliation keeps retryable failures queued and removes permanent failures", async () => {
-  const storage = createMemoryStorage();
-  const queue = createOfflineQueue(storage);
-  await queue.replace([
+  const mutations = [
     {
       id: "sent",
       entityKey: "habit:h1",
-      operation: "habit.upsert",
+      type: "habit.upsert",
       payload: { id: "h1", name: "Drink water" },
       createdAt: "2026-05-31T08:00:00.000Z",
       clientUpdatedAt: "2026-05-31T08:00:00.000Z",
@@ -1879,7 +1893,7 @@ test("offline reconciliation keeps retryable failures queued and removes permane
     {
       id: "retry",
       entityKey: "completion:h1:2026-05-31",
-      operation: "completion.increment",
+      type: "completion.increment",
       payload: { habitId: "h1", completedOn: "2026-05-31", value: 1 },
       createdAt: "2026-05-31T08:01:00.000Z",
       clientUpdatedAt: "2026-05-31T08:01:00.000Z",
@@ -1887,30 +1901,23 @@ test("offline reconciliation keeps retryable failures queued and removes permane
     {
       id: "invalid",
       entityKey: "completion:h2:2026-05-31",
-      operation: "completion.set",
+      type: "completion.set",
       payload: { habitId: "h2", completedOn: "2026-05-31", value: -1 },
       createdAt: "2026-05-31T08:02:00.000Z",
       clientUpdatedAt: "2026-05-31T08:02:00.000Z",
     },
-  ]);
+  ];
   const sent = [];
 
-  const result = await reconcileOfflineMutations(queue, async (mutation) => {
+  const remaining = await reconcileOfflineMutations(mutations, async (mutation) => {
     sent.push(mutation.id);
-    if (mutation.id === "retry") throw new Error("offline");
-    if (mutation.id === "invalid") {
-      const error = new Error("invalid value");
-      error.permanent = true;
-      throw error;
-    }
+    if (mutation.id === "retry") return { ok: false, retry: true };
+    if (mutation.id === "invalid") return { ok: false, retry: false };
+    return { ok: true };
   });
 
   assert.deepEqual(sent, ["sent", "retry", "invalid"]);
-  assert.deepEqual(result, { sent: 1, removed: 1, remaining: 1 });
-  assert.deepEqual(
-    (await queue.read()).map((mutation) => mutation.id),
-    ["retry"],
-  );
+  assert.deepEqual(remaining.map((mutation) => mutation.id), ["retry"]);
 });
 
 function smartReminderTestContext(overrides = {}) {

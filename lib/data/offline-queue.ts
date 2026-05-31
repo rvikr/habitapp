@@ -10,7 +10,7 @@ export type OfflineMutationType =
 export type OfflineMutation = {
   id: string;
   entityKey: string;
-  operation: OfflineMutationType;
+  type: OfflineMutationType;
   payload: Record<string, unknown>;
   createdAt: string;
   clientUpdatedAt: string;
@@ -28,11 +28,7 @@ export type OfflineQueue = {
   enqueue(mutation: OfflineMutation): Promise<void>;
 };
 
-export type ReconcileOfflineMutationsResult = {
-  sent: number;
-  removed: number;
-  remaining: number;
-};
+export type SendResult = { ok: true } | { ok: false; retry: boolean };
 
 function isOfflineMutation(value: unknown): value is OfflineMutation {
   if (!value || typeof value !== "object") return false;
@@ -40,8 +36,8 @@ function isOfflineMutation(value: unknown): value is OfflineMutation {
   return (
     typeof candidate.id === "string" &&
     typeof candidate.entityKey === "string" &&
-    typeof candidate.operation === "string" &&
-    isOfflineMutationType(candidate.operation) &&
+    typeof candidate.type === "string" &&
+    isOfflineMutationType(candidate.type) &&
     candidate.payload !== null &&
     typeof candidate.payload === "object" &&
     !Array.isArray(candidate.payload) &&
@@ -84,7 +80,7 @@ function compareMutationOrder(a: OfflineMutation, b: OfflineMutation): number {
   const entityKey = a.entityKey.localeCompare(b.entityKey);
   if (entityKey !== 0) return entityKey;
 
-  return a.operation.localeCompare(b.operation);
+  return a.type.localeCompare(b.type);
 }
 
 function newestMutation(a: OfflineMutation, b: OfflineMutation): OfflineMutation {
@@ -92,14 +88,14 @@ function newestMutation(a: OfflineMutation, b: OfflineMutation): OfflineMutation
 }
 
 function isHabitMutation(mutation: OfflineMutation): boolean {
-  return mutation.operation === "habit.upsert" || mutation.operation === "habit.archive";
+  return mutation.type === "habit.upsert" || mutation.type === "habit.archive";
 }
 
 function isCompletionMutation(mutation: OfflineMutation): boolean {
   return (
-    mutation.operation === "completion.set" ||
-    mutation.operation === "completion.increment" ||
-    mutation.operation === "completion.delete"
+    mutation.type === "completion.set" ||
+    mutation.type === "completion.increment" ||
+    mutation.type === "completion.delete"
   );
 }
 
@@ -114,20 +110,20 @@ function compactCompletionMutations(mutations: readonly OfflineMutation[]): Offl
   let latestTerminal: OfflineMutation | null = null;
 
   for (const mutation of ordered) {
-    if (mutation.operation === "completion.set" || mutation.operation === "completion.delete") {
+    if (mutation.type === "completion.set" || mutation.type === "completion.delete") {
       latestTerminal = latestTerminal ? newestMutation(latestTerminal, mutation) : mutation;
     }
   }
 
-  const baseline = latestTerminal?.operation === "completion.set" ? numericPayloadValue(latestTerminal) : 0;
+  const baseline = latestTerminal?.type === "completion.set" ? numericPayloadValue(latestTerminal) : 0;
   const increments = ordered.filter(
     (mutation) =>
-      mutation.operation === "completion.increment" &&
+      mutation.type === "completion.increment" &&
       (!latestTerminal || compareMutationTime(mutation, latestTerminal) > 0),
   );
   const incrementTotal = increments.reduce((total, mutation) => total + numericPayloadValue(mutation), 0);
 
-  if (latestTerminal?.operation === "completion.delete" && increments.length === 0) {
+  if (latestTerminal?.type === "completion.delete" && increments.length === 0) {
     return cloneMutation(latestTerminal);
   }
 
@@ -138,7 +134,7 @@ function compactCompletionMutations(mutations: readonly OfflineMutation[]): Offl
     );
     return {
       ...cloneMutation(latestContributor),
-      operation: "completion.set",
+      type: "completion.set",
       payload: {
         ...latestContributor.payload,
         value: baseline + incrementTotal,
@@ -181,10 +177,13 @@ export function compactOfflineMutations(mutations: readonly OfflineMutation[]): 
   ].sort(compareMutationOrder);
 }
 
-export function createOfflineQueue(storage: OfflineQueueStorage): OfflineQueue {
+export function createOfflineQueue(
+  storage: OfflineQueueStorage,
+  key = OFFLINE_QUEUE_STORAGE_KEY,
+): OfflineQueue {
   return {
     async read() {
-      const raw = await storage.getItem(OFFLINE_QUEUE_STORAGE_KEY);
+      const raw = await storage.getItem(key);
       if (!raw) return [];
 
       try {
@@ -198,7 +197,7 @@ export function createOfflineQueue(storage: OfflineQueueStorage): OfflineQueue {
 
     async replace(mutations) {
       const cloned = mutations.map(cloneMutation);
-      await storage.setItem(OFFLINE_QUEUE_STORAGE_KEY, JSON.stringify(cloned));
+      await storage.setItem(key, JSON.stringify(cloned));
     },
 
     async enqueue(mutation) {
@@ -209,44 +208,19 @@ export function createOfflineQueue(storage: OfflineQueueStorage): OfflineQueue {
   };
 }
 
-function isPermanentFailure(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const candidate = error as { permanent?: unknown; status?: unknown; code?: unknown };
-  return (
-    candidate.permanent === true ||
-    candidate.status === 400 ||
-    candidate.status === 422 ||
-    candidate.code === "VALIDATION_FAILED"
-  );
-}
-
 export async function reconcileOfflineMutations(
-  queue: OfflineQueue,
-  send: (mutation: OfflineMutation) => Promise<void>,
-): Promise<ReconcileOfflineMutationsResult> {
-  const compacted = compactOfflineMutations(await queue.read());
+  mutations: OfflineMutation[],
+  send: (mutation: OfflineMutation) => Promise<SendResult>,
+): Promise<OfflineMutation[]> {
+  const compacted = compactOfflineMutations(mutations);
   const remaining: OfflineMutation[] = [];
-  let sent = 0;
-  let removed = 0;
 
   for (const mutation of compacted) {
-    try {
-      await send(cloneMutation(mutation));
-      sent++;
-    } catch (error) {
-      if (isPermanentFailure(error)) {
-        removed++;
-      } else {
-        remaining.push(mutation);
-      }
+    const result = await send(cloneMutation(mutation));
+    if (!result.ok && result.retry) {
+      remaining.push(cloneMutation(mutation));
     }
   }
 
-  await queue.replace(remaining);
-
-  return {
-    sent,
-    removed,
-    remaining: remaining.length,
-  };
+  return remaining;
 }
