@@ -2693,6 +2693,21 @@ test("queued mutation UI paths skip server-success follow-up behavior", () => {
   assert.match(wizardSource, /results\.some\(\(result\) => result\.queued\)/);
 });
 
+test("core app surfaces include explicit empty states", () => {
+  const dashboard = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboard, /Build your first routine/);
+  assert.match(dashboard, /Choose manually/);
+  const detail = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  assert.match(detail, /No logs yet/);
+  assert.match(detail, /This week will fill in as you log this habit/);
+  const insights = readFileSync("components/insights-strip.tsx", "utf8");
+  assert.match(insights, /Log a few days to see patterns/);
+  const achievements = readFileSync("app/(tabs)/achievements.tsx", "utf8");
+  assert.match(achievements, /No badges earned yet/);
+  const privacy = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
+  assert.match(privacy, /integrity/);
+});
+
 test("routine builder gives office workers water posture walking and sleep habits", () => {
   const routine = buildRoutineRecommendations({
     goals: ["energy", "health"],

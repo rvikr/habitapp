@@ -249,9 +249,14 @@ export default function PrivacyScreen() {
       >
         <SafeAreaView className="flex-1 bg-background dark:bg-d-background">
           <View className="flex-row items-center justify-between px-margin-mobile py-sm">
-            <Text className="text-headline-md text-on-background dark:text-d-on-background">
-              Data export
-            </Text>
+            <View className="flex-1 mr-md">
+              <Text className="text-headline-md text-on-background dark:text-d-on-background">
+                Data export
+              </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                Includes integrity checks for counts, duplicates, and orphaned logs.
+              </Text>
+            </View>
             <TouchableOpacity onPress={() => setExportText(null)}>
               <MaterialCommunityIcons name="close" size={24} color="#F26B1F" />
             </TouchableOpacity>

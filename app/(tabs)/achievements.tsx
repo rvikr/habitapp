@@ -164,7 +164,18 @@ export default function AchievementsScreen() {
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
             {t("BADGES")}
           </Text>
-          {loaded ? <BadgeGrid badges={badges} onShare={handleShareBadge} /> : <BadgeSkeleton />}
+          {loaded ? (
+            <View className="gap-sm">
+              {badges.every((badge) => !badge.earned) && (
+                <Text className="text-label-md text-on-surface-variant dark:text-d-on-surface-variant">
+                  {t("No badges earned yet.")}
+                </Text>
+              )}
+              <BadgeGrid badges={badges} onShare={handleShareBadge} />
+            </View>
+          ) : (
+            <BadgeSkeleton />
+          )}
         </View>
 
         {/* Milestones */}

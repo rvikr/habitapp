@@ -60,7 +60,20 @@ type Props = {
 export default function InsightsStrip({ insights }: Props) {
   const { t } = useLanguage();
   const items = buildItems(insights, t);
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <View>
+        <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm px-margin-mobile">
+          {t("INSIGHTS")}
+        </Text>
+        <View className="mx-margin-mobile rounded-xl bg-surface-container dark:bg-d-surface-container p-md">
+          <Text className="text-label-md text-on-surface-variant dark:text-d-on-surface-variant font-medium">
+            {t("Log a few days to see patterns.")}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View>

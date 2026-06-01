@@ -249,6 +249,16 @@ export default function HabitDetailScreen() {
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
             THIS WEEK
           </Text>
+          {completions.length === 0 && (
+            <View className="rounded-xl bg-surface-high dark:bg-d-surface-high p-md mb-md">
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                No logs yet
+              </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
+                This week will fill in as you log this habit.
+              </Text>
+            </View>
+          )}
           <View className="flex-row justify-between">
             {weekDays.map((day) => (
               <View key={day.key} className="items-center gap-xs">
