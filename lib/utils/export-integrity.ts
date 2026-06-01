@@ -27,15 +27,37 @@ function compareAsc(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null";
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, entryValue]) => entryValue !== undefined)
+    .sort(([a], [b]) => compareAsc(a, b))
+    .map(([key, entryValue]) => `${JSON.stringify(key)}:${canonicalJson(entryValue)}`);
+  return `{${entries.join(",")}}`;
+}
+
 function rowId(row: ExportRow): string {
   return stringValue(row.id);
+}
+
+function compareRowsByIdThenContent(a: ExportRow, b: ExportRow): number {
+  const id = compareAsc(rowId(a), rowId(b));
+  if (id !== 0) return id;
+  return compareAsc(canonicalJson(a), canonicalJson(b));
 }
 
 function sortHabits(habits: ExportRow[]): ExportRow[] {
   return [...habits].sort((a, b) => {
     const created = compareAsc(stringValue(a.created_at), stringValue(b.created_at));
     if (created !== 0) return created;
-    return compareAsc(rowId(a), rowId(b));
+    return compareRowsByIdThenContent(a, b);
   });
 }
 
@@ -45,7 +67,7 @@ function sortCompletions(completions: ExportRow[]): ExportRow[] {
     if (completedOn !== 0) return completedOn;
     const created = compareDesc(stringValue(a.created_at), stringValue(b.created_at));
     if (created !== 0) return created;
-    return compareAsc(rowId(a), rowId(b));
+    return compareRowsByIdThenContent(a, b);
   });
 }
 
@@ -53,7 +75,7 @@ function sortSleepEntries(sleepEntries: ExportRow[]): ExportRow[] {
   return [...sleepEntries].sort((a, b) => {
     const sleepDate = compareDesc(stringValue(a.sleep_date), stringValue(b.sleep_date));
     if (sleepDate !== 0) return sleepDate;
-    return compareAsc(rowId(a), rowId(b));
+    return compareRowsByIdThenContent(a, b);
   });
 }
 
@@ -61,7 +83,7 @@ function sortFeedback(feedback: ExportRow[]): ExportRow[] {
   return [...feedback].sort((a, b) => {
     const created = compareDesc(stringValue(a.created_at), stringValue(b.created_at));
     if (created !== 0) return created;
-    return compareAsc(rowId(a), rowId(b));
+    return compareRowsByIdThenContent(a, b);
   });
 }
 

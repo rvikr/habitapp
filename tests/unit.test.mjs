@@ -666,13 +666,77 @@ test("data export includes version counts duplicates and orphans", () => {
   assert.deepEqual(exported.integrity.orphan_completion_ids, ["c1"]);
 });
 
-test("privacy export fails on query errors instead of returning partial data", () => {
-  const source = readFileSync("lib/utils/privacy.ts", "utf8");
-  assert.match(source, /profileResult/);
-  assert.match(source, /habitResult/);
-  assert.match(source, /completionResult/);
-  assert.match(source, /return \{ ok: false, error:/);
-  assert.match(source, /buildDataExport/);
+test("data export sorts tied rows without ids by canonical row content", () => {
+  const firstInput = [
+    { created_at: "2026-05-01T00:00:00.000Z", name: "beta", settings: { b: 2, a: 1 } },
+    { created_at: "2026-05-01T00:00:00.000Z", name: "alpha", settings: { b: 2, a: 1 } },
+    { created_at: "2026-05-01T00:00:00.000Z", name: "gamma", settings: { a: 1, b: 2 } },
+  ];
+  const secondInput = [...firstInput].reverse();
+
+  const buildNames = (habits) =>
+    buildDataExport({
+      exportedAt: "2026-06-01T10:00:00.000Z",
+      user: { id: "user-1", email: "u@example.com" },
+      profile: null,
+      habits,
+    }).habits.map((habit) => habit.name);
+
+  assert.deepEqual(buildNames(firstInput), ["alpha", "beta", "gamma"]);
+  assert.deepEqual(buildNames(secondInput), ["alpha", "beta", "gamma"]);
+});
+
+test("privacy export fails on query errors instead of returning partial data", async () => {
+  const originalUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const originalAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+  process.env.EXPO_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+
+  await registerActionImportTestLoader();
+  const { supabase } = await import("../lib/supabase/client.ts");
+  const originalGetUser = supabase.auth.getUser;
+  const originalFrom = supabase.from;
+
+  try {
+    supabase.auth.getUser = async () => ({
+      data: { user: { id: "user-1", email: "u@example.com", user_metadata: {} } },
+      error: null,
+    });
+    supabase.from = (table) => {
+      const result =
+        table === "habit_completions"
+          ? { data: null, error: { message: "boom" } }
+          : { data: table === "profiles" ? null : [], error: null };
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        order() {
+          return Promise.resolve(result);
+        },
+        maybeSingle() {
+          return Promise.resolve(result);
+        },
+      };
+    };
+
+    const { exportMyData } = await import("../lib/utils/privacy.ts");
+    const result = await exportMyData();
+
+    assert.deepEqual(result, { ok: false, error: "boom" });
+    assert.equal("data" in result, false);
+  } finally {
+    supabase.auth.getUser = originalGetUser;
+    supabase.from = originalFrom;
+    if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalAnonKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = originalAnonKey;
+  }
 });
 
 test("account deletion requires password confirmation and recent sign-in", () => {
