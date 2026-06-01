@@ -2351,6 +2351,7 @@ test("logCompletion queues retryable RPC failures as public queued results", asy
   const { getItem, removeItem } = await import("../lib/platform/storage");
   const originalGetUser = supabase.auth.getUser;
   const originalRpc = supabase.rpc;
+  const originalFrom = supabase.from;
 
   try {
     await removeItem(OFFLINE_QUEUE_STORAGE_KEY);
@@ -2358,6 +2359,22 @@ test("logCompletion queues retryable RPC failures as public queued results", asy
       data: { user: { id: "user-1", email: "u@example.com", user_metadata: {} } },
       error: null,
     });
+    supabase.from = (table) => {
+      assert.equal(table, "habits");
+      return {
+        select(columns) {
+          assert.equal(columns, "target, metric_type");
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        single: async () => ({
+          data: { target: 10, metric_type: "minutes" },
+          error: null,
+        }),
+      };
+    };
     supabase.rpc = async (name, payload) => {
       assert.equal(name, "log_habit_completion");
       assert.deepEqual(payload, {
@@ -2388,6 +2405,7 @@ test("logCompletion queues retryable RPC failures as public queued results", asy
   } finally {
     supabase.auth.getUser = originalGetUser;
     supabase.rpc = originalRpc;
+    supabase.from = originalFrom;
     globalThis.Date = OriginalDate;
     if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
     else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
@@ -2409,6 +2427,7 @@ test("logCompletion does not queue non-retryable RPC failures", async () => {
   const { getItem, removeItem } = await import("../lib/platform/storage");
   const originalGetUser = supabase.auth.getUser;
   const originalRpc = supabase.rpc;
+  const originalFrom = supabase.from;
 
   try {
     await removeItem(OFFLINE_QUEUE_STORAGE_KEY);
@@ -2416,6 +2435,22 @@ test("logCompletion does not queue non-retryable RPC failures", async () => {
       data: { user: { id: "user-1", email: "u@example.com", user_metadata: {} } },
       error: null,
     });
+    supabase.from = (table) => {
+      assert.equal(table, "habits");
+      return {
+        select(columns) {
+          assert.equal(columns, "target, metric_type");
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        single: async () => ({
+          data: { target: 10, metric_type: "minutes" },
+          error: null,
+        }),
+      };
+    };
     supabase.rpc = async () => ({
       data: null,
       error: { message: "permission denied" },
@@ -2430,6 +2465,68 @@ test("logCompletion does not queue non-retryable RPC failures", async () => {
   } finally {
     supabase.auth.getUser = originalGetUser;
     supabase.rpc = originalRpc;
+    supabase.from = originalFrom;
+    if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalAnonKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = originalAnonKey;
+  }
+});
+
+test("logCompletion rejects invalid values before offline queueing", async () => {
+  const originalUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const originalAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+  process.env.EXPO_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+
+  await registerActionImportTestLoader();
+  const { supabase } = await import("../lib/supabase/client.ts");
+  const { OFFLINE_QUEUE_STORAGE_KEY } = await import("../lib/data/offline-queue.ts");
+  const { getItem, removeItem } = await import("../lib/platform/storage");
+  const originalGetUser = supabase.auth.getUser;
+  const originalRpc = supabase.rpc;
+  const originalFrom = supabase.from;
+  let rpcCalled = false;
+
+  try {
+    await removeItem(OFFLINE_QUEUE_STORAGE_KEY);
+    supabase.auth.getUser = async () => ({
+      data: { user: { id: "user-1", email: "u@example.com", user_metadata: {} } },
+      error: null,
+    });
+    supabase.from = (table) => {
+      assert.equal(table, "habits");
+      return {
+        select(columns) {
+          assert.equal(columns, "target, metric_type");
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        single: async () => ({
+          data: { target: 10, metric_type: "minutes" },
+          error: null,
+        }),
+      };
+    };
+    supabase.rpc = async () => {
+      rpcCalled = true;
+      return { data: null, error: { message: "Network request failed" } };
+    };
+
+    const { logCompletion } = await import("../lib/data/actions.ts");
+    assert.deepEqual(await logCompletion("habit-1", 1.5, "", "2026-06-01"), {
+      ok: false,
+      error: "Value must be a whole number.",
+    });
+    assert.equal(rpcCalled, false);
+    assert.equal(await getItem(OFFLINE_QUEUE_STORAGE_KEY), null);
+  } finally {
+    supabase.auth.getUser = originalGetUser;
+    supabase.rpc = originalRpc;
+    supabase.from = originalFrom;
     if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
     else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
     if (originalAnonKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;

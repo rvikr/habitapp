@@ -430,17 +430,35 @@ export async function logCompletion(
   if (!user) return notSignedIn();
   const period = validateCompletionPeriod(completedOn, { operation: "log" });
   if (!period.ok) return { ok: false, error: period.error };
+
+  const { data: habit, error: habitError } = await supabase
+    .from("habits")
+    .select("target, metric_type")
+    .eq("id", habitId)
+    .eq("user_id", user.id)
+    .single();
+  if (habitError) {
+    // Without the habit metric and target, queuing could persist values that normal validation rejects.
+    return mutationResult(habitError);
+  }
+  const completionHabit = {
+    metricType: ((habit as { metric_type: MetricType | null }).metric_type ?? "boolean"),
+    target: (habit as { target: number | null }).target,
+  };
+  const incrementValue = validateCompletionValue(value ?? 1, completionHabit);
+  if (!incrementValue.ok) return { ok: false, error: incrementValue.error };
+
   const { error } = await supabase.rpc("log_habit_completion", {
     p_habit_id: habitId,
     p_completed_on: completedOn,
-    p_increment: value ?? 1,
+    p_increment: incrementValue.value,
     p_note: note?.trim() || null,
   });
   if (error) {
     return queueRetryableMutation(
       "completion.increment",
       `completion:${habitId}:${completedOn}`,
-      { habitId, completedOn, value: value ?? 1, note: note?.trim() || null },
+      { habitId, completedOn, value: incrementValue.value, note: note?.trim() || null },
       error,
     );
   }
