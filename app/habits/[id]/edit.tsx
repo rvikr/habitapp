@@ -32,6 +32,10 @@ export default function EditHabitScreen() {
     if (!id) return { ok: false };
     const result = await updateHabitFull(id, data);
     if (result.ok) {
+      if (result.queued) {
+        Alert.alert(t("Saved offline"), t("I'll sync this when you're back online."));
+        return { ok: true };
+      }
       router.back();
       return { ok: true };
     }

@@ -74,9 +74,16 @@ export default function HabitDetailScreen() {
     if (!habit || toggling) return;
     setToggling(true);
     try {
-      if (!doneToday) celebrate();
       const result = await toggleHabit(habit.id, doneToday);
-      if (!result.ok) Alert.alert("Could not update habit", result.error ?? "Try again.");
+      if (!result.ok) {
+        Alert.alert("Could not update habit", result.error ?? "Try again.");
+        return;
+      }
+      if (result.queued) {
+        Alert.alert("Saved offline", "I'll sync this when you're back online.");
+        return;
+      }
+      if (!doneToday) celebrate();
       load({ force: true });
     } finally {
       setToggling(false);
@@ -88,6 +95,10 @@ export default function HabitDetailScreen() {
     const result = await logCompletion(habit.id, value, note);
     if (!result.ok) return result;
     setShowLogPrompt(false);
+    if (result.queued) {
+      Alert.alert("Saved offline", "I'll sync this when you're back online.");
+      return result;
+    }
     celebrate();
     load({ force: true });
     return result;
@@ -99,6 +110,10 @@ export default function HabitDetailScreen() {
     const result = await logCompletion(habit.id, value, "");
     if (!result.ok) {
       Alert.alert("Could not log progress", result.error ?? "Try again.");
+      return;
+    }
+    if (result.queued) {
+      Alert.alert("Saved offline", "I'll sync this when you're back online.");
       return;
     }
     celebrate();
@@ -116,6 +131,10 @@ export default function HabitDetailScreen() {
           const result = await deleteHabit(habit.id);
           if (!result.ok) {
             Alert.alert("Could not delete habit", result.error ?? "Try again.");
+            return;
+          }
+          if (result.queued) {
+            Alert.alert("Saved offline", "I'll sync this when you're back online.");
             return;
           }
           router.replace("/");

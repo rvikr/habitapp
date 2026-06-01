@@ -13,6 +13,11 @@ export default function NewHabitScreen() {
   async function handleCreate(data: Parameters<typeof createHabit>[0]) {
     const result = await createHabit(data);
     if (result.ok) {
+      if (result.queued) {
+        Alert.alert(t("Saved offline"), t("I'll sync this when you're back online."));
+        router.replace("/");
+        return { ok: true };
+      }
       if ("merged" in result && result.merged) {
         Alert.alert(
           t("Habit updated"),

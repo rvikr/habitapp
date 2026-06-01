@@ -48,7 +48,7 @@ import {
 import { validateHabitLocally, type HabitValidationResult } from "../habits/validate";
 import { validateHabitRemote } from "../habits/validate-remote";
 
-type ActionResult = { ok: boolean; error?: string };
+export type ActionResult = { ok: boolean; error?: string; queued?: boolean };
 type QueuedMutationResult = { ok: true; queued: true } | { ok: false; error: string };
 type HabitMutationData = {
   name: string;
@@ -68,6 +68,13 @@ type HabitMutationData = {
   defaultLogValue?: number | null;
   mergeSimilar?: boolean;
   acknowledgeWarning?: boolean;
+};
+type CreateHabitResult = ActionResult & {
+  id: string | null;
+  queued?: boolean;
+  merged?: boolean;
+  migrated?: boolean;
+  validation?: HabitValidationResult;
 };
 
 async function runHabitValidation(
@@ -99,20 +106,19 @@ async function validateHabitMutationInput(
   intelligence: ReturnType<typeof inferHabitIntelligence>,
   currentHabitId?: string,
 ): Promise<
-  | { ok: true; data: HabitMutationData }
+  | {
+      ok: true;
+      data: HabitMutationData;
+      duplicateCheckDeferred?: boolean;
+      retryableError?: { message?: string };
+    }
   | { ok: false; error: string }
 > {
-  const { data: existingHabits, error } = await supabase
-    .from("habits")
-    .select("id, name, archived_at")
-    .eq("user_id", userId);
-  if (error) return { ok: false, error: error.message };
-
   const habitRules = validateHabitInput({
     name: data.name,
     metricType: intelligence.metricType,
     target: intelligence.target,
-    existingHabits: (existingHabits ?? []) as Pick<Habit, "id" | "name" | "archived_at">[],
+    existingHabits: [],
     currentHabitId: currentHabitId ?? null,
   });
   if (!habitRules.ok) return { ok: false, error: habitInputActionError(habitRules.errors[0]) };
@@ -126,17 +132,46 @@ async function validateHabitMutationInput(
   });
   if (!scheduleRules.ok) return { ok: false, error: scheduleRules.errors[0] };
 
+  const normalizedData = {
+    ...data,
+    name: habitRules.data.name,
+    target: habitRules.data.target,
+    remindersEnabled: scheduleRules.data.remindersEnabled,
+    reminderTimes: scheduleRules.data.reminderTimes,
+    reminderDays: scheduleRules.data.reminderDays,
+    reminderIntervalMinutes: scheduleRules.data.reminderIntervalMinutes,
+  };
+
+  const { data: existingHabits, error } = await supabase
+    .from("habits")
+    .select("id, name, archived_at")
+    .eq("user_id", userId);
+  if (error) {
+    if (isRetryableError(error)) {
+      return {
+        ok: true,
+        data: normalizedData,
+        duplicateCheckDeferred: true,
+        retryableError: error,
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  const duplicateRules = validateHabitInput({
+    name: normalizedData.name,
+    metricType: intelligence.metricType,
+    target: intelligence.target,
+    existingHabits: (existingHabits ?? []) as Pick<Habit, "id" | "name" | "archived_at">[],
+    currentHabitId: currentHabitId ?? null,
+  });
+  if (!duplicateRules.ok) {
+    return { ok: false, error: habitInputActionError(duplicateRules.errors[0]) };
+  }
+
   return {
     ok: true,
-    data: {
-      ...data,
-      name: habitRules.data.name,
-      target: habitRules.data.target,
-      remindersEnabled: scheduleRules.data.remindersEnabled,
-      reminderTimes: scheduleRules.data.reminderTimes,
-      reminderDays: scheduleRules.data.reminderDays,
-      reminderIntervalMinutes: scheduleRules.data.reminderIntervalMinutes,
-    },
+    data: normalizedData,
   };
 }
 
@@ -432,7 +467,10 @@ export async function setCompletionValue(
     .eq("id", habitId)
     .eq("user_id", user.id)
     .single();
-  if (habitError) return mutationResult(habitError);
+  if (habitError) {
+    // Without the habit metric and target, queuing could persist values that normal validation rejects.
+    return mutationResult(habitError);
+  }
   const completionHabit = {
     metricType: ((habit as { metric_type: MetricType | null }).metric_type ?? "boolean"),
     target: (habit as { target: number | null }).target,
@@ -515,7 +553,10 @@ export async function toggleHabit(
       .eq("id", habitId)
       .eq("user_id", user.id)
       .single();
-    if (habitError) return mutationResult(habitError);
+    if (habitError) {
+      // Without the habit target, toggling a target habit offline could save the wrong completion value.
+      return mutationResult(habitError);
+    }
     resolvedTarget = Number((habit as { target: number | null } | null)?.target ?? 1);
     if (resolvedTarget <= 0) resolvedTarget = 1;
   }
@@ -592,7 +633,7 @@ export async function updateHabitReminders(
   return { ok: true };
 }
 
-export async function createHabit(data: HabitMutationData) {
+export async function createHabit(data: HabitMutationData): Promise<CreateHabitResult> {
   const user = await getUser();
   if (!user) return { ok: false, id: null, error: "You need to sign in again." };
   const intelligence = inferHabitIntelligence({
@@ -631,6 +672,16 @@ export async function createHabit(data: HabitMutationData) {
     unit: intelligence.unit,
     target: intelligence.target,
   };
+  if (inputRules.duplicateCheckDeferred) {
+    const result = await queueRetryableMutation(
+      "habit.upsert",
+      `habit:new:${user.id}:${data.name}`,
+      smartHabitPayload(data, intelligence, user.id),
+      inputRules.retryableError,
+    );
+    return { ...result, id: null };
+  }
+
   let match: { habit: Habit; score: number } | undefined;
   if (data.mergeSimilar !== false) {
     const { data: existingHabits, error: readError } = await supabase
@@ -638,7 +689,15 @@ export async function createHabit(data: HabitMutationData) {
       .select("*")
       .eq("user_id", user.id)
       .is("archived_at", null);
-    if (readError) return { ok: false, id: null, error: readError.message };
+    if (readError) {
+      const result = await queueRetryableMutation(
+        "habit.upsert",
+        `habit:new:${user.id}:${data.name}`,
+        smartHabitPayload(data, intelligence, user.id),
+        readError,
+      );
+      return { ...result, id: null };
+    }
     match = ((existingHabits ?? []) as Habit[])
       .map((habit) => ({ habit, score: scoreHabitSimilarity(candidate, habit) }))
       .sort((a, b) => b.score - a.score)[0];
@@ -795,6 +854,15 @@ export async function updateHabitFull(
   }
   if (validation.status === "warn" && !data.acknowledgeWarning) {
     return { ok: false, validation };
+  }
+
+  if (inputRules.duplicateCheckDeferred) {
+    return queueRetryableMutation(
+      "habit.upsert",
+      `habit:${habitId}`,
+      smartHabitPayload(data, intelligence),
+      inputRules.retryableError,
+    );
   }
 
   const { error } = await supabase

@@ -2319,11 +2319,151 @@ test("habit mutations enqueue retryable offline operations", () => {
   const source = readFileSync("lib/data/actions.ts", "utf8");
   assert.match(source, /createOfflineQueue/);
   assert.match(source, /queueRetryableMutation/);
+  assert.match(source, /type ActionResult = .*queued\?: boolean/);
   assert.match(source, /habit\.upsert/);
   assert.match(source, /habit\.archive/);
   assert.match(source, /completion\.set/);
   assert.match(source, /completion\.increment/);
   assert.match(source, /completion\.delete/);
+});
+
+test("logCompletion queues retryable RPC failures as public queued results", async () => {
+  const originalUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const originalAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const OriginalDate = globalThis.Date;
+  const fixedNow = new OriginalDate("2026-05-14T10:00:00.000Z");
+
+  process.env.EXPO_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+  globalThis.Date = class FixedDate extends OriginalDate {
+    constructor(...args) {
+      super(...(args.length === 0 ? [fixedNow.getTime()] : args));
+    }
+
+    static now() {
+      return fixedNow.getTime();
+    }
+  };
+
+  await registerActionImportTestLoader();
+  const { supabase } = await import("../lib/supabase/client.ts");
+  const { OFFLINE_QUEUE_STORAGE_KEY } = await import("../lib/data/offline-queue.ts");
+  const { getItem, removeItem } = await import("../lib/platform/storage");
+  const originalGetUser = supabase.auth.getUser;
+  const originalRpc = supabase.rpc;
+
+  try {
+    await removeItem(OFFLINE_QUEUE_STORAGE_KEY);
+    supabase.auth.getUser = async () => ({
+      data: { user: { id: "user-1", email: "u@example.com", user_metadata: {} } },
+      error: null,
+    });
+    supabase.rpc = async (name, payload) => {
+      assert.equal(name, "log_habit_completion");
+      assert.deepEqual(payload, {
+        p_habit_id: "habit-1",
+        p_completed_on: "2026-05-14",
+        p_increment: 2,
+        p_note: "note",
+      });
+      return { data: null, error: { message: "Network request failed" } };
+    };
+
+    const { logCompletion } = await import("../lib/data/actions.ts");
+    assert.deepEqual(await logCompletion("habit-1", 2, " note ", "2026-05-14"), {
+      ok: true,
+      queued: true,
+    });
+
+    const queued = JSON.parse(await getItem(OFFLINE_QUEUE_STORAGE_KEY));
+    assert.equal(queued.length, 1);
+    assert.equal(queued[0].type, "completion.increment");
+    assert.equal(queued[0].entityKey, "completion:habit-1:2026-05-14");
+    assert.deepEqual(queued[0].payload, {
+      habitId: "habit-1",
+      completedOn: "2026-05-14",
+      value: 2,
+      note: "note",
+    });
+  } finally {
+    supabase.auth.getUser = originalGetUser;
+    supabase.rpc = originalRpc;
+    globalThis.Date = OriginalDate;
+    if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalAnonKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = originalAnonKey;
+  }
+});
+
+test("logCompletion does not queue non-retryable RPC failures", async () => {
+  const originalUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const originalAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+  process.env.EXPO_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
+
+  await registerActionImportTestLoader();
+  const { supabase } = await import("../lib/supabase/client.ts");
+  const { OFFLINE_QUEUE_STORAGE_KEY } = await import("../lib/data/offline-queue.ts");
+  const { getItem, removeItem } = await import("../lib/platform/storage");
+  const originalGetUser = supabase.auth.getUser;
+  const originalRpc = supabase.rpc;
+
+  try {
+    await removeItem(OFFLINE_QUEUE_STORAGE_KEY);
+    supabase.auth.getUser = async () => ({
+      data: { user: { id: "user-1", email: "u@example.com", user_metadata: {} } },
+      error: null,
+    });
+    supabase.rpc = async () => ({
+      data: null,
+      error: { message: "permission denied" },
+    });
+
+    const { logCompletion } = await import("../lib/data/actions.ts");
+    assert.deepEqual(await logCompletion("habit-1", 1, "", "2026-06-01"), {
+      ok: false,
+      error: "permission denied",
+    });
+    assert.equal(await getItem(OFFLINE_QUEUE_STORAGE_KEY), null);
+  } finally {
+    supabase.auth.getUser = originalGetUser;
+    supabase.rpc = originalRpc;
+    if (originalUrl === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_URL;
+    else process.env.EXPO_PUBLIC_SUPABASE_URL = originalUrl;
+    if (originalAnonKey === undefined) delete process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    else process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = originalAnonKey;
+  }
+});
+
+test("queued mutation UI paths skip server-success follow-up behavior", () => {
+  const homeSource = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(
+    homeSource,
+    /if \(result\.queued\) \{\s*Alert\.alert\(t\("Saved offline"\), t\("I'll sync this when you're back online\."\)\);\s*return;\s*\}\s*if \(!wasDone\) \{/,
+  );
+  assert.match(
+    homeSource,
+    /if \(result\.queued\) \{\s*Alert\.alert\(t\("Saved offline"\), t\("I'll sync this when you're back online\."\)\);\s*return;\s*\}\s*celebrate\(\);\s*recordCompletionAndMaybeReview\(\);/,
+  );
+
+  const detailSource = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  assert.match(
+    detailSource,
+    /if \(result\.queued\) \{\s*Alert\.alert\("Saved offline", "I'll sync this when you're back online\."\);\s*return;\s*\}\s*if \(!doneToday\) celebrate\(\);/,
+  );
+  assert.match(
+    detailSource,
+    /if \(result\.queued\) \{\s*Alert\.alert\("Saved offline", "I'll sync this when you're back online\."\);\s*return;\s*\}\s*router\.replace\("\/"\);/,
+  );
+
+  const newHabitSource = readFileSync("app/habits/new.tsx", "utf8");
+  assert.match(newHabitSource, /if \(result\.queued\) \{/);
+  const editHabitSource = readFileSync("app/habits/[id]/edit.tsx", "utf8");
+  assert.match(editHabitSource, /if \(result\.queued\) \{/);
+  const wizardSource = readFileSync("app/habits/wizard.tsx", "utf8");
+  assert.match(wizardSource, /results\.some\(\(result\) => result\.queued\)/);
 });
 
 test("routine builder gives office workers water posture walking and sleep habits", () => {

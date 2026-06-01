@@ -227,6 +227,10 @@ export default function DashboardScreen() {
       });
       return;
     }
+    if (result.queued) {
+      setStepTracking((current) => ({ status: "tracking", lastSyncedAt: current.lastSyncedAt }));
+      return;
+    }
 
     lastStepSaveAtRef.current = now;
     setStepTracking({ status: "tracking", lastSyncedAt: now });
@@ -395,6 +399,10 @@ export default function DashboardScreen() {
       Alert.alert(t("Could not update habit"), result.error ?? t("Try again."));
       return;
     }
+    if (result.queued) {
+      Alert.alert(t("Saved offline"), t("I'll sync this when you're back online."));
+      return;
+    }
     if (!wasDone) {
       celebrate();
       recordCompletionAndMaybeReview();
@@ -422,6 +430,10 @@ export default function DashboardScreen() {
         Alert.alert(t("Could not log progress"), result.error ?? t("Try again."));
         return;
       }
+      if (result.queued) {
+        Alert.alert(t("Saved offline"), t("I'll sync this when you're back online."));
+        return;
+      }
       celebrate();
       recordCompletionAndMaybeReview();
       load({ force: true });
@@ -435,6 +447,10 @@ export default function DashboardScreen() {
     const result = await logCompletion(sleepLogHabit.id, value, note || "Logged from AI coach");
     if (!result.ok) return { ok: false, error: result.error ?? t("Try again.") };
     setSleepLogHabit(null);
+    if (result.queued) {
+      Alert.alert(t("Saved offline"), t("I'll sync this when you're back online."));
+      return { ok: true };
+    }
     celebrate();
     recordCompletionAndMaybeReview();
     load({ force: true });

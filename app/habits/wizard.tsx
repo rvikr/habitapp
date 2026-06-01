@@ -205,6 +205,9 @@ export default function HabitWizardScreen() {
       Alert.alert(t("Some habits were not created"), failures.join("\n"));
       return;
     }
+    if (results.some((result) => result.queued)) {
+      Alert.alert(t("Saved offline"), t("I'll sync this when you're back online."));
+    }
     router.replace("/");
   }
 
