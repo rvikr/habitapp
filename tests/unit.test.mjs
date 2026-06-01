@@ -44,6 +44,7 @@ import {
   parseOptionalPositiveNumber,
   validateFeedback,
 } from "../lib/auth/validation.ts";
+import { buildDataExport } from "../lib/utils/export-integrity.ts";
 import {
   HABIT_NAME_MAX_LENGTH,
   normalizeHabitName,
@@ -607,6 +608,71 @@ test("Sentry crash reporting honors the privacy opt-out", () => {
   assert.match(privacyScreen, /isSentryOptedOut/);
   assert.match(privacyScreen, /setSentryOptOut/);
   assert.match(privacyScreen, /Crash reporting opt-out/);
+});
+
+test("data export includes version counts duplicates and orphans", () => {
+  const exported = buildDataExport({
+    exportedAt: "2026-06-01T10:00:00.000Z",
+    user: { id: "user-1", email: "u@example.com" },
+    profile: { user_id: "user-1", display_name: "User" },
+    habits: [
+      { id: "h2", created_at: "2026-05-02T00:00:00.000Z", name: "Read" },
+      { id: "h1", created_at: "2026-05-01T00:00:00.000Z", name: "Water" },
+    ],
+    completions: [
+      {
+        id: "c1",
+        habit_id: "missing-habit",
+        completed_on: "2026-05-30",
+        created_at: "2026-05-30T08:00:00.000Z",
+      },
+      {
+        id: "c2",
+        habit_id: "h1",
+        completed_on: "2026-05-31",
+        created_at: "2026-05-31T08:00:00.000Z",
+      },
+      {
+        id: "c3",
+        habit_id: "h1",
+        completed_on: "2026-05-31",
+        created_at: "2026-05-31T09:00:00.000Z",
+      },
+    ],
+    sleepEntries: [{ id: "s1", sleep_date: "2026-05-31" }],
+    feedback: [{ id: "f1", created_at: "2026-05-31T07:00:00.000Z" }],
+  });
+
+  assert.equal(exported.schema_version, 1);
+  assert.equal(exported.exported_at, "2026-06-01T10:00:00.000Z");
+  assert.deepEqual(
+    exported.habits.map((habit) => habit.id),
+    ["h1", "h2"],
+  );
+  assert.deepEqual(
+    exported.completions.map((completion) => completion.id),
+    ["c3", "c2", "c1"],
+  );
+  assert.deepEqual(exported.integrity.counts, {
+    profile: 1,
+    habits: 2,
+    completions: 3,
+    sleep_entries: 1,
+    feedback: 1,
+  });
+  assert.deepEqual(exported.integrity.duplicate_completion_periods, [
+    { habit_id: "h1", completed_on: "2026-05-31", completion_ids: ["c2", "c3"] },
+  ]);
+  assert.deepEqual(exported.integrity.orphan_completion_ids, ["c1"]);
+});
+
+test("privacy export fails on query errors instead of returning partial data", () => {
+  const source = readFileSync("lib/utils/privacy.ts", "utf8");
+  assert.match(source, /profileResult/);
+  assert.match(source, /habitResult/);
+  assert.match(source, /completionResult/);
+  assert.match(source, /return \{ ok: false, error:/);
+  assert.match(source, /buildDataExport/);
 });
 
 test("account deletion requires password confirmation and recent sign-in", () => {
