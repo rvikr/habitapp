@@ -3,7 +3,7 @@ import { Alert, View, Text, ScrollView, TouchableOpacity, RefreshControl } from 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { getHabitsForToday, getInsights } from "@/lib/data/habits";
+import { getHabitsForToday, getInsights, getStats } from "@/lib/data/habits";
 import { logCompletion, setCompletionValue, toggleHabit } from "@/lib/data/actions";
 import InsightsStrip from "@/components/insights-strip";
 import type { Insights, StreaksMap } from "@/lib/data/habits";
@@ -27,10 +27,8 @@ import type { Habit } from "@/types/db";
 import { progressForHabit, type HabitProgress } from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
-import {
-  shouldShowTrialSubscriptionBanner,
-  type ProAccess,
-} from "@/lib/subscription/access";
+import { shouldShowTrialSubscriptionBanner, type ProAccess } from "@/lib/subscription/access";
+import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
 import {
   getStepPermissionStatus,
   getTodayStepSnapshot,
@@ -39,7 +37,10 @@ import {
   watchStepCount,
   type StepSubscription,
 } from "@/lib/platform/steps";
-import Svg, { Circle } from "react-native-svg";
+import { buildLifeBalanceWheelSegments, type LifeBalanceSegment } from "@/lib/coach/life-balance";
+import Svg, { Circle, Path } from "react-native-svg";
+
+type StatsData = Awaited<ReturnType<typeof getStats>>;
 
 type DashboardData = {
   habits: Habit[];
@@ -51,6 +52,7 @@ type DashboardData = {
   leaderboardOptedIn: boolean;
   coachSignal: CoachSignal | null;
   proAccess: ProAccess;
+  stats: StatsData;
 };
 
 const STEP_SYNC_INTERVAL_MS = 30_000;
@@ -91,9 +93,7 @@ export default function DashboardScreen() {
   const { newUser } = useLocalSearchParams<{ newUser?: string }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
-  const [trialBannerDismissed, setTrialBannerDismissed] = useState(
-    trialBannerDismissedForSession,
-  );
+  const [trialBannerDismissed, setTrialBannerDismissed] = useState(trialBannerDismissedForSession);
   const [stepTracking, setStepTracking] = useState<StepTrackingState>({
     status: "idle",
     lastSyncedAt: null,
@@ -116,10 +116,11 @@ export default function DashboardScreen() {
   }, [newUser]);
 
   const load = useCallback(async (options?: { force?: boolean }) => {
-    const [result, insights, proAccess] = await Promise.all([
+    const [result, insights, proAccess, stats] = await Promise.all([
       getHabitsForToday(options),
       getInsights(options),
       getCurrentProAccess(),
+      getStats(options),
     ]);
     setData({
       ...result,
@@ -128,6 +129,7 @@ export default function DashboardScreen() {
       streaksMap: result.streaksMap,
       insights,
       proAccess,
+      stats,
     });
   }, []);
 
@@ -346,7 +348,14 @@ export default function DashboardScreen() {
       return;
     }
     void syncStepHabit(stepHabit, false, true);
-  }, [stepHabit, stepHabitSyncKey, stepTrackingEnabled, stopStepWatcher, syncStepHabit, trackingHydrated]);
+  }, [
+    stepHabit,
+    stepHabitSyncKey,
+    stepTrackingEnabled,
+    stopStepWatcher,
+    syncStepHabit,
+    trackingHydrated,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -451,7 +460,19 @@ export default function DashboardScreen() {
     total > 0 ? progressItems.reduce((sum, item) => sum + item.ratio, 0) / total : 0;
   const activeProgress =
     total > 0 ? progressItems.filter((item) => item.current > 0 || item.isDone).length / total : 0;
+  const lifeBalanceSegments = data ? buildLifeBalanceWheelSegments(habits, data.todayProgress) : [];
   const isInitialLoading = data === null;
+
+  useEffect(() => {
+    if (!data) return;
+    void syncHomeWidgetFromDashboard({
+      completedCount,
+      totalHabits: total,
+      currentStreak: data.stats?.currentStreak ?? 0,
+      level: data.stats?.level ?? 1,
+      locale: language === "hi" ? "hi-IN" : "en-US",
+    });
+  }, [completedCount, data, language, total]);
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
@@ -549,6 +570,15 @@ export default function DashboardScreen() {
             </>
           )}
         </View>
+
+        {isInitialLoading ? (
+          <DashboardGrowthSkeleton />
+        ) : (
+          <View className="px-margin-mobile mb-lg gap-sm">
+            <LevelProgressCard stats={data.stats} />
+            <LifeBalanceWheel segments={lifeBalanceSegments} />
+          </View>
+        )}
 
         {/* Leaderboard opt-in banner */}
         {data && !data.leaderboardOptedIn && (
@@ -697,6 +727,214 @@ function DashboardHabitSkeleton() {
       ))}
     </>
   );
+}
+
+function DashboardGrowthSkeleton() {
+  return (
+    <View className="px-margin-mobile mb-lg gap-sm">
+      <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
+        <View className="flex-row justify-between">
+          <SkeletonText width={88} />
+          <SkeletonText width={80} />
+        </View>
+        <Skeleton className="h-2 rounded-full" />
+      </View>
+      <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-md">
+        <SkeletonText width={160} />
+        <View className="items-center">
+          <Skeleton className="rounded-full" style={{ width: 176, height: 176 }} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function LevelProgressCard({ stats }: { stats: StatsData }) {
+  const { t } = useLanguage();
+  const level = stats?.level ?? 1;
+  const xp = stats?.xp ?? 0;
+  const xpForNext = stats?.xpForNext ?? 100;
+  const pct = `${Math.min(Math.max((xp / xpForNext) * 100, 0), 100)}%` as `${number}%`;
+
+  return (
+    <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
+      <View className="flex-row items-center justify-between mb-sm">
+        <View className="flex-row items-center gap-sm">
+          <View className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center">
+            <MaterialCommunityIcons name="star-circle-outline" size={24} color="#F26B1F" />
+          </View>
+          <View>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              {t("XP from habits")}
+            </Text>
+            <Text className="text-headline-md text-on-surface dark:text-d-on-surface">
+              {t("Level {level}", { level })}
+            </Text>
+          </View>
+        </View>
+        <Text
+          className="text-label-lg text-on-surface dark:text-d-on-surface"
+          style={{ fontVariant: ["tabular-nums"] }}
+        >
+          {xp} / {xpForNext} XP
+        </Text>
+      </View>
+      <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden">
+        <View className="h-full bg-primary rounded-full" style={{ width: pct }} />
+      </View>
+    </View>
+  );
+}
+
+function LifeBalanceWheel({ segments }: { segments: LifeBalanceSegment[] }) {
+  const { t } = useLanguage();
+  const { colorScheme } = useTheme();
+  const average =
+    segments.length > 0
+      ? segments.reduce((sum, segment) => sum + segment.score, 0) / segments.length
+      : 0;
+  const trackColor = colorScheme === "dark" ? "#353540" : "#E6E0D5";
+
+  return (
+    <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
+      <View className="flex-row items-center justify-between mb-md">
+        <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant">
+          {t("LIFE BALANCE WHEEL")}
+        </Text>
+        <Text
+          className="text-label-lg text-on-surface dark:text-d-on-surface"
+          style={{ fontVariant: ["tabular-nums"] }}
+        >
+          {Math.round(average * 100)}%
+        </Text>
+      </View>
+      <View className="items-center">
+        <LifeBalanceWheelGraphic
+          segments={segments}
+          trackColor={trackColor}
+          centerLabel={`${Math.round(average * 100)}%`}
+        />
+      </View>
+      <View className="flex-row flex-wrap gap-sm mt-md">
+        {segments.map((segment) => (
+          <View
+            key={segment.category}
+            className="flex-row items-center gap-xs"
+            style={{ width: "48%", minHeight: 20 }}
+          >
+            <View className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: segment.color }} />
+            <Text
+              className="text-label-sm text-on-surface dark:text-d-on-surface flex-1"
+              numberOfLines={1}
+            >
+              {t(segment.category)}
+            </Text>
+            <Text
+              className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
+              style={{ fontVariant: ["tabular-nums"] }}
+            >
+              {Math.round(segment.score * 100)}%
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function LifeBalanceWheelGraphic({
+  segments,
+  trackColor,
+  centerLabel,
+}: {
+  segments: LifeBalanceSegment[];
+  trackColor: string;
+  centerLabel: string;
+}) {
+  const size = 176;
+  const center = size / 2;
+  const radius = 78;
+  const segmentAngle = 360 / Math.max(segments.length, 1);
+  const gap = 2;
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        {[0.25, 0.5, 0.75, 1].map((ring) => (
+          <Circle
+            key={ring}
+            cx={center}
+            cy={center}
+            r={radius * ring}
+            stroke={trackColor}
+            strokeWidth={1}
+            fill="none"
+            opacity={0.72}
+          />
+        ))}
+        {segments.map((segment, index) => {
+          const startAngle = index * segmentAngle + gap;
+          const endAngle = (index + 1) * segmentAngle - gap;
+          return (
+            <Path
+              key={`${segment.category}-track`}
+              d={sectorPath(center, center, radius, startAngle, endAngle)}
+              fill={trackColor}
+              opacity={0.26}
+            />
+          );
+        })}
+        {segments.map((segment, index) => {
+          if (segment.score <= 0) return null;
+          const startAngle = index * segmentAngle + gap;
+          const endAngle = (index + 1) * segmentAngle - gap;
+          const scoreRadius = Math.max(radius * segment.score, 14);
+          return (
+            <Path
+              key={segment.category}
+              d={sectorPath(center, center, scoreRadius, startAngle, endAngle)}
+              fill={segment.color}
+              opacity={0.82}
+            />
+          );
+        })}
+      </Svg>
+      <View className="w-16 h-16 rounded-full bg-surface-lowest dark:bg-d-surface-lowest items-center justify-center">
+        <Text
+          className="text-headline-md text-on-surface dark:text-d-on-surface"
+          style={{ fontVariant: ["tabular-nums"] }}
+        >
+          {centerLabel}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function pointOnCircle(centerX: number, centerY: number, radius: number, angle: number) {
+  const radians = ((angle - 90) * Math.PI) / 180;
+  return {
+    x: centerX + radius * Math.cos(radians),
+    y: centerY + radius * Math.sin(radians),
+  };
+}
+
+function sectorPath(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  startAngle: number,
+  endAngle: number,
+) {
+  const start = pointOnCircle(centerX, centerY, radius, startAngle);
+  const end = pointOnCircle(centerX, centerY, radius, endAngle);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return [
+    `M ${centerX} ${centerY}`,
+    `L ${start.x.toFixed(3)} ${start.y.toFixed(3)}`,
+    `A ${radius} ${radius} 0 ${largeArc} 1 ${end.x.toFixed(3)} ${end.y.toFixed(3)}`,
+    "Z",
+  ].join(" ");
 }
 
 function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {

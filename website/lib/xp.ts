@@ -1,5 +1,5 @@
 export const XP_PER_COMPLETION = 10;
-export const XP_PER_LEVEL = 500;
+export const XP_PER_LEVEL = 100;
 
 export function xpForCompletions(completions: number): number {
   return completions * XP_PER_COMPLETION;

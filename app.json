@@ -84,6 +84,7 @@
           "privacyPolicyUrl": "https://lagan.health/privacy"
         }
       ],
+      "./plugins/with-lagan-widget",
       "expo-health-connect",
       [
         "@kingstinct/react-native-healthkit",

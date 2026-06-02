@@ -21,6 +21,12 @@ import {
   shouldRequireFirstRunOnboarding,
 } from "../lib/auth/auth-welcome.ts";
 import { getHabitImageForHabit } from "../lib/data/habit-images.ts";
+import {
+  HABIT_CATALOG,
+  HABIT_CATALOG_SECTIONS,
+  HABIT_CATEGORIES,
+} from "../lib/data/habit-catalog.ts";
+import { buildLifeBalanceWheelSegments } from "../lib/coach/life-balance.ts";
 import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
 import {
   googleNativeAuthConfig,
@@ -44,6 +50,10 @@ import {
   normalizeHealthConnectStepAggregate,
   normalizeStepCount,
 } from "../lib/data/steps-shared.ts";
+import {
+  buildHomeWidgetSnapshot,
+  stringifyHomeWidgetSnapshot,
+} from "../lib/widgets/home-widget-snapshot.ts";
 import {
   buildSleepCompletionValue,
   computeSleepScore,
@@ -176,17 +186,72 @@ test("streakFromDates counts an unbroken run across the new year", () => {
 
 test("XP constants are canonical across app, website, and SQL", () => {
   assert.equal(XP_PER_COMPLETION, 10);
-  assert.equal(XP_PER_LEVEL, 500);
+  assert.equal(XP_PER_LEVEL, 100);
   assert.equal(WEBSITE_XP_PER_COMPLETION, XP_PER_COMPLETION);
   assert.equal(WEBSITE_XP_PER_LEVEL, XP_PER_LEVEL);
-  assert.equal(xpForCompletions(51), 510);
+  assert.equal(xpForCompletions(11), 110);
   assert.equal(levelForXp(0), 1);
-  assert.equal(levelForXp(500), 2);
-  assert.equal(xpInLevel(510), 10);
+  assert.equal(levelForXp(100), 2);
+  assert.equal(xpInLevel(110), 10);
 
   const sql = readFileSync("supabase/migrations/0008_release_readiness.sql", "utf8");
   assert.match(sql, /count\(\*\)::bigint \* 10 as xp/);
-  assert.match(sql, /\/ 500 \+ 1 as level/);
+  assert.match(sql, /\/ 100 \+ 1 as level/);
+});
+
+test("home widget snapshot clamps progress and formats launcher copy", () => {
+  const snapshot = buildHomeWidgetSnapshot({
+    completedCount: 7,
+    totalHabits: 5,
+    currentStreak: 1,
+    level: 3,
+    now: new Date(2026, 4, 10, 9, 5),
+    locale: "en-US",
+  });
+
+  assert.deepEqual(
+    {
+      title: snapshot.title,
+      completedCount: snapshot.completedCount,
+      totalHabits: snapshot.totalHabits,
+      remainingCount: snapshot.remainingCount,
+      progressPercent: snapshot.progressPercent,
+      completionLabel: snapshot.completionLabel,
+      streakLabel: snapshot.streakLabel,
+      levelLabel: snapshot.levelLabel,
+    },
+    {
+      title: "Today",
+      completedCount: 5,
+      totalHabits: 5,
+      remainingCount: 0,
+      progressPercent: 100,
+      completionLabel: "All habits done",
+      streakLabel: "1 day streak",
+      levelLabel: "Level 3",
+    },
+  );
+  assert.match(snapshot.updatedLabel, /^Updated /);
+});
+
+test("home widget snapshot handles an empty routine", () => {
+  const snapshot = buildHomeWidgetSnapshot({
+    completedCount: 2,
+    totalHabits: 0,
+    currentStreak: 0,
+    level: null,
+    now: new Date(2026, 4, 10, 9, 5),
+    locale: "en-US",
+  });
+
+  assert.equal(snapshot.completedCount, 0);
+  assert.equal(snapshot.totalHabits, 0);
+  assert.equal(snapshot.remainingCount, 0);
+  assert.equal(snapshot.progressPercent, 0);
+  assert.equal(snapshot.completionLabel, "No habits yet");
+  assert.equal(snapshot.streakLabel, "No streak yet");
+  assert.equal(snapshot.levelLabel, "Level 1");
+  assert.doesNotThrow(() => JSON.parse(stringifyHomeWidgetSnapshot(snapshot)));
 });
 
 test("leaderboard RPC is restricted to authenticated callers", () => {
@@ -498,6 +563,61 @@ test("external account deletion page is wired for Play Store compliance", () => 
   assert.match(loginForm, /safeNextPath/);
 });
 
+test("habit catalog is grouped by the configured categories", () => {
+  assert.deepEqual(
+    [...HABIT_CATEGORIES],
+    ["Health", "Fitness", "Productivity", "Learning", "Mental Health", "Spiritual", "Finance"],
+  );
+  assert.equal(new Set(HABIT_CATEGORIES).size, HABIT_CATEGORIES.length);
+
+  for (const entry of HABIT_CATALOG) {
+    assert.ok(HABIT_CATEGORIES.includes(entry.category), `${entry.name} has a known category`);
+  }
+
+  assert.deepEqual(
+    HABIT_CATALOG_SECTIONS.map((section) => section.title),
+    [...HABIT_CATEGORIES],
+  );
+  assert.equal(
+    HABIT_CATALOG_SECTIONS.flatMap((section) => section.data).length,
+    HABIT_CATALOG.length,
+  );
+});
+
+test("life balance wheel scores visible catalog categories from habit progress", () => {
+  const segments = buildLifeBalanceWheelSegments(
+    [
+      { id: "water", name: "Drink Water", habit_type: "water_intake" },
+      { id: "read", name: "Read", habit_type: "read" },
+      { id: "budget", name: "Review Budget", habit_type: "custom" },
+    ],
+    new Map([
+      ["water", { ratio: 0.5, isDone: false }],
+      ["read", { ratio: 1.2, isDone: true }],
+      ["budget", { ratio: 0.25, isDone: false }],
+    ]),
+  );
+
+  assert.equal(segments.length, HABIT_CATEGORIES.length);
+  assert.deepEqual(
+    segments.map((segment) => segment.category),
+    [...HABIT_CATEGORIES],
+  );
+  assert.equal(segments.find((segment) => segment.category === "Health")?.score, 0.5);
+  assert.equal(segments.find((segment) => segment.category === "Learning")?.score, 1);
+  assert.equal(segments.find((segment) => segment.category === "Finance")?.score, 0.25);
+  assert.equal(segments.find((segment) => segment.category === "Fitness")?.score, 0);
+  assert.equal(segments.find((segment) => segment.category === "Learning")?.completedCount, 1);
+});
+
+test("homepage surfaces life balance and level progress", () => {
+  const dashboardScreen = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboardScreen, /getStats/);
+  assert.match(dashboardScreen, /buildLifeBalanceWheelSegments/);
+  assert.match(dashboardScreen, /LifeBalanceWheel/);
+  assert.match(dashboardScreen, /Level \{level\}/);
+});
+
 test("store-facing support and legal links have production build defaults", () => {
   const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
   assert.match(settingsScreen, /https:\/\/lagan\.health\/terms/);
@@ -546,6 +666,42 @@ test("Health Connect privacy policy links route to a dedicated Play rationale ac
   assert.match(pluginSource, /VIEW_PERMISSION_USAGE/);
   assert.match(pluginSource, /EXPO_PUBLIC_PRIVACY_POLICY_URL/);
   assert.match(pluginSource, /removeMainActivityHealthConnectRationaleFilter/);
+});
+
+test("Android launcher widget is wired through Expo config and dashboard sync", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+  assert.ok(
+    appConfig.expo.plugins.some((plugin) =>
+      Array.isArray(plugin)
+        ? plugin[0] === "./plugins/with-lagan-widget"
+        : plugin === "./plugins/with-lagan-widget",
+    ),
+  );
+
+  const pluginSource = readFileSync("plugins/with-lagan-widget.js", "utf8");
+  assert.match(pluginSource, /LaganWidgetProvider/);
+  assert.match(pluginSource, /android\.appwidget\.action\.APPWIDGET_UPDATE/);
+  assert.match(pluginSource, /lagan_widget_info/);
+
+  const moduleConfig = JSON.parse(
+    readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
+  );
+  assert.deepEqual(moduleConfig.platforms, ["android"]);
+  assert.deepEqual(moduleConfig.android.modules, ["health.lagan.widget.LaganWidgetModule"]);
+
+  const nativeModule = readFileSync(
+    "modules/lagan-widget/android/src/main/java/health/lagan/widget/LaganWidgetModule.kt",
+    "utf8",
+  );
+  assert.match(nativeModule, /Name\("LaganWidget"\)/);
+  assert.match(nativeModule, /AsyncFunction\("updateAsync"\)/);
+  assert.match(nativeModule, /AppWidgetManager\.ACTION_APPWIDGET_UPDATE/);
+  assert.match(nativeModule, /SNAPSHOT_KEY/);
+
+  const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboardSource, /syncHomeWidgetFromDashboard/);
+  assert.match(dashboardSource, /completedCount/);
+  assert.match(dashboardSource, /currentStreak/);
 });
 
 test("Supabase stale refresh token errors are recognized", () => {

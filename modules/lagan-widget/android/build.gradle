@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'health.lagan'
+version = '0.1.0'
+
+android {
+  namespace "health.lagan.widget"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}

@@ -52,6 +52,7 @@ const ICONS = [
   "shower",
   "code",
   "directions_bike",
+  "wallet",
   "favorite",
   "eco",
   "spa",

@@ -37,7 +37,7 @@ select
   p.avatar_seed,
   coalesce(c.total_completions, 0) as total_completions,
   coalesce(c.total_completions, 0) * 10 as total_xp,
-  (coalesce(c.total_completions, 0) * 10) / 500 + 1 as level,
+  (coalesce(c.total_completions, 0) * 10) / 100 + 1 as level,
   coalesce(h.total_habits, 0) as total_habits,
   coalesce(c.last_completion_date, null) as last_completion_date
 from public.profiles p

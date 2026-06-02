@@ -37,6 +37,7 @@ const ICON_MAP: Record<string, string> = {
   sports_gymnastics: "yoga",
   directions_bike: "bicycle",
   outdoor_grill: "grill",
+  wallet: "wallet",
   spa: "leaf",
   // Badges
   flag: "flag",

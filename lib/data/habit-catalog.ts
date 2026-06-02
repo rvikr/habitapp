@@ -7,8 +7,21 @@ import type {
 
 export type ColorId = "primary" | "secondary" | "tertiary" | "neutral";
 
+export const HABIT_CATEGORIES = [
+  "Health",
+  "Fitness",
+  "Productivity",
+  "Learning",
+  "Mental Health",
+  "Spiritual",
+  "Finance",
+] as const;
+
+export type HabitCategory = (typeof HABIT_CATEGORIES)[number];
+
 export type CatalogEntry = {
   template: string;
+  category: HabitCategory;
   name: string;
   description: string;
   icon: string;
@@ -26,9 +39,15 @@ export type CatalogEntry = {
   remindersEnabledByDefault?: boolean;
 };
 
+export type HabitCatalogSection = {
+  title: HabitCategory;
+  data: CatalogEntry[];
+};
+
 export const HABIT_CATALOG: CatalogEntry[] = [
   {
     template: "water_intake",
+    category: "Health",
     name: "Drink Water",
     description: "Stay hydrated throughout the day.",
     icon: "water_drop",
@@ -46,6 +65,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "run",
+    category: "Fitness",
     name: "Run",
     description: "Go for a run to build endurance.",
     icon: "directions_run",
@@ -64,6 +84,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "walk",
+    category: "Fitness",
     name: "Walk",
     description: "Take a brisk walk every day.",
     icon: "directions_walk",
@@ -81,6 +102,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "read",
+    category: "Learning",
     name: "Read",
     description: "Read books to grow your mind.",
     icon: "menu_book",
@@ -98,6 +120,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "meditate",
+    category: "Mental Health",
     name: "Meditate",
     description: "Calm your mind with daily meditation.",
     icon: "self_improvement",
@@ -115,6 +138,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "journal",
+    category: "Mental Health",
     name: "Journal",
     description: "Reflect and write in your journal.",
     icon: "edit_note",
@@ -132,6 +156,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "workout",
+    category: "Fitness",
     name: "Workout",
     description: "Strength training or gym session.",
     icon: "fitness_center",
@@ -150,6 +175,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "sleep",
+    category: "Health",
     name: "Sleep 8 hours",
     description: "Get a full night of quality sleep.",
     icon: "bedtime",
@@ -167,6 +193,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "vitamins",
+    category: "Health",
     name: "Take Vitamins",
     description: "Don't skip your daily supplements.",
     icon: "medication",
@@ -184,6 +211,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "healthy_eating",
+    category: "Health",
     name: "Eat Healthy",
     description: "Choose nutritious meals today.",
     icon: "restaurant",
@@ -201,6 +229,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "cold_shower",
+    category: "Health",
     name: "Cold Shower",
     description: "Build discipline with a cold shower.",
     icon: "shower",
@@ -218,6 +247,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "no_social_media",
+    category: "Productivity",
     name: "No Social Media",
     description: "Stay off social media for the day.",
     icon: "do_not_disturb_on",
@@ -234,6 +264,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "coding",
+    category: "Productivity",
     name: "Code",
     description: "Practice coding or work on a project.",
     icon: "code",
@@ -251,6 +282,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "stretch",
+    category: "Fitness",
     name: "Stretch",
     description: "Improve flexibility with daily stretching.",
     icon: "sports_gymnastics",
@@ -268,6 +300,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "cycling",
+    category: "Fitness",
     name: "Cycle",
     description: "Ride your bike for fitness or commute.",
     icon: "directions_bike",
@@ -286,6 +319,7 @@ export const HABIT_CATALOG: CatalogEntry[] = [
   },
   {
     template: "cooking",
+    category: "Health",
     name: "Cook at Home",
     description: "Prepare a healthy home-cooked meal.",
     icon: "outdoor_grill",
@@ -301,4 +335,51 @@ export const HABIT_CATALOG: CatalogEntry[] = [
     defaultLogValue: null,
     remindersEnabledByDefault: true,
   },
+  {
+    template: "gratitude",
+    category: "Spiritual",
+    name: "Gratitude",
+    description: "Write down one thing you are grateful for.",
+    icon: "favorite",
+    color: "secondary",
+    unit: "",
+    target: null,
+    defaultTimes: [],
+    habitType: "custom",
+    metricType: "boolean",
+    visualType: "progress_ring",
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720,
+    defaultLogValue: null,
+    remindersEnabledByDefault: true,
+  },
+  {
+    template: "budget_review",
+    category: "Finance",
+    name: "Review Budget",
+    description: "Check spending and plan your next money move.",
+    icon: "wallet",
+    color: "neutral",
+    unit: "",
+    target: null,
+    defaultTimes: [],
+    habitType: "custom",
+    metricType: "boolean",
+    visualType: "progress_ring",
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: 720,
+    defaultLogValue: null,
+    remindersEnabledByDefault: true,
+  },
 ];
+
+export function getHabitCatalogSections(
+  entries: readonly CatalogEntry[] = HABIT_CATALOG,
+): HabitCatalogSection[] {
+  return HABIT_CATEGORIES.map((category) => ({
+    title: category,
+    data: entries.filter((entry) => entry.category === category),
+  })).filter((section) => section.data.length > 0);
+}
+
+export const HABIT_CATALOG_SECTIONS = getHabitCatalogSections();

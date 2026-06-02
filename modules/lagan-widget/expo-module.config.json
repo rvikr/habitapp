@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["health.lagan.widget.LaganWidgetModule"]
+  }
+}

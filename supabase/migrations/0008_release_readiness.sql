@@ -1,6 +1,6 @@
 -- Release readiness consolidation.
 -- Makes the Next website/admin database dependencies reproducible from the
--- ordered migrations and standardizes XP math at 10 XP / 500 XP per level.
+-- ordered migrations and standardizes XP math at 10 XP / 100 XP per level.
 
 -- Admin runtime tables ------------------------------------------------------
 
@@ -121,7 +121,7 @@ select
   p.avatar_seed,
   coalesce(c.total_completions, 0) as total_completions,
   coalesce(c.total_completions, 0) * 10 as total_xp,
-  (coalesce(c.total_completions, 0) * 10) / 500 + 1 as level,
+  (coalesce(c.total_completions, 0) * 10) / 100 + 1 as level,
   coalesce(h.total_habits, 0) as total_habits,
   coalesce(c.last_completion_date, null) as last_completion_date
 from public.profiles p

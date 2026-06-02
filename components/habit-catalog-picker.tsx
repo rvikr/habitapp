@@ -1,7 +1,6 @@
-import { View, Text, FlatList, TouchableOpacity, Image } from "react-native";
-import { HABIT_CATALOG, type CatalogEntry } from "@/lib/data/habit-catalog";
+import { View, Text, SectionList, TouchableOpacity, Image } from "react-native";
+import { HABIT_CATALOG_SECTIONS, type CatalogEntry } from "@/lib/data/habit-catalog";
 import { getHabitImage } from "@/lib/data/habit-images";
-import type { HabitType } from "@/types/db";
 import { useLanguage } from "@/components/language-provider";
 
 type Props = {
@@ -21,10 +20,16 @@ export default function HabitCatalogPicker({ onSelect, onSkip }: Props) {
           {t("Or build a custom habit.")}
         </Text>
       </View>
-      <FlatList
-        data={HABIT_CATALOG}
+      <SectionList
+        sections={HABIT_CATALOG_SECTIONS}
         keyExtractor={(item) => item.template}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32, gap: 8 }}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
+        renderSectionHeader={({ section }) => (
+          <View className="pt-md pb-xs bg-background dark:bg-d-background">
+            <Text className="text-label-lg text-primary font-semibold">{t(section.title)}</Text>
+          </View>
+        )}
         ListFooterComponent={
           <TouchableOpacity
             className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center mt-sm"
@@ -36,10 +41,10 @@ export default function HabitCatalogPicker({ onSelect, onSkip }: Props) {
           </TouchableOpacity>
         }
         renderItem={({ item }) => {
-          const imageUrl = getHabitImage(item.template as HabitType);
+          const imageUrl = getHabitImage(item.habitType);
           return (
             <TouchableOpacity
-              className="flex-row items-center bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-md"
+              className="flex-row items-center bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-md mb-xs"
               onPress={() => onSelect(item)}
               activeOpacity={0.7}
             >
