@@ -21,7 +21,7 @@ import HabitProgressVisual from "@/components/habit-progress-visual";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/utils/date";
-import { formatAmount, progressForHabit } from "@/lib/coach/habit-intelligence";
+import { progressForHabit, suggestedCheckInForHabit } from "@/lib/coach/habit-intelligence";
 import { getHabitImageForHabit } from "@/lib/data/habit-images";
 
 const COLOR_FG: Record<string, string> = {
@@ -67,16 +67,20 @@ export default function HabitDetailScreen() {
   const todayCompletion = completions.find((c) => c.completed_on === today);
   const progress = habit ? progressForHabit(habit, todayCompletion) : null;
   const doneToday = progress?.isDone ?? false;
-  const streak = streakFor(completions);
-  const weekDays = habit ? weekProgressFor(habit.id, completions) : [];
+  const checkInSuggestion = habit && progress ? suggestedCheckInForHabit(habit, progress) : null;
+  const streak = habit ? streakFor(habit, completions) : 0;
+  const weekDays = habit ? weekProgressFor(habit, completions) : [];
 
   async function handleToggle() {
     if (!habit || toggling) return;
     setToggling(true);
     try {
-      if (!doneToday) celebrate();
-      const result = await toggleHabit(habit.id, doneToday);
+      const result =
+        !doneToday && checkInSuggestion
+          ? await logCompletion(habit.id, checkInSuggestion.value, "Logged from check-in")
+          : await toggleHabit(habit.id, doneToday);
       if (!result.ok) Alert.alert("Could not update habit", result.error ?? "Try again.");
+      if (!doneToday && (!checkInSuggestion || checkInSuggestion.completesGoal)) celebrate();
       load({ force: true });
     } finally {
       setToggling(false);
@@ -88,21 +92,10 @@ export default function HabitDetailScreen() {
     const result = await logCompletion(habit.id, value, note);
     if (!result.ok) return result;
     setShowLogPrompt(false);
-    celebrate();
+    const nextProgress = progressForHabit(habit, { value: (progress?.current ?? 0) + value });
+    if (nextProgress.isDone) celebrate();
     load({ force: true });
     return result;
-  }
-
-  async function handleQuickLog() {
-    if (!habit) return;
-    const value = habit.default_log_value ?? 1;
-    const result = await logCompletion(habit.id, value, "");
-    if (!result.ok) {
-      Alert.alert("Could not log progress", result.error ?? "Try again.");
-      return;
-    }
-    celebrate();
-    load();
   }
 
   async function handleDelete() {
@@ -249,25 +242,17 @@ export default function HabitDetailScreen() {
 
         {/* Today toggle */}
         <View className="px-margin-mobile gap-sm">
-          {habit.target != null && (
-            <TouchableOpacity
-              className="rounded-full py-sm items-center bg-secondary"
-              onPress={handleQuickLog}
-              disabled={doneToday}
-              style={{ opacity: doneToday ? 0.5 : 1 }}
-            >
-              <Text className="text-on-primary text-label-lg font-semibold">
-                +{formatAmount(habit.default_log_value ?? 1)} {habit.unit ?? ""}
-              </Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             className={`rounded-full py-sm items-center ${doneToday ? "bg-secondary" : "bg-primary"}`}
             onPress={handleToggle}
             disabled={toggling}
           >
             <Text className="text-on-primary text-label-lg font-semibold">
-              {doneToday ? "Mark as undone" : "Mark as done today"}
+              {doneToday
+                ? "Mark as undone"
+                : checkInSuggestion
+                  ? `Log ${checkInSuggestion.label}`
+                  : "Mark as done today"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -278,6 +263,7 @@ export default function HabitDetailScreen() {
       <LogPrompt
         visible={showLogPrompt}
         habit={habit}
+        initialValue={checkInSuggestion?.value ?? null}
         onSubmit={handleLog}
         onDismiss={() => setShowLogPrompt(false)}
       />

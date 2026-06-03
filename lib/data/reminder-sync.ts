@@ -7,8 +7,11 @@ import {
   scheduleHabitReminderAt,
 } from "../platform/notifications";
 import type { ReminderContext } from "./reminders";
-import { formatAmount } from "../coach/habit-intelligence";
-import type { HabitProgress } from "../coach/habit-intelligence";
+import {
+  formatAmount,
+  type CheckInSuggestion,
+  type HabitProgress,
+} from "../coach/habit-intelligence";
 import { createQueuedReminderSync } from "./reminder-sync-queue";
 
 const STORAGE_KEY = "habbit:scheduled-reminder-ids";
@@ -25,6 +28,7 @@ export function buildSmartBody(
   habitName: string,
   ctx: ReminderContext,
   progress?: HabitProgress,
+  suggestion?: CheckInSuggestion | null,
   unit?: string | null,
 ): string {
   const { streak, typicalHour, percentileAhead } = ctx;
@@ -34,6 +38,17 @@ export function buildSmartBody(
     const remaining = progress.target - progress.current;
     const remainStr = `${formatAmount(remaining)}${u}`;
     const pct = Math.round(progress.ratio * 100);
+    if (suggestion) {
+      const remainingAfterStr = `${formatAmount(suggestion.remainingAfter)}${u}`;
+      if (suggestion.completesGoal) {
+        if (streak > 1)
+          return `Finish with ${suggestion.label} to protect your ${streak}-day streak!`;
+        return `Finish with ${suggestion.label} to hit your goal.`;
+      }
+      if (progress.current === 0)
+        return `Start with ${suggestion.label}. ${remainingAfterStr} left after this.`;
+      return `Log ${suggestion.label} now. ${remainingAfterStr} left after this.`;
+    }
 
     if (progress.current === 0) {
       if (streak > 1) return `Haven't started yet — log now to keep your ${streak}-day streak!`;
@@ -76,7 +91,13 @@ async function performScheduledReminderSync(): Promise<void> {
   for (const reminder of schedule) {
     const body =
       reminder.coachMessage ??
-      buildSmartBody(reminder.habitName, reminder.context, reminder.progress, reminder.unit);
+      buildSmartBody(
+        reminder.habitName,
+        reminder.context,
+        reminder.progress,
+        reminder.suggestion,
+        reminder.unit,
+      );
 
     if (reminder.fireAt) {
       const id = await scheduleHabitReminderAt(

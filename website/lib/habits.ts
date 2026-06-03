@@ -10,6 +10,25 @@ export type Insights = {
   peakTimeLabel: string | null;
 };
 
+type CompletionProgress = Pick<
+  HabitCompletion,
+  "habit_id" | "completed_on" | "created_at" | "value"
+>;
+
+function completionIsDone(habit: Habit, completion: Pick<HabitCompletion, "value">) {
+  const target = habit.target == null ? null : Number(habit.target);
+  if (!target || target <= 0) return true;
+  return Number(completion.value ?? 1) >= target;
+}
+
+function completedRowsFor(habits: Habit[], completions: CompletionProgress[]) {
+  const habitsById = new Map(habits.map((habit) => [habit.id, habit]));
+  return completions.filter((completion) => {
+    const habit = habitsById.get(completion.habit_id);
+    return habit ? completionIsDone(habit, completion) : true;
+  });
+}
+
 export async function getHabitsForToday() {
   const supabase = await createClient();
   const timeZone = await getRequestTimeZone();
@@ -41,7 +60,9 @@ export async function getHabitsForToday() {
     ]);
 
   const habitsList = (habits ?? []) as Habit[];
-  const completionByHabit = new Map((completions ?? []).map((c) => [c.habit_id as string, Number(c.value ?? 1)]));
+  const completionByHabit = new Map(
+    (completions ?? []).map((c) => [c.habit_id as string, Number(c.value ?? 1)]),
+  );
   const completedToday = new Set(
     habitsList
       .filter((habit) => {
@@ -49,7 +70,7 @@ export async function getHabitsForToday() {
         const target = habit.target == null ? null : Number(habit.target);
         return target && target > 0 ? (completionByHabit.get(habit.id) ?? 0) >= target : true;
       })
-      .map((habit) => habit.id)
+      .map((habit) => habit.id),
   );
   const displayName =
     (profile?.display_name as string | null | undefined) ??
@@ -73,11 +94,11 @@ export async function getStats() {
 
   const thirtyDaysAgo = dateDaysAgoInTimeZone(30, timeZone);
 
-  const [{ count: totalCompletions }, { count: totalHabits }, { data: recent }] =
+  const [{ data: habits }, { count: totalHabits }, { data: recent }] =
     await Promise.all([
       supabase
-        .from("habit_completions")
-        .select("id", { count: "exact", head: true })
+        .from("habits")
+        .select("*")
         .eq("user_id", user.id),
       supabase
         .from("habits")
@@ -86,14 +107,15 @@ export async function getStats() {
         .eq("user_id", user.id),
       supabase
         .from("habit_completions")
-        .select("completed_on")
+        .select("habit_id, completed_on, created_at, value")
         .eq("user_id", user.id)
         .gte("completed_on", thirtyDaysAgo)
         .order("completed_on", { ascending: false }),
     ]);
 
   // Compute streak
-  const activeDates = new Set((recent ?? []).map((r) => r.completed_on));
+  const completed = completedRowsFor((habits ?? []) as Habit[], (recent ?? []) as CompletionProgress[]);
+  const activeDates = new Set(completed.map((r) => r.completed_on));
   let streak = 0;
   let cursor = dateKeyInTimeZone(new Date(), timeZone);
   while (true) {
@@ -106,7 +128,7 @@ export async function getStats() {
   }
 
   return {
-    totalCompletions: totalCompletions ?? 0,
+    totalCompletions: completed.length,
     totalHabits: totalHabits ?? 0,
     streak,
     activeDates: Array.from(activeDates),
@@ -133,13 +155,16 @@ export async function getInsights(): Promise<Insights> {
   const cutoff = dateDaysAgoInTimeZone(60, timeZone);
   const midpoint = dateDaysAgoInTimeZone(30, timeZone);
 
-  const { data: rows } = await supabase
-    .from("habit_completions")
-    .select("completed_on, created_at")
-    .eq("user_id", user.id)
-    .gte("completed_on", cutoff);
+  const [{ data: habits }, { data: rows }] = await Promise.all([
+    supabase.from("habits").select("*").eq("user_id", user.id),
+    supabase
+      .from("habit_completions")
+      .select("habit_id, completed_on, created_at, value")
+      .eq("user_id", user.id)
+      .gte("completed_on", cutoff),
+  ]);
 
-  const all = (rows ?? []) as { completed_on: string; created_at: string }[];
+  const all = completedRowsFor((habits ?? []) as Habit[], (rows ?? []) as CompletionProgress[]);
   if (all.length < 5) return { mostProductiveDay: null, consistencyChangePct: null, peakTimeLabel: null };
 
   const dayCounts = [0, 0, 0, 0, 0, 0, 0];
@@ -169,13 +194,19 @@ export async function getInsights(): Promise<Insights> {
 export async function getWeeklyCompletions(): Promise<HabitCompletion[]> {
   const supabase = await createClient();
   const timeZone = await getRequestTimeZone();
+  const user = await getCurrentUser(supabase);
+  if (!user) return [];
   const sevenDaysAgo = dateDaysAgoInTimeZone(6, timeZone);
 
-  const { data } = await supabase
-    .from("habit_completions")
-    .select("*")
-    .gte("completed_on", sevenDaysAgo)
-    .order("completed_on", { ascending: true });
+  const [{ data: habits }, { data }] = await Promise.all([
+    supabase.from("habits").select("*").eq("user_id", user.id),
+    supabase
+      .from("habit_completions")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("completed_on", sevenDaysAgo)
+      .order("completed_on", { ascending: true }),
+  ]);
 
-  return (data ?? []) as HabitCompletion[];
+  return completedRowsFor((habits ?? []) as Habit[], (data ?? []) as HabitCompletion[]) as HabitCompletion[];
 }

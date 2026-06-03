@@ -2,7 +2,10 @@ import { supabase, isSupabaseConfigured, getCurrentUser } from "../supabase/clie
 import { localDateDaysAgo, localDateKey } from "../utils/date";
 import { streakFromDates } from "../coach/streak";
 import {
+  completedDatesForHabit,
   progressForHabit,
+  suggestedCheckInForHabit,
+  type CheckInSuggestion,
   type HabitType,
   type MetricType,
   type ReminderStrategy,
@@ -35,6 +38,7 @@ export type ScheduledReminder = {
   strategy: ReminderStrategy;
   context: ReminderContext;
   progress?: HabitProgress;
+  suggestion?: CheckInSuggestion | null;
   unit?: string | null;
   coachMessage?: string;
 };
@@ -131,12 +135,18 @@ export async function getReminderSchedule(
   }
 
   // Group completions by habit for fast per-habit access.
-  type Completion = { completed_on: string; created_at: string; value: number | null };
+  type Completion = {
+    habit_id: string;
+    completed_on: string;
+    created_at: string;
+    value: number | null;
+  };
   const byHabit = new Map<string, Completion[]>();
   for (const c of completions ?? []) {
     const key = c.habit_id as string;
     if (!byHabit.has(key)) byHabit.set(key, []);
     byHabit.get(key)!.push({
+      habit_id: key,
       completed_on: c.completed_on as string,
       created_at: c.created_at as string,
       value: c.value as number | null,
@@ -160,13 +170,13 @@ export async function getReminderSchedule(
     const times = (h.reminder_times ?? []) as string[];
     const days = (h.reminder_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[];
     const hc = byHabit.get(h.id as string) ?? [];
-    const streak = streakFromDates(hc.map((c) => c.completed_on));
+    const streak = streakFromDates(completedDatesForHabit(habit, hc));
     const typicalHour = typicalHourFromTimestamps(hc.map((c) => c.created_at));
     const reminderContext = { streak, typicalHour, percentileAhead };
     const localCoachSignal = chooseTopCoachSignal(
       buildCoachSignals({
         habits: [habit],
-        completions: hc.map((c) => ({ habit_id: habit.id, ...c })),
+        completions: hc,
         now,
         tone: coachTone,
       }),
@@ -176,6 +186,7 @@ export async function getReminderSchedule(
       : undefined;
     const todayCompletion = hc.find((c) => c.completed_on === todayKey);
     const todayProgress = progressForHabit(habit, todayCompletion);
+    const suggestion = suggestedCheckInForHabit(habit, todayProgress);
 
     for (const time of times) {
       if (!/^\d{2}:\d{2}$/.test(time)) continue;
@@ -188,6 +199,7 @@ export async function getReminderSchedule(
         days,
         context: reminderContext,
         progress: todayProgress,
+        suggestion,
         unit: habit.unit,
         coachMessage,
       });
@@ -252,6 +264,7 @@ export async function getReminderSchedule(
         fireAt,
         context: candidate.reminderContext,
         progress: candidate.decisionContext.progress,
+        suggestion: suggestedCheckInForHabit(candidate.habit, candidate.decisionContext.progress),
         unit: candidate.habit.unit,
         coachMessage: candidate.coachMessage,
       });

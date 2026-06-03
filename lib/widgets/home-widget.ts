@@ -8,7 +8,7 @@ import {
 
 export type HomeWidgetDashboardSnapshot = Pick<
   HomeWidgetSnapshotInput,
-  "completedCount" | "totalHabits" | "currentStreak" | "level" | "locale"
+  "completedCount" | "totalHabits" | "currentStreak" | "level" | "nextHabit" | "locale"
 >;
 
 export async function syncHomeWidgetFromDashboard(

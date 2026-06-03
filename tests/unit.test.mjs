@@ -65,6 +65,7 @@ import {
   sleepLookbackWindows,
   sleepWindowForDate,
 } from "../lib/data/sleep-shared.ts";
+import * as habitIntelligence from "../lib/coach/habit-intelligence.ts";
 import {
   inferHabitIntelligence,
   mergeHabitReminders,
@@ -254,6 +255,44 @@ test("home widget snapshot handles an empty routine", () => {
   assert.doesNotThrow(() => JSON.parse(stringifyHomeWidgetSnapshot(snapshot)));
 });
 
+test("home widget snapshot carries a one-tap check-in deep link", () => {
+  const snapshot = buildHomeWidgetSnapshot({
+    completedCount: 1,
+    totalHabits: 3,
+    currentStreak: 2,
+    level: 4,
+    nextHabit: { id: "habit water/1", name: "Drink Water", checkInValue: 250, unit: "ml" },
+    now: new Date(2026, 4, 10, 9, 5),
+    locale: "en-US",
+  });
+
+  assert.equal(snapshot.checkInLabel, "Check in");
+  assert.equal(snapshot.checkInHabitName, "Drink Water");
+  assert.equal(
+    snapshot.checkInUrl,
+    "lagan://widget/check-in?habitId=habit%20water%2F1&value=250&unit=ml",
+  );
+
+  const serialized = JSON.parse(stringifyHomeWidgetSnapshot(snapshot));
+  assert.equal(serialized.checkInUrl, snapshot.checkInUrl);
+});
+
+test("home widget snapshot falls back to opening the app when everything is done", () => {
+  const snapshot = buildHomeWidgetSnapshot({
+    completedCount: 3,
+    totalHabits: 3,
+    currentStreak: 2,
+    level: 4,
+    nextHabit: null,
+    now: new Date(2026, 4, 10, 9, 5),
+    locale: "en-US",
+  });
+
+  assert.equal(snapshot.checkInLabel, "Open Lagan");
+  assert.equal(snapshot.checkInHabitName, null);
+  assert.equal(snapshot.checkInUrl, null);
+});
+
 test("leaderboard RPC is restricted to authenticated callers", () => {
   const sql = readFileSync("supabase/migrations/0012_restrict_leaderboard_rpc.sql", "utf8");
   assert.match(sql, /revoke execute on function public\.get_leaderboard\(text\) from public/i);
@@ -261,6 +300,16 @@ test("leaderboard RPC is restricted to authenticated callers", () => {
   assert.match(sql, /grant execute on function public\.get_leaderboard\(text\) to authenticated/i);
   assert.match(sql, /if auth\.uid\(\) is null then/i);
   assert.match(sql, /raise exception 'authenticated user required'/i);
+});
+
+test("leaderboard credit counts only completed target rows", () => {
+  const sql = readFileSync("supabase/migrations/0021_smart_partial_checkin_credit.sql", "utf8");
+  assert.match(sql, /join public\.habits h on h\.id = hc\.habit_id/i);
+  assert.match(sql, /h\.target is null/i);
+  assert.match(sql, /coalesce\(hc\.value,\s*1\) >= h\.target/i);
+  assert.match(sql, /create or replace view public\.leaderboard/i);
+  assert.match(sql, /create or replace function public\.get_leaderboard/i);
+  assert.match(sql, /grant execute on function public\.get_leaderboard\(text\) to authenticated/i);
 });
 
 test("AI quota RPC is service-only and records quota events", () => {
@@ -682,6 +731,10 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /LaganWidgetProvider/);
   assert.match(pluginSource, /android\.appwidget\.action\.APPWIDGET_UPDATE/);
   assert.match(pluginSource, /lagan_widget_info/);
+  assert.match(pluginSource, /lagan_widget_check_in/);
+  assert.match(pluginSource, /setViewVisibility/);
+  assert.match(pluginSource, /checkInUrl/);
+  assert.match(pluginSource, /widget\/check-in/);
 
   const moduleConfig = JSON.parse(
     readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
@@ -702,6 +755,21 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(dashboardSource, /syncHomeWidgetFromDashboard/);
   assert.match(dashboardSource, /completedCount/);
   assert.match(dashboardSource, /currentStreak/);
+  assert.match(dashboardSource, /nextWidgetHabit/);
+  assert.match(dashboardSource, /nextHabit/);
+});
+
+test("widget check-in route logs the selected increment and returns home", () => {
+  const rootLayoutSource = readFileSync("app/_layout.tsx", "utf8");
+  assert.match(rootLayoutSource, /widget\/check-in/);
+
+  const routeSource = readFileSync("app/widget/check-in.tsx", "utf8");
+  assert.match(routeSource, /useLocalSearchParams/);
+  assert.match(routeSource, /logCompletion/);
+  assert.doesNotMatch(routeSource, /toggleHabit/);
+  assert.match(routeSource, /habitId/);
+  assert.match(routeSource, /value/);
+  assert.match(routeSource, /router\.replace\("\/"\)/);
 });
 
 test("Supabase stale refresh token errors are recognized", () => {
@@ -1126,6 +1194,94 @@ test("progressForHabit supports partial and completed target habits", () => {
   assert.equal(progressForHabit(habit, null).isDone, false);
   assert.equal(progressForHabit(habit, { value: 750 }).label, "750 / 2000 ml");
   assert.equal(progressForHabit(habit, { value: 2000 }).isDone, true);
+});
+
+test("suggested check-ins use default chunks and clamp to remaining targets", () => {
+  assert.equal(typeof habitIntelligence.suggestedCheckInForHabit, "function");
+  const habit = {
+    id: "h1",
+    user_id: "u1",
+    name: "Drink 1 litre water daily",
+    description: null,
+    icon: "water_drop",
+    color: "secondary",
+    target: 1000,
+    unit: "ml",
+    reminder_time: null,
+    reminder_times: [],
+    reminder_days: [0, 1, 2, 3, 4, 5, 6],
+    reminders_enabled: true,
+    habit_type: "water_intake",
+    metric_type: "volume_ml",
+    visual_type: "water_bottle",
+    reminder_strategy: "interval",
+    reminder_interval_minutes: 120,
+    default_log_value: 250,
+    created_at: "2026-05-10T00:00:00Z",
+    archived_at: null,
+  };
+
+  assert.deepEqual(
+    habitIntelligence.suggestedCheckInForHabit(habit, progressForHabit(habit, null)),
+    {
+      value: 250,
+      unit: "ml",
+      remainingBefore: 1000,
+      remainingAfter: 750,
+      completesGoal: false,
+      label: "250 ml",
+    },
+  );
+  assert.deepEqual(
+    habitIntelligence.suggestedCheckInForHabit(habit, progressForHabit(habit, { value: 900 })),
+    {
+      value: 100,
+      unit: "ml",
+      remainingBefore: 100,
+      remainingAfter: 0,
+      completesGoal: true,
+      label: "100 ml",
+    },
+  );
+  assert.equal(
+    habitIntelligence.suggestedCheckInForHabit(habit, progressForHabit(habit, { value: 1000 })),
+    null,
+  );
+});
+
+test("completed-day helpers ignore partial target rows", () => {
+  assert.equal(typeof habitIntelligence.completedDatesForHabit, "function");
+  const habit = {
+    id: "water",
+    user_id: "u1",
+    name: "Drink Water",
+    description: null,
+    icon: "water_drop",
+    color: "secondary",
+    target: 1000,
+    unit: "ml",
+    reminder_time: null,
+    reminder_times: [],
+    reminder_days: [0, 1, 2, 3, 4, 5, 6],
+    reminders_enabled: true,
+    habit_type: "water_intake",
+    metric_type: "volume_ml",
+    visual_type: "water_bottle",
+    reminder_strategy: "interval",
+    reminder_interval_minutes: 120,
+    default_log_value: 250,
+    created_at: "2026-05-10T00:00:00Z",
+    archived_at: null,
+  };
+  const completions = [
+    { habit_id: habit.id, completed_on: "2026-05-10", created_at: "2026-05-10T09:00:00", value: 250 },
+    { habit_id: habit.id, completed_on: "2026-05-11", created_at: "2026-05-11T09:00:00", value: 1000 },
+    { habit_id: "other", completed_on: "2026-05-12", created_at: "2026-05-12T09:00:00", value: 1 },
+  ];
+
+  assert.equal(habitIntelligence.isHabitCompletionDone(habit, completions[0]), false);
+  assert.equal(habitIntelligence.isHabitCompletionDone(habit, completions[1]), true);
+  assert.deepEqual(habitIntelligence.completedDatesForHabit(habit, completions), ["2026-05-11"]);
 });
 
 test("completion value payload stores absolute values", () => {
@@ -1831,7 +1987,7 @@ test("coach detects target habits falling behind by time of day", () => {
   const signal = signals.find((item) => item.kind === "behind_progress");
   assert.equal(signal?.habitId, coachHabit.id);
   assert.equal(signal?.suggestedAction, "log_value");
-  assert.equal(signal?.suggestedValue, 500);
+  assert.equal(signal?.suggestedValue, 250);
   assert.match(signal?.message ?? "", /only completed 30%/i);
 });
 

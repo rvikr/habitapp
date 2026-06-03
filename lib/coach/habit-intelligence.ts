@@ -60,6 +60,15 @@ export type HabitProgress = {
   label: string;
 };
 
+export type CheckInSuggestion = {
+  value: number;
+  unit: string | null;
+  remainingBefore: number;
+  remainingAfter: number;
+  completesGoal: boolean;
+  label: string;
+};
+
 type HabitLike = Pick<Habit, "name" | "description" | "icon" | "target" | "unit"> &
   Partial<
     Pick<
@@ -72,6 +81,7 @@ type HabitLike = Pick<Habit, "name" | "description" | "icon" | "target" | "unit"
       | "default_log_value"
     >
   >;
+type HabitWithId = HabitLike & Pick<Habit, "id">;
 
 type HabitInput = {
   name: string;
@@ -383,6 +393,50 @@ export function progressForHabit(
         ? "Done today"
         : "Not logged yet";
   return { current, target, ratio, isDone, label };
+}
+
+export function isHabitCompletionDone(
+  habit: HabitLike,
+  completion?: Pick<HabitCompletion, "value"> | null,
+): boolean {
+  return progressForHabit(habit, completion).isDone;
+}
+
+export function completedDatesForHabit(
+  habit: HabitWithId,
+  completions: Pick<HabitCompletion, "habit_id" | "completed_on" | "value">[],
+): string[] {
+  return completions
+    .filter((completion) => completion.habit_id === habit.id)
+    .filter((completion) => isHabitCompletionDone(habit, completion))
+    .map((completion) => completion.completed_on);
+}
+
+export function suggestedCheckInForHabit(
+  habit: HabitLike,
+  progress: HabitProgress,
+): CheckInSuggestion | null {
+  if (!progress.target || progress.target <= 0 || progress.isDone) return null;
+
+  const defaultValue = Number(habit.default_log_value ?? 0);
+  if (!Number.isFinite(defaultValue) || defaultValue <= 0) return null;
+
+  const remainingBefore = Math.max(progress.target - progress.current, 0);
+  if (remainingBefore <= 0) return null;
+
+  const value = Math.min(defaultValue, remainingBefore);
+  const remainingAfter = Math.max(remainingBefore - value, 0);
+  const unit = habit.unit ?? null;
+  const unitSuffix = unit ? ` ${unit}` : "";
+
+  return {
+    value,
+    unit,
+    remainingBefore,
+    remainingAfter,
+    completesGoal: remainingAfter <= 0,
+    label: `${formatAmount(value)}${unitSuffix}`,
+  };
 }
 
 export function formatAmount(value: number): string {

@@ -24,7 +24,11 @@ import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { useLanguage } from "@/components/language-provider";
 import { useTrackingPreferences } from "@/components/tracking-preferences-provider";
 import type { Habit } from "@/types/db";
-import { progressForHabit, type HabitProgress } from "@/lib/coach/habit-intelligence";
+import {
+  progressForHabit,
+  suggestedCheckInForHabit,
+  type HabitProgress,
+} from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import { shouldShowTrialSubscriptionBanner, type ProAccess } from "@/lib/subscription/access";
@@ -393,18 +397,37 @@ export default function DashboardScreen() {
 
     const habitId = habit.id;
     const wasDone = data.completedToday.has(habitId);
-    const previous = data.completedToday;
-    const next = new Set(previous);
-    if (wasDone) next.delete(habitId);
-    else next.add(habitId);
-    setData({ ...data, completedToday: next });
-    const result = await toggleHabit(habitId, wasDone, habit.target as number | null);
+    const previous = data;
+    const currentProgress = data.todayProgress.get(habitId) ?? progressForHabit(habit, null);
+    const suggestion = suggestedCheckInForHabit(habit, currentProgress);
+    const nextCompleted = new Set(data.completedToday);
+    const nextProgressMap = new Map(data.todayProgress);
+    let nextProgress = currentProgress;
+
+    if (wasDone) {
+      nextCompleted.delete(habitId);
+      nextProgress = progressForHabit(habit, null);
+    } else if (suggestion) {
+      nextProgress = progressForHabit(habit, { value: currentProgress.current + suggestion.value });
+      if (nextProgress.isDone) nextCompleted.add(habitId);
+      else nextCompleted.delete(habitId);
+    } else {
+      nextProgress = progressForHabit(habit, { value: (habit.target as number | null) ?? 1 });
+      nextCompleted.add(habitId);
+    }
+    nextProgressMap.set(habitId, nextProgress);
+    setData({ ...data, completedToday: nextCompleted, todayProgress: nextProgressMap });
+
+    const result =
+      !wasDone && suggestion
+        ? await logCompletion(habitId, suggestion.value, "Logged from check-in")
+        : await toggleHabit(habitId, wasDone, habit.target as number | null);
     if (!result.ok) {
-      setData((current) => (current ? { ...current, completedToday: previous } : current));
+      setData(previous);
       Alert.alert(t("Could not update habit"), result.error ?? t("Try again."));
       return;
     }
-    if (!wasDone) {
+    if (!wasDone && nextProgress.isDone) {
       celebrate();
       recordCompletionAndMaybeReview();
     }
@@ -461,6 +484,16 @@ export default function DashboardScreen() {
   const activeProgress =
     total > 0 ? progressItems.filter((item) => item.current > 0 || item.isDone).length / total : 0;
   const lifeBalanceSegments = data ? buildLifeBalanceWheelSegments(habits, data.todayProgress) : [];
+  const nextWidgetHabit = data
+    ? habits.find((habit) => !data.todayProgress.get(habit.id)?.isDone) ?? null
+    : null;
+  const nextWidgetSuggestion =
+    data && nextWidgetHabit
+      ? suggestedCheckInForHabit(
+          nextWidgetHabit,
+          data.todayProgress.get(nextWidgetHabit.id) ?? progressForHabit(nextWidgetHabit, null),
+        )
+      : null;
   const isInitialLoading = data === null;
 
   useEffect(() => {
@@ -470,9 +503,17 @@ export default function DashboardScreen() {
       totalHabits: total,
       currentStreak: data.stats?.currentStreak ?? 0,
       level: data.stats?.level ?? 1,
+      nextHabit: nextWidgetHabit
+        ? {
+            id: nextWidgetHabit.id,
+            name: nextWidgetHabit.name,
+            checkInValue: nextWidgetSuggestion?.value ?? null,
+            unit: nextWidgetSuggestion?.unit ?? null,
+          }
+        : null,
       locale: language === "hi" ? "hi-IN" : "en-US",
     });
-  }, [completedCount, data, language, total]);
+  }, [completedCount, data, language, nextWidgetHabit, nextWidgetSuggestion, total]);
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>

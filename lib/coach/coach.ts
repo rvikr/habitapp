@@ -1,5 +1,10 @@
 import type { Habit, HabitCompletion } from "../../types/db";
 import { addLocalDays as addDays, localDateKey as dateKey } from "../utils/date.ts";
+import {
+  isHabitCompletionDone,
+  progressForHabit,
+  suggestedCheckInForHabit,
+} from "./habit-intelligence.ts";
 
 export type CoachTone = "friendly" | "motivational" | "calm" | "strict" | "military";
 
@@ -98,8 +103,11 @@ export function buildCoachSignals({
     const progress = progressFor(habit, history, todayKey);
     if (progress.isDone) continue;
 
-    const suggestedValue = suggestedLogValue(habit, progress.current);
+    const suggestedValue = suggestedLogValue(habit, progress);
     const progressPct = Math.round(progress.ratio * 100);
+    const completedHistory = history.filter((completion) =>
+      isHabitCompletionDone(habit, completion),
+    );
 
     if (habit.target && habit.target > 0 && isBehindExpectedProgress(progress.ratio, now)) {
       signals.push(
@@ -118,7 +126,7 @@ export function buildCoachSignals({
       );
     }
 
-    if (detectLateSkipWindow(history, now)) {
+    if (detectLateSkipWindow(completedHistory, now)) {
       signals.push(
         withMessage({
           kind: "usual_skip_window",
@@ -134,7 +142,7 @@ export function buildCoachSignals({
       );
     }
 
-    const streak = currentStreak(history, now);
+    const streak = currentStreak(completedHistory, now);
     if (streak > 1) {
       signals.push(
         withMessage({
@@ -263,11 +271,7 @@ function groupByHabit(completions: CoachCompletion[]): Map<string, CoachCompleti
 
 function progressFor(habit: Habit, history: CoachCompletion[] | undefined, todayKey: string) {
   const completion = history?.find((item) => item.completed_on === todayKey);
-  const current = Number(completion?.value ?? (completion ? 1 : 0));
-  const target = habit.target == null ? null : Number(habit.target);
-  const ratio =
-    target && target > 0 ? Math.min(Math.max(current / target, 0), 1) : completion ? 1 : 0;
-  return { current, ratio, isDone: target && target > 0 ? current >= target : !!completion };
+  return progressForHabit(habit, completion);
 }
 
 function expectedProgressForDay(now: Date): number {
@@ -286,14 +290,11 @@ function isBehindExpectedProgress(ratio: number, now: Date): boolean {
   return expected >= 0.3 && ratio + 0.15 < expected;
 }
 
-function suggestedLogValue(habit: Habit, current: number): number | null {
-  const remaining = habit.target == null ? null : Math.max(Number(habit.target) - current, 0);
-  const defaultValue = Number(habit.default_log_value ?? 0);
-  if (!Number.isFinite(defaultValue) || defaultValue <= 0) return null;
-  const multiplier =
-    habit.habit_type === "water_intake" || habit.metric_type === "volume_ml" ? 2 : 1;
-  const value = Math.max(1, Math.floor(defaultValue * multiplier));
-  return remaining == null || remaining <= 0 ? value : Math.min(value, Math.floor(remaining));
+function suggestedLogValue(
+  habit: Habit,
+  progress: ReturnType<typeof progressForHabit>,
+): number | null {
+  return suggestedCheckInForHabit(habit, progress)?.value ?? null;
 }
 
 function detectLateSkipWindow(history: CoachCompletion[], now: Date): boolean {

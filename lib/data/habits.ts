@@ -4,7 +4,12 @@ import { DATA_CACHE_PREFIX, readThroughCache } from "./cache";
 import { addLocalDays, localDateKey, localDateDaysAgo } from "../utils/date";
 import { streakFromDates } from "../coach/streak";
 import { XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "../coach/xp";
-import { progressForHabit, type HabitProgress } from "../coach/habit-intelligence";
+import {
+  completedDatesForHabit,
+  isHabitCompletionDone,
+  progressForHabit,
+  type HabitProgress,
+} from "../coach/habit-intelligence";
 import {
   buildCoachSignals,
   chooseTopCoachSignal,
@@ -104,16 +109,10 @@ export async function getHabitsForToday(options?: DataFetchOptions) {
           .map(([habitId]) => habitId),
       );
 
-      const completionDatesByHabit = new Map<string, string[]>();
-      for (const c of completionRows) {
-        const dates = completionDatesByHabit.get(c.habit_id as string) ?? [];
-        dates.push(c.completed_on as string);
-        completionDatesByHabit.set(c.habit_id as string, dates);
-      }
       const streaksMap: StreaksMap = new Map(
         habitsList.map((habit) => [
           habit.id,
-          streakFromDates(completionDatesByHabit.get(habit.id) ?? []),
+          streakFromDates(completedDatesForHabit(habit, completionRows)),
         ]),
       );
       const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
@@ -190,14 +189,14 @@ export async function getStats(options?: DataFetchOptions) {
     DATA_CACHE_TTL_MS,
     async () => {
       const [
-        { count: totalCompletions },
+        { data: habitRows },
         { count: totalHabits },
-        { data: dateDocs },
+        { data: completionDocs },
         { data: profile },
       ] = await Promise.all([
         supabase
-          .from("habit_completions")
-          .select("id", { count: "exact", head: true })
+          .from("habits")
+          .select("*")
           .eq("user_id", user.id),
         supabase
           .from("habits")
@@ -206,13 +205,23 @@ export async function getStats(options?: DataFetchOptions) {
           .eq("user_id", user.id),
         supabase
           .from("habit_completions")
-          .select("completed_on")
+          .select("habit_id, completed_on, value")
           .eq("user_id", user.id)
           .order("completed_on", { ascending: false }),
         supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle(),
       ]);
 
-      const uniqueDates = [...new Set((dateDocs ?? []).map((d) => d.completed_on as string))]
+      const allHabits = (habitRows ?? []) as Habit[];
+      const habitsById = new Map(allHabits.map((habit) => [habit.id, habit]));
+      const completedRows = ((completionDocs ?? []) as Pick<
+        HabitCompletion,
+        "habit_id" | "completed_on" | "value"
+      >[]).filter((completion) => {
+        const habit = habitsById.get(completion.habit_id);
+        return habit ? isHabitCompletionDone(habit, completion) : true;
+      });
+      const totalCompletions = completedRows.length;
+      const uniqueDates = [...new Set(completedRows.map((d) => d.completed_on as string))]
         .sort()
         .reverse();
       let currentStreak = 0;
@@ -228,7 +237,7 @@ export async function getStats(options?: DataFetchOptions) {
       }
 
       const completions = totalCompletions ?? 0;
-      const habits = totalHabits ?? 0;
+      const habitCount = totalHabits ?? 0;
       const totalXp = xpForCompletions(completions);
 
       return {
@@ -244,7 +253,7 @@ export async function getStats(options?: DataFetchOptions) {
         xpForNext: XP_PER_LEVEL,
         currentStreak,
         totalCompletions: completions,
-        totalHabits: habits,
+        totalHabits: habitCount,
       };
     },
     options,
@@ -270,23 +279,24 @@ export function getMilestones(stats: Awaited<ReturnType<typeof getStats>> | null
   ];
 }
 
-export function weekProgressFor(habitId: string, completions: HabitCompletion[]) {
+export function weekProgressFor(habit: Habit, completions: HabitCompletion[]) {
   const now = new Date();
   const monday = new Date(now);
   monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const completedDates = new Set(completedDatesForHabit(habit, completions));
   const days: { label: string; key: string; done: boolean; future: boolean }[] = [];
   const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   for (let i = 0; i < 7; i++) {
     const d = addLocalDays(monday, i);
     const key = localDateKey(d);
-    const done = completions.some((c) => c.completed_on === key && c.habit_id === habitId);
+    const done = completedDates.has(key);
     days.push({ label: labels[i], key, done, future: d > now });
   }
   return days;
 }
 
-export function streakFor(completions: HabitCompletion[]) {
-  return streakFromDates(completions.map((c) => c.completed_on));
+export function streakFor(habit: Habit, completions: HabitCompletion[], from = new Date()) {
+  return streakFromDates(completedDatesForHabit(habit, completions), from);
 }
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];

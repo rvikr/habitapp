@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -16,16 +16,28 @@ import { useLanguage } from "@/components/language-provider";
 type Props = {
   visible: boolean;
   habit: Habit | null;
+  initialValue?: number | null;
   onSubmit: (value: number, note: string) => Promise<{ ok: boolean; error?: string }> | void;
   onDismiss: () => void;
 };
 
-export default function LogPrompt({ visible, habit, onSubmit, onDismiss }: Props) {
+function formatInitialValue(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value) || value <= 0) return "";
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 10) / 10);
+}
+
+export default function LogPrompt({ visible, habit, initialValue, onSubmit, onDismiss }: Props) {
   const { t } = useLanguage();
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setValue(formatInitialValue(initialValue));
+    setError(null);
+  }, [habit?.id, initialValue, visible]);
 
   async function handleSubmit() {
     const parsed = parseOptionalPositiveNumber(value);
