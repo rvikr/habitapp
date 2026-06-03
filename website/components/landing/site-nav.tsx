@@ -86,7 +86,6 @@ export default function SiteNav() {
 
       <div
         style={{
-          display: "flex",
           alignItems: "center",
           gap: 28,
         }}
@@ -96,7 +95,7 @@ export default function SiteNav() {
           [
             ["Features", "#features"],
             ["How it works", "#how-it-works"],
-            ["Chill mode", "#chill-mode"],
+            ["Leaderboard", "#leaderboard"],
           ] as [string, string][]
         ).map(([label, href]) => (
           <a

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions — Lagan",
+  title: "Terms & Conditions",
   description: "Terms and conditions for using the Lagan habit-tracking app and website.",
 };
 

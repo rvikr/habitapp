@@ -31,19 +31,19 @@ const MR = 'var(--font-manrope), Manrope, system-ui, sans-serif';
 export const metadata: Metadata = {
   title: "Lagan — Daily devotion. Gently rewarded.",
   description:
-    "Build streaks that last. Earn chill time when you show up. Lagan makes daily devotion feel effortless.",
+    "Build streaks that last. Earn XP and climb the leaderboard when you show up. Lagan makes daily devotion feel effortless.",
   alternates: { canonical: "/" },
   openGraph: {
     title: "Lagan — Habit Tracker & Streak Builder",
     description:
-      "Build streaks that last. Earn chill time when you show up.",
+      "Build streaks that last. Earn XP and climb the leaderboard when you show up.",
     url: "/",
     images: ["/og-image.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "Lagan — Habit Tracker & Streak Builder",
-    description: "Build streaks that last. Earn chill time when you show up.",
+    description: "Build streaks that last. Earn XP and climb the leaderboard when you show up.",
     images: ["/og-image.png"],
   },
 };
@@ -407,142 +407,55 @@ function PhoneSignin() {
   );
 }
 
-function PhoneChill() {
+function PhoneLeaderboard() {
+  const players = [
+    { init: "A", name: "Aisha M.", xp: 3820, streak: 34, rank: 1, you: false, hue: 142 },
+    { init: "R", name: "You", xp: 3610, streak: 22, rank: 2, you: true, hue: 22 },
+    { init: "J", name: "James T.", xp: 2940, streak: 18, rank: 3, you: false, hue: 200 },
+    { init: "S", name: "Sofia K.", xp: 1980, streak: 12, rank: 4, you: false, hue: 280 },
+    { init: "M", name: "Mike R.", xp: 1450, streak: 8, rank: 5, you: false, hue: 50 },
+  ];
   return (
-    <div
-      style={{
-        width: 300,
-        height: 600,
-        background: C.bg,
-        overflow: "hidden",
-        fontFamily: MR,
-      }}
-    >
-      <div
-        style={{
-          height: 42,
-          background: C.surface,
-          display: "flex",
-          alignItems: "center",
-          padding: "0 18px",
-          justifyContent: "space-between",
-        }}
-      >
+    <div style={{ width: 300, height: 600, background: C.bg, overflow: "hidden", fontFamily: MR }}>
+      <div style={{ height: 42, background: C.surface, display: "flex", alignItems: "center", padding: "0 18px", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: C.textMute }}>9:41</span>
-        <span style={{ fontSize: 11, color: C.textMute }}>← Back</span>
+        <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+          <div style={{ width: 3, height: 8, background: C.success, borderRadius: 1 }} />
+          <div style={{ width: 3, height: 6, background: C.textMute, borderRadius: 1 }} />
+          <div style={{ width: 3, height: 4, background: C.border, borderRadius: 1 }} />
+        </div>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          padding: "24px 22px 0",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: C.accent,
-            letterSpacing: "0.3em",
-            textTransform: "uppercase",
-            marginBottom: 14,
-          }}
-        >
-          CHILL MODE
+      <div style={{ padding: "13px 15px 10px", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: 2 }}>
+          LEADERBOARD
         </div>
-        <div
-          style={{
-            fontFamily: SG,
-            fontSize: 80,
-            fontWeight: 700,
-            color: C.accent,
-            letterSpacing: "-0.04em",
-            lineHeight: 1,
-            marginBottom: 6,
-          }}
-        >
-          24
+        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, fontFamily: SG, letterSpacing: "-0.02em" }}>
+          This Week
         </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: C.textMute,
-            marginBottom: 28,
-            fontWeight: 500,
-          }}
-        >
-          minutes earned
-        </div>
-        <div style={{ position: "relative", width: 160, height: 88, marginBottom: 22 }}>
-          <svg width="160" height="88" viewBox="0 0 160 88">
-            <path
-              d="M 16 88 A 64 64 0 0 1 144 88"
-              fill="none"
-              stroke={C.border}
-              strokeWidth="8"
-              strokeLinecap="round"
-            />
-            <path
-              d="M 16 88 A 64 64 0 0 1 144 88"
-              fill="none"
-              stroke={C.accent}
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray="201"
-              strokeDashoffset="70"
-            />
-          </svg>
-          <div
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: "50%",
-              transform: "translateX(-50%)",
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.textMute,
-              whiteSpace: "nowrap",
-            }}
-          >
-            3 habits done
-          </div>
-        </div>
-        {["Meditation ✓", "Morning walk ✓", "Journaling ✓"].map((item) => (
-          <div
-            key={item}
-            style={{
-              width: "100%",
-              background: C.surface,
-              borderRadius: 10,
-              padding: "9px 13px",
-              marginBottom: 7,
-              border: `1px solid ${C.border}`,
-              fontSize: 11,
-              fontWeight: 600,
-              color: C.text,
-              textAlign: "center",
-            }}
-          >
-            {item}
+      </div>
+      <div style={{ margin: "10px 13px", background: hexA(C.accent, 0.08), border: `1px solid ${hexA(C.accent, 0.25)}`, borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 13 }}>⚡</span>
+        <span style={{ fontSize: 10, color: C.accent, fontWeight: 600 }}>210 XP to reach #1 — you&apos;re close!</span>
+      </div>
+      <div style={{ padding: "0 13px" }}>
+        {players.map((p) => (
+          <div key={p.rank} style={{ background: p.you ? hexA(C.primary, 0.1) : C.surfaceHi, border: `1px solid ${p.you ? hexA(C.primary, 0.35) : C.border}`, borderRadius: 10, padding: "9px 11px", display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
+            <div style={{ width: 18, textAlign: "center", fontSize: 13, flexShrink: 0 }}>
+              {p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim }}>{p.rank}</span>}
+            </div>
+            <div style={{ width: 26, height: 26, borderRadius: 13, background: p.you ? C.primary : `hsl(${p.hue}, 50%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+              {p.init}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: p.you ? C.primary : C.text }}>{p.name}</div>
+              <div style={{ fontSize: 9, color: C.textMute }}>🔥 {p.streak} day streak</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: p.you ? C.primary : C.text }}>{p.xp.toLocaleString()}</div>
+              <div style={{ fontSize: 8, color: C.textDim }}>XP</div>
+            </div>
           </div>
         ))}
-        <div
-          style={{
-            width: "100%",
-            background: hexA(C.accent, 0.1),
-            border: `1px solid ${hexA(C.accent, 0.3)}`,
-            borderRadius: 12,
-            padding: 12,
-            marginTop: 6,
-            textAlign: "center",
-            fontSize: 13,
-            fontWeight: 700,
-            color: C.accent,
-          }}
-        >
-          ▶ Start chill session
-        </div>
       </div>
     </div>
   );
@@ -876,7 +789,7 @@ function SiteHero({ userCount }: { userCount: string }) {
               animationDelay: "0.2s",
             }}
           >
-            Build streaks that last. Earn chill time when you show up. Daily
+            Build streaks that last. Earn XP and climb the leaderboard when you show up. Daily
             devotion made effortless — never a chore.
           </p>
 
@@ -1103,10 +1016,10 @@ const FEATURES = [
     desc: "All your habits in a focused daily list — just today's work, clearly laid out. No noise, no overwhelm.",
   },
   {
-    icon: "😌",
-    tag: "Chill mode",
-    title: "Earn real chill time",
-    desc: "Complete habits, bank guilt-free screen time as a reward. Lagan flips the script on app addiction.",
+    icon: "🏆",
+    tag: "Leaderboard",
+    title: "Climb the rankings",
+    desc: "Every habit earns XP. Every streak multiplies it. Compete with the community — and see your name at the top.",
   },
   {
     icon: "✨",
@@ -1262,9 +1175,9 @@ const HOW_STEPS = [
   },
   {
     num: "03",
-    title: "Earn your chill time",
-    desc: "Every habit completed earns guilt-free screen time. You did the work — now enjoy the reward, truly.",
-    phone: <PhoneChill />,
+    title: "Earn XP, rise up",
+    desc: "Every habit completed earns XP. Streaks multiply your gains. The weekly leaderboard resets — so every Monday is a new chance to top the board.",
+    phone: <PhoneLeaderboard />,
   },
 ];
 
@@ -1387,11 +1300,11 @@ function SiteHowItWorks() {
   );
 }
 
-// ─── Chill mode spotlight ─────────────────────────────────────────────────────
-function SiteChillSpotlight() {
+// ─── Leaderboard spotlight ────────────────────────────────────────────────────
+function SiteLeaderboard() {
   return (
     <section
-      id="chill-mode"
+      id="leaderboard"
       className="landing-section"
       style={{
         padding: "100px clamp(20px, 5vw, 80px)",
@@ -1422,12 +1335,12 @@ function SiteChillSpotlight() {
                 inset: -60,
                 borderRadius: "50%",
                 pointerEvents: "none",
-                background: `radial-gradient(circle, ${hexA(C.accent, 0.15)}, transparent 70%)`,
+                background: `radial-gradient(circle, ${hexA(C.primary, 0.13)}, transparent 70%)`,
               }}
             />
             <div style={{ position: "relative", zIndex: 1 }}>
               <PhoneFrame className="float-slow">
-                <PhoneChill />
+                <PhoneLeaderboard />
               </PhoneFrame>
             </div>
           </div>
@@ -1437,13 +1350,13 @@ function SiteChillSpotlight() {
               style={{
                 fontSize: 11,
                 fontWeight: 700,
-                color: C.accent,
+                color: C.primary,
                 letterSpacing: "0.3em",
                 textTransform: "uppercase",
                 marginBottom: 20,
               }}
             >
-              The reward system
+              COMPETE
             </div>
             <h2
               style={{
@@ -1456,9 +1369,9 @@ function SiteChillSpotlight() {
                 margin: "0 0 20px",
               }}
             >
-              You earned it.
+              Every habit.
               <br />
-              <span style={{ color: C.accent }}>Now chill.</span>
+              <span style={{ color: C.primary }}>Every streak. Rewarded.</span>
             </h2>
             <p
               style={{
@@ -1471,17 +1384,17 @@ function SiteChillSpotlight() {
                 maxWidth: 400,
               }}
             >
-              Every habit completed banks minutes of screen time. Guilt-free,
-              earned, real. Lagan is the only app that rewards you for doing
-              the work — not for staying in the app.
+              Your habits earn XP. Streaks multiply your gains. The
+              leaderboard resets weekly — so every Monday is a fresh shot at
+              the top.
             </p>
             <div
               style={{ display: "flex", flexDirection: "column", gap: 14 }}
             >
               {[
-                "Complete a habit → earn 10 minutes of chill time",
-                "Hold a 7-day streak → unlock 120 minute bonus",
-                "AI Coach tells you when to rest vs. push forward",
+                "Complete a habit → earn XP towards your rank",
+                "Hold a 7-day streak → unlock a 2× XP multiplier",
+                "Beat last week's score → rise through the global rankings",
               ].map((point, i) => (
                 <div
                   key={i}
@@ -1498,13 +1411,13 @@ function SiteChillSpotlight() {
                       borderRadius: 11,
                       flexShrink: 0,
                       marginTop: 1,
-                      background: hexA(C.accent, 0.18),
+                      background: hexA(C.primary, 0.18),
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                     }}
                   >
-                    <CheckIcon color={C.accent} />
+                    <CheckIcon color={C.primary} />
                   </div>
                   <span
                     style={{
@@ -1529,7 +1442,7 @@ function SiteChillSpotlight() {
 // ─── Testimonials ─────────────────────────────────────────────────────────────
 const TESTIMONIALS = [
   {
-    text: "Lagan changed my mornings. 90 days of meditation and I've never felt clearer. The chill time mechanic is genuinely clever.",
+    text: "Lagan changed my mornings. 90 days of meditation and I've never felt clearer. The XP and leaderboard mechanic is genuinely clever.",
     name: "Sarah K.",
     role: "Designer · 90-day streak",
     init: "S",
@@ -1872,7 +1785,7 @@ export default async function LandingPage() {
     "@type": "MobileApplication",
     name: "Lagan",
     description:
-      "Free habit tracker for iOS, Android, and web. Build daily habits, track streaks, earn chill time.",
+      "Free habit tracker for iOS, Android, and web. Build daily habits, track streaks, earn XP, and climb the leaderboard.",
     applicationCategory: "LifestyleApplication",
     operatingSystem: "iOS, Android, Web",
     url: "https://lagan.health",
@@ -1909,7 +1822,7 @@ export default async function LandingPage() {
       <StatsStrip userCount={userCount} checkinsCount={checkinsCount} />
       <SiteFeatures />
       <SiteHowItWorks />
-      <SiteChillSpotlight />
+      <SiteLeaderboard />
       <SiteTestimonials />
       <SiteCTA />
       <SiteFooter />

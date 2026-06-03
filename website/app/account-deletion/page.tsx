@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Account deletion - Lagan",
+  title: "Account deletion",
   description: "Request deletion of your Lagan account and app data.",
 };
 
