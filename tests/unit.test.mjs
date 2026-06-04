@@ -642,12 +642,20 @@ test("life balance wheel scores visible catalog categories from habit progress",
   assert.equal(segments.find((segment) => segment.category === "Learning")?.completedCount, 1);
 });
 
-test("homepage surfaces life balance and level progress", () => {
+test("home screen surfaces stats, level, and today's progress", () => {
   const dashboardScreen = readFileSync("app/(tabs)/index.tsx", "utf8");
   assert.match(dashboardScreen, /getStats/);
-  assert.match(dashboardScreen, /buildLifeBalanceWheelSegments/);
-  assert.match(dashboardScreen, /LifeBalanceWheel/);
-  assert.match(dashboardScreen, /Level \{level\}/);
+  assert.match(dashboardScreen, /Today's Focus/);
+  assert.match(dashboardScreen, /data\.stats\.level/);
+});
+
+test("progress tab surfaces life balance and level progress", () => {
+  const progressScreen = readFileSync("app/(tabs)/progress.tsx", "utf8");
+  assert.match(progressScreen, /getStats/);
+  assert.match(progressScreen, /getConsistencyData/);
+  assert.match(progressScreen, /buildLifeBalanceWheelSegments/);
+  assert.match(progressScreen, /LIFE BALANCE WHEEL/);
+  assert.match(progressScreen, /Level \{level\}/);
 });
 
 test("store-facing support and legal links have production build defaults", () => {
