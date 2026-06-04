@@ -341,11 +341,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Note (optional)": "नोट (वैकल्पिक)",
   "Saving...": "सेव हो रहा है...",
 
-  "A habit tracking app": "आदतें ट्रैक करने वाला ऐप",
+  "AI-enabled habit tracking": "AI-सक्षम आदत ट्रैकिंग",
   "Welcome back": "वापसी पर स्वागत है",
   "Create account": "अकाउंट बनाएं",
   "Pick up where you left off.": "जहां छोड़ा था वहीं से शुरू करें.",
-  "Start building better habits today.": "आज से बेहतर आदतें बनाना शुरू करें.",
+  "Start with an AI-assisted routine.": "AI-सहायता वाली रूटीन से शुरू करें.",
   Email: "ईमेल",
   Password: "पासवर्ड",
   "Forgot password?": "पासवर्ड भूल गए?",

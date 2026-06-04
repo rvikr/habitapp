@@ -52,11 +52,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="sleep"
+        name="progress"
         options={{
-          title: t("Sleep"),
+          title: t("Progress"),
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="sleep" size={size} color={color} />
+            <MaterialCommunityIcons name="chart-line" size={size} color={color} />
           ),
         }}
       />

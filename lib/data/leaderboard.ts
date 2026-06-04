@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured, getCurrentUser } from "../supabase/clie
 import { DATA_CACHE_PREFIX, clearDataCache, readThroughCache } from "./cache";
 
 export type LeaderboardEntry = {
+  rank: number;
   user_id: string;
   display_name: string;
   avatar_style: string | null;
@@ -11,6 +12,9 @@ export type LeaderboardEntry = {
   level: number;
   total_habits: number;
   last_completion_date: string | null;
+  xp: number;
+  streak: number;
+  is_current_user: boolean;
 };
 
 export type Profile = {
@@ -20,29 +24,52 @@ export type Profile = {
   avatar_seed: string | null;
 };
 
+export type LeaderboardPeriod = "week" | "month" | "all";
+
+export type LeaderboardPosition = {
+  rank: number;
+  totalUsers: number;
+  totalXp: number;
+  percentileAhead: number | null;
+};
+
+type LeaderboardResponse = {
+  entries?: LeaderboardEntry[];
+  position?: LeaderboardPosition | null;
+};
+
 type DataFetchOptions = { force?: boolean };
 const DATA_CACHE_TTL_MS = 30_000;
+
+async function invokeLeaderboard(body: {
+  period?: LeaderboardPeriod;
+  limit?: number;
+  includeEntries?: boolean;
+  includePosition?: boolean;
+}): Promise<LeaderboardResponse | null> {
+  const { data, error } = await supabase.functions.invoke<LeaderboardResponse>("leaderboard", {
+    body,
+  });
+  if (error) return null;
+  return data ?? null;
+}
 
 // Top N users by total XP. Only includes users who opted in (display_name is not null).
 export async function getLeaderboard(
   limit = 50,
   options?: DataFetchOptions,
+  period: LeaderboardPeriod = "all",
 ): Promise<LeaderboardEntry[]> {
   if (!isSupabaseConfigured()) return [];
   const user = await getCurrentUser();
   if (!user) return [];
 
   return readThroughCache(
-    `${DATA_CACHE_PREFIX}leaderboard:${user.id}:${limit}`,
+    `${DATA_CACHE_PREFIX}leaderboard:${user.id}:${period}:${limit}`,
     DATA_CACHE_TTL_MS,
     async () => {
-      const { data, error } = await supabase
-        .from("leaderboard")
-        .select("*")
-        .order("total_xp", { ascending: false })
-        .limit(limit);
-      if (error) return [];
-      return (data ?? []) as LeaderboardEntry[];
+      const data = await invokeLeaderboard({ period, limit, includeEntries: true });
+      return data?.entries ?? [];
     },
     options,
   );
@@ -92,26 +119,29 @@ export async function setDisplayName(
 }
 
 // Find current user's rank (1-indexed). Returns null if not opted in.
-export async function getMyRank(options?: DataFetchOptions): Promise<number | null> {
+export async function getMyLeaderboardPosition(
+  options?: DataFetchOptions,
+  period: LeaderboardPeriod = "all",
+): Promise<LeaderboardPosition | null> {
   const user = await getCurrentUser();
   if (!user) return null;
 
   return readThroughCache(
-    `${DATA_CACHE_PREFIX}my-rank:${user.id}`,
+    `${DATA_CACHE_PREFIX}leaderboard-position:${user.id}:${period}`,
     DATA_CACHE_TTL_MS,
     async () => {
-      const { data: me } = await supabase
-        .from("leaderboard")
-        .select("total_xp")
-        .eq("user_id", user.id)
-        .single();
-      if (!me) return null;
-      const { count } = await supabase
-        .from("leaderboard")
-        .select("user_id", { count: "exact", head: true })
-        .gt("total_xp", me.total_xp);
-      return (count ?? 0) + 1;
+      const data = await invokeLeaderboard({
+        period,
+        includeEntries: false,
+        includePosition: true,
+      });
+      return data?.position ?? null;
     },
     options,
   );
+}
+
+export async function getMyRank(options?: DataFetchOptions): Promise<number | null> {
+  const position = await getMyLeaderboardPosition(options);
+  return position?.rank ?? null;
 }

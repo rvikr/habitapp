@@ -93,9 +93,9 @@ export default function SiteNav() {
       >
         {(
           [
-            ["Features", "#features"],
+            ["AI features", "#features"],
             ["How it works", "#how-it-works"],
-            ["Leaderboard", "#leaderboard"],
+            ["Momentum", "#leaderboard"],
           ] as [string, string][]
         ).map(([label, href]) => (
           <a

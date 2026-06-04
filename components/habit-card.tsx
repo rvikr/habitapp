@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, ImageBackground } from "react-native";
+import { View, Text, TouchableOpacity, ImageBackground, StyleProp, ViewStyle } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Habit } from "@/types/db";
 import type { HabitProgress } from "@/lib/coach/habit-intelligence";
@@ -11,6 +11,8 @@ type Props = {
   done: boolean;
   progress?: HabitProgress;
   streak?: number;
+  variant?: "default" | "grid";
+  style?: StyleProp<ViewStyle>;
   onToggle: () => void | Promise<void>;
   onPress: () => void;
 };
@@ -40,7 +42,16 @@ function CheckIcon({ size = 14, color }: { size?: number; color: string }) {
   );
 }
 
-export default function HabitCard({ habit, done, progress, streak = 0, onToggle, onPress }: Props) {
+export default function HabitCard({
+  habit,
+  done,
+  progress,
+  streak = 0,
+  variant = "default",
+  style,
+  onToggle,
+  onPress,
+}: Props) {
   const [toggling, setToggling] = useState(false);
   const { t } = useLanguage();
 
@@ -65,6 +76,88 @@ export default function HabitCard({ habit, done, progress, streak = 0, onToggle,
     } finally {
       setToggling(false);
     }
+  }
+
+  if (variant === "grid") {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel={t("Open {name} details", { name: habit.name })}
+        style={[{ borderRadius: 16, overflow: "hidden", minHeight: 130 }, style]}
+      >
+        <ImageBackground
+          source={{ uri: imageUrl }}
+          style={{ flex: 1, padding: 12, minHeight: 130 }}
+        >
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(0,0,0,0.52)",
+            }}
+          />
+          <View style={{ flex: 1, zIndex: 1, justifyContent: "space-between" }}>
+            <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }} numberOfLines={2}>
+              {habit.name}
+            </Text>
+            <View>
+              {subtitle ? (
+                <Text
+                  style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", marginBottom: 6 }}
+                  numberOfLines={1}
+                >
+                  {subtitle}
+                </Text>
+              ) : null}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                  <FlameIcon size={10} color={accentColor} />
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: accentColor }}>
+                    {streak > 0 ? `${streak}d` : t("Start")}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={handleToggleTap}
+                  disabled={toggling}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    done
+                      ? t("Mark {name} not done", { name: habit.name })
+                      : t("Mark {name} done", { name: habit.name })
+                  }
+                  accessibilityState={{ checked: done, disabled: toggling }}
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    backgroundColor: done ? primaryColor : "transparent",
+                    borderWidth: done ? 0 : 2,
+                    borderColor: "rgba(255,255,255,0.6)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: toggling ? 0.6 : 1,
+                  }}
+                >
+                  {done && <CheckIcon size={12} color="#fff" />}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </ImageBackground>
+      </TouchableOpacity>
+    );
   }
 
   return (

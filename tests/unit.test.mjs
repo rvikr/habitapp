@@ -186,17 +186,20 @@ test("streakFromDates counts an unbroken run across the new year", () => {
 
 test("XP constants are canonical across app, website, and SQL", () => {
   assert.equal(XP_PER_COMPLETION, 10);
-  assert.equal(XP_PER_LEVEL, 100);
+  assert.equal(XP_PER_LEVEL, 500);
   assert.equal(WEBSITE_XP_PER_COMPLETION, XP_PER_COMPLETION);
   assert.equal(WEBSITE_XP_PER_LEVEL, XP_PER_LEVEL);
   assert.equal(xpForCompletions(11), 110);
   assert.equal(levelForXp(0), 1);
-  assert.equal(levelForXp(100), 2);
-  assert.equal(xpInLevel(110), 10);
+  assert.equal(levelForXp(500), 2);
+  assert.equal(xpInLevel(510), 10);
 
-  const sql = readFileSync("supabase/migrations/0008_release_readiness.sql", "utf8");
-  assert.match(sql, /count\(\*\)::bigint \* 10 as xp/);
-  assert.match(sql, /\/ 100 \+ 1 as level/);
+  const sql = readFileSync(
+    "supabase/migrations/20260529174021_0021_leaderboard_service_api.sql",
+    "utf8",
+  );
+  assert.match(sql, /\(coalesce\(ct\.total_completions, 0\)::bigint \* 10\) as total_xp/);
+  assert.match(sql, /\/ 500\) \+ 1\)::integer as level/);
 });
 
 test("home widget snapshot clamps progress and formats launcher copy", () => {
@@ -261,6 +264,35 @@ test("leaderboard RPC is restricted to authenticated callers", () => {
   assert.match(sql, /grant execute on function public\.get_leaderboard\(text\) to authenticated/i);
   assert.match(sql, /if auth\.uid\(\) is null then/i);
   assert.match(sql, /raise exception 'authenticated user required'/i);
+});
+
+test("leaderboard service API is source-controlled and service-only", () => {
+  const apiSql = readFileSync(
+    "supabase/migrations/20260529174021_0021_leaderboard_service_api.sql",
+    "utf8",
+  );
+  const lockSql = readFileSync(
+    "supabase/migrations/20260529174032_0022_lock_down_leaderboard_views.sql",
+    "utf8",
+  );
+  const edgeFunction = readFileSync("supabase/functions/leaderboard/index.ts", "utf8");
+
+  assert.match(apiSql, /drop function if exists public\.get_leaderboard\(text\)/i);
+  assert.match(apiSql, /create or replace function public\.get_leaderboard_entries/i);
+  assert.match(apiSql, /create or replace function public\.get_leaderboard_position/i);
+  assert.match(lockSql, /revoke all on public\.leaderboard from authenticated/i);
+  assert.match(lockSql, /grant all on public\.leaderboard to service_role/i);
+  assert.match(
+    lockSql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from authenticated/i,
+  );
+  assert.match(
+    lockSql,
+    /grant execute on function public\.get_leaderboard_position\(uuid, text\) to service_role/i,
+  );
+  assert.match(edgeFunction, /SUPABASE_SERVICE_ROLE_KEY/);
+  assert.match(edgeFunction, /admin\.rpc\("get_leaderboard_entries"/);
+  assert.match(edgeFunction, /admin\.rpc\("get_leaderboard_position"/);
 });
 
 test("AI quota RPC is service-only and records quota events", () => {

@@ -29,21 +29,21 @@ const MR = 'var(--font-manrope), Manrope, system-ui, sans-serif';
 
 // ─── Metadata ─────────────────────────────────────────────────────────────────
 export const metadata: Metadata = {
-  title: "Lagan — Daily devotion. Gently rewarded.",
+  title: "Lagan — AI Habit Tracker & Coach",
   description:
-    "Build streaks that last. Earn XP and climb the leaderboard when you show up. Lagan makes daily devotion feel effortless.",
+    "An AI-enabled habit tracking app that helps you build routines, get personal coaching, set smart reminders, track streaks, and stay consistent.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Lagan — Habit Tracker & Streak Builder",
+    title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "Build streaks that last. Earn XP and climb the leaderboard when you show up.",
+      "Build routines with AI coaching, smart reminders, streak tracking, XP, and badges.",
     url: "/",
     images: ["/og-image.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lagan — Habit Tracker & Streak Builder",
-    description: "Build streaks that last. Earn XP and climb the leaderboard when you show up.",
+    title: "Lagan — AI Habit Tracker & Coach",
+    description: "Build routines with AI coaching, smart reminders, streak tracking, XP, and badges.",
     images: ["/og-image.png"],
   },
 };
@@ -754,7 +754,7 @@ function SiteHero({ userCount }: { userCount: string }) {
                 letterSpacing: 0.3,
               }}
             >
-              NEW · AI Coach is live
+              NEW · AI habit coach is live
             </span>
           </div>
 
@@ -771,9 +771,9 @@ function SiteHero({ userCount }: { userCount: string }) {
               animationDelay: "0.12s",
             }}
           >
-            Habits,
+            Lagan, your
             <br />
-            <span className="text-shimmer">gently</span> held.
+            <span className="text-shimmer">AI habit tracker.</span>
           </h1>
 
           <p
@@ -789,8 +789,8 @@ function SiteHero({ userCount }: { userCount: string }) {
               animationDelay: "0.2s",
             }}
           >
-            Build streaks that last. Earn XP and climb the leaderboard when you show up. Daily
-            devotion made effortless — never a chore.
+            Build better routines with AI coaching, smart reminders, and weekly progress insights.
+            Track streaks, sleep, steps, and XP without turning habits into another chore.
           </p>
 
           <div
@@ -886,7 +886,7 @@ function SiteHero({ userCount }: { userCount: string }) {
               <span
                 style={{ fontSize: 12, fontWeight: 600, color: C.textMute }}
               >
-                Loved by {userCount} daily practicers
+                Loved by {userCount} daily habit builders
               </span>
             </div>
           </div>
@@ -1004,28 +1004,28 @@ function StatsStrip({
 // ─── Features ─────────────────────────────────────────────────────────────────
 const FEATURES = [
   {
-    icon: "🔗",
-    tag: "Streaks",
-    title: "Don't break the chain",
-    desc: "Visual streak tracking that makes showing up every day feel deeply satisfying. One tap, and it grows.",
+    icon: "✨",
+    tag: "AI Coach",
+    title: "Personal coaching from your habits",
+    desc: "Lagan reads your streaks, sleep, and check-ins to suggest next steps that fit your actual life.",
   },
   {
-    icon: "🎯",
-    tag: "Focus",
-    title: "One clean today view",
-    desc: "All your habits in a focused daily list — just today's work, clearly laid out. No noise, no overwhelm.",
+    icon: "🧭",
+    tag: "AI Routines",
+    title: "Start with a routine built for your day",
+    desc: "Answer a few questions and Lagan shapes a starter routine; Pro can refine it with AI.",
+  },
+  {
+    icon: "🔔",
+    tag: "Smart Reminders",
+    title: "Nudges that know your momentum",
+    desc: "AI-powered reminders help you recover from missed days and keep the next action small.",
   },
   {
     icon: "🏆",
-    tag: "Leaderboard",
-    title: "Climb the rankings",
-    desc: "Every habit earns XP. Every streak multiplies it. Compete with the community — and see your name at the top.",
-  },
-  {
-    icon: "✨",
-    tag: "AI Coach",
-    title: "A coach that gets you",
-    desc: "Reads your streaks, sleep, and check-ins to give you personal nudges that fit your actual life.",
+    tag: "Streaks + XP",
+    title: "Track the work that compounds",
+    desc: "Log habits, see streaks, earn XP, unlock badges, and compare progress on the leaderboard.",
   },
 ];
 
@@ -1051,7 +1051,7 @@ function SiteFeatures() {
               marginBottom: 14,
             }}
           >
-            Features
+            AI-enabled habit tracking
           </div>
           <h2
             style={{
@@ -1064,9 +1064,9 @@ function SiteFeatures() {
               lineHeight: 1.1,
             }}
           >
-            Everything you need.
+            Coaching when you need it.
             <br />
-            <span style={{ color: C.textMute }}>Nothing you don&apos;t.</span>
+            <span style={{ color: C.textMute }}>Simple tracking when you don&apos;t.</span>
           </h2>
         </div>
 
@@ -1163,21 +1163,21 @@ function SiteFeatures() {
 const HOW_STEPS = [
   {
     num: "01",
-    title: "Add your habits",
-    desc: "Name them, set a schedule, add a gentle reminder. Start with 2–3 — quality beats quantity every time.",
+    title: "Tell Lagan your goals",
+    desc: "Add habits manually or answer a few questions so Lagan can suggest a routine matched to your day.",
     phone: <PhoneSignin />,
   },
   {
     num: "02",
-    title: "Show up every day",
-    desc: "Open Lagan each morning. Tap to check off what you did. Your streak grows with every single check-in.",
+    title: "Track, sync, and learn",
+    desc: "Check off habits, sync steps and sleep, and let your daily progress become useful context for coaching.",
     phone: <PhoneHome />,
   },
   {
     num: "03",
-    title: "Earn XP, rise up",
-    desc: "Every habit completed earns XP. Streaks multiply your gains. The weekly leaderboard resets — so every Monday is a new chance to top the board.",
-    phone: <PhoneLeaderboard />,
+    title: "Get AI coaching as you go",
+    desc: "When momentum dips, the AI coach uses your logs to spot patterns and suggest the next small move.",
+    phone: <PhoneCoach />,
   },
 ];
 
@@ -1213,7 +1213,7 @@ function SiteHowItWorks() {
               marginBottom: 14,
             }}
           >
-            Simple by design
+            AI that stays practical
           </div>
           <h2
             style={{
@@ -1356,7 +1356,7 @@ function SiteLeaderboard() {
                 marginBottom: 20,
               }}
             >
-              COMPETE
+              MOMENTUM
             </div>
             <h2
               style={{
@@ -1371,7 +1371,7 @@ function SiteLeaderboard() {
             >
               Every habit.
               <br />
-              <span style={{ color: C.primary }}>Every streak. Rewarded.</span>
+              <span style={{ color: C.primary }}>Every streak. Visible.</span>
             </h2>
             <p
               style={{
@@ -1384,17 +1384,17 @@ function SiteLeaderboard() {
                 maxWidth: 400,
               }}
             >
-              Your habits earn XP. Streaks multiply your gains. The
-              leaderboard resets weekly — so every Monday is a fresh shot at
-              the top.
+              AI helps you choose the next right action. XP, badges, and the
+              weekly leaderboard keep momentum visible once you start showing
+              up.
             </p>
             <div
               style={{ display: "flex", flexDirection: "column", gap: 14 }}
             >
               {[
-                "Complete a habit → earn XP towards your rank",
-                "Hold a 7-day streak → unlock a 2× XP multiplier",
-                "Beat last week's score → rise through the global rankings",
+                "Complete a habit -> earn XP towards your rank",
+                "Hold a 7-day streak -> unlock a 2x XP multiplier",
+                "Use weekly progress -> adjust your next routine with AI",
               ].map((point, i) => (
                 <div
                   key={i}
@@ -1442,7 +1442,7 @@ function SiteLeaderboard() {
 // ─── Testimonials ─────────────────────────────────────────────────────────────
 const TESTIMONIALS = [
   {
-    text: "Lagan changed my mornings. 90 days of meditation and I've never felt clearer. The XP and leaderboard mechanic is genuinely clever.",
+    text: "Lagan changed my mornings. The AI routine got me started small, then streaks and XP kept me honest for 90 days.",
     name: "Sarah K.",
     role: "Designer · 90-day streak",
     init: "S",
@@ -1456,7 +1456,7 @@ const TESTIMONIALS = [
     hue: 220,
   },
   {
-    text: "I've tried every habit app. Lagan is the first one that makes me want to open it. The design is just — calm. It's enough.",
+    text: "I've tried every habit app. Lagan is the first one that feels personal without being noisy. The AI reminders are calm and useful.",
     name: "Priya R.",
     role: "Writer · 120-day streak",
     init: "P",
@@ -1497,7 +1497,7 @@ function SiteTestimonials() {
               margin: 0,
             }}
           >
-            Gently held. Deeply built.
+            Practical AI for daily follow-through.
           </h2>
         </div>
         <div
@@ -1643,7 +1643,7 @@ function SiteCTA() {
             margin: "0 0 18px",
           }}
         >
-          Start your streak
+          Start with an AI routine
           <br />
           <span className="text-shimmer">today.</span>
         </h2>
@@ -1658,7 +1658,7 @@ function SiteCTA() {
             maxWidth: 360,
           }}
         >
-          Free to start. No credit card. Just show up tomorrow.
+          Free to start. Track habits today, then let AI coaching help you adjust tomorrow.
         </p>
         <div
           style={{
@@ -1764,7 +1764,7 @@ function SiteFooter() {
       <div
         style={{ fontSize: 12, color: C.textDim, fontWeight: 500 }}
       >
-        © 2026 Lagan · habits, gently held.
+        © 2026 Lagan · AI-enabled habit tracking.
       </div>
     </footer>
   );
@@ -1782,13 +1782,23 @@ export default async function LandingPage() {
 
   const softwareJsonLd = {
     "@context": "https://schema.org",
-    "@type": "MobileApplication",
+    "@type": ["MobileApplication", "SoftwareApplication"],
     name: "Lagan",
     description:
-      "Free habit tracker for iOS, Android, and web. Build daily habits, track streaks, earn XP, and climb the leaderboard.",
+      "AI-enabled habit tracker for iOS, Android, and web. Build routines, get AI coaching, set smart reminders, track streaks, earn XP, and climb the leaderboard.",
     applicationCategory: "LifestyleApplication",
+    applicationSubCategory: "AI-enabled habit tracking",
     operatingSystem: "iOS, Android, Web",
     url: "https://lagan.health",
+    keywords: "AI habit tracker, AI habit coach, habit tracker, routine tracker, smart reminders, streak tracker",
+    featureList: [
+      "AI habit coaching",
+      "AI routine refinement",
+      "AI-powered smart reminders",
+      "Streak and XP tracking",
+      "Sleep and step tracking",
+      "Badges and leaderboard",
+    ],
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     ...(stats.user_count > 0 && {
       aggregateRating: {

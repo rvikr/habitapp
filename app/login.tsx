@@ -183,7 +183,7 @@ export default function LoginScreen() {
                 Lagan
               </Text>
               <Text className="text-body-md mb-lg" style={{ color: LOGIN_COLORS.muted }}>
-                {t("A habit tracking app")}
+                {t("AI-enabled habit tracking")}
               </Text>
               <Text
                 className="text-headline-lg"
@@ -198,7 +198,7 @@ export default function LoginScreen() {
               <Text className="text-body-md mt-xs" style={{ color: LOGIN_COLORS.muted }}>
                 {mode === "signin"
                   ? t("Pick up where you left off.")
-                  : t("Start building better habits today.")}
+                  : t("Start with an AI-assisted routine.")}
               </Text>
             </View>
 

@@ -31,13 +31,17 @@ const SITE_URL = "https://lagan.health";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Lagan — Habit Tracker & Streak Builder for iOS, Android & Web",
+    default: "Lagan — AI Habit Tracker for iOS, Android & Web",
     template: "%s — Lagan",
   },
   description:
-    "Lagan is a free, minimalist habit tracker for iOS, Android, and web. Build daily habits, track streaks, earn badges, and stay consistent with a distraction-free design.",
+    "Lagan is an AI-enabled habit tracker for iOS, Android, and web. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
   applicationName: "Lagan",
   keywords: [
+    "AI habit tracker",
+    "AI habit coach",
+    "AI routine planner",
+    "AI smart reminders",
     "habit tracker",
     "daily habit app",
     "streak tracker",
@@ -49,18 +53,23 @@ export const metadata: Metadata = {
     "consistency tracker",
     "self improvement app",
     "goal tracker",
-    "minimalist habit tracker",
+    "habit tracking app",
   ],
   authors: [{ name: "Lagan" }],
   creator: "Lagan",
   publisher: "Lagan",
   alternates: { canonical: "/" },
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/icon-192.png",
+  },
   openGraph: {
     type: "website",
     siteName: "Lagan",
-    title: "Lagan — Habit Tracker & Streak Builder",
+    title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "Build daily habits, track streaks, and earn badges with a minimalist habit tracker for iOS, Android, and web.",
+      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and web.",
     url: SITE_URL,
     locale: "en_US",
     images: [
@@ -68,15 +77,15 @@ export const metadata: Metadata = {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Lagan habit tracker — daily habits, streaks, and badges",
+        alt: "Lagan AI habit tracker with daily habits, streaks, AI coaching, and badges",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lagan — Habit Tracker & Streak Builder",
+    title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "Build daily habits, track streaks, and earn badges with a minimalist habit tracker for iOS, Android, and web.",
+      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and web.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -103,7 +112,7 @@ export default function RootLayout({
     "@type": "Organization",
     name: "Lagan",
     url: SITE_URL,
-    logo: `${SITE_URL}/icon-512.png`,
+    logo: `${SITE_URL}/og-image.png`,
     sameAs: [],
   };
 

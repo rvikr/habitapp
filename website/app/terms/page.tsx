@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Terms & Conditions",
@@ -17,7 +18,7 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="rounded-2xl border border-outline-variant bg-white p-6 space-y-3">
       <h2 className="text-xl font-extrabold text-on-background">{title}</h2>
@@ -50,109 +51,279 @@ export default function TermsPage() {
               Legal
             </p>
             <h1 className="text-4xl font-extrabold leading-tight text-on-background sm:text-5xl">
-              Terms & Conditions
+              Terms &amp; Conditions
             </h1>
             <p className="text-lg leading-8 text-on-surface-variant">
-              Last updated: 22 May 2026
+              Last updated: 4 June 2026
             </p>
             <p className="text-base leading-8 text-on-surface-variant">
-              Please read these terms carefully before using Lagan. By creating an account or using the app you agree to be bound by them.
+              These Terms govern your use of Lagan. By creating an account, accessing the website,
+              or using the mobile app, you agree to these Terms.
             </p>
           </div>
 
           <Section title="1. Acceptance of terms">
-            <p>These Terms & Conditions (&quot;Terms&quot;) govern your use of the Lagan mobile application and website (collectively, the &quot;Service&quot;) operated by Lagan Health (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).</p>
-            <p>By accessing or using the Service, you confirm that you are at least 13 years old (or the minimum age required in your country) and that you accept these Terms. If you do not agree, do not use the Service.</p>
+            <p>
+              These Terms &amp; Conditions (&quot;Terms&quot;) govern your use of the Lagan mobile
+              application, website, account services, AI features, subscriptions, and related
+              services (collectively, the &quot;Service&quot;) operated by Lagan Health
+              (&quot;Lagan&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;).
+            </p>
+            <p>
+              If you do not agree to these Terms, do not use the Service. Mandatory consumer rights
+              that apply where you live are not limited by these Terms.
+            </p>
           </Section>
 
-          <Section title="2. The Service">
-            <p>Lagan is a habit-tracking application that helps you build and maintain daily routines. Features include habit logging, streak tracking, sleep tracking, an AI coaching assistant, a leaderboard, and push-notification reminders.</p>
-            <p>We reserve the right to modify, suspend, or discontinue any part of the Service at any time. We will endeavour to give reasonable notice of significant changes.</p>
+          <Section title="2. Eligibility and account security">
+            <p>
+              You must be at least 13 years old, or the minimum digital-consent age in your country,
+              to use Lagan. If you are under the age of majority where you live, you may use Lagan
+              only with permission from a parent or legal guardian.
+            </p>
+            <p>
+              You are responsible for keeping your account credentials secure and for activity under
+              your account. Tell us promptly at{" "}
+              <a href="mailto:support@lagan.health" className="text-primary font-semibold hover:underline">
+                support@lagan.health
+              </a>{" "}
+              if you suspect unauthorized access.
+            </p>
           </Section>
 
-          <Section title="3. Your account">
-            <p>You are responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account. Notify us immediately at <a href="mailto:support@lagan.health" className="text-primary font-semibold hover:underline">support@lagan.health</a> if you suspect unauthorised access.</p>
-            <p>You must provide accurate information when creating your account. You may not create an account on behalf of someone else without their consent.</p>
+          <Section title="3. The Service">
+            <p>
+              Lagan is a habit-tracking and productivity service. Features may include habit
+              logging, streaks, XP, badges, leaderboards, sleep and step tracking, reminders, AI
+              coaching, AI routine refinement, AI smart reminders, and progress reports.
+            </p>
+            <p>
+              We may add, change, suspend, or discontinue features from time to time. Some features
+              require an account, supported device, internet connection, store availability,
+              third-party service availability, or Lagan Pro access.
+            </p>
           </Section>
 
-          <Section title="4. Acceptable use">
+          <Section title="4. Health and wellness disclaimer">
+            <p>
+              Lagan is a productivity and habit-tracking tool. It is not a medical device,
+              healthcare provider, emergency service, diagnosis tool, or treatment service. Nothing
+              in Lagan is medical, mental-health, nutritional, legal, financial, or professional
+              advice.
+            </p>
+            <p>
+              Sleep data, step counts, scores, streaks, reminders, and other metrics may be
+              incomplete or inaccurate because they can depend on device sensors, Health Connect,
+              Apple HealthKit, wearables, third-party apps, or manual entries. Do not ignore
+              professional advice or delay seeking it because of information shown in Lagan.
+            </p>
+          </Section>
+
+          <Section title="5. AI features">
+            <p>
+              AI Coach, AI routine refinement, AI smart reminders, validation, and progress reports
+              are generated using automated systems. AI outputs can be inaccurate, incomplete,
+              delayed, or unsuitable for your circumstances.
+            </p>
+            <p>
+              You are responsible for deciding whether to follow an AI suggestion. Do not rely on AI
+              outputs for medical, emergency, legal, financial, or other professional decisions.
+            </p>
+          </Section>
+
+          <Section title="6. Subscriptions and Lagan Pro">
+            <p>
+              <strong className="text-on-surface">Free plan.</strong> Lagan offers core habit
+              tracking features for free. Free feature availability may change over time.
+            </p>
+            <p>
+              <strong className="text-on-surface">Pro plan.</strong> Lagan Pro is a premium
+              subscription that may include AI Coach, AI routine refinement, expanded AI smart
+              reminders, progress reports, and future premium features.
+            </p>
+            <p>
+              <strong className="text-on-surface">Free trial.</strong> A new Lagan account may
+              receive a free Pro trial. If no paid subscription is started before the trial ends,
+              Pro access ends and the account returns to the free plan.
+            </p>
+            <p>
+              <strong className="text-on-surface">Billing.</strong> Paid subscriptions are sold as
+              auto-renewable monthly or annual subscriptions through the Apple App Store or Google
+              Play Store. The store shows the price, currency, billing period, taxes, and purchase
+              terms before you confirm payment.
+            </p>
+            <p>
+              <strong className="text-on-surface">Auto-renewal.</strong> Subscriptions renew
+              automatically unless you cancel through the applicable store before the renewal
+              deadline. Store rules may require notice or consent before some price changes.
+            </p>
+            <p>
+              <strong className="text-on-surface">Cancellation.</strong> You must manage or cancel
+              subscriptions through the store account used to purchase them:
+            </p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>iOS: App Store, then your profile, then Subscriptions, then Lagan.</li>
+              <li>Android: Google Play Store, then Payments &amp; subscriptions, then Subscriptions, then Lagan.</li>
+            </ul>
+            <p>
+              Deleting your Lagan account or uninstalling the app does not automatically cancel an
+              active App Store or Google Play subscription. Cancelling stops future renewals, and
+              Pro access normally continues until the end of the current paid period.
+            </p>
+            <p>
+              <strong className="text-on-surface">Refunds.</strong> Apple and Google process
+              payments and refund requests under their own policies. Lagan does not receive your
+              card details and does not issue direct refunds for store purchases unless required by
+              law.
+            </p>
+            <p>
+              <strong className="text-on-surface">Family sharing.</strong> Lagan Pro does not
+              currently support Apple Family Sharing or Google Play Family Library.
+            </p>
+          </Section>
+
+          <Section title="7. Acceptable use">
             <p>You agree not to:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Use the Service for any unlawful purpose or in violation of these Terms.</li>
-              <li>Attempt to gain unauthorised access to any part of the Service or its infrastructure.</li>
-              <li>Reverse-engineer, decompile, or disassemble the app.</li>
-              <li>Use automated scripts or bots to interact with the Service.</li>
-              <li>Upload or transmit viruses, malware, or any other harmful code.</li>
-              <li>Harass, abuse, or harm other users.</li>
-              <li>Impersonate another person or entity.</li>
+              <li>Use the Service for unlawful, harmful, abusive, deceptive, or fraudulent purposes.</li>
+              <li>Attempt to access another user&apos;s account, data, or non-public systems.</li>
+              <li>Interfere with, disrupt, overload, scrape, crawl, or reverse-engineer the Service.</li>
+              <li>Upload or transmit malware, malicious code, or content that violates another person&apos;s rights.</li>
+              <li>Harass, impersonate, threaten, or harm other users.</li>
+              <li>Use the Service to create medical, emergency, or safety-critical decisions.</li>
+              <li>Bypass paywalls, usage limits, AI quotas, security controls, or store purchase systems.</li>
             </ul>
           </Section>
 
-          <Section title="5. Your content">
-            <p>You retain ownership of any content you submit to Lagan (habit names, notes, etc.). By submitting content you grant us a limited, non-exclusive licence to store and display it to you as part of providing the Service.</p>
-            <p>You are solely responsible for your content. We may remove content that violates these Terms or applicable law.</p>
+          <Section title="8. Your content and leaderboard profile">
+            <p>
+              You keep ownership of habit names, notes, feedback, display names, and other content
+              you submit. You grant Lagan a limited, worldwide, non-exclusive license to host,
+              process, display, and use that content only as needed to provide, secure, support, and
+              improve the Service.
+            </p>
+            <p>
+              If you join the leaderboard by setting a display name, your display name, avatar,
+              rank, XP, level, streak, and aggregate habit stats may be visible to other users in
+              leaderboard and sharing features. You can remove yourself from the leaderboard by
+              removing your display name.
+            </p>
+            <p>
+              You are responsible for the content you submit. We may remove content or suspend
+              accounts that violate these Terms or applicable law.
+            </p>
           </Section>
 
-          <Section title="6. Health disclaimer">
-            <p>Lagan is a productivity and habit-tracking tool, not a medical device or health-care provider. Nothing in the Service constitutes medical advice. Do not use Lagan as a substitute for professional medical or mental-health guidance. Sleep data and step counts displayed in the app are sourced from your device sensors or Android Health Connect and may not be accurate.</p>
-          </Section>
-
-          <Section title="7. AI Coach">
-            <p>The AI Coach feature uses a large language model to generate motivational and habit-related responses. Its outputs are not guaranteed to be accurate, complete, or suitable for your specific situation. Do not rely on AI Coach responses for medical, legal, financial, or other professional advice.</p>
-          </Section>
-
-          <Section title="8. Subscriptions &amp; Pro Plan">
-            <p><strong className="text-on-surface">Free plan.</strong> Lagan is free to use for core habit tracking, streak monitoring, sleep tracking, and one AI-powered smart reminder per day.</p>
-            <p><strong className="text-on-surface">Pro plan.</strong> Lagan Pro is a premium subscription that unlocks the AI Coach, AI routine refinement, multiple AI smart reminders per day, and future AI features.</p>
-            <p><strong className="text-on-surface">Free trial.</strong> Every new Lagan account automatically receives a 7-day free Pro trial at sign-up. No payment is required during the trial period. If you do not start a paid subscription before the trial ends, your access reverts to the free plan automatically.</p>
-            <p><strong className="text-on-surface">Paid subscriptions.</strong> Lagan Pro is available as a monthly or annual auto-renewable subscription, purchased through the Apple App Store (iOS) or Google Play Store (Android). The price is displayed in your local currency in the app before you confirm your purchase.</p>
-            <p><strong className="text-on-surface">Auto-renewal.</strong> Subscriptions automatically renew at the same price unless you disable auto-renewal at least 24 hours before the end of the current billing period. Your account will be charged for renewal within 24 hours prior to the end of the current period. If we change our pricing, we will notify you in advance and your subscription will renew at the new price only after your consent where required by applicable law.</p>
-            <p><strong className="text-on-surface">Managing or cancelling your subscription.</strong></p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li><strong className="text-on-surface">iOS:</strong> Open the App Store → tap your profile picture → Subscriptions → select Lagan → Cancel Subscription.</li>
-              <li><strong className="text-on-surface">Android:</strong> Open Google Play Store → tap your profile picture → Payments &amp; subscriptions → Subscriptions → select Lagan → Cancel subscription.</li>
-            </ul>
-            <p>Cancelling stops future renewals. You retain Pro access until the end of the current paid billing period. No partial refunds are issued for unused time within a billing period.</p>
-            <p><strong className="text-on-surface">Refunds.</strong> All subscription purchases are processed by Apple or Google. Refund requests are subject to their respective refund policies. Lagan Health does not issue refunds directly for App Store or Google Play purchases. To request a refund, contact Apple Support or Google Play Support.</p>
-            <p><strong className="text-on-surface">Family Sharing.</strong> Lagan Pro does not currently support Apple Family Sharing or Google Play Family Library.</p>
-          </Section>
-
-          <Section title="9. Intellectual property">
-            <p>All rights in the Service — including the app, website, design, branding, and content produced by us — are owned by or licensed to Lagan Health. Nothing in these Terms grants you any rights in our intellectual property except the limited right to use the Service as described here.</p>
+          <Section title="9. Feedback">
+            <p>
+              If you send ideas, bug reports, ratings, or other feedback, you allow us to use that
+              feedback without restriction or compensation to improve Lagan, while our use of any
+              personal data in the feedback remains subject to our Privacy Policy.
+            </p>
           </Section>
 
           <Section title="10. Privacy">
-            <p>Our <Link href="/privacy" className="text-primary font-semibold hover:underline">Privacy Policy</Link> explains how we handle your personal data. By using the Service you agree to our data practices as described there.</p>
+            <p>
+              Our{" "}
+              <Link href="/privacy" className="text-primary font-semibold hover:underline">
+                Privacy Policy
+              </Link>{" "}
+              explains how we collect, use, share, and protect personal data, including health data,
+              AI feature inputs, analytics, crash reporting, subscriptions, and account deletion.
+            </p>
           </Section>
 
-          <Section title="11. Third-party services">
-            <p>The Service relies on third-party providers including Supabase, PostHog, Sentry, Google Cloud, Apple, and RevenueCat (subscription management). Your use of the Service is also subject to their respective terms of service. We are not responsible for the actions or policies of these third parties.</p>
+          <Section title="11. Third-party services and stores">
+            <p>
+              Lagan relies on third-party services including Supabase, RevenueCat, Google Gemini,
+              PostHog, Sentry, Google Cloud, Apple services, Google Play, and Apple App Store. Your
+              use of those services may also be subject to their own terms and policies.
+            </p>
+            <p>
+              Apple and Google are not responsible for providing support for Lagan except as
+              required by their store rules. App availability, billing, refunds, subscription
+              management, and device permissions may depend on store and operating-system policies.
+            </p>
           </Section>
 
-          <Section title="12. Disclaimers">
-            <p>THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF HARMFUL COMPONENTS.</p>
+          <Section title="12. Intellectual property">
+            <p>
+              Lagan and its app, website, software, design, branding, logos, content, and related
+              intellectual property are owned by or licensed to Lagan. We grant you a limited,
+              revocable, non-transferable, non-exclusive license to use the Service for personal,
+              lawful purposes in accordance with these Terms and applicable store rules.
+            </p>
           </Section>
 
-          <Section title="13. Limitation of liability">
-            <p>TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, LAGAN HEALTH SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF DATA, PROFITS, OR GOODWILL, ARISING OUT OF OR IN CONNECTION WITH YOUR USE OF THE SERVICE, EVEN IF WE HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.</p>
-            <p>OUR TOTAL LIABILITY TO YOU FOR ANY CLAIM ARISING FROM OR RELATED TO THE SERVICE SHALL NOT EXCEED THE AMOUNT YOU PAID US (IF ANY) IN THE 12 MONTHS PRECEDING THE CLAIM.</p>
+          <Section title="13. Account deletion and termination">
+            <p>
+              You may stop using Lagan at any time and request account deletion from Settings, then
+              Privacy &amp; Data, or through our{" "}
+              <Link href="/account-deletion" className="text-primary font-semibold hover:underline">
+                account deletion page
+              </Link>.
+            </p>
+            <p>
+              We may suspend or terminate access if you violate these Terms, create risk for the
+              Service or other users, fail to pay for paid features, or if we are required to do so
+              by law or store policy. Termination does not cancel an active store subscription; you
+              must cancel it through the applicable store.
+            </p>
           </Section>
 
-          <Section title="14. Termination">
-            <p>You may stop using the Service at any time and delete your account via Settings → Privacy & Data or our <Link href="/account-deletion" className="text-primary font-semibold hover:underline">account deletion page</Link>.</p>
-            <p>We may suspend or terminate your account if you breach these Terms or if we reasonably believe your use of the Service poses a risk to us, other users, or third parties. Termination does not relieve you of any obligations incurred before termination.</p>
+          <Section title="14. Changes to these Terms">
+            <p>
+              We may update these Terms from time to time. We will update the &quot;Last
+              updated&quot; date, and for material changes we may notify you by email, in-app
+              message, website notice, or another appropriate method. Your continued use after the
+              effective date means you accept the updated Terms.
+            </p>
           </Section>
 
-          <Section title="15. Changes to these Terms">
-            <p>We may update these Terms from time to time. We will update the &quot;Last updated&quot; date at the top of this page and, for material changes, notify you via email or an in-app message. Continued use of the Service after the effective date of any changes constitutes acceptance of the updated Terms.</p>
+          <Section title="15. Disclaimers">
+            <p>
+              TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE SERVICE IS PROVIDED &quot;AS IS&quot; AND
+              &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+              WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE,
+              NON-INFRINGEMENT, ACCURACY, AVAILABILITY, OR RELIABILITY.
+            </p>
+            <p>
+              We do not guarantee that Lagan will be uninterrupted, error-free, secure, available on
+              every device, compatible with every wearable or data source, or that AI outputs,
+              health data, subscription data, or reminders will always be accurate or available.
+            </p>
           </Section>
 
-          <Section title="16. Governing law">
-            <p>These Terms are governed by and construed in accordance with applicable law. Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of the courts in the applicable jurisdiction.</p>
+          <Section title="16. Limitation of liability">
+            <p>
+              TO THE MAXIMUM EXTENT PERMITTED BY LAW, LAGAN WILL NOT BE LIABLE FOR INDIRECT,
+              INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, OR FOR LOSS OF
+              DATA, PROFITS, GOODWILL, OR BUSINESS OPPORTUNITY, ARISING FROM OR RELATED TO YOUR USE
+              OF THE SERVICE.
+            </p>
+            <p>
+              TO THE MAXIMUM EXTENT PERMITTED BY LAW, OUR TOTAL LIABILITY FOR ANY CLAIM RELATED TO
+              THE SERVICE WILL NOT EXCEED THE GREATER OF THE AMOUNT YOU PAID TO LAGAN FOR THE
+              SERVICE IN THE 12 MONTHS BEFORE THE CLAIM OR USD 50.
+            </p>
           </Section>
 
-          <Section title="17. Contact us">
-            <p>If you have questions about these Terms, please contact us at <a href="mailto:support@lagan.health" className="text-primary font-semibold hover:underline">support@lagan.health</a>.</p>
+          <Section title="17. Governing law and disputes">
+            <p>
+              These Terms are governed by the laws that apply to Lagan Health in its principal
+              place of business, excluding conflict-of-law rules, unless mandatory consumer laws
+              where you live require otherwise. Where permitted by law, disputes must be brought in
+              the courts with jurisdiction over Lagan Health&apos;s principal place of business.
+            </p>
+          </Section>
+
+          <Section title="18. Contact us">
+            <p>
+              Questions about these Terms can be sent to{" "}
+              <a href="mailto:support@lagan.health" className="text-primary font-semibold hover:underline">
+                support@lagan.health
+              </a>.
+            </p>
           </Section>
         </div>
       </section>

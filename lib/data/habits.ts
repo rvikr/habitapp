@@ -227,6 +227,23 @@ export async function getStats(options?: DataFetchOptions) {
         }
       }
 
+      // Longest streak from all-time dates
+      const sortedAsc = [...uniqueDates].reverse();
+      let longestStreak = 0;
+      let currRun = 0;
+      let prevDateKey: string | null = null;
+      for (const day of sortedAsc) {
+        if (prevDateKey === null) {
+          currRun = 1;
+        } else {
+          const d = new Date(prevDateKey + "T12:00:00");
+          d.setDate(d.getDate() + 1);
+          currRun = localDateKey(d) === day ? currRun + 1 : 1;
+        }
+        longestStreak = Math.max(longestStreak, currRun);
+        prevDateKey = day;
+      }
+
       const completions = totalCompletions ?? 0;
       const habits = totalHabits ?? 0;
       const totalXp = xpForCompletions(completions);
@@ -243,6 +260,7 @@ export async function getStats(options?: DataFetchOptions) {
         totalXp,
         xpForNext: XP_PER_LEVEL,
         currentStreak,
+        longestStreak,
         totalCompletions: completions,
         totalHabits: habits,
       };
@@ -350,6 +368,69 @@ export async function getInsights(options?: DataFetchOptions): Promise<Insights>
       const peakTimeLabel = topHourEntry ? peakHourLabel(parseInt(topHourEntry[0], 10)) : null;
 
       return { mostProductiveDay, consistencyChangePct, peakTimeLabel };
+    },
+    options,
+  );
+}
+
+export type DayConsistency = {
+  date: string;
+  ratio: number;
+  count: number;
+  isFuture: boolean;
+};
+
+export async function getConsistencyData(options?: DataFetchOptions): Promise<DayConsistency[]> {
+  if (!isSupabaseConfigured()) return [];
+  const user = await getUser();
+  if (!user) return [];
+
+  return readThroughCache(
+    `${DATA_CACHE_PREFIX}consistency:${user.id}:${today()}`,
+    DATA_CACHE_TTL_MS,
+    async () => {
+      const now = new Date();
+      // Start from Monday 5 weeks ago so the grid fills 5 complete weeks
+      const dayOfWeek = (now.getDay() + 6) % 7; // 0=Mon, 6=Sun
+      const startDate = addLocalDays(now, -(dayOfWeek + 28));
+      const cutoff = localDateKey(startDate);
+
+      const [{ data: rows }, { count: totalHabits }] = await Promise.all([
+        supabase
+          .from("habit_completions")
+          .select("completed_on, habit_id")
+          .eq("user_id", user.id)
+          .gte("completed_on", cutoff),
+        supabase
+          .from("habits")
+          .select("id", { count: "exact", head: true })
+          .is("archived_at", null)
+          .eq("user_id", user.id),
+      ]);
+
+      const total = totalHabits ?? 0;
+      const countByDate = new Map<string, Set<string>>();
+      for (const row of (rows ?? []) as { completed_on: string; habit_id: string }[]) {
+        const set = countByDate.get(row.completed_on) ?? new Set<string>();
+        set.add(row.habit_id);
+        countByDate.set(row.completed_on, set);
+      }
+
+      const result: DayConsistency[] = [];
+      for (let i = 0; i < 35; i++) {
+        const d = addLocalDays(startDate, i);
+        const key = localDateKey(d);
+        const isFuture = d > now;
+        const count = countByDate.get(key)?.size ?? 0;
+        result.push({
+          date: key,
+          ratio: total > 0 && !isFuture ? count / total : 0,
+          count,
+          isFuture,
+        });
+      }
+
+      return result;
     },
     options,
   );

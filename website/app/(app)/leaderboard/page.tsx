@@ -24,26 +24,55 @@ interface LeaderboardEntry {
   rank: number;
   user_id: string;
   display_name: string;
+  avatar_style: string | null;
+  avatar_seed: string | null;
+  total_completions: number;
+  total_xp: number;
+  level: number;
+  total_habits: number;
+  last_completion_date: string | null;
   xp: number;
   streak: number;
   is_current_user: boolean;
 }
 
+interface LeaderboardPosition {
+  rank: number;
+  totalUsers: number;
+  totalXp: number;
+  percentileAhead: number | null;
+}
+
 async function getLeaderboard(
   period: Period
-): Promise<{ entries: LeaderboardEntry[]; debugError?: string }> {
+): Promise<{
+  entries: LeaderboardEntry[];
+  position: LeaderboardPosition | null;
+  debugError?: string;
+}> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_leaderboard", { period });
+  const { data, error } = await supabase.functions.invoke<{
+    entries?: LeaderboardEntry[];
+    position?: LeaderboardPosition | null;
+  }>("leaderboard", {
+    body: {
+      period,
+      limit: 50,
+      includeEntries: true,
+      includePosition: true,
+    },
+  });
   if (error) {
-    const { data: d2, error: e2 } = await supabase.rpc("get_leaderboard");
-    if (!e2 && Array.isArray(d2) && d2.length > 0)
-      return { entries: d2 as LeaderboardEntry[] };
     return {
       entries: [],
-      debugError: `RPC error: ${error.message}${e2 ? ` | ${e2.message}` : ""}`,
+      position: null,
+      debugError: `Leaderboard API error: ${error.message}`,
     };
   }
-  return { entries: Array.isArray(data) ? (data as LeaderboardEntry[]) : [] };
+  return {
+    entries: Array.isArray(data?.entries) ? data.entries : [],
+    position: data?.position ?? null,
+  };
 }
 
 const TABS: { label: string; period: Period }[] = [
@@ -93,7 +122,7 @@ export default async function LeaderboardPage({
   const user = await getCurrentUser(supabase);
   if (!user) redirect("/login");
 
-  const [stats, { entries: rawEntries, debugError }, { data: profile }] = await Promise.all([
+  const [stats, { entries: rawEntries, position, debugError }, { data: profile }] = await Promise.all([
     getStats(),
     getLeaderboard(period),
     supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle(),
@@ -110,11 +139,13 @@ export default async function LeaderboardPage({
   const levelPct = Math.round((levelXP / XP_PER_LEVEL) * 100);
 
   const userEntry = board.find((e) => e.is_current_user);
-  const userRank = userEntry ? board.indexOf(userEntry) + 1 : null;
+  const userRank = position?.rank ?? userEntry?.rank ?? null;
   const nextEntry = userRank && userRank > 1 ? board[userRank - 2] : null;
   const xpToNext = nextEntry ? nextEntry.xp - userXP : null;
   const topPct =
-    userRank && board.length > 0
+    position?.percentileAhead !== null && position?.percentileAhead !== undefined
+      ? Math.max(1, 100 - position.percentileAhead)
+      : userRank && board.length > 0
       ? Math.max(1, Math.ceil((userRank / board.length) * 100))
       : null;
 
@@ -323,7 +354,7 @@ export default async function LeaderboardPage({
                           )}
                         </p>
                         <p className="text-xs text-on-surface-variant">
-                          Level {levelForXp(entry.xp)}
+                          Level {entry.level}
                         </p>
                       </div>
                     </div>
