@@ -73,7 +73,6 @@ export default function Sidebar({
           top: 0,
           zIndex: 40,
           height: 56,
-          display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 16px",
@@ -83,7 +82,7 @@ export default function Sidebar({
           borderBottom: `1px solid ${C.border}`,
           fontFamily: MR,
         }}
-        className="lg:hidden"
+        className="flex lg:hidden"
       >
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <LogoMark />
@@ -117,7 +116,6 @@ export default function Sidebar({
           position: "fixed",
           inset: "auto 0 0 0",
           zIndex: 40,
-          display: "grid",
           gridTemplateColumns: `repeat(${NAV.length}, 1fr)`,
           borderTop: `1px solid ${C.border}`,
           background: hexA(C.surface, 0.95),
@@ -126,7 +124,7 @@ export default function Sidebar({
           padding: "6px 8px",
           fontFamily: MR,
         }}
-        className="lg:hidden"
+        className="grid lg:hidden"
       >
         {NAV.map(({ href, icon, label }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
@@ -174,7 +172,6 @@ export default function Sidebar({
           top: 0,
           minHeight: "100vh",
           width: 240,
-          display: "flex",
           flexDirection: "column",
           background: C.surface,
           borderRight: `1px solid ${C.border}`,

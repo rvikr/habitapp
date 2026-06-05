@@ -44,7 +44,6 @@ export default function LoginPage() {
         style={{
           width: "50%",
           minHeight: "100vh",
-          display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "clamp(40px, 5vw, 80px)",
@@ -229,7 +228,6 @@ export default function LoginPage() {
           <Link
             href="/"
             style={{
-              display: "flex",
               alignItems: "center",
               gap: 10,
               textDecoration: "none",

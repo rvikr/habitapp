@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth/auth-welcome";
 import { TrialSubscriptionBanner } from "@/components/pro-access-banner";
 import HabitCard from "@/components/habit-card";
+import ProgressRing from "@/components/progress-ring";
 import LogPrompt from "@/components/log-prompt";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { useLanguage } from "@/components/language-provider";
@@ -650,48 +651,56 @@ export default function DashboardScreen() {
 
         {/* Today's progress card */}
         {!isInitialLoading && total > 0 && (
-          <View className="mx-margin-mobile mb-md bg-surface-container dark:bg-d-surface-container rounded-2xl p-md">
-            <View className="flex-row items-center justify-between mb-sm">
-              <View>
-                <Text
-                  className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
-                  style={{ letterSpacing: 0.5, textTransform: "uppercase" }}
-                >
-                  {t("Today's Focus")}
-                </Text>
-                <Text className="text-body-sm text-on-surface dark:text-d-on-surface mt-xs font-semibold">
-                  {completedCount === total
-                    ? t("All done! Great work 🎉")
-                    : t("{done} of {total} done", { done: completedCount, total })}
-                </Text>
-              </View>
+          <View className="mx-margin-mobile mb-md bg-surface-container dark:bg-d-surface-container rounded-2xl p-lg flex-row items-center justify-between">
+            <View className="flex-1 pr-md">
               <Text
-                className="text-primary"
-                style={{
-                  fontSize: 36,
-                  fontFamily: "SpaceGrotesk_700Bold",
-                  fontVariant: ["tabular-nums"],
-                }}
+                className="text-headline-md text-on-background dark:text-d-on-background"
+                style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.3 }}
               >
-                {Math.round(progress * 100)}%
+                {t("Today's Focus")}
+              </Text>
+              <Text className="text-body-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
+                {completedCount === total
+                  ? t("All done! Great work 🎉")
+                  : t("{done} of {total} done", { done: completedCount, total })}
               </Text>
             </View>
-            {/* Per-habit segment indicators */}
-            <View className="flex-row gap-1">
-              {habits.map((habit) => (
-                <View
-                  key={habit.id}
-                  className="flex-1 rounded-full"
+            <View style={{ width: 88, height: 88, alignItems: "center", justifyContent: "center" }}>
+              <ProgressRing
+                progress={progress}
+                size={88}
+                strokeWidth={8}
+                color={primary}
+                trackColor={colorScheme === "dark" ? "#353540" : "#E6E0D5"}
+              >
+                <Text
+                  className="text-primary"
                   style={{
-                    height: 6,
-                    backgroundColor: data?.completedToday.has(habit.id)
-                      ? primary
-                      : colorScheme === "dark"
-                        ? "#353540"
-                        : "#E6E0D5",
+                    fontSize: 22,
+                    fontFamily: "SpaceGrotesk_700Bold",
+                    fontVariant: ["tabular-nums"],
                   }}
-                />
-              ))}
+                >
+                  {Math.round(progress * 100)}%
+                </Text>
+              </ProgressRing>
+              {/* Glowing indicator at the top of the ring (matches design) */}
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  top: -1,
+                  width: 10,
+                  height: 10,
+                  borderRadius: 5,
+                  backgroundColor: primary,
+                  shadowColor: primary,
+                  shadowOpacity: 0.9,
+                  shadowRadius: 6,
+                  shadowOffset: { width: 0, height: 0 },
+                  elevation: 6,
+                }}
+              />
             </View>
           </View>
         )}
