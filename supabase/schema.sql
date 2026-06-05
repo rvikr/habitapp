@@ -116,44 +116,44 @@ grant select, insert, update, delete on table public.sleep_entries to authentica
 drop policy if exists "habits: owner read" on public.habits;
 create policy "habits: owner read"
   on public.habits for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "habits: owner insert" on public.habits;
 create policy "habits: owner insert"
   on public.habits for insert
-  with check (auth.uid() = user_id);
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "habits: owner update" on public.habits;
 create policy "habits: owner update"
   on public.habits for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "habits: owner delete" on public.habits;
 create policy "habits: owner delete"
   on public.habits for delete
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "completions: owner read" on public.habit_completions;
 create policy "completions: owner read"
   on public.habit_completions for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "completions: owner insert" on public.habit_completions;
 create policy "completions: owner insert"
   on public.habit_completions for insert
-  with check (auth.uid() = user_id);
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "completions: owner delete" on public.habit_completions;
 create policy "completions: owner delete"
   on public.habit_completions for delete
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 drop policy if exists "completions: owner update" on public.habit_completions;
 create policy "completions: owner update"
   on public.habit_completions for update
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "sleep_entries: owner read" on public.sleep_entries;
 create policy "sleep_entries: owner read"

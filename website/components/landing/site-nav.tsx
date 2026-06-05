@@ -128,7 +128,7 @@ export default function SiteNav() {
         >
           Sign in
         </Link>
-        <Link
+        <a
           href="/app"
           className="btn-press hidden md:inline-flex"
           style={{
@@ -144,11 +144,10 @@ export default function SiteNav() {
             textDecoration: "none",
             alignItems: "center",
             gap: 6,
-            display: "inline-flex",
           }}
         >
           <span style={{ fontSize: 12 }}>🌐</span> Try web app
-        </Link>
+        </a>
         <Link
           href="https://play.google.com/store"
           className="btn-press"

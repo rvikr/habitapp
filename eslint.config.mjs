@@ -7,6 +7,7 @@ export default [
   {
     ignores: [
       "node_modules/**",
+      ".worktrees/**",
       "dist/**",
       ".expo/**",
       ".next/**",

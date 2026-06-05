@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import { addLocalDays, localDateDaysAgo, localDateKey } from "../lib/utils/date.ts";
 import {
@@ -200,6 +200,46 @@ test("XP constants are canonical across app, website, and SQL", () => {
   );
   assert.match(sql, /\(coalesce\(ct\.total_completions, 0\)::bigint \* 10\) as total_xp/);
   assert.match(sql, /\/ 500\) \+ 1\)::integer as level/);
+});
+
+test("landing nav keeps the proxied web app CTA mobile-hidden without Next prefetch", () => {
+  const source = readFileSync("website/components/landing/site-nav.tsx", "utf8");
+  assert.doesNotMatch(source, /<Link\s+href="\/app"/);
+  assert.match(source, /<a\s+href="\/app"/);
+
+  const appCta = source.match(/<a\s+href="\/app"[\s\S]*?<\/a>/)?.[0] ?? "";
+  assert.match(appCta, /className="[^"]*\bhidden\b[^"]*\bmd:inline-flex\b/);
+  assert.doesNotMatch(appCta, /display:\s*"inline-flex"/);
+});
+
+test("Expo SDK patch dependencies match Expo install expectations", () => {
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(packageJson.dependencies.expo, "~54.0.35");
+  assert.equal(packageJson.dependencies["expo-file-system"], "~19.0.23");
+  assert.equal(packageJson.dependencies["expo-font"], "~14.0.12");
+  assert.equal(packageJson.dependencies["expo-localization"], "~17.0.9");
+  assert.equal(packageJson.dependencies["expo-router"], "~6.0.24");
+  assert.equal(packageJson.dependencies["expo-updates"], "~29.0.18");
+});
+
+test("Supabase advisor hardening migration is source-controlled", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_advisor_hardening.sql"),
+  );
+  assert.ok(migrationName, "expected an advisor hardening migration");
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  assert.match(
+    sql,
+    /create or replace function public\.valid_reminder_times\([^)]*\)[\s\S]*set search_path = public, pg_temp/i,
+  );
+  assert.match(
+    sql,
+    /create or replace function public\.log_habit_completion\([\s\S]*set search_path = public, pg_temp/i,
+  );
+  assert.match(sql, /alter extension pg_net set schema extensions/i);
+  assert.match(sql, /auth\.uid\(\)/i);
+  assert.match(sql, /\(select auth\.uid\(\)\)/i);
 });
 
 test("home widget snapshot clamps progress and formats launcher copy", () => {

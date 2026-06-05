@@ -72,7 +72,9 @@ export async function requestPermission(): Promise<boolean> {
 
 export async function getPermissionStatus(): Promise<"granted" | "denied" | "undetermined"> {
   if (typeof Notification === "undefined") return "undetermined";
-  return Notification.permission as "granted" | "denied" | "undetermined";
+  // The browser reports the not-yet-asked state as "default"; the app's shared
+  // adapter type uses "undetermined", so normalize it here.
+  return Notification.permission === "default" ? "undetermined" : Notification.permission;
 }
 
 export async function scheduleHabitReminder(
