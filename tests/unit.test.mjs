@@ -32,9 +32,12 @@ import {
   googleNativeAuthConfig,
   googleNativeAuthReady,
   googleNativeAuthUnavailableReason,
+  googleNativeDeveloperErrorMessage,
   googleNativeSignInButtonMode,
   getGoogleNativeIdToken,
+  isExpoGoRuntime,
   isGoogleNativeCancellationError,
+  isGoogleNativeDeveloperError,
 } from "../lib/auth/google-native.ts";
 import { isSupportedLanguage, languageLabel, translate } from "../lib/i18n/translations.ts";
 import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
@@ -60,11 +63,13 @@ import {
   isSleepEntriesSetupError,
   normalizeHealthConnectSleepSessions,
   normalizeHealthKitSleepSamples,
+  summarizeSleepRange,
   sleepNoDataMessage,
   sleepDateForWakeTime,
   sleepLookbackWindows,
   sleepWindowForDate,
 } from "../lib/data/sleep-shared.ts";
+import { isExpoGoRuntime as isExpoGoPlatformRuntime } from "../lib/platform/runtime.ts";
 import {
   inferHabitIntelligence,
   mergeHabitReminders,
@@ -261,6 +266,54 @@ test("Supabase advisor hardening migration is source-controlled", () => {
   assert.match(sql, /\(select auth\.uid\(\)\)/i);
 });
 
+test("habit completion ownership is enforced at the database boundary", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_completion_owner_integrity.sql"),
+  );
+  assert.ok(migrationName, "expected a completion owner integrity migration");
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  assert.match(sql, /alter table public\.habits[\s\S]*unique \(id, user_id\)/i);
+  assert.match(
+    sql,
+    /alter table public\.habit_completions[\s\S]*foreign key \(habit_id, user_id\)/i,
+  );
+  assert.match(sql, /references public\.habits\(id, user_id\)/i);
+  assert.match(sql, /on delete cascade/i);
+  assert.match(sql, /not valid/i);
+  assert.match(sql, /validate constraint habit_completions_habit_owner_fk/i);
+});
+
+test("habit dashboard queries include explicit user_id filters", () => {
+  const appSource = readFileSync("lib/data/habits.ts", "utf8");
+  const websiteSource = readFileSync("website/lib/habits.ts", "utf8");
+
+  const appTodayQuery =
+    appSource.match(
+      /supabase\s*\n\s*\.from\("habits"\)[\s\S]*?\.order\("created_at", \{ ascending: true \}\)/,
+    )?.[0] ?? "";
+  assert.match(appTodayQuery, /\.eq\("user_id", user\.id\)/);
+
+  const websiteTodayHabitQuery =
+    websiteSource.match(
+      /supabase\s*\n\s*\.from\("habits"\)[\s\S]*?\.order\("created_at", \{ ascending: true \}\)/,
+    )?.[0] ?? "";
+  assert.match(websiteTodayHabitQuery, /\.eq\("user_id", user\.id\)/);
+
+  const websiteTodayCompletionQuery =
+    websiteSource.match(
+      /supabase\s*\n\s*\.from\("habit_completions"\)[\s\S]*?\.eq\("completed_on"/,
+    )?.[0] ?? "";
+  assert.match(websiteTodayCompletionQuery, /\.eq\("user_id", user\.id\)/);
+
+  const websiteWeeklyFunction =
+    websiteSource.match(
+      /export async function getWeeklyCompletions\(\): Promise<HabitCompletion\[\]> \{[\s\S]*?return \(data \?\? \[\]\) as HabitCompletion\[\];\r?\n\}/,
+    )?.[0] ?? "";
+  assert.match(websiteWeeklyFunction, /const user = await getCurrentUser\(supabase\)/);
+  assert.match(websiteWeeklyFunction, /\.eq\("user_id", user\.id\)/);
+});
+
 test("home widget snapshot clamps progress and formats launcher copy", () => {
   const snapshot = buildHomeWidgetSnapshot({
     completedCount: 7,
@@ -399,6 +452,32 @@ test("AI Edge Functions enforce server-side quota before Gemini calls", () => {
     assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
     assert.match(source, /recordAiUsageEvent/);
   }
+});
+
+test("progress report client exposes an authenticated generate-now action", () => {
+  const source = readFileSync("lib/data/progress-reports.ts", "utf8");
+  assert.match(source, /export async function generateProgressReportNow/);
+  assert.match(source, /supabase\.functions\.invoke(?:<[^>]+>)?\(\s*"progress-report"/);
+  assert.match(source, /mode:\s*"generate-now"/);
+  assert.match(source, /getLatestProgressReport\(\{\s*force:\s*true\s*\}\)/);
+});
+
+test("achievements screen lets Pro users generate a weekly report now", () => {
+  const source = readFileSync("app/(tabs)/achievements.tsx", "utf8");
+  assert.match(source, /generateProgressReportNow/);
+  assert.match(source, /generatingReport/);
+  assert.match(source, /onGenerateNow/);
+  assert.match(source, /Generate now/);
+});
+
+test("progress-report edge function accepts authenticated generate-now requests", () => {
+  const source = readFileSync("supabase/functions/progress-report/index.ts", "utf8");
+  assert.match(source, /SUPABASE_ANON_KEY/);
+  assert.match(source, /mode\s*===\s*"generate-now"/);
+  assert.match(source, /userClient\.auth\.getUser\(\)/);
+  assert.match(source, /enforceProAccess\(admin as any, user\.id, "progress-report"\)/);
+  assert.match(source, /generateForUser\(admin, user\.id/);
+  assert.match(source, /mode:\s*"generate-now"/);
 });
 
 test("Shared Gemini helper bounds requests with a timeout and a single retry", () => {
@@ -717,6 +796,11 @@ test("progress tab surfaces life balance and level progress", () => {
   assert.match(progressScreen, /Level \{level\}/);
 });
 
+test("progress tab auto sleep sync does not request native sleep permission", () => {
+  const progressScreen = readFileSync("app/(tabs)/progress.tsx", "utf8");
+  assert.match(progressScreen, /syncLastNightSleep\(\{\s*requestPermission:\s*false\s*\}\)/);
+});
+
 test("store-facing support and legal links have production build defaults", () => {
   const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
   assert.match(settingsScreen, /https:\/\/lagan\.health\/terms/);
@@ -737,6 +821,23 @@ test("store-facing support and legal links have production build defaults", () =
     "https://lagan.health/account-deletion",
   );
   assert.equal(easConfig.build.production.env.EXPO_PUBLIC_SUPPORT_EMAIL, "support@lagan.health");
+});
+
+test("Rate Lagan has a visible Android Play Store fallback", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+  assert.equal(appConfig.expo.android.package, "health.lagan.app");
+
+  const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
+  assert.match(settingsScreen, /async function handleRateLagan/);
+  assert.match(settingsScreen, /await requestReviewManually\(\)/);
+  assert.match(settingsScreen, /Store unavailable/);
+
+  const storeReviewSource = readFileSync("lib/platform/store-review.ts", "utf8");
+  assert.match(storeReviewSource, /Promise<boolean>/);
+  assert.match(storeReviewSource, /Platform\.OS === "android"/);
+  assert.match(storeReviewSource, /Constants\.expoConfig\?\.android\?\.package/);
+  assert.match(storeReviewSource, /market:\/\/details\?id=/);
+  assert.match(storeReviewSource, /play\.google\.com\/store\/apps\/details\?id=/);
 });
 
 test("Health Connect privacy policy links route to a dedicated Play rationale activity", () => {
@@ -801,6 +902,37 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(dashboardSource, /syncHomeWidgetFromDashboard/);
   assert.match(dashboardSource, /completedCount/);
   assert.match(dashboardSource, /currentStreak/);
+});
+
+test("sign-out clears the Android launcher widget snapshot", () => {
+  const widgetSource = readFileSync("lib/widgets/home-widget.ts", "utf8");
+  assert.match(widgetSource, /clearHomeWidgetSnapshot/);
+  assert.match(widgetSource, /SIGNED_OUT_HOME_WIDGET_SNAPSHOT/);
+  assert.match(widgetSource, /Open Lagan to start/);
+  assert.match(widgetSource, /Sign in to sync/);
+
+  const platformSource = readFileSync("lib/platform/home-widget.android.ts", "utf8");
+  assert.match(platformSource, /clearAsync/);
+
+  const nativeModule = readFileSync(
+    "modules/lagan-widget/android/src/main/java/health/lagan/widget/LaganWidgetModule.kt",
+    "utf8",
+  );
+  assert.match(nativeModule, /AsyncFunction\("clearAsync"\)/);
+  assert.match(nativeModule, /\.remove\(SNAPSHOT_KEY\)/);
+  assert.match(nativeModule, /AppWidgetManager\.ACTION_APPWIDGET_UPDATE/);
+
+  const pluginSource = readFileSync("plugins/with-lagan-widget.js", "utf8");
+  assert.match(pluginSource, /streakLabel = "Sign in to sync"/);
+  assert.match(pluginSource, /levelLabel = "Lagan"/);
+
+  const actionSource = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(actionSource, /clearHomeWidgetSnapshot/);
+  assert.match(actionSource, /await clearHomeWidgetSnapshot\(\)/);
+
+  const layoutSource = readFileSync("app/_layout.tsx", "utf8");
+  assert.match(layoutSource, /clearHomeWidgetSnapshot/);
+  assert.match(layoutSource, /void clearHomeWidgetSnapshot\(\)/);
 });
 
 test("Supabase stale refresh token errors are recognized", () => {
@@ -908,12 +1040,27 @@ test("native Google sign-in handles new and legacy token response shapes", () =>
   assert.equal(getGoogleNativeIdToken({ data: {} }), null);
 });
 
-test("native Google sign-in keeps browser OAuth as fallback outside configured Android builds", () => {
+test("native Google sign-in requires explicit Android opt-in outside Expo Go", () => {
   assert.equal(
     googleNativeSignInButtonMode({ platform: "android", webClientId: "web-client" }),
+    "oauth",
+  );
+  assert.equal(
+    googleNativeSignInButtonMode({
+      platform: "android",
+      webClientId: "web-client",
+      nativeAndroidAuthEnabled: true,
+    }),
     "native",
   );
-  assert.equal(googleNativeSignInButtonMode({ platform: "android", webClientId: "" }), "oauth");
+  assert.equal(
+    googleNativeSignInButtonMode({
+      platform: "android",
+      webClientId: "",
+      nativeAndroidAuthEnabled: true,
+    }),
+    "oauth",
+  );
   assert.equal(
     googleNativeSignInButtonMode({ platform: "web", webClientId: "web-client" }),
     "oauth",
@@ -924,8 +1071,24 @@ test("native Google sign-in keeps browser OAuth as fallback outside configured A
       platform: "android",
       webClientId: "web-client",
       isExpoGo: true,
+      nativeAndroidAuthEnabled: true,
     }),
     "oauth",
+  );
+});
+
+test("Expo Go runtime detection covers current and deprecated constants", () => {
+  assert.equal(isExpoGoRuntime({ executionEnvironment: "storeClient" }), true);
+  assert.equal(isExpoGoRuntime({ appOwnership: "expo" }), true);
+  assert.equal(isExpoGoRuntime({ executionEnvironment: "standalone", appOwnership: null }), false);
+});
+
+test("shared platform runtime detection covers current and deprecated Expo Go constants", () => {
+  assert.equal(isExpoGoPlatformRuntime({ executionEnvironment: "storeClient" }), true);
+  assert.equal(isExpoGoPlatformRuntime({ appOwnership: "expo" }), true);
+  assert.equal(
+    isExpoGoPlatformRuntime({ executionEnvironment: "standalone", appOwnership: null }),
+    false,
   );
 });
 
@@ -935,6 +1098,14 @@ test("native Google sign-in maps cancellation errors to cancelled results", () =
   assert.equal(isGoogleNativeCancellationError(new Error("cancelled")), false);
 });
 
+test("native Google sign-in maps Android developer errors to actionable setup copy", () => {
+  assert.equal(isGoogleNativeDeveloperError({ code: "DEVELOPER_ERROR" }), true);
+  assert.equal(isGoogleNativeDeveloperError({ code: "10" }), true);
+  assert.equal(isGoogleNativeDeveloperError(new Error("developer error")), true);
+  assert.match(googleNativeDeveloperErrorMessage(), /SHA-1 fingerprint/);
+  assert.match(googleNativeDeveloperErrorMessage(), /EXPO_PUBLIC_GOOGLE_NATIVE_ANDROID_AUTH/);
+});
+
 test("Android Google sign-in uses native ID-token auth before browser OAuth fallback", () => {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
   assert.ok(packageJson.dependencies["@react-native-google-signin/google-signin"]);
@@ -942,6 +1113,7 @@ test("Android Google sign-in uses native ID-token auth before browser OAuth fall
   const actionSource = readFileSync("lib/data/actions.ts", "utf8");
   assert.match(actionSource, /@react-native-google-signin\/google-signin/);
   assert.match(actionSource, /googleNativeSignInButtonMode/);
+  assert.match(actionSource, /GOOGLE_NATIVE_ANDROID_AUTH_ENABLED/);
   assert.match(actionSource, /signInWithIdToken\(\{\s*provider:\s*"google"/);
   assert.match(actionSource, /signInWithOAuth/);
 });
@@ -949,6 +1121,7 @@ test("Android Google sign-in uses native ID-token auth before browser OAuth fall
 test("Google web client id is documented for native Android sign-in", () => {
   const envExample = readFileSync(".env.local.example", "utf8");
   assert.match(envExample, /EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=/);
+  assert.match(envExample, /EXPO_PUBLIC_GOOGLE_NATIVE_ANDROID_AUTH=/);
 });
 
 test("queued reminder sync cancels the latest stored IDs before the next sync schedules", async () => {
@@ -1262,6 +1435,24 @@ test("health connect step aggregate normalization returns integer totals", () =>
   assert.equal(normalizeHealthConnectStepAggregate(null), null);
 });
 
+function sleepEntry(id, sleepDate, score, durationMinutes) {
+  return {
+    id,
+    user_id: "user-1",
+    sleep_date: sleepDate,
+    source: "manual",
+    duration_minutes: durationMinutes,
+    score,
+    start_time: null,
+    end_time: null,
+    stage_minutes: null,
+    source_metadata: null,
+    synced_at: `${sleepDate}T07:00:00.000Z`,
+    created_at: `${sleepDate}T07:00:00.000Z`,
+    updated_at: `${sleepDate}T07:00:00.000Z`,
+  };
+}
+
 test("sleep date is assigned from wake time and windows span 18:00 to 18:00", () => {
   assert.equal(sleepDateForWakeTime(new Date(2026, 4, 14, 7, 30)), "2026-05-14");
   assert.equal(sleepDateForWakeTime(new Date(2026, 4, 14, 17, 59)), "2026-05-14");
@@ -1286,6 +1477,46 @@ test("sleep sync builds recent nightly windows newest first", () => {
   );
   assert.equal(new Date(windows[2].startTime).getDate(), 11);
   assert.equal(new Date(windows[2].endTime).getDate(), 12);
+});
+
+test("sleep range summary only counts entries inside the selected sleep window", () => {
+  const entries = [
+    sleepEntry("recent", "2026-05-14", 90, 480),
+    sleepEntry("inside-week", "2026-05-10", 70, 420),
+    sleepEntry("older-than-week", "2026-05-06", 100, 600),
+  ];
+  const now = new Date(2026, 4, 14, 7, 30);
+
+  const sevenDay = summarizeSleepRange(entries, 7, now);
+  assert.deepEqual(
+    sevenDay.entries.map((entry) => entry.sleep_date),
+    ["2026-05-14", "2026-05-10"],
+  );
+  assert.deepEqual(
+    sevenDay.trendEntries.map((entry) => entry.sleep_date),
+    ["2026-05-10", "2026-05-14"],
+  );
+  assert.equal(sevenDay.count, 2);
+  assert.equal(sevenDay.averageScore, 80);
+  assert.equal(sevenDay.averageDurationMinutes, 450);
+
+  const thirtyDay = summarizeSleepRange(entries, 30, now);
+  assert.equal(thirtyDay.count, 3);
+  assert.equal(thirtyDay.averageScore, 87);
+});
+
+test("sleep range summary reports no data when the selected window is empty", () => {
+  const summary = summarizeSleepRange(
+    [sleepEntry("stale", "2026-05-06", 100, 600)],
+    7,
+    new Date(2026, 4, 14, 7, 30),
+  );
+
+  assert.deepEqual(summary.entries, []);
+  assert.deepEqual(summary.trendEntries, []);
+  assert.equal(summary.count, 0);
+  assert.equal(summary.averageScore, null);
+  assert.equal(summary.averageDurationMinutes, 0);
 });
 
 test("sleep no-data copy explains the provider and checked range", () => {
@@ -1932,6 +2163,18 @@ test("coach detects target habits falling behind by time of day", () => {
   assert.equal(signal?.suggestedAction, "log_value");
   assert.equal(signal?.suggestedValue, 500);
   assert.match(signal?.message ?? "", /only completed 30%/i);
+});
+
+test("AI coach notification only shows secondary Open when primary logs progress", () => {
+  const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const primaryLabelIndex = dashboardSource.indexOf("{coachActionLabel(data.coachSignal, t)}");
+  const secondaryOpenIndex = dashboardSource.indexOf('{t("Open")}', primaryLabelIndex);
+
+  assert.notEqual(primaryLabelIndex, -1);
+  assert.notEqual(secondaryOpenIndex, -1);
+  const secondaryOpenGuard = dashboardSource.slice(primaryLabelIndex, secondaryOpenIndex);
+  assert.match(secondaryOpenGuard, /data\.coachSignal\.suggestedAction\s*===\s*"log_value"/);
+  assert.match(secondaryOpenGuard, /data\.coachSignal\.suggestedValue\s*!=\s*null/);
 });
 
 test("coach detects same-weekday late skip windows and suggests an easier version", () => {

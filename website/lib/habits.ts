@@ -27,11 +27,13 @@ export async function getHabitsForToday() {
       supabase
         .from("habits")
         .select("*")
+        .eq("user_id", user.id)
         .is("archived_at", null)
         .order("created_at", { ascending: true }),
       supabase
         .from("habit_completions")
         .select("habit_id, value")
+        .eq("user_id", user.id)
         .eq("completed_on", dateKeyInTimeZone(new Date(), timeZone)),
       supabase
         .from("profiles")
@@ -169,11 +171,14 @@ export async function getInsights(): Promise<Insights> {
 export async function getWeeklyCompletions(): Promise<HabitCompletion[]> {
   const supabase = await createClient();
   const timeZone = await getRequestTimeZone();
+  const user = await getCurrentUser(supabase);
+  if (!user) return [];
   const sevenDaysAgo = dateDaysAgoInTimeZone(6, timeZone);
 
   const { data } = await supabase
     .from("habit_completions")
     .select("*")
+    .eq("user_id", user.id)
     .gte("completed_on", sevenDaysAgo)
     .order("completed_on", { ascending: true });
 

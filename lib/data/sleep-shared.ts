@@ -45,6 +45,22 @@ export type SleepScoreInput = {
   stageMinutes?: SleepStageMinutes | null;
 };
 
+export type SleepTrendRange = 7 | 30;
+
+type SleepRangeEntry = {
+  sleep_date: string;
+  score?: number | null;
+  duration_minutes?: number | null;
+};
+
+export type SleepRangeSummary<T extends SleepRangeEntry> = {
+  entries: T[];
+  trendEntries: T[];
+  count: number;
+  averageScore: number | null;
+  averageDurationMinutes: number;
+};
+
 type HealthConnectSleepStage = {
   startTime?: string;
   endTime?: string;
@@ -133,6 +149,42 @@ export function sleepNoDataMessage(
         : `${oldest} through ${newest}`
       : "the recent sleep window";
   return `No sleep data was found in ${provider} for ${range}. ${provider} only returns sleep sessions recorded by a sleep app or wearable; confirm sleep tracking is enabled there, or log it manually.`;
+}
+
+export function summarizeSleepRange<T extends SleepRangeEntry>(
+  entries: T[],
+  range: SleepTrendRange,
+  now = new Date(),
+): SleepRangeSummary<T> {
+  const sleepDates = new Set(sleepLookbackWindows(range, now).map((window) => window.sleepDate));
+  const rangeEntries = entries
+    .filter((entry) => sleepDates.has(entry.sleep_date))
+    .sort((a, b) => b.sleep_date.localeCompare(a.sleep_date));
+  const count = rangeEntries.length;
+
+  if (count === 0) {
+    return {
+      entries: [],
+      trendEntries: [],
+      count: 0,
+      averageScore: null,
+      averageDurationMinutes: 0,
+    };
+  }
+
+  const scoreTotal = rangeEntries.reduce((sum, entry) => sum + Number(entry.score ?? 0), 0);
+  const durationTotal = rangeEntries.reduce(
+    (sum, entry) => sum + Number(entry.duration_minutes ?? 0),
+    0,
+  );
+
+  return {
+    entries: rangeEntries,
+    trendEntries: [...rangeEntries].reverse(),
+    count,
+    averageScore: Math.round(scoreTotal / count),
+    averageDurationMinutes: durationTotal / count,
+  };
 }
 
 export function isSleepEntriesSetupError(message: string | null | undefined): boolean {

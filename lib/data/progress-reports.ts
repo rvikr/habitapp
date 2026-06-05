@@ -5,6 +5,22 @@ import { DATA_CACHE_PREFIX, readThroughCache } from "./cache";
 const REPORT_CACHE_TTL_MS = 5 * 60_000;
 
 type FetchOptions = { force?: boolean };
+type GenerateProgressReportResponse = {
+  mode?: string;
+  status?: "written" | "skipped" | "failed";
+  reason?: string;
+  report?: WeeklyProgressReport | null;
+  error?: string;
+};
+
+export type GenerateProgressReportResult =
+  | {
+      ok: true;
+      report: WeeklyProgressReport;
+      status?: "written" | "skipped" | "failed";
+      reason?: string;
+    }
+  | { ok: false; error: string; reason?: string };
 
 export async function getLatestProgressReport(
   options?: FetchOptions,
@@ -34,6 +50,51 @@ export async function getLatestProgressReport(
   );
 }
 
+export async function generateProgressReportNow(): Promise<GenerateProgressReportResult> {
+  if (!isSupabaseConfigured()) return { ok: false, error: "Supabase is not configured." };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "You need to sign in again." };
+
+  try {
+    const { data, error } = await supabase.functions.invoke<GenerateProgressReportResponse>(
+      "progress-report",
+      { body: { mode: "generate-now" } },
+    );
+
+    if (error) {
+      const payload = await functionErrorPayload(error);
+      const reason = payload?.reason;
+      return {
+        ok: false,
+        error: errorMessageForReason(reason) ?? payload?.error ?? error.message,
+        reason,
+      };
+    }
+
+    if (data?.error) {
+      return {
+        ok: false,
+        error: errorMessageForReason(data.reason) ?? data.error,
+        reason: data.reason,
+      };
+    }
+
+    const latestReport = await getLatestProgressReport({ force: true });
+    const report = latestReport ?? data?.report ?? null;
+    if (!report) {
+      return {
+        ok: false,
+        error: errorMessageForReason(data?.reason) ?? "No report was generated yet.",
+        reason: data?.reason,
+      };
+    }
+
+    return { ok: true, report, status: data?.status, reason: data?.reason };
+  } catch {
+    return { ok: false, error: "Network error. Check your connection and try again." };
+  }
+}
+
 export function formatReportWeekRange(weekStart: string): string {
   const [y, m, d] = weekStart.split("-").map(Number);
   if (!y || !m || !d) return weekStart;
@@ -43,4 +104,37 @@ export function formatReportWeekRange(weekStart: string): string {
   const fmt = (date: Date) =>
     date.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
   return `${fmt(start)} – ${fmt(end)}`;
+}
+
+function errorMessageForReason(reason: string | undefined): string | null {
+  if (reason === "pro_required") return "Weekly reports are for Pro users.";
+  if (reason === "no_active_habits") {
+    return "Add at least one active habit before generating a weekly report.";
+  }
+  if (reason === "quota_exceeded") return "Weekly report generation is busy. Try again later.";
+  if (reason === "feature_disabled") return "Weekly report generation is temporarily unavailable.";
+  if (reason === "quota_guard_failed" || reason === "pro_guard_failed") {
+    return "Weekly report generation is not available right now.";
+  }
+  return null;
+}
+
+async function functionErrorPayload(
+  error: unknown,
+): Promise<GenerateProgressReportResponse | null> {
+  if (!isRecord(error) || !isRecord(error.context)) return null;
+  const response = error.context;
+
+  try {
+    const clone = typeof response.clone === "function" ? response.clone.call(response) : response;
+    if (!isRecord(clone) || typeof clone.json !== "function") return null;
+    const payload = await clone.json.call(clone);
+    return isRecord(payload) ? (payload as GenerateProgressReportResponse) : null;
+  } catch {
+    return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

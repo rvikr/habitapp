@@ -12,7 +12,7 @@ export async function requestSleepPermission(): Promise<SleepPermissionStatus> {
   return "unavailable";
 }
 
-export async function syncLastNightSleep(): Promise<{
+export async function syncLastNightSleep(_options?: { requestPermission?: boolean }): Promise<{
   ok: boolean;
   data?: SleepSyncResult;
   error?: string;

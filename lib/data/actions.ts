@@ -14,13 +14,18 @@ import { normalizeCoachTone, type CoachTone } from "../coach/coach";
 import { track, resetAnalytics } from "../services/analytics";
 import { authCallbackUrl, parseAuthCallbackUrl } from "../auth/auth-redirect";
 import {
+  GOOGLE_NATIVE_ANDROID_AUTH_ENABLED,
   getGoogleNativeIdToken,
+  googleNativeDeveloperErrorMessage,
   googleNativeAuthConfig,
   googleNativeSignInButtonMode,
+  isExpoGoRuntime,
   isGoogleNativeCancellationError,
+  isGoogleNativeDeveloperError,
 } from "../auth/google-native";
 import { buildCompletionValuePayload } from "./completions";
 import { clearDataCache } from "./cache";
+import { clearHomeWidgetSnapshot } from "../widgets/home-widget";
 import { localDateKey } from "../utils/date";
 import {
   cancelHabitReminders,
@@ -196,12 +201,19 @@ export async function signOut() {
   }
   clearDataCache();
   resetAnalytics();
+  await clearHomeWidgetSnapshot();
 }
 
 export async function signInWithGoogle(): Promise<{ error: Error | null; cancelled?: boolean }> {
   if (!isSupabaseConfigured()) return { error: configurationError() as unknown as Error };
-  const isExpoGo = Constants.executionEnvironment === "storeClient";
-  if (googleNativeSignInButtonMode({ platform: Platform.OS, isExpoGo }) === "native") {
+  const isExpoGo = isExpoGoRuntime(Constants);
+  if (
+    googleNativeSignInButtonMode({
+      platform: Platform.OS,
+      isExpoGo,
+      nativeAndroidAuthEnabled: GOOGLE_NATIVE_ANDROID_AUTH_ENABLED,
+    }) === "native"
+  ) {
     return signInWithNativeGoogle();
   }
 
@@ -232,6 +244,9 @@ async function signInWithNativeGoogle(): Promise<{ error: Error | null; cancelle
     return { error: error as Error | null };
   } catch (error) {
     if (isGoogleNativeCancellationError(error)) return { error: null, cancelled: true };
+    if (isGoogleNativeDeveloperError(error)) {
+      return { error: new Error(googleNativeDeveloperErrorMessage()) };
+    }
     return { error: error instanceof Error ? error : new Error("Google Sign-In failed.") };
   }
 }
@@ -659,6 +674,7 @@ export async function requestAccountDeletion(
     await clearLocalAuthSession();
     clearDataCache();
     resetAnalytics();
+    await clearHomeWidgetSnapshot();
     return { ok: true };
   } catch {
     return { ok: false, error: "Network error. Check your connection and try again." };

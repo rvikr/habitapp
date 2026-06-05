@@ -61,6 +61,7 @@ export async function getHabitsForToday(options?: DataFetchOptions) {
             supabase
               .from("habits")
               .select("*")
+              .eq("user_id", user.id)
               .is("archived_at", null)
               .order("created_at", { ascending: true }),
             supabase

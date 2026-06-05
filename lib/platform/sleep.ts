@@ -5,7 +5,7 @@ export type { SleepDashboardData, SleepSyncResult, SleepPermissionStatus };
 
 export declare function getSleepPermissionStatus(): Promise<SleepPermissionStatus>;
 export declare function requestSleepPermission(): Promise<SleepPermissionStatus>;
-export declare function syncLastNightSleep(): Promise<{
+export declare function syncLastNightSleep(options?: { requestPermission?: boolean }): Promise<{
   ok: boolean;
   data?: SleepSyncResult;
   error?: string;

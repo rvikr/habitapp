@@ -114,8 +114,8 @@ class LaganWidgetProvider : AppWidgetProvider() {
           title = text(json, "title", "Today"),
           completionLabel = text(json, "completionLabel", "Open Lagan to start"),
           progressPercent = json.optInt("progressPercent", 0).coerceIn(0, 100),
-          streakLabel = text(json, "streakLabel", "No streak yet"),
-          levelLabel = text(json, "levelLabel", "Level 1"),
+          streakLabel = text(json, "streakLabel", "Sign in to sync"),
+          levelLabel = text(json, "levelLabel", "Lagan"),
           updatedLabel = text(json, "updatedLabel", ""),
         )
       } catch (_: Exception) {
@@ -156,8 +156,8 @@ private data class WidgetSnapshot(
       title = "Today",
       completionLabel = "Open Lagan to start",
       progressPercent = 0,
-      streakLabel = "No streak yet",
-      levelLabel = "Level 1",
+      streakLabel = "Sign in to sync",
+      levelLabel = "Lagan",
       updatedLabel = "",
     )
   }
@@ -234,7 +234,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
       android:layout_width="0dp"
       android:layout_height="wrap_content"
       android:layout_weight="1"
-      android:text="No streak yet"
+      android:text="Sign in to sync"
       android:textColor="#5B5049"
       android:textSize="12sp"
       android:maxLines="1" />
@@ -243,7 +243,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
       android:id="@+id/lagan_widget_level"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
-      android:text="Level 1"
+      android:text="Lagan"
       android:textColor="#5B5049"
       android:textSize="12sp"
       android:textStyle="bold"

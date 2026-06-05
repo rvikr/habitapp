@@ -2,9 +2,11 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
+import { enforceProAccess } from "../_shared/pro-access.ts";
 import { generateContent } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 const GEMINI_REPORT_MODEL =
@@ -42,6 +44,17 @@ function timingSafeEqual(a: string, b: string): boolean {
 type ProUserRow = { user_id: string };
 type HabitRow = { id: string; name: string; unit: string | null; target: number | null };
 type CompletionRow = { habit_id: string; completed_on: string; value: number | null };
+type ProgressReportRequest = { mode?: string };
+type GenerateForUserResult = { status: "written" | "skipped" | "failed"; reason?: string };
+type WeeklyProgressReportRow = {
+  id: string;
+  user_id: string;
+  week_start: string;
+  summary_text: string;
+  stats_snapshot: Record<string, unknown>;
+  model: string | null;
+  generated_at: string;
+};
 
 type WeeklyStats = {
   weekStart: string;
@@ -59,6 +72,8 @@ type WeeklyStats = {
   }>;
 };
 
+const REPORT_SELECT = "id, user_id, week_start, summary_text, stats_snapshot, model, generated_at";
+
 function isoWeekStart(reference: Date): Date {
   const utc = new Date(Date.UTC(
     reference.getUTCFullYear(),
@@ -73,6 +88,25 @@ function isoWeekStart(reference: Date): Date {
 
 function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function previousWeekStart(reference = new Date()): Date {
+  const weekStart = isoWeekStart(reference);
+  weekStart.setUTCDate(weekStart.getUTCDate() - 7);
+  return weekStart;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+async function parseRequestBody(req: Request): Promise<ProgressReportRequest> {
+  try {
+    const body = await req.json();
+    return isRecord(body) && typeof body.mode === "string" ? { mode: body.mode } : {};
+  } catch {
+    return {};
+  }
 }
 
 function cleanText(value: unknown, maxLength: number): string | null {
@@ -238,7 +272,7 @@ async function generateForUser(
   admin: ReturnType<typeof createClient>,
   userId: string,
   weekStartDate: Date,
-): Promise<{ status: "written" | "skipped" | "failed"; reason?: string }> {
+): Promise<GenerateForUserResult> {
   const weekStart = formatDate(weekStartDate);
 
   const existing = await admin
@@ -293,10 +327,27 @@ async function generateForUser(
   return { status: "written" };
 }
 
+async function getProgressReport(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  weekStartDate: Date,
+): Promise<WeeklyProgressReportRow | null> {
+  const { data, error } = await admin
+    .from("weekly_progress_reports")
+    .select(REPORT_SELECT)
+    .eq("user_id", userId)
+    .eq("week_start", formatDate(weekStartDate))
+    .maybeSingle();
+  if (error) {
+    console.error("progress-report readback failed", { userId, error: error.message });
+    return null;
+  }
+  return (data as WeeklyProgressReportRow | null) ?? null;
+}
+
 async function runCronBatch(admin: ReturnType<typeof createClient>) {
   const now = new Date();
-  const previousWeekStart = isoWeekStart(now);
-  previousWeekStart.setUTCDate(previousWeekStart.getUTCDate() - 7);
+  const previousWeek = previousWeekStart(now);
 
   // Mirror has_pro_access(): admin override, active RevenueCat entitlement (with non-expired
   // pro_expires_at when set), or unexpired trial.
@@ -343,7 +394,7 @@ async function runCronBatch(admin: ReturnType<typeof createClient>) {
       }
       const index = cursor++;
       if (index >= users.length) return;
-      const result = await generateForUser(admin, users[index].user_id, previousWeekStart);
+      const result = await generateForUser(admin, users[index].user_id, previousWeek);
       processed += 1;
       if (result.status === "written") written += 1;
       else if (result.status === "skipped") skipped += 1;
@@ -359,6 +410,46 @@ async function runCronBatch(admin: ReturnType<typeof createClient>) {
   return { processed, written, skipped, failed, remaining, deadlineReached };
 }
 
+function statusForGenerateResult(result: GenerateForUserResult): number {
+  if (result.status === "failed") return 500;
+  if (result.reason === "quota_exceeded") return 429;
+  if (result.reason === "quota_guard_failed") return 503;
+  return 200;
+}
+
+async function runGenerateNow(req: Request, admin: ReturnType<typeof createClient>) {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return json({ error: "Missing authorization header" }, 401);
+
+  const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: authHeader } },
+  });
+  const { data: { user }, error: userError } = await userClient.auth.getUser();
+  if (userError || !user) return json({ error: "Unauthorized" }, 401);
+
+  const proAccess = await enforceProAccess(admin as any, user.id, "progress-report");
+  if (!proAccess.allowed) {
+    console.warn("AI progress-report generate-now blocked", { userId: user.id, reason: proAccess.reason });
+    return json(
+      { mode: "generate-now", status: "skipped", reason: proAccess.reason, report: null },
+      proAccess.status,
+    );
+  }
+
+  const weekStartDate = previousWeekStart();
+  const result = await generateForUser(admin, user.id, weekStartDate);
+  const report = await getProgressReport(admin, user.id, weekStartDate);
+  return json(
+    {
+      mode: "generate-now",
+      weekStart: formatDate(weekStartDate),
+      ...result,
+      report,
+    },
+    statusForGenerateResult(result),
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -366,6 +457,12 @@ serve(async (req) => {
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     console.error("progress-report: service role key missing");
     return json({ error: "Service role not configured" }, 503);
+  }
+
+  const body = await parseRequestBody(req);
+  if (body.mode === "generate-now") {
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    return runGenerateNow(req, admin);
   }
 
   const cronSecret = req.headers.get("x-cron-secret");

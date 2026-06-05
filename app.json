@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Lagan लगन",
+    "name": "AI Enabled Habit Tracking",
     "slug": "habbitapp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#451ebb"
+      "backgroundColor": "#1A1A1A"
     },
     "assetBundlePatterns": ["**/*"],
     "runtimeVersion": {
@@ -38,7 +38,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#451ebb"
+        "backgroundColor": "#1A1A1A"
       },
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
@@ -56,10 +56,10 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png",
-      "name": "Lagan — AI Habit Tracker",
-      "shortName": "Lagan",
+      "name": "AI Enabled Habit Tracking",
+      "shortName": "AI Habits",
       "description": "Lagan is an AI-enabled habit tracker for iOS, Android, and web. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
-      "themeColor": "#451ebb",
+      "themeColor": "#1A1A1A",
       "backgroundColor": "#f8f9fa",
       "display": "standalone",
       "startUrl": "/app/",
@@ -71,7 +71,7 @@
       [
         "expo-notifications",
         {
-          "color": "#451ebb",
+          "color": "#F26B1F",
           "defaultChannel": "default",
           "icon": "./assets/notification-icon.png"
         }

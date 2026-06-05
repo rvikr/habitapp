@@ -20,6 +20,18 @@ create table if not exists public.habits (
 
 create index if not exists habits_user_id_idx on public.habits(user_id);
 
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'habits_id_user_id_unique'
+      and conrelid = 'public.habits'::regclass
+  ) then
+    alter table public.habits add constraint habits_id_user_id_unique
+      unique (id, user_id);
+  end if;
+end $$;
+
 -- Newer columns: multi-time reminders + day-of-week filter (existing rows keep
 -- their single reminder_time column for backward compatibility).
 alter table public.habits add column if not exists reminder_times text[] default '{}'::text[];
@@ -81,6 +93,24 @@ create table if not exists public.habit_completions (
   created_at    timestamptz not null default now(),
   unique (habit_id, completed_on)
 );
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'habit_completions_habit_owner_fk'
+      and conrelid = 'public.habit_completions'::regclass
+  ) then
+    alter table public.habit_completions add constraint habit_completions_habit_owner_fk
+      foreign key (habit_id, user_id)
+      references public.habits(id, user_id)
+      on delete cascade
+      not valid;
+  end if;
+end $$;
+
+alter table public.habit_completions
+  validate constraint habit_completions_habit_owner_fk;
 
 create index if not exists completions_user_date_idx
   on public.habit_completions(user_id, completed_on);

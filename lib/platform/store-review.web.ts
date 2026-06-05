@@ -2,4 +2,6 @@
 
 export async function recordCompletionAndMaybeReview(): Promise<void> {}
 
-export async function requestReviewManually(): Promise<void> {}
+export async function requestReviewManually(): Promise<boolean> {
+  return false;
+}

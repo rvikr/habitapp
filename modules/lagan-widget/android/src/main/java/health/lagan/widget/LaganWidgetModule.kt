@@ -22,14 +22,28 @@ class LaganWidgetModule : Module() {
         .putString(SNAPSHOT_KEY, snapshotJson)
         .apply()
 
-      val provider = ComponentName(context.packageName, "${context.packageName}.LaganWidgetProvider")
-      val widgetIds = AppWidgetManager.getInstance(context).getAppWidgetIds(provider)
-      val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
-        component = provider
-        putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
-      }
-      context.sendBroadcast(intent)
+      notifyWidgets()
     }
+
+    AsyncFunction("clearAsync") {
+      context
+        .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .remove(SNAPSHOT_KEY)
+        .apply()
+
+      notifyWidgets()
+    }
+  }
+
+  private fun notifyWidgets() {
+    val provider = ComponentName(context.packageName, "${context.packageName}.LaganWidgetProvider")
+    val widgetIds = AppWidgetManager.getInstance(context).getAppWidgetIds(provider)
+    val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
+      component = provider
+      putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, widgetIds)
+    }
+    context.sendBroadcast(intent)
   }
 
   companion object {

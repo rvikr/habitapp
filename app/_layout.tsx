@@ -33,6 +33,7 @@ import {
 import { initSentry, setUser as setSentryUser } from "@/lib/services/sentry";
 import { initAnalytics, track } from "@/lib/services/analytics";
 import { logOutRevenueCat, syncRevenueCatSubscription } from "@/lib/subscription/revenuecat";
+import { clearHomeWidgetSnapshot } from "@/lib/widgets/home-widget";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -71,7 +72,10 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
       }
       setSentryUser(session?.user ? { id: session.user.id } : null);
       if (session?.user?.id) void syncRevenueCatSubscription(session.user.id);
-      else void logOutRevenueCat();
+      else {
+        void logOutRevenueCat();
+        void clearHomeWidgetSnapshot();
+      }
     }
 
     (async () => {

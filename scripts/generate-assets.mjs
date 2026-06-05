@@ -31,7 +31,7 @@ async function gen(svgString, outPath) {
   console.log(`Generated: ${outPath.replace(ROOT, "")}`);
 }
 
-const PURPLE = "#451ebb";
+const STARTUP_BG = "#1A1A1A";
 const ORANGE = "#F26B1F";
 const DARK_ORANGE = "#C24E0D";
 const WHITE = "#ffffff";
@@ -40,41 +40,97 @@ const assets = [
   // iOS app icon — logo on brand bg
   {
     file: "assets/icon.png",
-    svg: makeSvg({ width: 1024, height: 1024, bgColor: PURPLE, logoSize: 640, primaryColor: ORANGE, accentColor: DARK_ORANGE }),
+    svg: makeSvg({
+      width: 1024,
+      height: 1024,
+      bgColor: STARTUP_BG,
+      logoSize: 640,
+      primaryColor: ORANGE,
+      accentColor: DARK_ORANGE,
+    }),
   },
   // Android adaptive icon foreground — transparent bg, logo in safe zone center
   {
     file: "assets/adaptive-icon.png",
-    svg: makeSvg({ width: 1024, height: 1024, bgColor: null, logoSize: 512, primaryColor: ORANGE, accentColor: DARK_ORANGE }),
+    svg: makeSvg({
+      width: 1024,
+      height: 1024,
+      bgColor: null,
+      logoSize: 512,
+      primaryColor: ORANGE,
+      accentColor: DARK_ORANGE,
+    }),
   },
   // Splash screen
   {
     file: "assets/splash.png",
-    svg: makeSvg({ width: 1284, height: 2778, bgColor: PURPLE, logoSize: 400, primaryColor: ORANGE, accentColor: DARK_ORANGE }),
+    svg: makeSvg({
+      width: 1284,
+      height: 2778,
+      bgColor: STARTUP_BG,
+      logoSize: 400,
+      primaryColor: ORANGE,
+      accentColor: DARK_ORANGE,
+    }),
   },
   // Favicon
   {
     file: "assets/favicon.png",
-    svg: makeSvg({ width: 64, height: 64, bgColor: PURPLE, logoSize: 52, primaryColor: ORANGE, accentColor: DARK_ORANGE }),
+    svg: makeSvg({
+      width: 64,
+      height: 64,
+      bgColor: STARTUP_BG,
+      logoSize: 52,
+      primaryColor: ORANGE,
+      accentColor: DARK_ORANGE,
+    }),
   },
   // Android notification icon — white monochrome on transparent
   {
     file: "assets/notification-icon.png",
-    svg: makeSvg({ width: 96, height: 96, bgColor: null, logoSize: 80, primaryColor: WHITE, accentColor: WHITE }),
+    svg: makeSvg({
+      width: 96,
+      height: 96,
+      bgColor: null,
+      logoSize: 80,
+      primaryColor: WHITE,
+      accentColor: WHITE,
+    }),
   },
   // OG / social sharing image
   {
     file: "assets/og-image.png",
-    svg: makeSvg({ width: 1200, height: 630, bgColor: PURPLE, logoSize: 380, primaryColor: ORANGE, accentColor: DARK_ORANGE }),
+    svg: makeSvg({
+      width: 1200,
+      height: 630,
+      bgColor: STARTUP_BG,
+      logoSize: 380,
+      primaryColor: ORANGE,
+      accentColor: DARK_ORANGE,
+    }),
   },
   // PWA icons
   {
     file: "public/icon-192.png",
-    svg: makeSvg({ width: 192, height: 192, bgColor: PURPLE, logoSize: 130, primaryColor: ORANGE, accentColor: DARK_ORANGE }),
+    svg: makeSvg({
+      width: 192,
+      height: 192,
+      bgColor: STARTUP_BG,
+      logoSize: 130,
+      primaryColor: ORANGE,
+      accentColor: DARK_ORANGE,
+    }),
   },
   {
     file: "public/icon-512.png",
-    svg: makeSvg({ width: 512, height: 512, bgColor: PURPLE, logoSize: 340, primaryColor: ORANGE, accentColor: DARK_ORANGE }),
+    svg: makeSvg({
+      width: 512,
+      height: 512,
+      bgColor: STARTUP_BG,
+      logoSize: 340,
+      primaryColor: ORANGE,
+      accentColor: DARK_ORANGE,
+    }),
   },
 ];
 

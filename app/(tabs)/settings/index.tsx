@@ -102,8 +102,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colorScheme, toggle } = useTheme();
   const { languageName, t, toggleLanguage } = useLanguage();
-  const { stepsEnabled, sleepEnabled, setStepsEnabled, setSleepEnabled } =
-    useTrackingPreferences();
+  const { stepsEnabled, sleepEnabled, setStepsEnabled, setSleepEnabled } = useTrackingPreferences();
   const [user, setUser] = useState<UserInfo | null>(null);
 
   const load = useCallback(async () => {
@@ -152,6 +151,16 @@ export default function SettingsScreen() {
 
   function openAiCoach() {
     router.push("/settings/coach");
+  }
+
+  async function handleRateLagan() {
+    const opened = await requestReviewManually();
+    if (!opened) {
+      Alert.alert(
+        t("Store unavailable"),
+        t("Lagan's store page is not available on this device yet."),
+      );
+    }
   }
 
   return (
@@ -277,11 +286,7 @@ export default function SettingsScreen() {
             label={t("Send Feedback")}
             onPress={() => router.push("/settings/feedback" as never)}
           />
-          <SettingsRow
-            icon="star-outline"
-            label={t("Rate Lagan")}
-            onPress={() => requestReviewManually()}
-          />
+          <SettingsRow icon="star-outline" label={t("Rate Lagan")} onPress={handleRateLagan} />
           <SettingsRow
             icon="email-outline"
             label={t("Contact Support")}

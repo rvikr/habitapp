@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { isExpoGoRuntime } from "./runtime";
 import {
   getSleepDashboardData,
   manualLogSleep,
@@ -31,7 +32,10 @@ type SleepReadSnapshot = {
 };
 
 function isExpoGo(): boolean {
-  return Constants.appOwnership === "expo";
+  return isExpoGoRuntime({
+    appOwnership: Constants.appOwnership,
+    executionEnvironment: Constants.executionEnvironment,
+  });
 }
 
 async function loadHealthConnect(): Promise<HealthConnectModule | null> {
@@ -221,14 +225,18 @@ export async function requestSleepPermission(): Promise<SleepPermissionStatus> {
   return "unavailable";
 }
 
-export async function syncLastNightSleep(): Promise<{
+export async function syncLastNightSleep(options?: { requestPermission?: boolean }): Promise<{
   ok: boolean;
   data?: SleepSyncResult;
   error?: string;
   status?: SleepPermissionStatus;
 }> {
   const permission = await getSleepPermissionStatus();
-  const status = permission === "granted" ? permission : await requestSleepPermission();
+  const shouldRequestPermission = options?.requestPermission ?? true;
+  const status =
+    permission === "granted" || !shouldRequestPermission
+      ? permission
+      : await requestSleepPermission();
   if (status !== "granted") {
     return {
       ok: false,

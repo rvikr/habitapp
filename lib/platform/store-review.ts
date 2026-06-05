@@ -1,4 +1,6 @@
 import * as StoreReview from "expo-store-review";
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 import { getItem, setItem } from "./storage";
 
 const COMPLETION_COUNT_KEY = "habbit:completion-count";
@@ -20,19 +22,54 @@ export async function recordCompletionAndMaybeReview(): Promise<void> {
   const available = await StoreReview.isAvailableAsync();
   if (!available) return;
 
-  await StoreReview.requestReview();
+  try {
+    await StoreReview.requestReview();
+  } catch {
+    return;
+  }
   await setItem(LAST_REVIEW_KEY, String(Date.now()));
 }
 
-export async function requestReviewManually(): Promise<void> {
+export async function requestReviewManually(): Promise<boolean> {
+  if (Platform.OS === "android") {
+    return openAndroidStoreListing();
+  }
+
   const available = await StoreReview.isAvailableAsync();
   if (available) {
-    await StoreReview.requestReview();
-  } else {
-    const url = await StoreReview.storeUrl();
-    if (url) {
-      const { Linking } = await import("react-native");
-      await Linking.openURL(url);
+    try {
+      await StoreReview.requestReview();
+      return true;
+    } catch {
+      // Fall through to a store URL when the native request cannot launch.
     }
+  }
+
+  const url = await StoreReview.storeUrl();
+  return url ? openUrl(url) : false;
+}
+
+async function openAndroidStoreListing(): Promise<boolean> {
+  const configuredUrl = await StoreReview.storeUrl();
+  if (configuredUrl && (await openUrl(configuredUrl))) return true;
+
+  const packageName = Constants.expoConfig?.android?.package;
+  if (!packageName) return false;
+
+  return (
+    (await openUrl(`market://details?id=${encodeURIComponent(packageName)}`)) ||
+    (await openUrl(
+      `https://play.google.com/store/apps/details?id=${encodeURIComponent(packageName)}`,
+    ))
+  );
+}
+
+async function openUrl(url: string): Promise<boolean> {
+  const { Linking } = await import("react-native");
+  try {
+    await Linking.openURL(url);
+    return true;
+  } catch {
+    return false;
   }
 }

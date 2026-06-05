@@ -23,8 +23,7 @@ import {
   syncLastNightSleep,
   type SleepDashboardData,
 } from "@/lib/platform/sleep";
-import type { HabitProgress } from "@/lib/coach/habit-intelligence";
-import type { Habit } from "@/types/db";
+import { summarizeSleepRange, type SleepTrendRange } from "@/lib/data/sleep-shared";
 import { localDateKey, addLocalDays } from "@/lib/utils/date";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
@@ -49,13 +48,12 @@ function scoreTone(score: number | null | undefined, t: (s: string) => string): 
 export default function ProgressScreen() {
   const { t, language } = useLanguage();
   const { colorScheme } = useTheme();
-  const { sleepEnabled } = useTrackingPreferences();
+  const { sleepEnabled, hydrated: trackingHydrated } = useTrackingPreferences();
   const [stats, setStats] = useState<StatsData>(null);
   const [consistencyDays, setConsistencyDays] = useState<DayConsistency[]>([]);
   const [lifeSegments, setLifeSegments] = useState<LifeBalanceSegment[]>([]);
-  const [sleepScore, setSleepScore] = useState<number | null>(null);
   const [sleepData, setSleepData] = useState<SleepDashboardData | null>(null);
-  const [sleepRange, setSleepRange] = useState<7 | 30>(7);
+  const [sleepRange, setSleepRange] = useState<SleepTrendRange>(7);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const lastSleepSyncAt = useRef(0);
@@ -75,45 +73,37 @@ export default function ProgressScreen() {
     setConsistencyDays(days);
     setLifeSegments(buildLifeBalanceWheelSegments(habits, todayProgress));
     setSleepData(sleepDashboard);
-
-    const sleepHabit = habits.find(
-      (h: Habit) => h.habit_type === "sleep" || h.metric_type === "hours",
-    );
-    const sleepProgress: HabitProgress | undefined = sleepHabit
-      ? todayProgress.get(sleepHabit.id)
-      : undefined;
-    setSleepScore(sleepProgress?.current ?? null);
     setLoaded(true);
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       load();
-      if (sleepEnabled) {
+      if (trackingHydrated && sleepEnabled) {
         const now = Date.now();
         if (now - lastSleepSyncAt.current > AUTO_SLEEP_SYNC_MS) {
           lastSleepSyncAt.current = now;
-          syncLastNightSleep()
+          syncLastNightSleep({ requestPermission: false })
             .then(() => getSleepDashboardData({ force: true }))
             .then(setSleepData)
             .catch(() => {});
         }
       }
-    }, [load, sleepEnabled]),
+    }, [load, sleepEnabled, trackingHydrated]),
   );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load({ force: true });
-    if (sleepEnabled) {
+    if (trackingHydrated && sleepEnabled) {
       lastSleepSyncAt.current = Date.now();
-      syncLastNightSleep()
+      syncLastNightSleep({ requestPermission: false })
         .then(() => getSleepDashboardData({ force: true }))
         .then(setSleepData)
         .catch(() => {});
     }
     setRefreshing(false);
-  }, [load, sleepEnabled]);
+  }, [load, sleepEnabled, trackingHydrated]);
 
   const level = stats?.level ?? 1;
   const xp = stats?.xp ?? 0;
@@ -147,21 +137,13 @@ export default function ProgressScreen() {
   const isOnTrack = weekNonFutureDays > 0 && weekCompletedDays / weekNonFutureDays >= 0.5;
 
   // Sleep score + trend data
-  const sleepTrend = [...(sleepData?.entries ?? [])].slice(0, sleepRange).reverse();
-  const sleepLatest = sleepData?.latestEntry ?? null;
+  const sleepRangeSummary = summarizeSleepRange(sleepData?.entries ?? [], sleepRange);
+  const sleepTrend = sleepRangeSummary.trendEntries;
+  const sleepLatest = sleepRangeSummary.entries[0] ?? null;
   const sleepTargetMinutes = sleepData?.targetMinutes ?? 480;
-  const sleepWindowEntries = (sleepData?.entries ?? []).slice(0, sleepRange);
-  const sleepWindowCount = sleepWindowEntries.length;
-  const sleepAvgScore =
-    sleepWindowCount > 0
-      ? Math.round(
-          sleepWindowEntries.reduce((sum, e) => sum + (e.score ?? 0), 0) / sleepWindowCount,
-        )
-      : null;
-  const sleepAvgDurationMinutes =
-    sleepWindowCount > 0
-      ? sleepWindowEntries.reduce((sum, e) => sum + (e.duration_minutes ?? 0), 0) / sleepWindowCount
-      : 0;
+  const sleepWindowCount = sleepRangeSummary.count;
+  const sleepAvgScore = sleepRangeSummary.averageScore;
+  const sleepAvgDurationMinutes = sleepRangeSummary.averageDurationMinutes;
   const sleepAvgDurationRatio = Math.min(sleepAvgDurationMinutes / sleepTargetMinutes, 1);
   const sleepLatestDurationRatio = sleepLatest
     ? Math.min(sleepLatest.duration_minutes / sleepTargetMinutes, 1)
@@ -172,11 +154,7 @@ export default function ProgressScreen() {
         { weekday: "short", month: "short", day: "numeric" },
       )
     : null;
-  const sleepLastHours = sleepLatest
-    ? formatSleepHours(sleepLatest.duration_minutes)
-    : sleepScore !== null
-      ? `${sleepScore}h`
-      : "—";
+  const sleepLastHours = sleepLatest ? formatSleepHours(sleepLatest.duration_minutes) : "—";
 
   // Build 5×7 grid rows from consistency data (already 35 days from Monday)
   const calendarRows: DayConsistency[][] = [];
@@ -516,21 +494,6 @@ export default function ProgressScreen() {
                 {t("Turn on sleep tracking in Settings to see your score and trends here.")}
               </Text>
             </View>
-          ) : sleepWindowCount === 0 ? (
-            <View className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface-container rounded-xl p-lg items-center gap-sm">
-              <MaterialCommunityIcons name="sleep" size={32} color="#3EBB7F" />
-              <Text
-                className="text-body-md text-on-surface dark:text-d-on-surface font-semibold text-center"
-                style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
-              >
-                {t("No sleep data yet")}
-              </Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
-                {t(
-                  "Sleep data will appear here once your device syncs or after your first night is logged.",
-                )}
-              </Text>
-            </View>
           ) : (
             <>
               {/* Sleep Score Overview */}
@@ -538,70 +501,92 @@ export default function ProgressScreen() {
                 className="mx-margin-mobile mb-sm rounded-2xl p-lg gap-md"
                 style={{ backgroundColor: "#e6deff" }}
               >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-1 gap-xs">
-                    <Text className="text-label-lg font-semibold" style={{ color: "#F26B1F" }}>
-                      {scoreTone(sleepAvgScore, t)}
-                    </Text>
+                {sleepWindowCount === 0 ? (
+                  <View className="items-center py-md gap-sm">
+                    <MaterialCommunityIcons name="sleep" size={32} color="#F26B1F" />
                     <Text
+                      className="text-body-md font-semibold text-center"
                       style={{
-                        fontSize: 52,
-                        fontFamily: "SpaceGrotesk_700Bold",
                         color: "#F26B1F",
-                        lineHeight: 56,
-                        fontVariant: ["tabular-nums"],
+                        fontFamily: "SpaceGrotesk_600SemiBold",
                       }}
                     >
-                      {sleepAvgScore ?? "—"}
+                      {t("Sleep data is not available")}
                     </Text>
-                    <Text className="text-body-sm" style={{ color: "#F26B1F" }}>
-                      {t("Avg over last {days} days · {count} nights", {
+                    <Text className="text-label-sm text-center" style={{ color: "#F26B1F" }}>
+                      {t("No sleep data was found for the last {days} days.", {
                         days: sleepRange,
-                        count: sleepWindowCount,
                       })}
                     </Text>
                   </View>
-                  <ProgressRing
-                    progress={sleepAvgScore != null ? sleepAvgScore / 100 : 0}
-                    size={104}
-                    strokeWidth={9}
-                    color="#F26B1F"
-                    trackColor="#E6E0D5"
-                  >
-                    <HabitProgressVisual
-                      visualType="sleep_moon"
-                      progress={sleepAvgDurationRatio}
-                      size="compact"
-                      color="#F26B1F"
-                      trackColor="#FFC56B"
-                    />
-                  </ProgressRing>
-                </View>
-
-                {sleepLatest ? (
-                  <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-xs">
+                ) : (
+                  <>
                     <View className="flex-row items-center justify-between">
-                      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                        {t("Last logged · {date}", { date: sleepLatestLabel ?? "" })}
-                      </Text>
-                      <Text className="text-label-lg text-primary font-semibold">
-                        {t("Score {score}", { score: sleepLatest.score })}
-                      </Text>
+                      <View className="flex-1 gap-xs">
+                        <Text className="text-label-lg font-semibold" style={{ color: "#F26B1F" }}>
+                          {scoreTone(sleepAvgScore, t)}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 52,
+                            fontFamily: "SpaceGrotesk_700Bold",
+                            color: "#F26B1F",
+                            lineHeight: 56,
+                            fontVariant: ["tabular-nums"],
+                          }}
+                        >
+                          {sleepAvgScore ?? "—"}
+                        </Text>
+                        <Text className="text-body-sm" style={{ color: "#F26B1F" }}>
+                          {t("Avg over last {days} days · {count} nights", {
+                            days: sleepRange,
+                            count: sleepWindowCount,
+                          })}
+                        </Text>
+                      </View>
+                      <ProgressRing
+                        progress={sleepAvgScore != null ? sleepAvgScore / 100 : 0}
+                        size={104}
+                        strokeWidth={9}
+                        color="#F26B1F"
+                        trackColor="#E6E0D5"
+                      >
+                        <HabitProgressVisual
+                          visualType="sleep_moon"
+                          progress={sleepAvgDurationRatio}
+                          size="compact"
+                          color="#F26B1F"
+                          trackColor="#FFC56B"
+                        />
+                      </ProgressRing>
                     </View>
-                    <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                      {sleepLastHours} / {formatSleepHours(sleepTargetMinutes)}
-                    </Text>
-                    <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden mt-xs">
-                      <View
-                        className="h-2 rounded-full"
-                        style={{
-                          width: `${sleepLatestDurationRatio * 100}%`,
-                          backgroundColor: "#F26B1F",
-                        }}
-                      />
-                    </View>
-                  </View>
-                ) : null}
+
+                    {sleepLatest ? (
+                      <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md gap-xs">
+                        <View className="flex-row items-center justify-between">
+                          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                            {t("Last logged · {date}", { date: sleepLatestLabel ?? "" })}
+                          </Text>
+                          <Text className="text-label-lg text-primary font-semibold">
+                            {t("Score {score}", { score: sleepLatest.score })}
+                          </Text>
+                        </View>
+                        <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                          {sleepLastHours} / {formatSleepHours(sleepTargetMinutes)}
+                        </Text>
+                        <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden mt-xs">
+                          <View
+                            className="h-2 rounded-full"
+                            style={{
+                              width: `${sleepLatestDurationRatio * 100}%`,
+                              backgroundColor: "#F26B1F",
+                            }}
+                          />
+                        </View>
+                      </View>
+                    ) : null}
+                  </>
+                )}
               </View>
 
               {/* Sleep Trend */}
@@ -640,7 +625,9 @@ export default function ProgressScreen() {
                 {sleepTrend.length === 0 ? (
                   <View className="items-center py-md gap-xs">
                     <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
-                      {t("No data for this period.")}
+                      {t("Sleep data is not available for the last {days} days.", {
+                        days: sleepRange,
+                      })}
                     </Text>
                   </View>
                 ) : sleepRange === 7 ? (

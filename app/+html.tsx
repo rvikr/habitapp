@@ -12,8 +12,8 @@ export default function Root({ children }: { children: React.ReactNode }) {
         />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Lagan" />
-        <meta name="theme-color" content="#451ebb" />
+        <meta name="apple-mobile-web-app-title" content="AI Habits" />
+        <meta name="theme-color" content="#1A1A1A" />
         <meta name="mobile-web-app-capable" content="yes" />
 
         <title>Lagan — AI Habit Tracker, Coach & Smart Reminders</title>
@@ -25,7 +25,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
           name="keywords"
           content="AI habit tracker, AI habit coach, AI routine planner, AI smart reminders, habit tracker, daily habit app, streak tracker, routine tracker, habit builder, habit log, consistency tracker, goal tracker"
         />
-        <meta name="application-name" content="Lagan" />
+        <meta name="application-name" content="AI Enabled Habit Tracking" />
         <link rel="canonical" href="https://lagan.health/" />
 
         {/* Open Graph */}

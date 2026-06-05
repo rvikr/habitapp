@@ -1,5 +1,13 @@
 import { useState, useCallback } from "react";
-import { View, Text, ScrollView, RefreshControl } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Text,
+  TouchableOpacity,
+  View,
+  ScrollView,
+  RefreshControl,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { getStats, getMilestones } from "@/lib/data/habits";
@@ -10,7 +18,11 @@ import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
-import { formatReportWeekRange, getLatestProgressReport } from "@/lib/data/progress-reports";
+import {
+  formatReportWeekRange,
+  generateProgressReportNow,
+  getLatestProgressReport,
+} from "@/lib/data/progress-reports";
 import type { Milestone, WeeklyProgressReport } from "@/types/db";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
@@ -26,6 +38,7 @@ export default function AchievementsScreen() {
   const [loaded, setLoaded] = useState(false);
   const [report, setReport] = useState<WeeklyProgressReport | null>(null);
   const [hasPro, setHasPro] = useState<boolean | null>(null);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   const load = useCallback(
     async (options?: { force?: boolean }) => {
@@ -77,6 +90,21 @@ export default function AchievementsScreen() {
       tone: badge.tone,
     });
   }, []);
+
+  const handleGenerateReport = useCallback(async () => {
+    if (generatingReport) return;
+    setGeneratingReport(true);
+    try {
+      const result = await generateProgressReportNow();
+      if (result.ok) {
+        setReport(result.report);
+      } else {
+        Alert.alert(t("Could not generate report"), t(result.error));
+      }
+    } finally {
+      setGeneratingReport(false);
+    }
+  }, [generatingReport, t]);
 
   const xpPct = stats ? (stats.xp / stats.xpForNext) * 100 : 0;
 
@@ -149,6 +177,8 @@ export default function AchievementsScreen() {
               hasPro={hasPro}
               t={t}
               onUpgrade={() => router.push("/pro")}
+              onGenerateNow={handleGenerateReport}
+              generatingReport={generatingReport}
             />
           ) : (
             <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs">
@@ -231,11 +261,15 @@ function WeeklyReportCard({
   hasPro,
   t,
   onUpgrade,
+  onGenerateNow,
+  generatingReport,
 }: {
   report: WeeklyProgressReport | null;
   hasPro: boolean | null;
   t: (key: string, vars?: Record<string, string | number>) => string;
   onUpgrade: () => void;
+  onGenerateNow: () => void;
+  generatingReport: boolean;
 }) {
   if (hasPro === false) {
     return (
@@ -255,8 +289,24 @@ function WeeklyReportCard({
           {t("Your first report is on the way")}
         </Text>
         <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-          {t("We'll generate a summary every Monday based on the previous week's habits.")}
+          {hasPro === true
+            ? t("As a Pro user, you can generate last week's missing report once for free.")
+            : t("We'll generate a summary every Monday based on the previous week's habits.")}
         </Text>
+        {hasPro === true ? (
+          <TouchableOpacity
+            className="self-start bg-primary rounded-full px-md py-xs flex-row items-center gap-xs"
+            onPress={onGenerateNow}
+            disabled={generatingReport}
+            accessibilityRole="button"
+            accessibilityLabel={t("Generate now")}
+          >
+            {generatingReport ? <ActivityIndicator color="#fff" size="small" /> : null}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {generatingReport ? t("Generating") : t("Generate now")}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     );
   }

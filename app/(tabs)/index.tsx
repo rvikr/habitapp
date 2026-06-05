@@ -633,18 +633,21 @@ export default function DashboardScreen() {
                     {coachActionLabel(data.coachSignal, t)}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => {
-                    setCoachNotifOpen(false);
-                    router.push(`/habits/${data.coachSignal!.habitId}`);
-                  }}
-                  className="flex-1 rounded-full py-sm items-center"
-                  style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-                >
-                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
-                    {t("Open")}
-                  </Text>
-                </TouchableOpacity>
+                {data.coachSignal.suggestedAction === "log_value" &&
+                  data.coachSignal.suggestedValue != null && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setCoachNotifOpen(false);
+                        router.push(`/habits/${data.coachSignal!.habitId}`);
+                      }}
+                      className="flex-1 rounded-full py-sm items-center"
+                      style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
+                        {t("Open")}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
               </View>
             </View>
           )}
