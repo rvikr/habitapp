@@ -212,6 +212,25 @@ test("landing nav keeps the proxied web app CTA mobile-hidden without Next prefe
   assert.doesNotMatch(appCta, /display:\s*"inline-flex"/);
 });
 
+test("website habit clicks refresh dashboard data and show action errors", () => {
+  const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
+
+  assert.match(habitList, /useRouter/);
+  assert.match(habitList, /router\.refresh\(\)/);
+  assert.match(habitList, /result\.ok/);
+  assert.match(habitList, /role="alert"/);
+});
+
+test("website dashboard lets signed-in users add habits", () => {
+  const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
+  const actions = readFileSync("website/app/(app)/dashboard/actions.ts", "utf8");
+
+  assert.match(habitList, /Add habit/);
+  assert.doesNotMatch(habitList, /Open the mobile app to add your first habit/);
+  assert.match(actions, /export async function createHabit/);
+  assert.match(actions, /\.from\("habits"\)[\s\S]*\.insert\(/);
+});
+
 test("Expo SDK patch dependencies match Expo install expectations", () => {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
   assert.equal(packageJson.dependencies.expo, "~54.0.35");

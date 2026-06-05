@@ -1,12 +1,14 @@
 steps:
   # Build the image with EXPO_PUBLIC_ vars baked in at compile time.
-  # Values come from Cloud Build substitutions bound to Secret Manager
-  # (configure on the trigger; see substitution names below).
+  # Supabase URL + anon key are public client values (same as eas.json) and are
+  # hardcoded here so the web build never depends on trigger substitutions being
+  # set; the remaining values still come from Cloud Build substitutions bound to
+  # Secret Manager (configure on the trigger; see substitution names below).
   - name: "gcr.io/cloud-builders/docker"
     args:
       - build
-      - "--build-arg=EXPO_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}"
-      - "--build-arg=EXPO_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}"
+      - "--build-arg=EXPO_PUBLIC_SUPABASE_URL=https://ehcqgoymkmljwoveisbl.supabase.co"
+      - "--build-arg=EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoY3Fnb3lta21sandvdmVpc2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzIxODksImV4cCI6MjA5MzE0ODE4OX0.IutMM-lpX70UfBJ5aiH6-4QMv5qog10aDoZEtU1B2MU"
       - "--build-arg=EXPO_PUBLIC_SENTRY_DSN=${_SENTRY_DSN}"
       - "--build-arg=EXPO_PUBLIC_POSTHOG_KEY=${_POSTHOG_KEY}"
       - "--build-arg=EXPO_PUBLIC_POSTHOG_HOST=${_POSTHOG_HOST}"
@@ -39,8 +41,6 @@ images:
 
 # Required substitutions (set on the Cloud Build trigger, sourced from Secret Manager
 # for the credential-shaped values):
-#   _SUPABASE_URL          (plain)
-#   _SUPABASE_ANON_KEY     (Secret Manager)
 #   _SENTRY_DSN            (Secret Manager)
 #   _POSTHOG_KEY           (Secret Manager)
 #   _POSTHOG_HOST          (plain)

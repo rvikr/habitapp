@@ -89,7 +89,7 @@ export default async function DashboardPage() {
             </h1>
             <p className="text-on-surface-variant text-base mt-1">
               {total === 0
-                ? "Add habits in the mobile app to get started."
+                ? "Add your first habit to get started."
                 : done === total
                 ? "All habits complete — amazing work! 🎉"
                 : `${done} of ${total} habits complete. Keep going!`}

@@ -1,78 +1,291 @@
 "use client";
 
-import { useTransition } from "react";
-import { toggleHabit } from "@/app/(app)/dashboard/actions";
+import { useRouter } from "next/navigation";
+import { useRef, useState, type FormEvent } from "react";
+import { createHabit, toggleHabit } from "@/app/(app)/dashboard/actions";
 import { localDateKey } from "@/lib/date";
 import type { Habit } from "@/types/db";
 
 const COLOR_MAP: Record<string, { bg: string; ic: string }> = {
-  primary:   { bg: "bg-primary-fixed",        ic: "text-primary" },
-  secondary: { bg: "bg-secondary-container",  ic: "text-secondary" },
-  tertiary:  { bg: "bg-tertiary-fixed",       ic: "text-on-tertiary-container" },
-  neutral:   { bg: "bg-surface-container-high", ic: "text-on-surface-variant" },
+  primary: { bg: "bg-primary-fixed", ic: "text-primary" },
+  secondary: { bg: "bg-secondary-container", ic: "text-secondary" },
+  tertiary: { bg: "bg-tertiary-fixed", ic: "text-on-tertiary-container" },
+  neutral: { bg: "bg-surface-container-high", ic: "text-on-surface-variant" },
 };
 
-function HabitRow({
-  habit,
-  done,
-}: {
-  habit: Habit;
-  done: boolean;
-}) {
-  const [pending, startTransition] = useTransition();
-  const { bg, ic } = COLOR_MAP[habit.color] ?? COLOR_MAP.neutral;
+const ICON_OPTIONS = [
+  "water_drop",
+  "directions_walk",
+  "directions_run",
+  "menu_book",
+  "self_improvement",
+  "edit_note",
+  "fitness_center",
+  "bedtime",
+  "restaurant",
+  "code",
+  "spa",
+];
 
-  function toggle() {
-    startTransition(() => toggleHabit(habit.id, done, localDateKey()));
+const COLOR_OPTIONS = [
+  { id: "primary", label: "Ember", className: "bg-primary" },
+  { id: "secondary", label: "Sage", className: "bg-secondary" },
+  { id: "tertiary", label: "Amber", className: "bg-tertiary-fixed" },
+  { id: "neutral", label: "Neutral", className: "bg-surface-container-highest" },
+];
+
+function HabitCreateForm({
+  onCancel,
+  onCreated,
+}: {
+  onCancel: () => void;
+  onCreated: () => void;
+}) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [icon, setIcon] = useState("spa");
+  const [color, setColor] = useState("primary");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+
+    setPending(true);
+    setError(null);
+    const formData = new FormData(event.currentTarget);
+
+    try {
+      const result = await createHabit(formData);
+      if (!result.ok) {
+        setError(result.error ?? "Could not add habit.");
+        return;
+      }
+
+      formRef.current?.reset();
+      setIcon("spa");
+      setColor("primary");
+      onCreated();
+    } catch {
+      setError("Could not add habit.");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
-    <div
-      className={`bg-surface rounded-2xl p-4 flex items-center gap-4 border border-outline-variant hover:bg-surface-container-high hover:-translate-y-0.5 transition-all duration-200 ${
-        pending ? "opacity-70" : ""
-      }`}
+    <form
+      ref={formRef}
+      onSubmit={submit}
+      className="space-y-4 rounded-2xl border border-outline-variant bg-surface p-4 shadow-card"
     >
-      <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center flex-shrink-0`}>
-        <span
-          className={`material-symbols-outlined ${ic} text-2xl`}
-          style={done ? { fontVariationSettings: "'FILL' 1" } : undefined}
-        >
-          {habit.icon}
-        </span>
+      <input type="hidden" name="icon" value={icon} />
+      <input type="hidden" name="color" value={color} />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1.5">
+          <span className="block text-sm font-bold text-on-background">Habit name</span>
+          <input
+            name="name"
+            required
+            maxLength={80}
+            placeholder="Morning walk"
+            className="w-full rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3 text-sm font-medium text-on-background placeholder:text-outline transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+          />
+        </label>
+
+        <label className="space-y-1.5">
+          <span className="block text-sm font-bold text-on-background">Target</span>
+          <div className="grid grid-cols-[minmax(0,1fr)_92px] gap-2">
+            <input
+              name="target"
+              type="number"
+              min="0"
+              step="any"
+              placeholder="20"
+              className="min-w-0 rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3 text-sm font-medium text-on-background placeholder:text-outline transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+            />
+            <input
+              name="unit"
+              maxLength={24}
+              placeholder="min"
+              className="min-w-0 rounded-xl border border-outline-variant bg-surface-container-low px-3 py-3 text-sm font-medium text-on-background placeholder:text-outline transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+            />
+          </div>
+        </label>
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <h3 className={`font-bold text-base ${done ? "text-on-surface-variant line-through" : "text-on-background"}`}>
-            {habit.name}
-          </h3>
-          {habit.target && habit.unit && (
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">
-              {habit.target} {habit.unit}
-            </span>
-          )}
+      <label className="space-y-1.5">
+        <span className="block text-sm font-bold text-on-background">Description</span>
+        <input
+          name="description"
+          maxLength={180}
+          placeholder="Optional note"
+          className="w-full rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3 text-sm font-medium text-on-background placeholder:text-outline transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+        />
+      </label>
+
+      <div className="space-y-2">
+        <p className="text-sm font-bold text-on-background">Icon</p>
+        <div className="flex flex-wrap gap-2">
+          {ICON_OPTIONS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setIcon(item)}
+              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all ${
+                icon === item
+                  ? "border-primary bg-primary text-white"
+                  : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary"
+              }`}
+              aria-label={`Use ${item} icon`}
+              aria-pressed={icon === item}
+            >
+              <span className="material-symbols-outlined text-[20px]">{item}</span>
+            </button>
+          ))}
         </div>
-        {habit.description && (
-          <p className="text-sm text-on-surface-variant mt-0.5 truncate">{habit.description}</p>
-        )}
       </div>
 
+      <div className="space-y-2">
+        <p className="text-sm font-bold text-on-background">Color</p>
+        <div className="flex flex-wrap gap-2">
+          {COLOR_OPTIONS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setColor(item.id)}
+              className={`flex h-10 w-10 items-center justify-center rounded-xl border transition-all ${
+                color === item.id ? "border-primary ring-2 ring-primary/20" : "border-outline-variant"
+              }`}
+              aria-label={`Use ${item.label} color`}
+              aria-pressed={color === item.id}
+            >
+              <span className={`h-5 w-5 rounded-full ${item.className}`} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-error">
+          {error}
+        </p>
+      )}
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-full border border-outline-variant px-4 py-2 text-sm font-bold text-on-surface-variant transition-colors hover:border-primary hover:text-primary"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={pending}
+          className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+        >
+          <span className="material-symbols-outlined text-[18px]">add</span>
+          {pending ? "Adding..." : "Add habit"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function HabitRow({ habit, done }: { habit: Habit; done: boolean }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { bg, ic } = COLOR_MAP[habit.color] ?? COLOR_MAP.neutral;
+
+  async function toggle() {
+    if (pending) return;
+
+    setPending(true);
+    setError(null);
+    try {
+      const result = await toggleHabit(habit.id, done, localDateKey());
+      if (!result.ok) {
+        setError(result.error ?? "Could not update habit.");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Could not update habit.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
       <button
+        type="button"
         onClick={toggle}
         disabled={pending}
-        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90 ${
-          done
-            ? "bg-secondary text-white shadow-[0_4px_12px_rgba(0,106,103,0.3)]"
-            : "border-2 border-outline-variant hover:border-primary"
+        aria-pressed={done}
+        aria-label={done ? `Mark ${habit.name} incomplete` : `Mark ${habit.name} complete`}
+        className={`flex w-full items-center gap-4 rounded-2xl border border-outline-variant bg-surface p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-container-high disabled:cursor-wait ${
+          pending ? "opacity-70" : ""
         }`}
-        aria-label={done ? "Mark incomplete" : "Mark complete"}
       >
-        {done && (
-          <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-            check
+        <span className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl ${bg}`}>
+          <span
+            className={`material-symbols-outlined text-2xl ${ic}`}
+            style={done ? { fontVariationSettings: "'FILL' 1" } : undefined}
+          >
+            {habit.icon}
           </span>
-        )}
+        </span>
+
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <span
+              className={`text-base font-bold ${
+                done ? "text-on-surface-variant line-through" : "text-on-background"
+              }`}
+            >
+              {habit.name}
+            </span>
+            {habit.target && habit.unit && (
+              <span className="rounded-full bg-surface-container px-2 py-0.5 text-xs font-bold text-on-surface-variant">
+                {habit.target} {habit.unit}
+              </span>
+            )}
+          </span>
+          {habit.description && (
+            <span className="mt-0.5 block truncate text-sm text-on-surface-variant">
+              {habit.description}
+            </span>
+          )}
+        </span>
+
+        <span
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-all ${
+            done
+              ? "bg-secondary text-white shadow-[0_4px_12px_rgba(0,106,103,0.3)]"
+              : "border-2 border-outline-variant"
+          }`}
+          aria-hidden="true"
+        >
+          {done && (
+            <span
+              className="material-symbols-outlined text-[18px]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
+              check
+            </span>
+          )}
+        </span>
       </button>
+
+      {error && (
+        <p role="alert" className="px-2 text-sm font-semibold text-error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -84,20 +297,52 @@ export default function HabitList({
   habits: Habit[];
   completedToday: Set<string>;
 }) {
-  if (habits.length === 0) {
-    return (
-      <div className="bg-surface rounded-2xl p-8 text-center border border-outline-variant/15 shadow-card">
-        <span className="material-symbols-outlined text-5xl text-outline mb-3 block" style={{ fontVariationSettings: "'FILL' 1" }}>
-          add_circle
-        </span>
-        <p className="font-bold text-on-background text-lg">No habits yet</p>
-        <p className="text-on-surface-variant text-sm mt-1">Open the mobile app to add your first habit.</p>
-      </div>
-    );
+  const router = useRouter();
+  const [showForm, setShowForm] = useState(habits.length === 0);
+
+  function created() {
+    setShowForm(false);
+    router.refresh();
   }
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            Add habit
+          </button>
+        )}
+      </div>
+
+      {showForm && <HabitCreateForm onCancel={() => setShowForm(false)} onCreated={created} />}
+
+      {habits.length === 0 && !showForm && (
+        <div className="rounded-2xl border border-outline-variant/15 bg-surface p-8 text-center shadow-card">
+          <span
+            className="material-symbols-outlined mb-3 block text-5xl text-outline"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            add_circle
+          </span>
+          <p className="text-lg font-bold text-on-background">No habits yet</p>
+          <p className="mt-1 text-sm text-on-surface-variant">Create your first habit.</p>
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-white transition-opacity hover:opacity-90"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            Add habit
+          </button>
+        </div>
+      )}
+
       {habits.map((habit) => (
         <HabitRow key={habit.id} habit={habit} done={completedToday.has(habit.id)} />
       ))}
