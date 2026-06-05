@@ -48,3 +48,7 @@ images:
 #   _VAPID_PUBLIC_KEY      (plain — generate with: npx web-push generate-vapid-keys)
 options:
   dynamicSubstitutions: true
+  # Required because the trigger runs as a custom service account: Cloud Build
+  # won't use a default logs bucket in that case, so logs must go somewhere
+  # explicit. CLOUD_LOGGING_ONLY sends build logs to Cloud Logging.
+  logging: CLOUD_LOGGING_ONLY
