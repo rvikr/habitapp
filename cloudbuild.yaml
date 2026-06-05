@@ -2,38 +2,40 @@ steps:
   # Build the image with EXPO_PUBLIC_ vars baked in at compile time.
   # Values come from Cloud Build substitutions bound to Secret Manager
   # (configure on the trigger; see substitution names below).
-  - name: 'gcr.io/cloud-builders/docker'
+  - name: "gcr.io/cloud-builders/docker"
     args:
       - build
-      - '--build-arg=EXPO_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}'
-      - '--build-arg=EXPO_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}'
-      - '--build-arg=EXPO_PUBLIC_SENTRY_DSN=${_SENTRY_DSN}'
-      - '--build-arg=EXPO_PUBLIC_POSTHOG_KEY=${_POSTHOG_KEY}'
-      - '--build-arg=EXPO_PUBLIC_POSTHOG_HOST=${_POSTHOG_HOST}'
-      - '--build-arg=EXPO_PUBLIC_PRIVACY_POLICY_URL=${_PRIVACY_POLICY_URL}'
-      - '-t'
-      - 'gcr.io/lagan-495719/lagan'
-      - '.'
+      - "--build-arg=EXPO_PUBLIC_SUPABASE_URL=${_SUPABASE_URL}"
+      - "--build-arg=EXPO_PUBLIC_SUPABASE_ANON_KEY=${_SUPABASE_ANON_KEY}"
+      - "--build-arg=EXPO_PUBLIC_SENTRY_DSN=${_SENTRY_DSN}"
+      - "--build-arg=EXPO_PUBLIC_POSTHOG_KEY=${_POSTHOG_KEY}"
+      - "--build-arg=EXPO_PUBLIC_POSTHOG_HOST=${_POSTHOG_HOST}"
+      - "--build-arg=EXPO_PUBLIC_PRIVACY_POLICY_URL=${_PRIVACY_POLICY_URL}"
+      - "--build-arg=EXPO_PUBLIC_VAPID_PUBLIC_KEY=${_VAPID_PUBLIC_KEY}"
+      - "--build-arg=EXPO_PUBLIC_APP_URL=https://lagan.health/app"
+      - "-t"
+      - "gcr.io/lagan-495719/lagan"
+      - "."
 
   # Push image to Container Registry
-  - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/lagan-495719/lagan']
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "gcr.io/lagan-495719/lagan"]
 
   # Deploy to Cloud Run
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
     args:
       - run
       - deploy
       - lagan
-      - '--image=gcr.io/lagan-495719/lagan'
-      - '--region=asia-south2'
-      - '--platform=managed'
-      - '--allow-unauthenticated'
-      - '--port=8080'
+      - "--image=gcr.io/lagan-495719/lagan"
+      - "--region=asia-south2"
+      - "--platform=managed"
+      - "--allow-unauthenticated"
+      - "--port=8080"
 
 images:
-  - 'gcr.io/lagan-495719/lagan'
+  - "gcr.io/lagan-495719/lagan"
 
 # Required substitutions (set on the Cloud Build trigger, sourced from Secret Manager
 # for the credential-shaped values):
@@ -43,5 +45,6 @@ images:
 #   _POSTHOG_KEY           (Secret Manager)
 #   _POSTHOG_HOST          (plain)
 #   _PRIVACY_POLICY_URL    (plain)
+#   _VAPID_PUBLIC_KEY      (plain — generate with: npx web-push generate-vapid-keys)
 options:
   dynamicSubstitutions: true

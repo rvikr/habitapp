@@ -13,7 +13,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Lagan" />
-        <meta name="theme-color" content="#F26B1F" />
+        <meta name="theme-color" content="#451ebb" />
         <meta name="mobile-web-app-capable" content="yes" />
 
         <title>Lagan — AI Habit Tracker, Coach & Smart Reminders</title>
@@ -38,7 +38,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
           property="og:description"
           content="Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and web."
         />
-        <meta property="og:image" content="/og-image.png" />
+        <meta property="og:image" content="/app/og-image.png" />
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
         <meta
@@ -53,12 +53,12 @@ export default function Root({ children }: { children: React.ReactNode }) {
           name="twitter:description"
           content="Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and web."
         />
-        <meta name="twitter:image" content="/og-image.png" />
+        <meta name="twitter:image" content="/app/og-image.png" />
 
         {/* PWA */}
-        <link rel="manifest" href="/manifest.webmanifest" />
-        <link rel="icon" type="image/png" href="/favicon.png" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+        <link rel="manifest" href="/app/manifest.webmanifest" />
+        <link rel="icon" type="image/png" href="/app/favicon.png" />
+        <link rel="apple-touch-icon" href="/app/icon-192.png" />
 
         <ScrollViewStyleReset />
 

@@ -804,7 +804,7 @@ function SiteHero({ userCount }: { userCount: string }) {
             }}
           >
             <a
-              href="https://play.google.com/store"
+              href="/app"
               className="btn-press"
               style={{
                 background: C.primary,
@@ -822,11 +822,10 @@ function SiteHero({ userCount }: { userCount: string }) {
                 boxShadow: `0 8px 28px ${hexA(C.primary, 0.42)}`,
               }}
             >
-              <AndroidIcon />
-              Download for Android
+              🌐 Use on iPhone
             </a>
             <a
-              href="#how-it-works"
+              href="https://play.google.com/store"
               className="btn-press"
               style={{
                 background: "transparent",
@@ -841,9 +840,11 @@ function SiteHero({ userCount }: { userCount: string }) {
                 textDecoration: "none",
                 display: "flex",
                 alignItems: "center",
+                gap: 9,
               }}
             >
-              See how it works ↓
+              <AndroidIcon />
+              Android
             </a>
           </div>
 
@@ -1669,7 +1670,7 @@ function SiteCTA() {
           }}
         >
           <a
-            href="https://play.google.com/store"
+            href="/app"
             className="btn-press"
             style={{
               background: C.primary,
@@ -1687,24 +1688,42 @@ function SiteCTA() {
               boxShadow: `0 10px 32px ${hexA(C.primary, 0.45)}`,
             }}
           >
-            <AndroidIcon />
-            Download for Android
+            🌐 Open web app
           </a>
-          <div
+          <a
+            href="https://play.google.com/store"
+            className="btn-press"
             style={{
-              background: C.surface,
-              color: C.textMute,
+              background: "transparent",
+              color: C.text,
               border: `1px solid ${C.border}`,
               borderRadius: 14,
               padding: "16px 30px",
               fontSize: 16,
               fontWeight: 600,
               fontFamily: "inherit",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              textDecoration: "none",
             }}
           >
-            iOS — coming soon
-          </div>
+            <AndroidIcon />
+            Download for Android
+          </a>
         </div>
+        <p
+          style={{
+            fontFamily: MR,
+            fontSize: 13,
+            color: C.textDim,
+            marginTop: 18,
+            lineHeight: 1.6,
+          }}
+        >
+          iPhone: open in Safari → Share → Add to Home Screen for the full app experience with reminders.
+        </p>
       </div>
     </section>
   );
@@ -1742,6 +1761,7 @@ function SiteFooter() {
       </div>
       <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         {[
+          { label: "Open app", href: "/app" },
           { label: "Privacy", href: "/privacy" },
           { label: "Terms", href: "/terms" },
           { label: "Account deletion", href: "/account-deletion" },

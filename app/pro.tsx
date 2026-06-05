@@ -143,81 +143,98 @@ export default function ProScreen() {
             )}
           </View>
 
-          <View className="gap-sm">
-            {[
-              { label: "Monthly", pack: monthly, icon: "calendar-month" },
-              { label: "Annual", pack: annual, icon: "calendar-star" },
-            ].map((item) => (
-              <TouchableOpacity
-                key={item.label}
-                className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
-                disabled={!item.pack || Boolean(busy)}
-                onPress={() => item.pack && buy(item.pack, item.label)}
-              >
-                <View className="w-11 h-11 rounded-full bg-primary-fixed items-center justify-center">
-                  <MaterialCommunityIcons name={item.icon as any} size={22} color="#F26B1F" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
-                    {t(item.label)}
-                  </Text>
-                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                    {item.pack?.product.priceString ?? t("Unavailable")}
-                  </Text>
-                </View>
-                {busy === item.label ? (
-                  <ActivityIndicator color="#F26B1F" />
-                ) : (
-                  <MaterialCommunityIcons name="chevron-right" size={22} color="#8F8A82" />
+          {Platform.OS === "web" ? (
+            <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
+              <View className="flex-row items-center gap-sm">
+                <MaterialCommunityIcons name="cellphone" size={22} color="#F26B1F" />
+                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold flex-1">
+                  {t("Subscribe in the app")}
+                </Text>
+              </View>
+              <Text className="text-body-sm text-on-surface-variant dark:text-d-on-surface-variant leading-5">
+                {t(
+                  "Pro subscriptions are available in the iOS and Android app. If you already subscribed, your Pro access is active here automatically.",
                 )}
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {loading && <ActivityIndicator color="#F26B1F" />}
-          {!loading && Platform.OS === "web" && (
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              {t("Subscriptions are available in the iOS and Android app.")}
-            </Text>
+              </Text>
+            </View>
+          ) : (
+            <View className="gap-sm">
+              {[
+                { label: "Monthly", pack: monthly, icon: "calendar-month" },
+                { label: "Annual", pack: annual, icon: "calendar-star" },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.label}
+                  className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+                  disabled={!item.pack || Boolean(busy)}
+                  onPress={() => item.pack && buy(item.pack, item.label)}
+                >
+                  <View className="w-11 h-11 rounded-full bg-primary-fixed items-center justify-center">
+                    <MaterialCommunityIcons name={item.icon as any} size={22} color="#F26B1F" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
+                      {t(item.label)}
+                    </Text>
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {item.pack?.product.priceString ?? t("Unavailable")}
+                    </Text>
+                  </View>
+                  {busy === item.label ? (
+                    <ActivityIndicator color="#F26B1F" />
+                  ) : (
+                    <MaterialCommunityIcons name="chevron-right" size={22} color="#8F8A82" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
           )}
 
-          <View className="flex-row gap-sm">
-            <TouchableOpacity
-              className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-sm items-center"
-              onPress={restore}
-              disabled={Boolean(busy)}
-            >
-              <Text className="text-label-lg text-primary font-semibold">
-                {busy === "restore" ? t("Restoring") : t("Restore")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-sm items-center"
-              onPress={refresh}
-              disabled={Boolean(busy)}
-            >
-              <Text className="text-label-lg text-primary font-semibold">
-                {busy === "refresh" ? t("Syncing") : t("Refresh")}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {loading && Platform.OS !== "web" && <ActivityIndicator color="#F26B1F" />}
+
+          {Platform.OS !== "web" && (
+            <View className="flex-row gap-sm">
+              <TouchableOpacity
+                className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-sm items-center"
+                onPress={restore}
+                disabled={Boolean(busy)}
+              >
+                <Text className="text-label-lg text-primary font-semibold">
+                  {busy === "restore" ? t("Restoring") : t("Restore")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-sm items-center"
+                onPress={refresh}
+                disabled={Boolean(busy)}
+              >
+                <Text className="text-label-lg text-primary font-semibold">
+                  {busy === "refresh" ? t("Syncing") : t("Refresh")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <View className="gap-xs">
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
-              {t(
-                "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Payment is charged to your {store} account at confirmation of purchase.",
-                {
-                  store: Platform.OS === "ios" ? t("Apple ID") : t("Google Play"),
-                },
-              )}
-            </Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
-              {Platform.OS === "ios"
-                ? t("Manage or cancel: App Store → your profile → Subscriptions.")
-                : t(
-                    "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
+            {Platform.OS !== "web" && (
+              <>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
+                  {t(
+                    "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Payment is charged to your {store} account at confirmation of purchase.",
+                    {
+                      store: Platform.OS === "ios" ? t("Apple ID") : t("Google Play"),
+                    },
                   )}
-            </Text>
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
+                  {Platform.OS === "ios"
+                    ? t("Manage or cancel: App Store → your profile → Subscriptions.")
+                    : t(
+                        "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
+                      )}
+                </Text>
+              </>
+            )}
             <View className="flex-row justify-center gap-md pt-xs">
               <TouchableOpacity onPress={() => Linking.openURL("https://lagan.health/terms")}>
                 <Text className="text-label-sm text-primary font-semibold">

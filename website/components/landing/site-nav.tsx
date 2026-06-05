@@ -128,23 +128,45 @@ export default function SiteNav() {
         >
           Sign in
         </Link>
-        <button
+        <Link
+          href="/app"
+          className="btn-press hidden md:inline-flex"
+          style={{
+            background: "transparent",
+            color: C.textMute,
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: "8px 16px",
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            textDecoration: "none",
+            alignItems: "center",
+            gap: 6,
+            display: "inline-flex",
+          }}
+        >
+          <span style={{ fontSize: 12 }}>🌐</span> Try web app
+        </Link>
+        <Link
+          href="https://play.google.com/store"
           className="btn-press"
           style={{
             background: C.primary,
             color: "#fff",
-            border: "none",
             borderRadius: 10,
             padding: "9px 20px",
             fontSize: 14,
             fontWeight: 700,
             fontFamily: "inherit",
             cursor: "pointer",
+            textDecoration: "none",
             boxShadow: `0 4px 16px ${hexA(C.primary, 0.35)}`,
           }}
         >
           Download
-        </button>
+        </Link>
       </div>
     </nav>
   );

@@ -62,9 +62,9 @@
       "themeColor": "#451ebb",
       "backgroundColor": "#f8f9fa",
       "display": "standalone",
-      "startUrl": "/",
+      "startUrl": "/app/",
       "lang": "en",
-      "scope": "/"
+      "scope": "/app/"
     },
     "plugins": [
       "expo-router",
@@ -126,7 +126,8 @@
       "expo-web-browser"
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "baseUrl": "/app"
     },
     "extra": {
       "router": {},

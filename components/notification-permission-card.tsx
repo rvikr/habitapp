@@ -1,8 +1,24 @@
 import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { Platform, View, Text, TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
 import { useLanguage } from "@/components/language-provider";
+
+// Web-only: detect iOS Safari (not standalone) so we can show install guidance
+// instead of the push-permission Allow button, since iOS only allows push for
+// installed (home-screen) PWAs.
+function isIosBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    (navigator as unknown as { standalone?: boolean }).standalone === true ||
+    window.matchMedia("(display-mode: standalone)").matches
+  );
+}
 
 export default function NotificationPermissionCard() {
   const { t } = useLanguage();
@@ -13,6 +29,29 @@ export default function NotificationPermissionCard() {
   }, []);
 
   if (status === "granted") return null;
+
+  // On iOS Safari (not installed), push isn't available yet. Guide the user
+  // to install the PWA first instead of showing a non-functional Allow button.
+  const showIosInstallGuide =
+    Platform.OS === "web" && isIosBrowser() && !isStandalone() && status !== "denied";
+
+  if (showIosInstallGuide) {
+    return (
+      <View className="bg-primary-fixed rounded-xl p-md flex-row items-center gap-md mx-margin-mobile mb-md">
+        <MaterialCommunityIcons name="cellphone-arrow-down" size={24} color="#F26B1F" />
+        <View className="flex-1">
+          <Text className="text-body-md text-on-background font-semibold">
+            {t("Get habit reminders on iPhone")}
+          </Text>
+          <Text className="text-label-sm text-on-surface-variant">
+            {t(
+              "Tap Share → Add to Home Screen, then open Lagan from your home screen to enable notifications.",
+            )}
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View className="bg-primary-fixed rounded-xl p-md flex-row items-center gap-md mx-margin-mobile mb-md">
