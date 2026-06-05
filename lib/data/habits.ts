@@ -14,11 +14,6 @@ import {
 import { resolveCoachMessage } from "../coach/coach-ai";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
 
-export type Insights = {
-  mostProductiveDay: string | null;
-  consistencyChangePct: number | null;
-  peakTimeLabel: string | null;
-};
 export type TodayProgressMap = Map<string, HabitProgress>;
 export type StreaksMap = Map<string, number>;
 type DataFetchOptions = { force?: boolean };
@@ -305,72 +300,6 @@ export function weekProgressFor(habitId: string, completions: HabitCompletion[])
 
 export function streakFor(completions: HabitCompletion[]) {
   return streakFromDates(completions.map((c) => c.completed_on));
-}
-
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-function peakHourLabel(hour: number): string {
-  if (hour >= 21) return "late at night";
-  if (hour >= 19) return "after 7PM";
-  if (hour >= 17) return "in the evening";
-  if (hour >= 12) return "in the afternoon";
-  if (hour >= 5) return "in the morning";
-  return "late at night";
-}
-
-export async function getInsights(options?: DataFetchOptions): Promise<Insights> {
-  if (!isSupabaseConfigured())
-    return { mostProductiveDay: null, consistencyChangePct: null, peakTimeLabel: null };
-  const user = await getUser();
-  if (!user) return { mostProductiveDay: null, consistencyChangePct: null, peakTimeLabel: null };
-
-  return readThroughCache(
-    `${DATA_CACHE_PREFIX}insights:${user.id}:${today()}`,
-    DATA_CACHE_TTL_MS,
-    async () => {
-      const cutoff = localDateDaysAgo(60);
-      const midpoint = localDateDaysAgo(30);
-
-      const { data: rows } = await supabase
-        .from("habit_completions")
-        .select("completed_on, created_at")
-        .eq("user_id", user.id)
-        .gte("completed_on", cutoff);
-
-      const all = (rows ?? []) as { completed_on: string; created_at: string }[];
-      if (all.length < 5)
-        return { mostProductiveDay: null, consistencyChangePct: null, peakTimeLabel: null };
-
-      // Most productive day of week
-      const dayCounts = [0, 0, 0, 0, 0, 0, 0];
-      for (const c of all) {
-        const d = new Date(c.completed_on + "T12:00:00");
-        dayCounts[d.getDay()]++;
-      }
-      const maxDay = dayCounts.indexOf(Math.max(...dayCounts));
-      const mostProductiveDay = dayCounts[maxDay] > 0 ? DAY_NAMES[maxDay] : null;
-
-      // Month-over-month consistency (raw completion count)
-      const thisMonth = all.filter((c) => c.completed_on >= midpoint).length;
-      const lastMonth = all.filter((c) => c.completed_on < midpoint).length;
-      const consistencyChangePct =
-        lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null;
-
-      // Peak time of day from created_at timestamps
-      const hourCounts: Record<number, number> = {};
-      for (const c of all) {
-        const h = new Date(c.created_at).getHours();
-        hourCounts[h] = (hourCounts[h] ?? 0) + 1;
-      }
-      const topHourEntry = Object.entries(hourCounts).sort(
-        (a, b) => Number(b[1]) - Number(a[1]),
-      )[0];
-      const peakTimeLabel = topHourEntry ? peakHourLabel(parseInt(topHourEntry[0], 10)) : null;
-
-      return { mostProductiveDay, consistencyChangePct, peakTimeLabel };
-    },
-    options,
-  );
 }
 
 export type DayConsistency = {

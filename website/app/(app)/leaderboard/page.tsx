@@ -141,7 +141,10 @@ export default async function LeaderboardPage({
   const userEntry = board.find((e) => e.is_current_user);
   const userRank = position?.rank ?? userEntry?.rank ?? null;
   const nextEntry = userRank && userRank > 1 ? board[userRank - 2] : null;
-  const xpToNext = nextEntry ? nextEntry.xp - userXP : null;
+  // Compare period-scoped XP on both sides — nextEntry.xp is for the selected
+  // period, so the gap must use the user's period XP, not all-time userXP.
+  const userPeriodXP = position?.totalXp ?? userEntry?.xp ?? userXP;
+  const xpToNext = nextEntry ? nextEntry.xp - userPeriodXP : null;
   const topPct =
     position?.percentileAhead !== null && position?.percentileAhead !== undefined
       ? Math.max(1, 100 - position.percentileAhead)

@@ -11,6 +11,7 @@ import {
   type DayConsistency,
 } from "@/lib/data/habits";
 import { buildLifeBalanceWheelSegments, type LifeBalanceSegment } from "@/lib/coach/life-balance";
+import { XP_PER_LEVEL } from "@/lib/coach/xp";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import ProgressRing from "@/components/progress-ring";
 import HabitProgressVisual from "@/components/habit-progress-visual";
@@ -116,7 +117,7 @@ export default function ProgressScreen() {
 
   const level = stats?.level ?? 1;
   const xp = stats?.xp ?? 0;
-  const xpForNext = stats?.xpForNext ?? 100;
+  const xpForNext = stats?.xpForNext ?? XP_PER_LEVEL;
   const xpPct = xpForNext > 0 ? Math.min((xp / xpForNext) * 100, 100) : 0;
   const currentStreak = stats?.currentStreak ?? 0;
   const longestStreak = stats?.longestStreak ?? 0;
