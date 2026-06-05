@@ -1,6 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
-import type { User } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  buildLoginRedirectPath,
+  isAuthAwarePath,
+  isLoginPath,
+  isProtectedPath,
+} from "./lib/auth-route-policy";
 import { isMissingRefreshTokenError } from "./lib/supabase/auth-error";
 
 function isSupabaseAuthCookie(name: string): boolean {
@@ -19,6 +24,12 @@ function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse):
 }
 
 export async function middleware(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+
+  if (!isAuthAwarePath(pathname)) {
+    return NextResponse.next();
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -42,14 +53,14 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  let user: User | null = null;
+  let hasVerifiedClaims = false;
   let shouldClearAuthCookies = false;
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const { data, error } = await supabase.auth.getClaims();
     if (error) {
       shouldClearAuthCookies = isMissingRefreshTokenError(error);
     } else {
-      user = data.user;
+      hasVerifiedClaims = Boolean(data?.claims?.sub);
     }
   } catch (error) {
     shouldClearAuthCookies = isMissingRefreshTokenError(error);
@@ -59,22 +70,19 @@ export async function middleware(request: NextRequest) {
     clearSupabaseAuthCookies(request, supabaseResponse);
   }
 
-  const { pathname } = request.nextUrl;
-  const isProtected =
-    pathname.startsWith("/dashboard") || pathname.startsWith("/achievements");
-
-  if (!user && isProtected) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
+  if (!hasVerifiedClaims && isProtectedPath(pathname)) {
+    const url = new URL(buildLoginRedirectPath(pathname, search), request.url);
     const response = NextResponse.redirect(url);
     if (shouldClearAuthCookies) clearSupabaseAuthCookies(request, response);
     return response;
   }
 
   // Redirect logged-in users away from /login
-  if (user && pathname === "/login") {
+  if (hasVerifiedClaims && isLoginPath(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
+    url.search = "";
+    url.hash = "";
     return NextResponse.redirect(url);
   }
 
@@ -83,6 +91,11 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/dashboard/:path*",
+    "/achievements/:path*",
+    "/leaderboard/:path*",
+    "/settings/:path*",
+    "/admin/:path*",
+    "/login",
   ],
 };

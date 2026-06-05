@@ -95,6 +95,12 @@ import {
   XP_PER_COMPLETION as WEBSITE_XP_PER_COMPLETION,
   XP_PER_LEVEL as WEBSITE_XP_PER_LEVEL,
 } from "../website/lib/xp.ts";
+import {
+  buildLoginRedirectPath,
+  isAuthAwarePath,
+  isLoginPath,
+  isProtectedPath,
+} from "../website/lib/auth-route-policy.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
 
 const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
@@ -749,6 +755,52 @@ test("Supabase stale refresh token errors are recognized", () => {
   assert.equal(isMissingRefreshTokenError(error), true);
   assert.equal(websiteIsMissingRefreshTokenError({ message: "refresh_token_not_found" }), true);
   assert.equal(isMissingRefreshTokenError(new Error("Network request failed")), false);
+});
+
+test("website auth route policy leaves public pages outside middleware auth", () => {
+  for (const pathname of [
+    "/",
+    "/privacy",
+    "/terms",
+    "/account-deletion",
+    "/auth/callback",
+    "/api/og/card",
+    "/sitemap.xml",
+    "/robots.txt",
+    "/app",
+    "/app/dashboard",
+  ]) {
+    assert.equal(isAuthAwarePath(pathname), false, `${pathname} should bypass auth middleware`);
+    assert.equal(isProtectedPath(pathname), false, `${pathname} should not be protected`);
+  }
+});
+
+test("website auth route policy covers authenticated website areas and login", () => {
+  for (const pathname of [
+    "/dashboard",
+    "/dashboard/today",
+    "/achievements",
+    "/achievements/share",
+    "/leaderboard",
+    "/settings",
+    "/admin",
+    "/admin/users",
+  ]) {
+    assert.equal(isAuthAwarePath(pathname), true, `${pathname} should run auth middleware`);
+    assert.equal(isProtectedPath(pathname), true, `${pathname} should be protected`);
+  }
+
+  assert.equal(isAuthAwarePath("/login"), true);
+  assert.equal(isLoginPath("/login"), true);
+  assert.equal(isProtectedPath("/login"), false);
+});
+
+test("website auth redirects preserve protected destination without external origins", () => {
+  assert.equal(buildLoginRedirectPath("/dashboard", ""), "/login?next=%2Fdashboard");
+  assert.equal(
+    buildLoginRedirectPath("/achievements", "?tab=earned"),
+    "/login?next=%2Fachievements%3Ftab%3Dearned",
+  );
 });
 
 test("password validation rejects weak passwords", () => {
