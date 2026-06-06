@@ -23,7 +23,11 @@ import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { useLanguage } from "@/components/language-provider";
 import { useTrackingPreferences } from "@/components/tracking-preferences-provider";
 import type { Habit } from "@/types/db";
-import { progressForHabit, type HabitProgress } from "@/lib/coach/habit-intelligence";
+import {
+  isQuantityHabit,
+  progressForHabit,
+  type HabitProgress,
+} from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import { shouldShowTrialSubscriptionBanner, type ProAccess } from "@/lib/subscription/access";
@@ -88,6 +92,7 @@ export default function DashboardScreen() {
   const { newUser } = useLocalSearchParams<{ newUser?: string }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
+  const [logHabit, setLogHabit] = useState<Habit | null>(null);
   const [trialBannerDismissed, setTrialBannerDismissed] = useState(trialBannerDismissedForSession);
   const [coachNotifOpen, setCoachNotifOpen] = useState(false);
   const [stepTracking, setStepTracking] = useState<StepTrackingState>({
@@ -387,6 +392,14 @@ export default function DashboardScreen() {
 
     const habitId = habit.id;
     const wasDone = data.completedToday.has(habitId);
+
+    // Quantity habits (water, reading, steps…) can't be finished in one tap.
+    // Tapping when not done opens the log sheet instead of writing the full target.
+    if (isQuantityHabit(habit) && !wasDone) {
+      setLogHabit(habit);
+      return;
+    }
+
     const previous = data.completedToday;
     const next = new Set(previous);
     if (wasDone) next.delete(habitId);
@@ -403,6 +416,35 @@ export default function DashboardScreen() {
       recordCompletionAndMaybeReview();
     }
     load({ force: true });
+  }
+
+  async function handleLogSheetSubmit(value: number, note: string) {
+    if (!logHabit) return { ok: false, error: t("Habit not loaded.") };
+    const wasDone = data?.completedToday.has(logHabit.id) ?? false;
+    const prevValue = data?.todayProgress.get(logHabit.id)?.current ?? 0;
+    const target = logHabit.target != null ? Number(logHabit.target) : null;
+    const result = await logCompletion(logHabit.id, value, note);
+    if (!result.ok) return result;
+    setLogHabit(null);
+    // logCompletion adds incrementally, so today's new total is prev + value.
+    const nowDone = target != null && target > 0 ? prevValue + value >= target : true;
+    if (!wasDone && nowDone) {
+      celebrate();
+      recordCompletionAndMaybeReview();
+    }
+    load({ force: true });
+    return { ok: true as const };
+  }
+
+  async function handleMarkAllDone() {
+    if (!logHabit) return { ok: false, error: t("Habit not loaded.") };
+    const result = await toggleHabit(logHabit.id, false, logHabit.target as number | null);
+    if (!result.ok) return result;
+    setLogHabit(null);
+    celebrate();
+    recordCompletionAndMaybeReview();
+    load({ force: true });
+    return { ok: true as const };
   }
 
   function isSleepHabit(habit: Habit): boolean {
@@ -742,6 +784,15 @@ export default function DashboardScreen() {
           habit={sleepLogHabit}
           onSubmit={handleSleepCoachLog}
           onDismiss={() => setSleepLogHabit(null)}
+        />
+
+        <LogPrompt
+          visible={logHabit !== null}
+          habit={logHabit}
+          currentValue={logHabit ? (data?.todayProgress.get(logHabit.id)?.current ?? 0) : 0}
+          onSubmit={handleLogSheetSubmit}
+          onMarkAllDone={handleMarkAllDone}
+          onDismiss={() => setLogHabit(null)}
         />
 
         {/* Habits list */}

@@ -21,7 +21,7 @@ import HabitProgressVisual from "@/components/habit-progress-visual";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/utils/date";
-import { formatAmount, progressForHabit } from "@/lib/coach/habit-intelligence";
+import { formatAmount, isQuantityHabit, progressForHabit } from "@/lib/coach/habit-intelligence";
 import { getHabitImageForHabit } from "@/lib/data/habit-images";
 
 const COLOR_FG: Record<string, string> = {
@@ -72,6 +72,11 @@ export default function HabitDetailScreen() {
 
   async function handleToggle() {
     if (!habit || toggling) return;
+    // Quantity habits can't be finished in one tap — open the log sheet instead.
+    if (isQuantityHabit(habit) && !doneToday) {
+      setShowLogPrompt(true);
+      return;
+    }
     setToggling(true);
     try {
       if (!doneToday) celebrate();
@@ -81,6 +86,16 @@ export default function HabitDetailScreen() {
     } finally {
       setToggling(false);
     }
+  }
+
+  async function handleMarkAllDone() {
+    if (!habit) return { ok: false, error: "Habit not loaded." };
+    const result = await toggleHabit(habit.id, false, habit.target);
+    if (!result.ok) return result;
+    setShowLogPrompt(false);
+    celebrate();
+    load({ force: true });
+    return result;
   }
 
   async function handleLog(value: number, note: string) {
@@ -278,7 +293,9 @@ export default function HabitDetailScreen() {
       <LogPrompt
         visible={showLogPrompt}
         habit={habit}
+        currentValue={progress?.current ?? 0}
         onSubmit={handleLog}
+        onMarkAllDone={handleMarkAllDone}
         onDismiss={() => setShowLogPrompt(false)}
       />
     </SafeAreaView>

@@ -390,6 +390,19 @@ export function formatAmount(value: number): string {
   return String(Math.round(value * 10) / 10);
 }
 
+/**
+ * A "quantity" habit has a numeric target measured in something other than a
+ * simple yes/no (e.g. water in ml, steps, pages). These can't be finished in one
+ * tap, so logging them should go through the log sheet instead of writing the
+ * full target. Boolean habits stay as one-tap toggles.
+ */
+export function isQuantityHabit(habit: {
+  metric_type: MetricType | null;
+  target: number | null;
+}): boolean {
+  return habit.metric_type !== "boolean" && habit.target != null && Number(habit.target) > 0;
+}
+
 export function scoreHabitSimilarity(candidate: HabitInput, existing: HabitLike): number {
   const candidateIntel = inferHabitIntelligence(candidate);
   const existingIntel = inferHabitIntelligence({
