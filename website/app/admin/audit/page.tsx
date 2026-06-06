@@ -25,6 +25,7 @@ const ACTION_ICONS: Record<string, { icon: string; color: string }> = {
   create_feature_flag:       { icon: "add_circle",        color: "text-primary"     },
   send_global_notification:  { icon: "send",              color: "text-secondary"   },
   dismiss_notification:      { icon: "cancel",            color: "text-slate-400"   },
+  update_feedback_status:    { icon: "forum",             color: "text-secondary"   },
   create_suggested_habit:    { icon: "add_task",          color: "text-primary"     },
   update_suggested_habit:    { icon: "edit",              color: "text-primary"     },
   delete_suggested_habit:    { icon: "delete",            color: "text-red-500"     },

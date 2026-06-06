@@ -8,6 +8,7 @@ const NAV = [
   { href: "/admin/users",      icon: "group",              label: "Users"      },
   { href: "/admin/system",     icon: "settings_suggest",   label: "System"     },
   { href: "/admin/content",    icon: "edit_note",          label: "Content"    },
+  { href: "/admin/feedback",   icon: "forum",              label: "Feedback"   },
   { href: "/admin/analytics",  icon: "analytics",          label: "Analytics"  },
   { href: "/admin/audit",      icon: "manage_history",     label: "Audit Log"  },
 ];
@@ -31,7 +32,7 @@ export default function AdminSidebar({ email }: { email: string }) {
         </Link>
       </header>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-slate-800 bg-slate-900 px-1 py-1.5 lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-slate-800 bg-slate-900 px-1 py-1.5 lg:hidden">
         {NAV.map(({ href, icon, label }) => {
           const exact = href === "/admin";
           const active = exact ? pathname === href : pathname.startsWith(href);
