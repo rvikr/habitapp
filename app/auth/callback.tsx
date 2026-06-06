@@ -71,12 +71,16 @@ export default function AuthCallbackScreen() {
         return;
       }
 
-      setStatus("success");
+      // On native, an established session always lands on home — rendering the
+      // "success" screen would only flash for a frame (e.g. the Google OAuth deep
+      // link re-entering the app). Skip it and keep the neutral spinner until redirect.
       if (Platform.OS !== "web" && hasSession) {
         requestAnimationFrame(() => {
           if (!cancelled) router.replace(homeDestination(welcome) as never);
         });
+        return;
       }
+      setStatus("success");
     }
 
     finishAuth().catch((e) => {
