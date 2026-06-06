@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import Constants from "expo-constants";
 import { requestReviewManually } from "@/lib/platform/store-review";
+import { requestSleepPermission } from "@/lib/platform/sleep";
 import {
   Alert,
   Linking,
@@ -163,6 +164,25 @@ export default function SettingsScreen() {
     }
   }
 
+  async function handleSleepToggle(next: boolean) {
+    if (!next) {
+      setSleepEnabled(false);
+      return;
+    }
+    const status = await requestSleepPermission();
+    if (status === "granted") {
+      setSleepEnabled(true);
+      return;
+    }
+    const message =
+      status === "unavailable"
+        ? t("Sleep sync isn't available on this device.")
+        : status === "providerUpdateRequired"
+          ? t("Update Health Connect to enable sleep tracking.")
+          : t("Allow health access to enable sleep tracking.");
+    Alert.alert(t("Sleep tracking"), message);
+  }
+
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
@@ -261,7 +281,7 @@ export default function SettingsScreen() {
             label={t("Sleep tracking")}
             description={t("Auto-sync sleep from Health Connect or Apple Health.")}
             value={sleepEnabled}
-            onValueChange={setSleepEnabled}
+            onValueChange={handleSleepToggle}
           />
         </View>
 

@@ -801,6 +801,16 @@ test("progress tab auto sleep sync does not request native sleep permission", ()
   assert.match(progressScreen, /syncLastNightSleep\(\{\s*requestPermission:\s*false\s*\}\)/);
 });
 
+test("sleep tracking is disabled by default", () => {
+  const provider = readFileSync("components/tracking-preferences-provider.tsx", "utf8");
+  assert.match(provider, /\[sleepEnabled,\s*setSleepEnabledState\]\s*=\s*useState\(false\)/);
+});
+
+test("settings requests sleep permission before enabling sleep tracking", () => {
+  const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
+  assert.match(settingsScreen, /requestSleepPermission/);
+});
+
 test("store-facing support and legal links have production build defaults", () => {
   const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
   assert.match(settingsScreen, /https:\/\/lagan\.health\/terms/);

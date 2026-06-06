@@ -22,7 +22,7 @@ type TrackingPreferences = {
 
 const TrackingPreferencesContext = createContext<TrackingPreferences>({
   stepsEnabled: true,
-  sleepEnabled: true,
+  sleepEnabled: false,
   hydrated: false,
   setStepsEnabled: () => {},
   setSleepEnabled: () => {},
@@ -36,7 +36,7 @@ function parseStored(value: string | null): boolean | null {
 
 export function TrackingPreferencesProvider({ children }: { children: ReactNode }) {
   const [stepsEnabled, setStepsEnabledState] = useState(true);
-  const [sleepEnabled, setSleepEnabledState] = useState(true);
+  const [sleepEnabled, setSleepEnabledState] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {

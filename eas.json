@@ -33,6 +33,7 @@
       "autoIncrement": true,
       "environment": "production",
       "env": {
+        "SENTRY_AUTH_TOKEN": "$SENTRY_AUTH_TOKEN",
         "EXPO_PUBLIC_SUPABASE_URL": "https://ehcqgoymkmljwoveisbl.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoY3Fnb3lta21sandvdmVpc2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzIxODksImV4cCI6MjA5MzE0ODE4OX0.IutMM-lpX70UfBJ5aiH6-4QMv5qog10aDoZEtU1B2MU",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_sCctonAL2nCpwTFSSW98vYpX2QXHKEuTQDPinoEgcXNV",

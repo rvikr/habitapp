@@ -69,6 +69,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Sleep tracking": "नींद ट्रैकिंग",
   "Auto-sync sleep from Health Connect or Apple Health.":
     "Health Connect या Apple Health से नींद अपने-आप सिंक करें.",
+  "Allow health access to enable sleep tracking.":
+    "नींद ट्रैकिंग चालू करने के लिए हेल्थ एक्सेस की अनुमति दें.",
+  "Sleep sync isn't available on this device.": "इस डिवाइस पर नींद सिंक उपलब्ध नहीं है.",
+  "Update Health Connect to enable sleep tracking.":
+    "नींद ट्रैकिंग चालू करने के लिए Health Connect अपडेट करें.",
   "Sleep tracking is off": "नींद ट्रैकिंग बंद है",
   "Turn on Sleep tracking in Settings to sync from Health Connect or Apple Health.":
     "Health Connect या Apple Health से सिंक करने के लिए Settings में Sleep tracking चालू करें.",

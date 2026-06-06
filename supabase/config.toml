@@ -1,2 +1,5 @@
 [functions.revenuecat-webhook]
 verify_jwt = false
+
+[functions.progress-report]
+verify_jwt = false
