@@ -8,6 +8,8 @@ import { updateHabitReminders } from "@/lib/data/actions";
 import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
 import { syncScheduledReminders, buildSmartBody } from "@/lib/data/reminder-sync";
 import { getReminderSchedule } from "@/lib/data/reminders";
+import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
+import { ProUpgradeBanner } from "@/components/pro-access-banner";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit } from "@/types/db";
 import type { ReminderStrategy } from "@/lib/coach/habit-intelligence";
@@ -33,6 +35,7 @@ export default function RemindersScreen() {
     "undetermined",
   );
   const [previewMessages, setPreviewMessages] = useState<Record<string, string>>({});
+  const [hasPro, setHasPro] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async (options?: { force?: boolean }) => {
@@ -40,6 +43,9 @@ export default function RemindersScreen() {
     setHabits(h);
     const status = await getPermissionStatus();
     setPermission(status);
+
+    const access = await getCurrentProAccess();
+    setHasPro(access.hasPro);
 
     // Load enriched schedule to show contextual preview messages.
     const schedule = await getReminderSchedule({ aiSmartReminders: false });
@@ -138,6 +144,14 @@ export default function RemindersScreen() {
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile gap-sm">
+          {hasPro === false ? (
+            <ProUpgradeBanner
+              title="AI-timed reminders"
+              body="Free reminders use standard timing. Upgrade to Pro for AI-optimized reminder timing, plus AI Coach and weekly reports."
+              actionLabel="View plans"
+              onAction={() => router.push("/pro" as never)}
+            />
+          ) : null}
           {!loaded ? (
             <ReminderSkeleton />
           ) : (

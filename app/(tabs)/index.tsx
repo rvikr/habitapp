@@ -17,6 +17,7 @@ import {
 } from "@/lib/auth/auth-welcome";
 import { TrialSubscriptionBanner } from "@/components/pro-access-banner";
 import HabitCard from "@/components/habit-card";
+import ProBadge from "@/components/pro-badge";
 import ProgressRing from "@/components/progress-ring";
 import LogPrompt from "@/components/log-prompt";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
@@ -57,6 +58,7 @@ type DashboardData = {
 
 const STEP_SYNC_INTERVAL_MS = 30_000;
 let trialBannerDismissedForSession = false;
+let coachUpgradeHintDismissedForSession = false;
 
 type StepTrackingStatus =
   | "idle"
@@ -94,6 +96,7 @@ export default function DashboardScreen() {
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
   const [logHabit, setLogHabit] = useState<Habit | null>(null);
   const [trialBannerDismissed, setTrialBannerDismissed] = useState(trialBannerDismissedForSession);
+  const [coachHintDismissed, setCoachHintDismissed] = useState(coachUpgradeHintDismissedForSession);
   const [coachNotifOpen, setCoachNotifOpen] = useState(false);
   const [stepTracking, setStepTracking] = useState<StepTrackingState>({
     status: "idle",
@@ -556,25 +559,28 @@ export default function DashboardScreen() {
                 day: "numeric",
               })}
             </Text>
-            <View className="flex-row items-center gap-sm flex-wrap">
-              <Text
-                className="text-headline-lg text-on-background dark:text-d-on-background"
-                style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
-              >
-                {isInitialLoading ? "" : t("Hey, {name}", { name: data.profile.displayName })}
-              </Text>
-              {!isInitialLoading && data?.stats?.level ? (
-                <View
-                  className="bg-primary-fixed flex-row items-center gap-1 px-sm rounded-full"
-                  style={{ paddingVertical: 3 }}
-                >
-                  <MaterialCommunityIcons name="star" size={10} color={primary} />
-                  <Text style={{ color: primary, fontSize: 11, fontWeight: "700" }}>
-                    L{data.stats.level}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+            <Text
+              className="text-headline-lg text-on-background dark:text-d-on-background"
+              style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+            >
+              {isInitialLoading ? "" : t("Hey, {name}", { name: data.profile.displayName })}
+            </Text>
+            {!isInitialLoading && (data?.stats?.level || data?.proAccess) ? (
+              <View className="flex-row items-center gap-sm mt-xs flex-wrap">
+                {data?.stats?.level ? (
+                  <View
+                    className="bg-primary-fixed flex-row items-center gap-1 px-sm rounded-full"
+                    style={{ paddingVertical: 3 }}
+                  >
+                    <MaterialCommunityIcons name="star" size={10} color={primary} />
+                    <Text style={{ color: primary, fontSize: 11, fontWeight: "700" }}>
+                      L{data.stats.level}
+                    </Text>
+                  </View>
+                ) : null}
+                {data?.proAccess ? <ProBadge access={data.proAccess} /> : null}
+              </View>
+            ) : null}
             {isInitialLoading && <SkeletonText className="mt-xs h-8" width={152} />}
           </View>
           <View className="flex-row items-center gap-sm">
@@ -583,7 +589,7 @@ export default function DashboardScreen() {
               onPress={() => setCoachNotifOpen((v) => !v)}
             >
               <MaterialCommunityIcons
-                name="bell-outline"
+                name="robot-happy-outline"
                 size={20}
                 color={
                   data?.coachSignal && !data.completedToday.has(data.coachSignal.habitId)
@@ -614,16 +620,6 @@ export default function DashboardScreen() {
               onPress={() => router.push("/habits/new")}
             >
               <MaterialCommunityIcons name="plus" size={22} color={primary} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="w-10 h-10 rounded-full bg-surface-container dark:bg-d-surface-container items-center justify-center"
-              onPress={() => router.push("/(tabs)/settings" as never)}
-            >
-              <MaterialCommunityIcons
-                name="cog-outline"
-                size={20}
-                color={colorScheme === "dark" ? "#e4e1ea" : "#444"}
-              />
             </TouchableOpacity>
           </View>
         </View>
@@ -691,6 +687,43 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                   )}
               </View>
+              {!data.proAccess.hasPro && !coachHintDismissed ? (
+                <View
+                  className="flex-row items-center gap-xs rounded-full px-sm py-xs"
+                  style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
+                >
+                  <TouchableOpacity
+                    className="flex-1 flex-row items-center gap-xs"
+                    onPress={() => {
+                      setCoachNotifOpen(false);
+                      router.push("/pro" as never);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("Personalized AI coaching with Pro")}
+                  >
+                    <MaterialCommunityIcons name="star-four-points" size={14} color="#fff" />
+                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600", flex: 1 }}>
+                      {t("Personalized AI coaching with Pro")}
+                    </Text>
+                    <MaterialCommunityIcons
+                      name="chevron-right"
+                      size={16}
+                      color="rgba(255,255,255,0.85)"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      coachUpgradeHintDismissedForSession = true;
+                      setCoachHintDismissed(true);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("Dismiss")}
+                  >
+                    <MaterialCommunityIcons name="close" size={14} color="rgba(255,255,255,0.7)" />
+                  </TouchableOpacity>
+                </View>
+              ) : null}
             </View>
           )}
 
