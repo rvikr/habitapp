@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.progress-report]
 verify_jwt = false
+
+[functions.welcome-email]
+verify_jwt = false
