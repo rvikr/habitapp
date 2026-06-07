@@ -50,6 +50,7 @@ import { streakFromDates } from "../lib/coach/streak.ts";
 import { buildCompletionValuePayload } from "../lib/data/completions.ts";
 import {
   healthConnectTodayRange,
+  isStepHabit,
   normalizeHealthConnectStepAggregate,
   normalizeStepCount,
 } from "../lib/data/steps-shared.ts";
@@ -2680,6 +2681,21 @@ test("scheduled days honor reminder_days, the habit creation date, and today", (
     scheduledDaysForHabit(reportHabit(), REPORT_WEEK_START, new Date(Date.UTC(2026, 5, 3))),
     3,
   );
+});
+
+test("step sync only targets true step habits, never a distance habit named Walk", () => {
+  // A real steps habit is a sync target.
+  assert.equal(isStepHabit({ metric_type: "steps", habit_type: "walk", unit: "steps" }), true);
+
+  // The 143 km bug: a distance "Walk" must NOT receive raw step writes. When
+  // metric_type is set we trust it exclusively, ignoring the walk/unit heuristic.
+  assert.equal(isStepHabit({ metric_type: "distance_km", habit_type: "walk", unit: "km" }), false);
+  assert.equal(isStepHabit({ metric_type: "boolean", habit_type: "walk", unit: "" }), false);
+
+  // Legacy rows without metric_type fall back to the habit_type/unit heuristic.
+  assert.equal(isStepHabit({ metric_type: null, habit_type: "walk", unit: null }), true);
+  assert.equal(isStepHabit({ metric_type: null, habit_type: null, unit: "steps" }), true);
+  assert.equal(isStepHabit({ metric_type: null, habit_type: "run", unit: "km" }), false);
 });
 
 await testChain;

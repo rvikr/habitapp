@@ -28,6 +28,11 @@ type Props = {
 
 type QuickChip = { label: string; value: number };
 
+// A manually typed amount this many times the daily goal is almost certainly a
+// slip (wrong unit, extra digit) — confirm before saving so values like "143"
+// for a 5 km goal don't land silently.
+const IMPLAUSIBLE_TARGET_MULTIPLE = 10;
+
 function quickAddChips(habit: Habit, currentValue: number, fillLabel: string): QuickChip[] {
   const target = habit.target != null ? Number(habit.target) : null;
   const baseRaw =
@@ -93,7 +98,25 @@ export default function LogPrompt({
       setError(t("Enter a positive value."));
       return;
     }
-    await submitValue(parsed.value ?? 1);
+    const amount = parsed.value ?? 1;
+    const goal = habit?.target != null ? Number(habit.target) : null;
+    if (goal != null && goal > 0 && amount > goal * IMPLAUSIBLE_TARGET_MULTIPLE) {
+      const unit = habit?.unit ? ` ${habit.unit}` : "";
+      Alert.alert(
+        t("That's a lot — log anyway?"),
+        t("{amount}{unit} is much higher than your {goal}{unit} goal. Log it anyway?", {
+          amount: formatAmount(amount),
+          goal: formatAmount(goal),
+          unit,
+        }),
+        [
+          { text: t("Cancel"), style: "cancel" },
+          { text: t("Log anyway"), onPress: () => void submitValue(amount) },
+        ],
+      );
+      return;
+    }
+    await submitValue(amount);
   }
 
   function handleMarkAllDone() {

@@ -33,6 +33,7 @@ import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import { shouldShowTrialSubscriptionBanner, type ProAccess } from "@/lib/subscription/access";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
+import { isStepHabit } from "@/lib/data/steps-shared";
 import {
   getStepPermissionStatus,
   getTodayStepSnapshot,
@@ -76,10 +77,6 @@ type StepTrackingState = {
   lastSyncedAt: number | null;
   error?: string;
 };
-
-function isStepHabit(habit: Habit): boolean {
-  return habit.metric_type === "steps" || habit.habit_type === "walk" || habit.unit === "steps";
-}
 
 export default function DashboardScreen() {
   const router = useRouter();

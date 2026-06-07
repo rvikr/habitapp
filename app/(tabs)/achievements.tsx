@@ -312,7 +312,12 @@ function WeeklyReportCard({
   }
 
   const snapshot = report.stats_snapshot;
-  const byHabit = Array.isArray(snapshot?.byHabit) ? snapshot.byHabit : [];
+  // Only render rows from the current structured shape. Reports generated before
+  // the analysis rework stored a flatter byHabit (completionsThisWeek/totalThisWeek
+  // with no scheduledDays), which would otherwise render "undefined of undefined".
+  const byHabit = Array.isArray(snapshot?.byHabit)
+    ? snapshot.byHabit.filter((h) => h && typeof h.scheduledDays === "number")
+    : [];
 
   return (
     <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-md">
@@ -391,9 +396,11 @@ function HabitBreakdownRow({
   t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   const pct = Math.round((habit.completionRate ?? 0) * 100);
-  const detail = habit.isQuantity
-    ? (habit.displayTotal ?? "")
-    : t("{done} of {total} days", { done: habit.daysLogged, total: habit.scheduledDays });
+  const dayCount = t("{done} of {total} days", {
+    done: habit.daysLogged,
+    total: habit.scheduledDays,
+  });
+  const detail = habit.isQuantity ? (habit.displayTotal ?? dayCount) : dayCount;
   return (
     <View className="gap-xs">
       <View className="flex-row justify-between items-center">
