@@ -139,12 +139,45 @@ export type Milestone = {
   progress: number;
 };
 
+// One habit's deterministic weekly breakdown, computed by the progress-report
+// edge function. Mirrors HabitAnalysis there. All figures already carry their
+// own unit; the UI renders these as-is and the AI prose only rephrases them.
+export type WeeklyReportHabitAnalysis = {
+  name: string;
+  unit: string | null;
+  target: number | null;
+  isQuantity: boolean;
+  daysLogged: number;
+  scheduledDays: number;
+  completionRate: number; // 0..1
+  weeklyTotal: number | null;
+  dailyAverage: number | null;
+  targetHitDays: number | null;
+  displayTotal: string | null; // pre-formatted, e.g. "41,000 steps"
+  displayAverage: string | null;
+};
+
+export type WeeklyReportSnapshot = {
+  weekStart: string;
+  weekEnd: string;
+  totalCompletions: number;
+  activeHabits: number;
+  perfectDays: number;
+  bestStreak: number;
+  completionRate: number; // 0..1
+  strongestHabit: string | null;
+  focusHabit: string | null;
+  trend: { lastWeekCompletions: number; delta: number };
+  byHabit: WeeklyReportHabitAnalysis[];
+};
+
 export type WeeklyProgressReport = {
   id: string;
   user_id: string;
   week_start: string;
   summary_text: string;
-  stats_snapshot: Record<string, unknown>;
+  // Older rows used a flatter shape; treat as partial when reading.
+  stats_snapshot: Partial<WeeklyReportSnapshot> & Record<string, unknown>;
   model: string | null;
   generated_at: string;
 };

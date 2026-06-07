@@ -13,12 +13,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "@/components/language-provider";
+import { ProComparison } from "@/components/pro-comparison";
 import {
   getCurrentProAccess,
   getProPackages,
   purchaseProPackage,
   restoreProPurchases,
-  syncRevenueCatSubscription,
 } from "@/lib/subscription/revenuecat";
 import type { ProAccess } from "@/lib/subscription/access";
 
@@ -81,15 +81,6 @@ export default function ProScreen() {
         t("Could not restore purchases"),
         error instanceof Error ? error.message : t("Try again."),
       );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function refresh() {
-    setBusy("refresh");
-    try {
-      setAccess(await syncRevenueCatSubscription());
     } finally {
       setBusy(null);
     }
@@ -160,24 +151,54 @@ export default function ProScreen() {
           ) : (
             <View className="gap-sm">
               {[
-                { label: "Monthly", pack: monthly, icon: "calendar-month" },
-                { label: "Annual", pack: annual, icon: "calendar-star" },
+                {
+                  label: "Monthly",
+                  pack: monthly,
+                  icon: "calendar-month",
+                  price: "₹49",
+                  period: "per month",
+                  badge: null as string | null,
+                },
+                {
+                  label: "Annual",
+                  pack: annual,
+                  icon: "calendar-star",
+                  price: "₹499",
+                  period: "per year",
+                  badge: "Save 15%",
+                },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.label}
                   className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
-                  disabled={!item.pack || Boolean(busy)}
-                  onPress={() => item.pack && buy(item.pack, item.label)}
+                  disabled={Boolean(busy)}
+                  onPress={() =>
+                    item.pack
+                      ? buy(item.pack, item.label)
+                      : Alert.alert(
+                          t("Coming soon"),
+                          t("Subscriptions will be available shortly. Hang tight!"),
+                        )
+                  }
                 >
                   <View className="w-11 h-11 rounded-full bg-primary-fixed items-center justify-center">
                     <MaterialCommunityIcons name={item.icon as any} size={22} color="#F26B1F" />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
-                      {t(item.label)}
-                    </Text>
+                    <View className="flex-row items-center gap-sm">
+                      <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
+                        {t(item.label)}
+                      </Text>
+                      {item.badge && (
+                        <View className="bg-secondary-container rounded-full px-sm py-xs">
+                          <Text className="text-label-sm text-on-secondary-container font-semibold">
+                            {t(item.badge)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                      {item.pack?.product.priceString ?? t("Unavailable")}
+                      {(item.pack?.product.priceString ?? item.price) + " · " + t(item.period)}
                     </Text>
                   </View>
                   {busy === item.label ? (
@@ -192,30 +213,20 @@ export default function ProScreen() {
 
           {loading && Platform.OS !== "web" && <ActivityIndicator color="#F26B1F" />}
 
-          {Platform.OS !== "web" && (
-            <View className="flex-row gap-sm">
+          <ProComparison />
+
+          <View className="gap-xs">
+            {Platform.OS !== "web" && (
               <TouchableOpacity
-                className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-sm items-center"
+                className="self-center py-xs"
                 onPress={restore}
                 disabled={Boolean(busy)}
               >
-                <Text className="text-label-lg text-primary font-semibold">
-                  {busy === "restore" ? t("Restoring") : t("Restore")}
+                <Text className="text-label-sm text-primary font-semibold">
+                  {busy === "restore" ? t("Restoring") : t("Restore purchases")}
                 </Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-sm items-center"
-                onPress={refresh}
-                disabled={Boolean(busy)}
-              >
-                <Text className="text-label-lg text-primary font-semibold">
-                  {busy === "refresh" ? t("Syncing") : t("Refresh")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View className="gap-xs">
+            )}
             {Platform.OS !== "web" && (
               <>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">

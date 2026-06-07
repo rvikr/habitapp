@@ -23,7 +23,7 @@ import {
   generateProgressReportNow,
   getLatestProgressReport,
 } from "@/lib/data/progress-reports";
-import type { Milestone, WeeklyProgressReport } from "@/types/db";
+import type { Milestone, WeeklyProgressReport, WeeklyReportHabitAnalysis } from "@/types/db";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
 
@@ -311,14 +311,102 @@ function WeeklyReportCard({
     );
   }
 
+  const snapshot = report.stats_snapshot;
+  const byHabit = Array.isArray(snapshot?.byHabit) ? snapshot.byHabit : [];
+
   return (
-    <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-xs">
-      <Text className="text-label-sm text-primary font-semibold">
-        {formatReportWeekRange(report.week_start)}
-      </Text>
-      <Text className="text-body-md text-on-surface dark:text-d-on-surface leading-6">
-        {report.summary_text}
-      </Text>
+    <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-md">
+      <View className="gap-xs">
+        <Text className="text-label-sm text-primary font-semibold">
+          {formatReportWeekRange(report.week_start)}
+        </Text>
+        <Text className="text-body-md text-on-surface dark:text-d-on-surface leading-6">
+          {report.summary_text}
+        </Text>
+      </View>
+
+      {typeof snapshot?.completionRate === "number" ? (
+        <View className="gap-xs">
+          <View className="flex-row justify-between items-center">
+            <Text className="text-label-md text-on-surface dark:text-d-on-surface font-semibold">
+              {t("Overall completion")}
+            </Text>
+            <Text className="text-label-md text-primary font-semibold">
+              {Math.round(snapshot.completionRate * 100)}%
+            </Text>
+          </View>
+          <View className="h-2 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden">
+            <View
+              className="h-full bg-primary rounded-full"
+              style={{ width: `${Math.round(snapshot.completionRate * 100)}%` }}
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {snapshot?.strongestHabit || snapshot?.focusHabit ? (
+        <View className="flex-row gap-sm">
+          {snapshot?.strongestHabit ? (
+            <View className="flex-1 bg-surface-high dark:bg-d-surface-high rounded-lg p-sm gap-xs">
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("Strongest")}
+              </Text>
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                {snapshot.strongestHabit}
+              </Text>
+            </View>
+          ) : null}
+          {snapshot?.focusHabit ? (
+            <View className="flex-1 bg-surface-high dark:bg-d-surface-high rounded-lg p-sm gap-xs">
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("Focus next")}
+              </Text>
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                {snapshot.focusHabit}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
+      {byHabit.length > 0 ? (
+        <View className="gap-sm">
+          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+            {t("HABIT BREAKDOWN")}
+          </Text>
+          {byHabit.map((habit, index) => (
+            <HabitBreakdownRow key={`${habit.name}-${index}`} habit={habit} t={t} />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function HabitBreakdownRow({
+  habit,
+  t,
+}: {
+  habit: WeeklyReportHabitAnalysis;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+}) {
+  const pct = Math.round((habit.completionRate ?? 0) * 100);
+  const detail = habit.isQuantity
+    ? (habit.displayTotal ?? "")
+    : t("{done} of {total} days", { done: habit.daysLogged, total: habit.scheduledDays });
+  return (
+    <View className="gap-xs">
+      <View className="flex-row justify-between items-center">
+        <Text className="text-body-md text-on-surface dark:text-d-on-surface" numberOfLines={1}>
+          {habit.name}
+        </Text>
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+          {detail}
+        </Text>
+      </View>
+      <View className="h-1.5 bg-surface-high dark:bg-d-surface-high rounded-full overflow-hidden">
+        <View className="h-full bg-secondary rounded-full" style={{ width: `${pct}%` }} />
+      </View>
     </View>
   );
 }

@@ -88,6 +88,14 @@ import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
 import { generateContent } from "../supabase/functions/_shared/gemini.ts";
+import {
+  buildWeeklyStats,
+  buildFacts,
+  fallbackSummary,
+  scheduledDaysForHabit,
+  formatAmount,
+  withUnit,
+} from "../supabase/functions/progress-report/stats.ts";
 import * as subscriptionAccess from "../lib/subscription/access.ts";
 import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
@@ -2494,6 +2502,184 @@ test("geminiFetch returns non-retryable errors immediately", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+// ---------------------------------------------------------------------------
+// Weekly progress report stats (supabase/functions/progress-report/stats.ts)
+// ---------------------------------------------------------------------------
+
+// Monday-anchored test week: 2026-06-01 .. 2026-06-07. `today` sits far in the
+// future so future-day capping never interferes unless a test sets it.
+const REPORT_WEEK_START = new Date(Date.UTC(2026, 5, 1));
+const REPORT_FAR_FUTURE = new Date(Date.UTC(2026, 11, 31));
+
+function reportHabit(overrides = {}) {
+  return {
+    id: "h",
+    name: "Habit",
+    unit: null,
+    target: null,
+    metric_type: "boolean",
+    reminder_days: null,
+    reminders_enabled: false,
+    created_at: "2025-01-01",
+    ...overrides,
+  };
+}
+
+test("weekly report number formatting groups thousands and keeps the habit's unit", () => {
+  assert.equal(formatAmount(40000), "40,000");
+  assert.equal(formatAmount(7666.666), "7,666.7");
+  assert.equal(formatAmount(5), "5");
+  assert.equal(withUnit(40000, "steps"), "40,000 steps");
+  assert.equal(withUnit(2.5, "km"), "2.5 km");
+  assert.equal(withUnit(3, ""), "3"); // empty unit -> no trailing space
+});
+
+test("weekly report keeps step counts in steps and never invents kilometres (143 km bug)", () => {
+  const stats = buildWeeklyStats({
+    habits: [
+      reportHabit({ id: "walk", name: "Walk", unit: "steps", target: 8000, metric_type: "steps" }),
+    ],
+    completions: [
+      { habit_id: "walk", completed_on: "2026-06-01", value: 8000 },
+      { habit_id: "walk", completed_on: "2026-06-02", value: 5000 },
+      { habit_id: "walk", completed_on: "2026-06-03", value: 10000 },
+    ],
+    lastWeekCompletions: 0,
+    weekStartDate: REPORT_WEEK_START,
+    today: REPORT_FAR_FUTURE,
+  });
+
+  const walk = stats.byHabit[0];
+  assert.equal(walk.isQuantity, true);
+  assert.equal(walk.unit, "steps");
+  assert.equal(walk.weeklyTotal, 23000);
+  assert.equal(walk.displayTotal, "23,000 steps");
+  assert.equal(walk.displayAverage, "7,666.7 steps"); // 23000 / 3 logged days
+  assert.equal(walk.targetHitDays, 2); // only the 8000 and 10000 days reach 8000
+
+  const facts = buildFacts(stats);
+  assert.match(facts, /23,000 steps total/);
+  assert.match(facts, /hit the 8,000 steps goal on 2 days/);
+  assert.doesNotMatch(facts, /km/); // the regression: a steps habit must never read as km
+});
+
+test("weekly report treats boolean habits as day counts, never a quantity total", () => {
+  const stats = buildWeeklyStats({
+    habits: [reportHabit({ id: "journal", name: "Journal", unit: "", metric_type: "boolean" })],
+    completions: [
+      { habit_id: "journal", completed_on: "2026-06-01", value: 1 },
+      { habit_id: "journal", completed_on: "2026-06-02", value: 1 },
+    ],
+    lastWeekCompletions: 0,
+    weekStartDate: REPORT_WEEK_START,
+    today: REPORT_FAR_FUTURE,
+  });
+
+  const journal = stats.byHabit[0];
+  assert.equal(journal.isQuantity, false);
+  assert.equal(journal.weeklyTotal, null);
+  assert.equal(journal.displayTotal, null);
+  assert.equal(journal.daysLogged, 2);
+  assert.equal(journal.scheduledDays, 7);
+  assert.match(buildFacts(stats), /Journal: completed 2 of 7 days/);
+});
+
+test("weekly report picks strongest and focus habits and computes the week-over-week trend", () => {
+  const stats = buildWeeklyStats({
+    habits: [
+      reportHabit({ id: "walk", name: "Walk", unit: "steps", target: 8000, metric_type: "steps" }),
+      reportHabit({ id: "journal", name: "Journal", unit: "", metric_type: "boolean" }),
+    ],
+    completions: [
+      { habit_id: "walk", completed_on: "2026-06-01", value: 8000 },
+      { habit_id: "walk", completed_on: "2026-06-02", value: 8000 },
+      { habit_id: "walk", completed_on: "2026-06-03", value: 8000 },
+      { habit_id: "journal", completed_on: "2026-06-01", value: 1 },
+      { habit_id: "journal", completed_on: "2026-06-02", value: 1 },
+    ],
+    lastWeekCompletions: 3,
+    weekStartDate: REPORT_WEEK_START,
+    today: REPORT_FAR_FUTURE,
+  });
+
+  assert.equal(stats.totalCompletions, 5);
+  assert.equal(stats.activeHabits, 2);
+  assert.equal(stats.perfectDays, 2); // 06-01 and 06-02 have both habits logged
+  assert.equal(stats.bestStreak, 3); // 06-01..06-03 all have at least one log
+  assert.equal(stats.strongestHabit, "Walk"); // 3/7 beats 2/7
+  assert.equal(stats.focusHabit, "Journal");
+  assert.deepEqual(stats.trend, { lastWeekCompletions: 3, delta: 2 });
+
+  const fallback = fallbackSummary(stats);
+  assert.match(fallback, /5 completions across 2 habits/);
+  assert.match(fallback, /Strongest habit: Walk\./);
+  assert.match(fallback, /Focus next week on Journal\./);
+  assert.match(fallback, /You hit every habit on 2 days\./);
+});
+
+test("weekly report does not flag a focus habit when the only habit is fully completed", () => {
+  const stats = buildWeeklyStats({
+    habits: [
+      reportHabit({ id: "walk", name: "Walk", unit: "steps", target: 8000, metric_type: "steps" }),
+    ],
+    completions: Array.from({ length: 7 }, (_, i) => ({
+      habit_id: "walk",
+      completed_on: `2026-06-0${i + 1}`,
+      value: 8000,
+    })),
+    lastWeekCompletions: 7,
+    weekStartDate: REPORT_WEEK_START,
+    today: REPORT_FAR_FUTURE,
+  });
+
+  assert.equal(stats.byHabit[0].completionRate, 1);
+  assert.equal(stats.strongestHabit, "Walk");
+  assert.equal(stats.focusHabit, null);
+  assert.equal(stats.completionRate, 1);
+});
+
+test("weekly report empty week falls back to an encouraging restart message", () => {
+  const stats = buildWeeklyStats({
+    habits: [reportHabit({ id: "walk", name: "Walk" })],
+    completions: [],
+    lastWeekCompletions: 4,
+    weekStartDate: REPORT_WEEK_START,
+    today: REPORT_FAR_FUTURE,
+  });
+
+  assert.equal(stats.totalCompletions, 0);
+  assert.deepEqual(stats.trend, { lastWeekCompletions: 4, delta: -4 });
+  assert.match(fallbackSummary(stats), /No habits logged this week/);
+});
+
+test("scheduled days honor reminder_days, the habit creation date, and today", () => {
+  // reminders_enabled with reminder_days [0,2,4] -> 3 scheduled day-offsets.
+  assert.equal(
+    scheduledDaysForHabit(
+      reportHabit({ reminders_enabled: true, reminder_days: [0, 2, 4] }),
+      REPORT_WEEK_START,
+      REPORT_FAR_FUTURE,
+    ),
+    3,
+  );
+
+  // Created mid-week (offset 3): earlier days don't count yet -> offsets 3..6 = 4.
+  assert.equal(
+    scheduledDaysForHabit(
+      reportHabit({ created_at: "2026-06-04" }),
+      REPORT_WEEK_START,
+      REPORT_FAR_FUTURE,
+    ),
+    4,
+  );
+
+  // today caps future days: only 06-01..06-03 (offsets 0..2) have happened -> 3.
+  assert.equal(
+    scheduledDaysForHabit(reportHabit(), REPORT_WEEK_START, new Date(Date.UTC(2026, 5, 3))),
+    3,
+  );
 });
 
 await testChain;

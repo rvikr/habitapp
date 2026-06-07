@@ -4,6 +4,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
 import { generateContent } from "../_shared/gemini.ts";
+import {
+  buildFacts,
+  buildWeeklyStats,
+  fallbackSummary,
+  formatDate,
+  type CompletionStatsRow,
+  type HabitStatsRow,
+  type WeeklyStats,
+} from "./stats.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -42,8 +51,6 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 type ProUserRow = { user_id: string };
-type HabitRow = { id: string; name: string; unit: string | null; target: number | null };
-type CompletionRow = { habit_id: string; completed_on: string; value: number | null };
 type ProgressReportRequest = { mode?: string };
 type GenerateForUserResult = { status: "written" | "skipped" | "failed"; reason?: string };
 type WeeklyProgressReportRow = {
@@ -54,22 +61,6 @@ type WeeklyProgressReportRow = {
   stats_snapshot: Record<string, unknown>;
   model: string | null;
   generated_at: string;
-};
-
-type WeeklyStats = {
-  weekStart: string;
-  weekEnd: string;
-  totalCompletions: number;
-  activeHabits: number;
-  perfectDays: number;
-  bestStreak: number;
-  byHabit: Array<{
-    name: string;
-    unit: string | null;
-    target: number | null;
-    completionsThisWeek: number;
-    totalThisWeek: number;
-  }>;
 };
 
 const REPORT_SELECT = "id, user_id, week_start, summary_text, stats_snapshot, model, generated_at";
@@ -84,10 +75,6 @@ function isoWeekStart(reference: Date): Date {
   const offsetToMonday = (day + 6) % 7;
   utc.setUTCDate(utc.getUTCDate() - offsetToMonday);
   return utc;
-}
-
-function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 function previousWeekStart(reference = new Date()): Date {
@@ -126,20 +113,8 @@ function outputText(body: any): string | null {
   return null;
 }
 
-function fallbackSummary(stats: WeeklyStats): string {
-  if (stats.totalCompletions === 0) {
-    return "No habits logged this week. A single small log today is enough to restart the chain — pick the easiest one and start there.";
-  }
-  const habit = stats.byHabit
-    .slice()
-    .sort((a, b) => b.completionsThisWeek - a.completionsThisWeek)[0];
-  const headline = habit
-    ? `Strongest habit was ${habit.name} with ${habit.completionsThisWeek} log${habit.completionsThisWeek === 1 ? "" : "s"}.`
-    : "";
-  const perfect = stats.perfectDays > 0 ? ` You hit every habit on ${stats.perfectDays} day${stats.perfectDays === 1 ? "" : "s"}.` : "";
-  return `${stats.totalCompletions} completion${stats.totalCompletions === 1 ? "" : "s"} across ${stats.activeHabits} habit${stats.activeHabits === 1 ? "" : "s"} this week. ${headline}${perfect}`.trim();
-}
-
+// Fetches the raw rows and delegates all math to the pure buildWeeklyStats in
+// ./stats.ts (which is exercised directly by the Node unit tests).
 async function computeWeeklyStats(
   admin: ReturnType<typeof createClient>,
   userId: string,
@@ -150,10 +125,15 @@ async function computeWeeklyStats(
   weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 6);
   const weekEnd = formatDate(weekEndDate);
 
-  const [habitsRes, completionsRes] = await Promise.all([
+  const prevWeekStartDate = new Date(weekStartDate);
+  prevWeekStartDate.setUTCDate(prevWeekStartDate.getUTCDate() - 7);
+  const prevWeekStart = formatDate(prevWeekStartDate);
+  const prevWeekEnd = formatDate(new Date(weekStartDate.getTime() - 86_400_000));
+
+  const [habitsRes, completionsRes, prevCompletionsRes] = await Promise.all([
     admin
       .from("habits")
-      .select("id, name, unit, target")
+      .select("id, name, unit, target, metric_type, reminder_days, reminders_enabled, created_at")
       .eq("user_id", userId)
       .is("archived_at", null),
     admin
@@ -162,6 +142,12 @@ async function computeWeeklyStats(
       .eq("user_id", userId)
       .gte("completed_on", weekStart)
       .lte("completed_on", weekEnd),
+    admin
+      .from("habit_completions")
+      .select("habit_id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("completed_on", prevWeekStart)
+      .lte("completed_on", prevWeekEnd),
   ]);
 
   if (habitsRes.error) {
@@ -173,61 +159,13 @@ async function computeWeeklyStats(
     return null;
   }
 
-  const habits = (habitsRes.data ?? []) as HabitRow[];
-  const completions = (completionsRes.data ?? []) as CompletionRow[];
-
-  const perHabit = new Map<string, { count: number; total: number }>();
-  const dayMap = new Map<string, Set<string>>();
-  for (const completion of completions) {
-    const entry = perHabit.get(completion.habit_id) ?? { count: 0, total: 0 };
-    entry.count += 1;
-    entry.total += Number(completion.value ?? 0);
-    perHabit.set(completion.habit_id, entry);
-
-    const dayHabits = dayMap.get(completion.completed_on) ?? new Set();
-    dayHabits.add(completion.habit_id);
-    dayMap.set(completion.completed_on, dayHabits);
-  }
-
-  const habitCount = habits.length;
-  let perfectDays = 0;
-  if (habitCount > 0) {
-    for (const set of dayMap.values()) {
-      if (set.size >= habitCount) perfectDays += 1;
-    }
-  }
-
-  let bestStreak = 0;
-  let currentStreak = 0;
-  for (let i = 0; i < 7; i += 1) {
-    const day = new Date(weekStartDate);
-    day.setUTCDate(day.getUTCDate() + i);
-    if ((dayMap.get(formatDate(day))?.size ?? 0) > 0) {
-      currentStreak += 1;
-      if (currentStreak > bestStreak) bestStreak = currentStreak;
-    } else {
-      currentStreak = 0;
-    }
-  }
-
-  return {
-    weekStart,
-    weekEnd,
-    totalCompletions: completions.length,
-    activeHabits: habitCount,
-    perfectDays,
-    bestStreak,
-    byHabit: habits.map((habit) => {
-      const entry = perHabit.get(habit.id);
-      return {
-        name: habit.name,
-        unit: habit.unit,
-        target: habit.target == null ? null : Number(habit.target),
-        completionsThisWeek: entry?.count ?? 0,
-        totalThisWeek: entry?.total ?? 0,
-      };
-    }),
-  };
+  return buildWeeklyStats({
+    habits: (habitsRes.data ?? []) as unknown as HabitStatsRow[],
+    completions: (completionsRes.data ?? []) as unknown as CompletionStatsRow[],
+    lastWeekCompletions: prevCompletionsRes.error ? 0 : (prevCompletionsRes.count ?? 0),
+    weekStartDate,
+    today: new Date(),
+  });
 }
 
 async function generateSummary(stats: WeeklyStats): Promise<{ text: string; generated: boolean }> {
@@ -238,21 +176,23 @@ async function generateSummary(stats: WeeklyStats): Promise<{ text: string; gene
       parts: [
         {
           text:
-            "You write a short weekly habit progress summary, 2-3 sentences, under 480 characters. " +
-            "Be specific, supportive, and concrete: cite the actual numbers from the data. " +
-            "Highlight the strongest habit and one area to focus on next week. Do not mention AI or use medical language.",
+            "You write a short weekly habit progress summary, 3-4 sentences, under 480 characters. " +
+            "Use ONLY the numbers and units given in the facts below, exactly as written. " +
+            "Never convert units, never do arithmetic, never invent or estimate any figure. " +
+            "Be supportive and concrete: name the strongest habit and the one habit to focus on next week. " +
+            "Do not mention AI or use medical language.",
         },
       ],
     },
     contents: [
       {
         role: "user",
-        parts: [{ text: JSON.stringify(stats) }],
+        parts: [{ text: `Facts:\n${buildFacts(stats)}` }],
       },
     ],
     generationConfig: {
       maxOutputTokens: 240,
-      temperature: 0.6,
+      temperature: 0.4,
       thinkingConfig: { thinkingBudget: 0 },
     },
   });
