@@ -444,9 +444,30 @@ export async function updateHabitReminders(
   return { ok: true };
 }
 
+type CreateHabitResult = Awaited<ReturnType<typeof createHabitForUser>>;
+
 export async function createHabit(data: HabitMutationData) {
   const user = await getUser();
   if (!user) return { ok: false, id: null, error: "You need to sign in again." };
+  return createHabitForUser(user.id, data);
+}
+
+// Resolve the user once, then create habits sequentially. Firing createHabit in
+// a Promise.all previously ran N concurrent getUser()/refresh/storage-write
+// operations that could interleave and corrupt the chunked session, surfacing
+// as "You need to sign in again." on every item. A single auth check plus serial
+// creates removes that race and avoids redundant per-habit network round-trips.
+export async function createRoutineHabits(list: HabitMutationData[]) {
+  const user = await getUser();
+  if (!user) return { signedOut: true as const, results: [] as CreateHabitResult[] };
+  const results: CreateHabitResult[] = [];
+  for (const data of list) {
+    results.push(await createHabitForUser(user.id, data));
+  }
+  return { signedOut: false as const, results };
+}
+
+async function createHabitForUser(userId: string, data: HabitMutationData) {
   const intelligence = inferHabitIntelligence({
     name: data.name,
     icon: data.icon,
@@ -484,7 +505,7 @@ export async function createHabit(data: HabitMutationData) {
     const { data: existingHabits, error: readError } = await supabase
       .from("habits")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .is("archived_at", null);
     if (readError) return { ok: false, id: null, error: readError.message };
     match = ((existingHabits ?? []) as Habit[])
@@ -516,7 +537,7 @@ export async function createHabit(data: HabitMutationData) {
       .from("habits")
       .update(mergePayload)
       .eq("id", match.habit.id)
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
     if (error) {
       if (!isMissingSmartHabitColumn(error)) return { ok: false, id: null, error: error.message };
       const { error: legacyError } = await supabase
@@ -531,7 +552,7 @@ export async function createHabit(data: HabitMutationData) {
           reminder_days: reminders.days,
         })
         .eq("id", match.habit.id)
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
       if (legacyError) return { ok: false, id: null, error: legacyError.message };
     }
     clearDataCache();
@@ -542,14 +563,14 @@ export async function createHabit(data: HabitMutationData) {
 
   const { data: row, error } = await supabase
     .from("habits")
-    .insert(smartHabitPayload(data, intelligence, user.id))
+    .insert(smartHabitPayload(data, intelligence, userId))
     .select("id")
     .single();
   if (error) {
     if (!isMissingSmartHabitColumn(error)) return { ok: false, id: null, error: error.message };
     const { data: legacyRow, error: legacyError } = await supabase
       .from("habits")
-      .insert(legacyHabitPayload(data, intelligence, user.id))
+      .insert(legacyHabitPayload(data, intelligence, userId))
       .select("id")
       .single();
     if (legacyError) return { ok: false, id: null, error: legacyError.message };

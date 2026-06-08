@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Icon from "@/components/icon";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
-import { createHabit } from "@/lib/data/actions";
+import { createRoutineHabits } from "@/lib/data/actions";
 import {
   buildRoutineRecommendations,
   type HabitRecommendation,
@@ -168,29 +168,34 @@ export default function HabitWizardScreen() {
     }
 
     setCreating(true);
-    const results = await Promise.all(
-      selected.map((item) =>
-        createHabit({
-          name: item.name,
-          description: item.description,
-          icon: item.icon,
-          color: item.color,
-          unit: item.unit,
-          target: item.target,
-          remindersEnabled: item.remindersEnabled,
-          reminderTimes: item.reminderTimes,
-          reminderDays: item.reminderDays,
-          habitType: item.habitType,
-          metricType: item.metricType,
-          visualType: item.visualType,
-          reminderStrategy: item.reminderStrategy,
-          reminderIntervalMinutes: item.reminderIntervalMinutes,
-          defaultLogValue: item.defaultLogValue,
-          mergeSimilar: item.mergeSimilar,
-        }),
-      ),
+    const { signedOut, results } = await createRoutineHabits(
+      selected.map((item) => ({
+        name: item.name,
+        description: item.description,
+        icon: item.icon,
+        color: item.color,
+        unit: item.unit,
+        target: item.target,
+        remindersEnabled: item.remindersEnabled,
+        reminderTimes: item.reminderTimes,
+        reminderDays: item.reminderDays,
+        habitType: item.habitType,
+        metricType: item.metricType,
+        visualType: item.visualType,
+        reminderStrategy: item.reminderStrategy,
+        reminderIntervalMinutes: item.reminderIntervalMinutes,
+        defaultLogValue: item.defaultLogValue,
+        mergeSimilar: item.mergeSimilar,
+      })),
     );
     setCreating(false);
+
+    // The auth check now happens once for the whole batch, so "sign in again"
+    // can only mean a genuine signed-out state — show it once, not per habit.
+    if (signedOut) {
+      Alert.alert(t("Some habits were not created"), t("You need to sign in again."));
+      return;
+    }
 
     const failures = results
       .map((result, i) => {

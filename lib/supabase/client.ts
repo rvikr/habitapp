@@ -2,6 +2,8 @@ import "../platform/webcrypto-polyfill";
 import { createClient as _createClient, type Session, type User } from "@supabase/supabase-js";
 import { secureStorage } from "../platform/secure-storage";
 import { isMissingRefreshTokenError } from "./auth-error";
+import { classifyStoredSession } from "./session-storage";
+import { reportError } from "../services/sentry";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -23,34 +25,24 @@ function projectRefFromUrl(url: string): string {
   }
 }
 
-// Supabase persists the session as JSON. If a stored payload is missing the
-// refresh_token, supabase-js auto-refresh on startup throws
-// "AuthApiError: Invalid Refresh Token: Refresh Token Not Found" and logs it
-// before getSession() can catch it. Drop such payloads at the storage layer
-// so the client boots cleanly as signed-out.
-function hasUsableRefreshToken(raw: string): boolean {
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
-    if (!parsed || typeof parsed !== "object") return false;
-    const direct = parsed.refresh_token;
-    if (typeof direct === "string" && direct.length > 0) return true;
-    const nested = (parsed.currentSession as Record<string, unknown> | undefined)?.refresh_token;
-    return typeof nested === "string" && nested.length > 0;
-  } catch {
-    return false;
-  }
-}
-
+// Drop a persisted session only when it parses cleanly but has no refresh token
+// (see classifyStoredSession). An unparseable read is left intact so a transient
+// glitch can't trigger a permanent sign-out.
 const authStorage = {
   async getItem(key: string): Promise<string | null> {
     const value = await secureStorage.getItem(key);
-    if (value && key === SUPABASE_AUTH_STORAGE_KEY && !hasUsableRefreshToken(value)) {
-      try {
-        await secureStorage.removeItem(key);
-      } catch {
-        // Best effort — returning null still gets the client to a clean state.
+    if (value && key === SUPABASE_AUTH_STORAGE_KEY) {
+      const verdict = classifyStoredSession(value);
+      if (verdict === "missing-refresh-token") {
+        try {
+          await secureStorage.removeItem(key);
+        } catch {
+          // Best effort — returning null still gets the client to a clean state.
+        }
+        return null;
       }
-      return null;
+      // "unparseable" → leave storage intact and hand the value to supabase-js,
+      // which rejects bad JSON without us destroying a recoverable session.
     }
     return value;
   },
@@ -62,6 +54,35 @@ const authStorage = {
   },
 };
 
+// React Native has no `navigator.locks`, so auth-js falls back to a no-op lock
+// and does NOT serialize concurrent auth operations (getUser / refresh / the
+// storage writes they trigger). Concurrent callers — e.g. a batch of habit
+// creates — could then interleave reads and writes of the chunked session and
+// corrupt it. This per-name promise chain mirrors auth-js's own `processLock`
+// (minus the acquire timeout) and serializes them within the JS runtime.
+const lockChains: Record<string, Promise<unknown>> = {};
+
+async function processLock<R>(
+  name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<R>,
+): Promise<R> {
+  const previous = lockChains[name] ?? Promise.resolve();
+  const run = (async () => {
+    try {
+      await previous;
+    } catch {
+      // A previous holder's failure must not block the queue.
+    }
+    return fn();
+  })();
+  lockChains[name] = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 export const supabase = _createClient(
   isSupabaseConfigured() ? SUPABASE_URL : FALLBACK_SUPABASE_URL,
   isSupabaseConfigured() ? SUPABASE_ANON_KEY : FALLBACK_SUPABASE_ANON_KEY,
@@ -69,6 +90,7 @@ export const supabase = _createClient(
     auth: {
       storage: authStorage,
       storageKey: SUPABASE_AUTH_STORAGE_KEY,
+      lock: processLock,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
@@ -116,6 +138,28 @@ export async function clearLocalAuthSession(): Promise<void> {
   }
 }
 
+// A genuine "no session" is a normal signed-out state, not a fault worth
+// reporting. Everything else (network failures, unexpected auth errors) is
+// captured so a misleading "sign in again" can be traced to its real cause.
+function isExpectedSignedOutError(error: unknown): boolean {
+  if (isMissingRefreshTokenError(error)) return true;
+  const record = error as { name?: string; message?: string } | null;
+  const text = `${record?.name ?? ""} ${record?.message ?? ""}`.toLowerCase();
+  return text.includes("auth session missing") || text.includes("session missing");
+}
+
+function reportAuthFault(source: string, error: unknown): void {
+  if (isExpectedSignedOutError(error)) return;
+  const record = error as { name?: string; status?: unknown; code?: unknown } | null;
+  const normalized = error instanceof Error ? error : new Error(String(error));
+  reportError(normalized, {
+    source,
+    name: record?.name,
+    status: record?.status,
+    code: record?.code,
+  });
+}
+
 export async function getCurrentSession(): Promise<Session | null> {
   if (!isSupabaseConfigured()) return null;
 
@@ -123,11 +167,13 @@ export async function getCurrentSession(): Promise<Session | null> {
     const { data, error } = await supabase.auth.getSession();
     if (error) {
       if (isMissingRefreshTokenError(error)) await clearLocalAuthSession();
+      else reportAuthFault("getCurrentSession", error);
       return null;
     }
     return data.session;
   } catch (error) {
     if (isMissingRefreshTokenError(error)) await clearLocalAuthSession();
+    else reportAuthFault("getCurrentSession:throw", error);
     return null;
   }
 }
@@ -139,11 +185,13 @@ export async function getCurrentUser(): Promise<User | null> {
     const { data, error } = await supabase.auth.getUser();
     if (error) {
       if (isMissingRefreshTokenError(error)) await clearLocalAuthSession();
+      else reportAuthFault("getCurrentUser", error);
       return null;
     }
     return data.user;
   } catch (error) {
     if (isMissingRefreshTokenError(error)) await clearLocalAuthSession();
+    else reportAuthFault("getCurrentUser:throw", error);
     return null;
   }
 }

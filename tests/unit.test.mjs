@@ -100,6 +100,8 @@ import {
 import * as subscriptionAccess from "../lib/subscription/access.ts";
 import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
+import { CHUNK_SIZE, LargeSecureStore, splitChunks } from "../lib/platform/large-secure-store.ts";
+import { classifyStoredSession } from "../lib/supabase/session-storage.ts";
 import {
   dateKeyInTimeZone,
   isValidDateKey,
@@ -2696,6 +2698,93 @@ test("step sync only targets true step habits, never a distance habit named Walk
   assert.equal(isStepHabit({ metric_type: null, habit_type: "walk", unit: null }), true);
   assert.equal(isStepHabit({ metric_type: null, habit_type: null, unit: "steps" }), true);
   assert.equal(isStepHabit({ metric_type: null, habit_type: "run", unit: "km" }), false);
+});
+
+// Backend whose every operation yields to the event loop, so that without the
+// LargeSecureStore mutex concurrent ops would genuinely interleave.
+function makeAsyncSecureBackend() {
+  const map = new Map();
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  return {
+    async getItem(key) {
+      await tick();
+      return map.has(key) ? map.get(key) : null;
+    },
+    async setItem(key, value) {
+      await tick();
+      map.set(key, value);
+    },
+    async removeItem(key) {
+      await tick();
+      map.delete(key);
+    },
+  };
+}
+
+test("splitChunks preserves every character including newlines", () => {
+  const value = "a\nb\nc".padEnd(CHUNK_SIZE * 2 + 5, "x") + "\n";
+  const chunks = splitChunks(value);
+  assert.equal(chunks.join(""), value, "reassembly must equal the original");
+  assert.ok(
+    chunks.every((chunk) => chunk.length <= CHUNK_SIZE),
+    "no chunk may exceed the SecureStore size limit",
+  );
+});
+
+test("LargeSecureStore round-trips oversized, newline-bearing session payloads", async () => {
+  const store = new LargeSecureStore(makeAsyncSecureBackend());
+  // > CHUNK_SIZE, with newlines and a multibyte char a `.{1,N}` regex would drop.
+  const value = "session-α\n".repeat(600) + "Z";
+  assert.ok(value.length > CHUNK_SIZE);
+  await store.setItem("sb-auth-token", value);
+  assert.equal(await store.getItem("sb-auth-token"), value);
+});
+
+test("LargeSecureStore serializes concurrent reads and writes (never a partial or null read)", async () => {
+  const store = new LargeSecureStore(makeAsyncSecureBackend());
+  const big1 = "A".repeat(CHUNK_SIZE * 3 + 17);
+  const big2 = "B".repeat(CHUNK_SIZE * 2 + 9);
+  await store.setItem("sb-auth-token", big1);
+
+  // A write racing several reads. The mutex must make every read observe a
+  // complete committed value — without it, a read could catch the mid-write
+  // window (count present, chunks deleted) and return null or a partial string.
+  const [, ...reads] = await Promise.all([
+    store.setItem("sb-auth-token", big2),
+    store.getItem("sb-auth-token"),
+    store.getItem("sb-auth-token"),
+    store.getItem("sb-auth-token"),
+  ]);
+  for (const read of reads) {
+    assert.ok(
+      read === big1 || read === big2,
+      "each concurrent read must be a complete committed value, never partial or null",
+    );
+  }
+  assert.equal(await store.getItem("sb-auth-token"), big2);
+});
+
+test("classifyStoredSession drops only parseable, refresh-token-less payloads", () => {
+  assert.equal(
+    classifyStoredSession(JSON.stringify({ refresh_token: "r1", access_token: "a" })),
+    "usable",
+  );
+  assert.equal(
+    classifyStoredSession(JSON.stringify({ currentSession: { refresh_token: "r1" } })),
+    "usable",
+  );
+  assert.equal(
+    classifyStoredSession(JSON.stringify({ access_token: "a" })),
+    "missing-refresh-token",
+  );
+  assert.equal(
+    classifyStoredSession(JSON.stringify({ refresh_token: "" })),
+    "missing-refresh-token",
+  );
+  // A truncated/corrupt read must NOT be treated as droppable — deleting on it
+  // would turn a transient glitch into a permanent sign-out.
+  assert.equal(classifyStoredSession('{"refresh_token":"r1","acce'), "unparseable");
+  assert.equal(classifyStoredSession("null"), "unparseable");
 });
 
 await testChain;
