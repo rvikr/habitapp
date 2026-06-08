@@ -86,6 +86,7 @@ import {
 import { resolveAiSmartReminderPlans } from "../lib/coach/smart-reminder-ai.ts";
 import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
+import { buildCreatedHabits, pickTutorialHabit } from "../lib/coach/post-onboarding.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
 import { generateContent } from "../supabase/functions/_shared/gemini.ts";
@@ -2091,6 +2092,59 @@ test("routine builder gives office workers water posture walking and sleep habit
   assert.ok(names.some((name) => name.includes("walk")));
   assert.ok(names.some((name) => name.includes("sleep")));
   assert.ok(routine.length <= 5);
+});
+
+function recommendation(name, habitType) {
+  return {
+    id: name,
+    reason: "because",
+    selected: true,
+    name,
+    description: null,
+    icon: "water_drop",
+    color: "primary",
+    unit: "ml",
+    target: 2000,
+    habitType,
+  };
+}
+
+test("buildCreatedHabits zips selected recs with created ids and keeps merged, drops failures", () => {
+  const selected = [
+    recommendation("Drink Water", "water_intake"),
+    recommendation("Walk", "walk"),
+    recommendation("Sleep", "sleep"),
+  ];
+  const results = [
+    { ok: true, id: "id-water" },
+    { ok: false, id: null, error: "nope" }, // failure in the middle
+    { ok: true, id: "id-sleep", merged: true }, // merged habits are kept
+  ];
+  const created = buildCreatedHabits(selected, results);
+  assert.deepEqual(
+    created.map((h) => h.id),
+    ["id-water", "id-sleep"],
+  );
+  // alignment preserved: the kept entries carry the right rec metadata
+  assert.equal(created[0].name, "Drink Water");
+  assert.equal(created[0].habitType, "water_intake");
+  assert.equal(created[1].name, "Sleep");
+});
+
+test("buildCreatedHabits drops ok results without an id and handles empty input", () => {
+  assert.deepEqual(buildCreatedHabits([], []), []);
+  assert.deepEqual(
+    buildCreatedHabits([recommendation("Walk", "walk")], [{ ok: true, id: null }]),
+    [],
+  );
+});
+
+test("pickTutorialHabit prefers the water habit, else first, else null", () => {
+  const water = { id: "w", name: "Drink Water", habitType: "water_intake" };
+  const walk = { id: "k", name: "Walk", habitType: "walk" };
+  assert.equal(pickTutorialHabit([walk, water]).id, "w"); // water preferred even when not first
+  assert.equal(pickTutorialHabit([walk]).id, "k"); // falls back to the first created habit
+  assert.equal(pickTutorialHabit([]), null); // null only when nothing was created
 });
 
 test("routine builder gives students focus revision reading and screen limit habits", () => {

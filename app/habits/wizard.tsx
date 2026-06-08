@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   ActivityIndicator,
+  BackHandler,
   ScrollView,
   Text,
   TextInput,
@@ -9,11 +10,17 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Icon from "@/components/icon";
+import { useCelebrate } from "@/components/celebration";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
-import { createRoutineHabits } from "@/lib/data/actions";
+import { createRoutineHabits, toggleHabit } from "@/lib/data/actions";
+import {
+  buildCreatedHabits,
+  pickTutorialHabit,
+  type CreatedHabit,
+} from "@/lib/coach/post-onboarding";
 import {
   buildRoutineRecommendations,
   type HabitRecommendation,
@@ -25,6 +32,7 @@ import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 
 type StepId = "goals" | "lifestyle" | "sleep" | "workload" | "stress" | "fitnessLevel";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
+type PostCreatePhase = "confirm" | "tutorial" | null;
 
 const GOAL_OPTIONS: Option[] = [
   { value: "energy", label: "Energy", detail: "Feel less drained", icon: "weather-sunny" },
@@ -120,9 +128,32 @@ export default function HabitWizardScreen() {
   const [loadingRoutine, setLoadingRoutine] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [postPhase, setPostPhase] = useState<PostCreatePhase>(null);
+  const [createdHabits, setCreatedHabits] = useState<CreatedHabit[]>([]);
+  const [tutorialCompleting, setTutorialCompleting] = useState(false);
+  const celebrate = useCelebrate();
 
   const step = STEPS[stepIndex];
   const selectedCount = recommendations?.filter((item) => item.selected).length ?? 0;
+  const tutorialHabit = pickTutorialHabit(createdHabits);
+
+  // While in a post-create phase, consume Android back: tutorial -> confirm,
+  // confirm -> dashboard. Never let it fall back into the wizard/review screen.
+  useFocusEffect(
+    useCallback(() => {
+      if (postPhase === null) return;
+      const onBack = () => {
+        if (postPhase === "tutorial") {
+          setPostPhase("confirm");
+          return true;
+        }
+        router.replace("/?newUser=1");
+        return true;
+      };
+      const sub = BackHandler.addEventListener("hardwareBackPress", onBack);
+      return () => sub.remove();
+    }, [postPhase, router]),
+  );
 
   function toggleGoal(goal: string) {
     setAnswers((current) => ({
@@ -210,7 +241,48 @@ export default function HabitWizardScreen() {
       Alert.alert(t("Some habits were not created"), failures.join("\n"));
       return;
     }
-    router.replace("/");
+
+    const created = buildCreatedHabits(selected, results);
+    if (created.length === 0) {
+      router.replace("/?newUser=1"); // nothing to celebrate; straight to dashboard
+      return;
+    }
+    setCreatedHabits(created);
+    setPostPhase("confirm");
+  }
+
+  async function handleTutorialComplete() {
+    const habit = pickTutorialHabit(createdHabits);
+    if (!habit) {
+      router.replace("/?newUser=1");
+      return;
+    }
+    setTutorialCompleting(true);
+    const result = await toggleHabit(habit.id, false, habit.target ?? null);
+    setTutorialCompleting(false);
+    if (!result.ok) {
+      Alert.alert(t("Could not complete habit"), result.error ?? t("Try again."));
+      return; // stay on tutorial to retry or skip
+    }
+    celebrate(
+      t("🎉 Great Start! 1 of {total} habits completed today.", { total: createdHabits.length }),
+    );
+    router.replace("/?newUser=1");
+  }
+
+  if (postPhase === "confirm") {
+    return <ConfirmScreen habits={createdHabits} onContinue={() => setPostPhase("tutorial")} />;
+  }
+
+  if (postPhase === "tutorial" && tutorialHabit) {
+    return (
+      <TutorialScreen
+        habit={tutorialHabit}
+        completing={tutorialCompleting}
+        onComplete={handleTutorialComplete}
+        onSkip={() => router.replace("/?newUser=1")}
+      />
+    );
   }
 
   if (recommendations) {
@@ -471,6 +543,130 @@ export default function HabitWizardScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function ConfirmScreen({ habits, onContinue }: { habits: CreatedHabit[]; onContinue: () => void }) {
+  const { t } = useLanguage();
+  return (
+    <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
+        <View className="px-margin-mobile gap-lg pt-xl">
+          <View className="items-center gap-md">
+            <View className="w-16 h-16 rounded-full bg-primary-fixed items-center justify-center">
+              <MaterialCommunityIcons name="party-popper" size={32} color="#F26B1F" />
+            </View>
+            <View className="items-center gap-xs">
+              <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold text-center">
+                {t("Your routine is ready")}
+              </Text>
+              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
+                {t(
+                  habits.length === 1
+                    ? "{count} habit, ready to go."
+                    : "{count} habits, ready to go.",
+                  { count: habits.length },
+                )}
+              </Text>
+            </View>
+          </View>
+
+          <View className="gap-sm">
+            {habits.map((habit) => (
+              <View
+                key={habit.id}
+                className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md flex-row items-center gap-md"
+              >
+                <View className="w-12 h-12 rounded-full bg-primary-fixed items-center justify-center">
+                  <Icon name={habit.icon} size={24} color="#F26B1F" />
+                </View>
+                <View className="flex-1 gap-xs">
+                  <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                    {t(habit.name)}
+                  </Text>
+                  {habit.target != null && (
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit })}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            className="bg-primary rounded-full py-md items-center"
+            onPress={onContinue}
+          >
+            <Text className="text-on-primary text-label-lg font-semibold">{t("Let's begin")}</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function TutorialScreen({
+  habit,
+  completing,
+  onComplete,
+  onSkip,
+}: {
+  habit: CreatedHabit;
+  completing: boolean;
+  onComplete: () => void;
+  onSkip: () => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
+        <View className="px-margin-mobile gap-lg pt-xl">
+          <View className="gap-xs">
+            <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">
+              {t("Let's complete your first habit together")}
+            </Text>
+            <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
+              {t("Tap below to mark {name} complete. That's your first win.", {
+                name: t(habit.name),
+              })}
+            </Text>
+          </View>
+
+          <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-lg items-center gap-md">
+            <View className="w-20 h-20 rounded-full bg-primary-fixed items-center justify-center">
+              <Icon name={habit.icon} size={36} color="#F26B1F" />
+            </View>
+            <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold text-center">
+              {t(habit.name)}
+            </Text>
+            {habit.target != null && (
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit })}
+              </Text>
+            )}
+          </View>
+
+          <TouchableOpacity
+            className={`rounded-full py-md items-center ${completing ? "bg-outline" : "bg-primary"}`}
+            onPress={onComplete}
+            disabled={completing}
+          >
+            {completing ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text className="text-on-primary text-label-lg font-semibold">{t("Complete")}</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity className="items-center py-sm" onPress={onSkip} disabled={completing}>
+            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
+              {t("Skip for now")}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
