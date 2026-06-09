@@ -18,7 +18,10 @@ export default function NotificationScheduler() {
       if (cancelled) return;
       const sub = Notifications.addNotificationResponseReceivedListener((response) => {
         const habitId = response.notification.request.content.data?.habitId as string | undefined;
+        // Single-habit reminders deep-link to the habit; bundled reminders carry
+        // no habitId, so open the dashboard where all pending habits are listed.
         if (habitId) router.push(`/habits/${habitId}`);
+        else router.push("/");
       });
       remove = () => sub.remove();
     })();

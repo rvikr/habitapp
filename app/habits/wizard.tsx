@@ -3,6 +3,7 @@ import {
   Alert,
   ActivityIndicator,
   BackHandler,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -16,6 +17,8 @@ import Icon from "@/components/icon";
 import { useCelebrate } from "@/components/celebration";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
 import { createRoutineHabits, toggleHabit } from "@/lib/data/actions";
+import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
+import { syncScheduledReminders } from "@/lib/data/reminder-sync";
 import {
   buildCreatedHabits,
   pickTutorialHabit,
@@ -32,7 +35,23 @@ import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 
 type StepId = "goals" | "lifestyle" | "sleep" | "workload" | "stress" | "fitnessLevel";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
-type PostCreatePhase = "confirm" | "tutorial" | null;
+type PostCreatePhase = "confirm" | "notifications" | "tutorial" | null;
+
+// Web-only: iOS only allows push for installed (home-screen) PWAs, so on iOS
+// Safari we guide the user to install instead of showing a non-functional
+// Allow button (mirrors components/notification-permission-card.tsx).
+function isIosBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    (navigator as unknown as { standalone?: boolean }).standalone === true ||
+    window.matchMedia("(display-mode: standalone)").matches
+  );
+}
 
 const GOAL_OPTIONS: Option[] = [
   { value: "energy", label: "Energy", detail: "Feel less drained", icon: "weather-sunny" },
@@ -129,6 +148,7 @@ export default function HabitWizardScreen() {
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [postPhase, setPostPhase] = useState<PostCreatePhase>(null);
+  const [needsNotifPrimer, setNeedsNotifPrimer] = useState(false);
   const [createdHabits, setCreatedHabits] = useState<CreatedHabit[]>([]);
   const [tutorialCompleting, setTutorialCompleting] = useState(false);
   const celebrate = useCelebrate();
@@ -248,6 +268,9 @@ export default function HabitWizardScreen() {
       return;
     }
     setCreatedHabits(created);
+    // Only show the notification primer when permission hasn't been decided yet.
+    const status = await getPermissionStatus();
+    setNeedsNotifPrimer(status === "undetermined");
     setPostPhase("confirm");
   }
 
@@ -271,7 +294,16 @@ export default function HabitWizardScreen() {
   }
 
   if (postPhase === "confirm") {
-    return <ConfirmScreen habits={createdHabits} onContinue={() => setPostPhase("tutorial")} />;
+    return (
+      <ConfirmScreen
+        habits={createdHabits}
+        onContinue={() => setPostPhase(needsNotifPrimer ? "notifications" : "tutorial")}
+      />
+    );
+  }
+
+  if (postPhase === "notifications") {
+    return <NotificationPrimerScreen onResolved={() => setPostPhase("tutorial")} />;
   }
 
   if (postPhase === "tutorial" && tutorialHabit) {
@@ -602,6 +634,76 @@ function ConfirmScreen({ habits, onContinue }: { habits: CreatedHabit[]; onConti
             onPress={onContinue}
           >
             <Text className="text-on-primary text-label-lg font-semibold">{t("Let's begin")}</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function NotificationPrimerScreen({ onResolved }: { onResolved: () => void }) {
+  const { t } = useLanguage();
+  const [busy, setBusy] = useState(false);
+
+  // On iOS Safari (not installed) push isn't available yet — guide the user to
+  // install the PWA instead of showing a non-functional Allow button.
+  const showIosInstallGuide = Platform.OS === "web" && isIosBrowser() && !isStandalone();
+
+  async function handleEnable() {
+    if (busy) return;
+    setBusy(true);
+    const granted = await requestPermission();
+    // Reminders were created with permission still undetermined, so the initial
+    // sync no-oped. Schedule them now that the user has granted access.
+    if (granted) await syncScheduledReminders();
+    setBusy(false);
+    onResolved();
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
+      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
+        <View className="px-margin-mobile gap-lg pt-xl">
+          <View className="items-center gap-md">
+            <View className="w-16 h-16 rounded-full bg-primary-fixed items-center justify-center">
+              <MaterialCommunityIcons name="bell-ring" size={32} color="#F26B1F" />
+            </View>
+            <View className="items-center gap-xs">
+              <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold text-center">
+                {t("Stay on track with reminders")}
+              </Text>
+              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
+                {showIosInstallGuide
+                  ? t(
+                      "Tap Share → Add to Home Screen, then open Lagan from your home screen to enable notifications.",
+                    )
+                  : t(
+                      "Allow notifications so we can nudge you at your reminder times. If several habits share a time, we'll bundle them into one reminder.",
+                    )}
+              </Text>
+            </View>
+          </View>
+
+          {!showIosInstallGuide && (
+            <TouchableOpacity
+              className={`rounded-full py-md items-center ${busy ? "bg-outline" : "bg-primary"}`}
+              onPress={handleEnable}
+              disabled={busy}
+            >
+              {busy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text className="text-on-primary text-label-lg font-semibold">
+                  {t("Enable reminders")}
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity className="items-center py-sm" onPress={onResolved} disabled={busy}>
+            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
+              {showIosInstallGuide ? t("Continue") : t("Maybe later")}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

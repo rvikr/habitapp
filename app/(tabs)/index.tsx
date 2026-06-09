@@ -16,6 +16,7 @@ import {
   shouldRequireFirstRunOnboarding,
 } from "@/lib/auth/auth-welcome";
 import { TrialSubscriptionBanner } from "@/components/pro-access-banner";
+import NotificationPermissionCard from "@/components/notification-permission-card";
 import HabitCard from "@/components/habit-card";
 import ProBadge from "@/components/pro-badge";
 import ProgressRing from "@/components/progress-ring";
@@ -542,6 +543,11 @@ export default function DashboardScreen() {
             />
           </View>
         ) : null}
+
+        {/* Reminder permission prompt — self-hides once notifications are granted */}
+        <View className="mt-md">
+          <NotificationPermissionCard />
+        </View>
 
         {/* Header */}
         <View className="flex-row items-center justify-between px-margin-mobile pt-md pb-sm">

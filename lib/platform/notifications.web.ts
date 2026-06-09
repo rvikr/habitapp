@@ -77,21 +77,23 @@ export async function getPermissionStatus(): Promise<"granted" | "denied" | "und
   return Notification.permission === "default" ? "undetermined" : Notification.permission;
 }
 
-export async function scheduleHabitReminder(
-  _habitId: string,
-  _habitName: string,
+// Web relies on the server-side web-push-reminders edge function for delivery,
+// so client-side scheduling is a no-op.
+export async function scheduleWeeklyReminder(
+  _weekday: number,
   _time: string,
-  _days: number[],
-  _body?: string,
-): Promise<string[]> {
-  return [];
+  _title: string,
+  _body: string,
+  _data: Record<string, unknown>,
+): Promise<string> {
+  return "";
 }
 
-export async function scheduleHabitReminderAt(
-  _habitId: string,
-  _habitName: string,
+export async function scheduleDateReminder(
   _fireAt: Date,
-  _body?: string,
+  _title: string,
+  _body: string,
+  _data: Record<string, unknown>,
 ): Promise<string> {
   return "";
 }

@@ -440,7 +440,12 @@ export async function updateHabitReminders(
 
   clearDataCache();
   if (data.enabled) await syncScheduledReminders();
-  else await cancelHabitReminders(habitId);
+  else {
+    // Cancel this habit's scheduled ids, then rebuild so any bundle it shared
+    // with other habits is re-scheduled without it.
+    await cancelHabitReminders(habitId);
+    scheduleReminderSync();
+  }
   return { ok: true };
 }
 
@@ -639,7 +644,11 @@ export async function updateHabitFull(
 
   clearDataCache();
   if (data.remindersEnabled) scheduleReminderSync();
-  else void cancelHabitReminders(habitId);
+  else {
+    // Drop this habit's reminders, then rebuild so a shared bundle is re-issued
+    // without it.
+    void cancelHabitReminders(habitId).then(() => scheduleReminderSync());
+  }
   return { ok: true };
 }
 
@@ -654,7 +663,10 @@ export async function deleteHabit(habitId: string): Promise<ActionResult> {
   if (error) return mutationResult(error);
 
   clearDataCache();
+  // Cancel the deleted habit's scheduled ids, then rebuild so any bundle it
+  // shared with remaining habits is re-scheduled without it.
   await cancelHabitReminders(habitId);
+  scheduleReminderSync();
   return { ok: true };
 }
 

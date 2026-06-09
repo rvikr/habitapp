@@ -20,47 +20,37 @@ export async function getPermissionStatus(): Promise<"granted" | "denied" | "und
   return status as "granted" | "denied" | "undetermined";
 }
 
-export async function scheduleHabitReminder(
-  habitId: string,
-  habitName: string,
+// Schedules a single weekly notification on one weekday (0-6, Sun-Sat) at the
+// given HH:MM. Callers supply the title/body/data so a single notification can
+// represent either one habit or a bundle of habits sharing the same time.
+export async function scheduleWeeklyReminder(
+  weekday: number,
   time: string,
-  days: number[],
-  body?: string,
-): Promise<string[]> {
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+): Promise<string> {
   const [hour, minute] = time.split(":").map(Number);
-  const ids: string[] = [];
-
-  for (const day of days) {
-    const id = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: habitName,
-        body: body ?? habitName,
-        data: { habitId },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
-        weekday: day === 0 ? 1 : day + 1,
-        hour,
-        minute,
-      },
-    });
-    ids.push(id);
-  }
-  return ids;
+  return Notifications.scheduleNotificationAsync({
+    content: { title, body, data },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+      weekday: weekday === 0 ? 1 : weekday + 1,
+      hour,
+      minute,
+    },
+  });
 }
 
-export async function scheduleHabitReminderAt(
-  habitId: string,
-  habitName: string,
+// Schedules a single one-off notification at an absolute date/time.
+export async function scheduleDateReminder(
   fireAt: Date,
-  body?: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
 ): Promise<string> {
   return Notifications.scheduleNotificationAsync({
-    content: {
-      title: habitName,
-      body: body ?? habitName,
-      data: { habitId },
-    },
+    content: { title, body, data },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: fireAt,
