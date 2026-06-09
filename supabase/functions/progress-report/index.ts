@@ -22,11 +22,33 @@ const GEMINI_REPORT_MODEL =
   Deno.env.get("GEMINI_REPORT_MODEL") ?? Deno.env.get("GEMINI_COACH_MODEL") ?? "gemini-2.5-flash";
 const CRON_SECRET = Deno.env.get("PROGRESS_REPORT_CRON_SECRET");
 const MAX_BATCH_USERS = Number(Deno.env.get("PROGRESS_REPORT_BATCH_SIZE") ?? 200);
-const BATCH_CONCURRENCY = Math.max(1, Number(Deno.env.get("PROGRESS_REPORT_CONCURRENCY") ?? 4));
+const BATCH_CONCURRENCY = Math.max(1, Number(Deno.env.get("PROGRESS_REPORT_CONCURRENCY") ?? 2));
+// Minimum spacing between Gemini calls across the whole worker pool. Staggers the
+// workers' otherwise-simultaneous start and paces the batch under the shared
+// project rate limit instead of bursting BATCH_CONCURRENCY calls at once.
+const PROGRESS_REPORT_MIN_INTERVAL_MS = Math.max(
+  0,
+  Number(Deno.env.get("PROGRESS_REPORT_MIN_INTERVAL_MS") ?? 1200),
+);
 // Stop scheduling new users past this elapsed wall-clock so the function exits
 // cleanly before the platform limit; remaining users are picked up on the next
 // (idempotent) cron run.
 const BATCH_DEADLINE_MS = Math.max(1000, Number(Deno.env.get("PROGRESS_REPORT_DEADLINE_MS") ?? 120000));
+
+// Returns an async gate shared across the worker pool: it resolves immediately
+// the first time, then spaces subsequent calls at least `intervalMs` apart no
+// matter how many workers call it. The waits count against BATCH_DEADLINE_MS, so
+// pacing naturally yields to the wall-clock budget and the next cron resumes.
+function createMinIntervalGate(intervalMs: number): () => Promise<void> {
+  let nextAllowedAt = 0;
+  return async function gate(): Promise<void> {
+    if (intervalMs <= 0) return;
+    const now = Date.now();
+    const wait = Math.max(0, nextAllowedAt - now);
+    nextAllowedAt = Math.max(now, nextAllowedAt) + intervalMs;
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  };
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -325,6 +347,7 @@ async function runCronBatch(admin: ReturnType<typeof createClient>) {
   // safely completed by the next cron invocation.
   let cursor = 0;
   let deadlineReached = false;
+  const gate = createMinIntervalGate(PROGRESS_REPORT_MIN_INTERVAL_MS);
 
   async function worker(): Promise<void> {
     while (true) {
@@ -334,6 +357,7 @@ async function runCronBatch(admin: ReturnType<typeof createClient>) {
       }
       const index = cursor++;
       if (index >= users.length) return;
+      await gate();
       const result = await generateForUser(admin, users[index].user_id, previousWeek);
       processed += 1;
       if (result.status === "written") written += 1;

@@ -9,7 +9,12 @@ import {
   type HabitProgress,
 } from "../coach/habit-intelligence";
 import type { Habit } from "../../types/db";
-import { buildCoachSignals, chooseTopCoachSignal, normalizeCoachTone } from "../coach/coach";
+import {
+  buildCoachSignals,
+  chooseTopCoachSignal,
+  normalizeCoachTone,
+  type CoachSignal,
+} from "../coach/coach";
 import { resolveCoachMessage } from "../coach/coach-ai";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
 import {
@@ -43,6 +48,11 @@ export type ScheduledReminder = {
 type ReminderScheduleOptions = {
   aiSmartReminders?: boolean;
 };
+
+// Cap how many habits warm a fresh AI coach message per reminder sync. Messages
+// are cached (6h) and optional, so refreshing only the highest-priority signals
+// keeps the most relevant nudges fresh without bursting the Gemini rate limit.
+const MAX_COACH_MESSAGE_REFRESH = 3;
 
 // Returns the hour (0-23) the user most often logs this habit, or null if too few data points.
 function typicalHourFromTimestamps(timestamps: string[]): number | null {
@@ -146,6 +156,31 @@ export async function getReminderSchedule(
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
   const proAccess = resolveProAccess(profile as ProAccessProfile | null, now);
   const aiCoachEnabled = proAccess.hasPro && (await getAiSuggestionsEnabled());
+
+  // Compute each habit's top local coach signal once, then allow a background AI
+  // refresh for only the highest-priority few (see MAX_COACH_MESSAGE_REFRESH) so
+  // a multi-habit sync doesn't fire one Gemini call per habit at the same instant.
+  const coachSignalByHabit = new Map<string, CoachSignal>();
+  for (const h of habits ?? []) {
+    const habitId = h.id as string;
+    const hc = byHabit.get(habitId) ?? [];
+    const signal = chooseTopCoachSignal(
+      buildCoachSignals({
+        habits: [h as Habit],
+        completions: hc.map((c) => ({ habit_id: habitId, ...c })),
+        now,
+        tone: coachTone,
+      }),
+    );
+    if (signal) coachSignalByHabit.set(habitId, signal);
+  }
+  const refreshHabitIds = new Set(
+    [...coachSignalByHabit.entries()]
+      .sort((a, b) => b[1].priority - a[1].priority)
+      .slice(0, MAX_COACH_MESSAGE_REFRESH)
+      .map(([habitId]) => habitId),
+  );
+
   for (const h of habits ?? []) {
     const habit = h as Habit;
     const times = (h.reminder_times ?? []) as string[];
@@ -154,16 +189,13 @@ export async function getReminderSchedule(
     const streak = streakFromDates(hc.map((c) => c.completed_on));
     const typicalHour = typicalHourFromTimestamps(hc.map((c) => c.created_at));
     const reminderContext = { streak, typicalHour, percentileAhead };
-    const localCoachSignal = chooseTopCoachSignal(
-      buildCoachSignals({
-        habits: [habit],
-        completions: hc.map((c) => ({ habit_id: habit.id, ...c })),
-        now,
-        tone: coachTone,
-      }),
-    );
+    const localCoachSignal = coachSignalByHabit.get(habit.id as string) ?? null;
     const coachMessage = localCoachSignal
-      ? await resolveCoachMessage(localCoachSignal, { enabled: aiCoachEnabled, nonBlocking: true })
+      ? await resolveCoachMessage(localCoachSignal, {
+          enabled: aiCoachEnabled,
+          nonBlocking: true,
+          refresh: refreshHabitIds.has(habit.id as string),
+        })
       : undefined;
     const todayCompletion = hc.find((c) => c.completed_on === todayKey);
     const todayProgress = progressForHabit(habit, todayCompletion);

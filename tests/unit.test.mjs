@@ -90,7 +90,8 @@ import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCreatedHabits, pickTutorialHabit } from "../lib/coach/post-onboarding.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
-import { generateContent } from "../supabase/functions/_shared/gemini.ts";
+import { generateContent, parseRetryDelayMs } from "../supabase/functions/_shared/gemini.ts";
+import { createLimiter } from "../lib/utils/concurrency-limiter.ts";
 import {
   buildWeeklyStats,
   buildFacts,
@@ -2588,6 +2589,98 @@ test("geminiFetch returns non-retryable errors immediately", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("parseRetryDelayMs honors the Retry-After header (seconds) over the body", () => {
+  assert.equal(parseRetryDelayMs("3", null), 3000);
+  assert.equal(parseRetryDelayMs("2", '{"error":{"details":[{"retryDelay":"9s"}]}}'), 2000);
+});
+
+test("parseRetryDelayMs reads RetryInfo.retryDelay from the JSON body", () => {
+  assert.equal(
+    parseRetryDelayMs(null, '{"error":{"details":[{"@type":"x","retryDelay":"5s"}]}}'),
+    5000,
+  );
+  assert.equal(parseRetryDelayMs(null, '{"error":{"details":[{"retryDelay":"1.5s"}]}}'), 1500);
+});
+
+test("parseRetryDelayMs tolerates a missing header and a non-JSON body", () => {
+  assert.equal(parseRetryDelayMs(null, "rate limited"), null);
+  assert.equal(parseRetryDelayMs(null, null), null);
+  assert.equal(parseRetryDelayMs("0", null), null);
+});
+
+test("parseRetryDelayMs caps the honored delay at the configured maximum", () => {
+  // Default GEMINI_MAX_RETRY_DELAY_MS is 8000ms.
+  assert.equal(parseRetryDelayMs("3600", null), 8000);
+  assert.equal(parseRetryDelayMs(null, '{"error":{"details":[{"retryDelay":"600s"}]}}'), 8000);
+});
+
+test("geminiFetch honors a 429 Retry-After header then succeeds", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    if (calls === 1) {
+      return new Response("slow down", { status: 429, headers: { "Retry-After": "0.01" } });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+  try {
+    const response = await generateContent("model-x", "key", { contents: [] }, { timeoutMs: 5000 });
+    assert.equal(response.ok, true);
+    assert.equal(calls, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("createLimiter runs at most max tasks concurrently", async () => {
+  const limiter = createLimiter(2);
+  let active = 0;
+  let peak = 0;
+  const makeTask = () => async () => {
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    active--;
+  };
+  await Promise.all(Array.from({ length: 6 }, () => limiter(makeTask())));
+  assert.equal(peak, 2);
+  assert.equal(active, 0);
+});
+
+test("createLimiter preserves each task's result", async () => {
+  const limiter = createLimiter(1);
+  const results = await Promise.all([1, 2, 3].map((n) => limiter(async () => n * 2)));
+  assert.deepEqual(results, [2, 4, 6]);
+});
+
+test("AI coach message skips the background refresh when refresh is false", async () => {
+  const signal = {
+    kind: "encouragement",
+    priority: 10,
+    habitId: "habit-skip",
+    habitName: "Read",
+    tone: "friendly",
+    suggestedAction: "open_habit",
+    message: "Read one page now.",
+  };
+  const storage = createMemoryStorage();
+  let calls = 0;
+  const message = await resolveCoachMessage(signal, {
+    enabled: true,
+    now: new Date(2026, 4, 10, 9, 15),
+    storage,
+    nonBlocking: true,
+    refresh: false,
+    invoke: async () => {
+      calls++;
+      return "Generated coach line.";
+    },
+  });
+  assert.equal(message, signal.message);
+  assert.equal(calls, 0);
 });
 
 // ---------------------------------------------------------------------------

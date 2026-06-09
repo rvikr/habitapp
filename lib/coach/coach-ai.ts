@@ -1,4 +1,5 @@
 import type { CoachSignal } from "./coach";
+import { createLimiter } from "../utils/concurrency-limiter.ts";
 
 type CoachMessageStorage = {
   getItem(key: string): Promise<string | null>;
@@ -18,6 +19,13 @@ type ResolveCoachMessageOptions = {
   cooldownMs?: number;
   /** Return fallback immediately on cache miss; refresh the cache in background. */
   nonBlocking?: boolean;
+  /**
+   * When false, suppress the background refresh on a cache miss (nonBlocking
+   * only) and just return the fallback. Lets a multi-habit reminder sync warm
+   * only the highest-priority signals instead of bursting one call per habit.
+   * Defaults to true (refresh allowed).
+   */
+  refresh?: boolean;
 };
 
 type CachedCoachMessage = {
@@ -31,6 +39,10 @@ const DEFAULT_NEGATIVE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_COOLDOWN_MS = 60 * 60 * 1000;
 const COOLDOWN_KEY = "habbit:coach-message:cooldown";
 const inflightInvocations = new Map<string, Promise<void>>();
+// Serialize background coach-message invocations so a reminder sync that touches
+// many habits issues them one at a time instead of in a simultaneous burst.
+const COACH_MESSAGE_CONCURRENCY = 1;
+const coachInvokeLimiter = createLimiter(COACH_MESSAGE_CONCURRENCY);
 
 export async function resolveCoachMessage(
   signal: CoachSignal,
@@ -55,10 +67,13 @@ export async function resolveCoachMessage(
   const invoke = options.invoke ?? invokeCoachMessage;
 
   if (options.nonBlocking) {
+    // Cache miss with refresh suppressed (fan-out cap): return the deterministic
+    // fallback without launching a background invocation.
+    if (options.refresh === false) return signal.message;
     if (!inflightInvocations.has(key)) {
       const promise = (async () => {
         try {
-          const generated = (await invoke(signal))?.trim();
+          const generated = (await coachInvokeLimiter(() => invoke(signal)))?.trim();
           if (generated) await writePositive(storage, key, generated, now);
           else await writeNegative(storage, key, signal.message, now);
         } catch (error) {
