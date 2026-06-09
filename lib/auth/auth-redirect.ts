@@ -1,8 +1,13 @@
+import { Platform } from "react-native";
 import * as Linking from "expo-linking";
+import { AUTH_CALLBACK_PATH, buildWebAuthCallbackUrl } from "./auth-callback-url";
 
-export const AUTH_CALLBACK_PATH = "auth/callback";
+export { AUTH_CALLBACK_PATH };
 
 export function authCallbackUrl() {
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    return buildWebAuthCallbackUrl(window.location.origin);
+  }
   return Linking.createURL(AUTH_CALLBACK_PATH);
 }
 

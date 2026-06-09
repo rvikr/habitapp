@@ -28,6 +28,7 @@ import {
 } from "../lib/data/habit-catalog.ts";
 import { buildLifeBalanceWheelSegments } from "../lib/coach/life-balance.ts";
 import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
+import { buildWebAuthCallbackUrl } from "../lib/auth/auth-callback-url.ts";
 import {
   googleNativeAuthConfig,
   googleNativeAuthReady,
@@ -1034,6 +1035,34 @@ test("auth callback params can reconstruct a callback URL when native Linking ha
   });
 
   assert.equal(url, "/auth/callback?code=auth-code&state=first-state");
+});
+
+test("web auth callback URL keeps the Expo Router base path so the PWA handles OAuth", () => {
+  // Production PWA served under /app: redirect must re-enter the PWA, not the
+  // marketing site's root /auth/callback.
+  assert.equal(
+    buildWebAuthCallbackUrl("https://lagan.health", "/app", false),
+    "https://lagan.health/app/auth/callback",
+  );
+  // Dev web serves routes at root, so no base path is applied.
+  assert.equal(
+    buildWebAuthCallbackUrl("http://localhost:8081", "/app", true),
+    "http://localhost:8081/auth/callback",
+  );
+  // No configured base path → plain origin-relative callback.
+  assert.equal(
+    buildWebAuthCallbackUrl("https://lagan.health", undefined, false),
+    "https://lagan.health/auth/callback",
+  );
+  // Stray leading/trailing slashes in the base path are normalized.
+  assert.equal(
+    buildWebAuthCallbackUrl("https://lagan.health", "app/", false),
+    "https://lagan.health/app/auth/callback",
+  );
+  assert.equal(
+    buildWebAuthCallbackUrl("https://lagan.health", "/app/", false),
+    "https://lagan.health/app/auth/callback",
+  );
 });
 
 test("native Supabase OAuth uses PKCE so Android callbacks carry query params", () => {
