@@ -32,6 +32,15 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 function welcomeHtml(appUrl: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -76,7 +85,7 @@ Deno.serve(async (req) => {
   if (!RESEND_API_KEY || !WELCOME_EMAIL_SECRET) {
     return json({ error: "Welcome email is not configured" }, 503);
   }
-  if (req.headers.get("x-welcome-secret") !== WELCOME_EMAIL_SECRET) {
+  if (!timingSafeEqual(req.headers.get("x-welcome-secret") ?? "", WELCOME_EMAIL_SECRET)) {
     return json({ error: "Unauthorized" }, 401);
   }
 

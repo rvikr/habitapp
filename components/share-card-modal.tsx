@@ -13,6 +13,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { getBadgeShareMessage, getRankShareMessage } from "@/lib/utils/share-messages";
+import { useTheme } from "@/components/theme-provider";
 
 const APP_URL = "https://lagan.health";
 
@@ -36,6 +37,14 @@ interface Props {
 
 export default function ShareCardModal({ data, onClose }: Props) {
   const [sharing, setSharing] = useState(false);
+  const { colorScheme } = useTheme();
+  const isDark = colorScheme === "dark";
+  // The card preview stays dark in both themes — it mirrors the shared image.
+  // Only the sheet chrome around it follows the active theme.
+  const sheetBg = isDark ? "#111" : "#FFFFFF";
+  const mutedText = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)";
+  const secondaryText = isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.6)";
+  const secondaryBorder = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)";
 
   const getMessage = useCallback(() => {
     if (!data) return { tagline: "", subtitle: "", cardPath: "" };
@@ -108,7 +117,7 @@ export default function ShareCardModal({ data, onClose }: Props) {
   return (
     <Modal visible animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}>
-        <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#111" }}>
+        <SafeAreaView edges={["bottom"]} style={{ backgroundColor: sheetBg }}>
           <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
             {/* Header */}
             <View
@@ -121,7 +130,7 @@ export default function ShareCardModal({ data, onClose }: Props) {
             >
               <Text
                 style={{
-                  color: "rgba(255,255,255,0.5)",
+                  color: mutedText,
                   fontSize: 13,
                   fontWeight: "600",
                   letterSpacing: 1,
@@ -134,7 +143,7 @@ export default function ShareCardModal({ data, onClose }: Props) {
                 onPress={onClose}
                 hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
               >
-                <MaterialCommunityIcons name="close" size={22} color="rgba(255,255,255,0.5)" />
+                <MaterialCommunityIcons name="close" size={22} color={mutedText} />
               </TouchableOpacity>
             </View>
 
@@ -232,11 +241,11 @@ export default function ShareCardModal({ data, onClose }: Props) {
                 alignItems: "center",
                 justifyContent: "center",
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.12)",
+                borderColor: secondaryBorder,
                 marginBottom: 4,
               }}
             >
-              <Text style={{ color: "rgba(255,255,255,0.55)", fontSize: 14, fontWeight: "600" }}>
+              <Text style={{ color: secondaryText, fontSize: 14, fontWeight: "600" }}>
                 Share as Text
               </Text>
             </TouchableOpacity>

@@ -86,6 +86,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Could not update habit": "आदत अपडेट नहीं हो सकी",
   "Could not log progress": "प्रगति लॉग नहीं हो सकी",
   "Try again.": "फिर कोशिश करें.",
+  "Delete habit?": "आदत हटाएं?",
+  "This archives the habit and cancels its reminders.":
+    "इससे आदत आर्काइव हो जाएगी और उसके रिमाइंडर रद्द हो जाएंगे.",
+  "Could not delete habit": "आदत हटाई नहीं जा सकी",
+  Delete: "हटाएं",
   "Step tracking is unavailable": "स्टेप ट्रैकिंग उपलब्ध नहीं है",
   "Health Connect needs an update": "Health Connect को अपडेट चाहिए",
   "Step tracking permission is off": "स्टेप ट्रैकिंग अनुमति बंद है",
@@ -217,8 +222,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "A similar habit already existed, so I bundled the new goal into it.":
     "मिलती-जुलती आदत पहले से थी, इसलिए नया लक्ष्य उसी में जोड़ दिया गया.",
   "Habit created": "आदत बन गई",
-  "Apply the latest Supabase migration to enable saved smart metrics for this habit.":
-    "इस आदत के saved smart metrics चालू करने के लिए latest Supabase migration apply करें.",
+  "Some advanced tracking options couldn't be saved yet, but your habit is ready to use.":
+    "कुछ एडवांस ट्रैकिंग विकल्प अभी सेव नहीं हो सके, लेकिन आपकी आदत इस्तेमाल के लिए तैयार है.",
+  "Your Pro trial has ended": "आपका Pro ट्रायल खत्म हो गया है",
+  "Your habits, streaks, and data are safe. AI Coach, smart reminders, and weekly reports are paused until you subscribe.":
+    "आपकी आदतें, स्ट्रीक और डेटा सुरक्षित हैं. AI Coach, स्मार्ट रिमाइंडर और साप्ताहिक रिपोर्ट सब्सक्राइब करने तक रुके रहेंगे.",
   "Could not create habit": "आदत नहीं बन सकी",
   "New Habit": "नई आदत",
   "Create habit": "आदत बनाएं",

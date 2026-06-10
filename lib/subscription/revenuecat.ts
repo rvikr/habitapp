@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import type { PurchasesPackage } from "react-native-purchases";
 import { getCurrentUser, isSupabaseConfigured, supabase } from "../supabase/client";
+import { reportError } from "../services/sentry";
 import { resolveProAccess, type ProAccess, type ProAccessProfile } from "./access";
 
 export const PRO_ENTITLEMENT_ID = "pro";
@@ -64,7 +65,11 @@ export async function syncRevenueCatSubscription(userId?: string): Promise<ProAc
   if (!user || !isSupabaseConfigured()) return resolveProAccess(null);
 
   await configureRevenueCat(user.id);
-  await supabase.functions.invoke("sync-subscription").catch(() => undefined);
+  await supabase.functions.invoke("sync-subscription").catch((error) => {
+    reportError(error instanceof Error ? error : new Error(String(error)), {
+      context: "sync-subscription",
+    });
+  });
   return getCurrentProAccess();
 }
 

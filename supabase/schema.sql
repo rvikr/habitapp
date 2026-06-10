@@ -44,6 +44,37 @@ alter table public.habits add column if not exists reminder_strategy text defaul
 alter table public.habits add column if not exists reminder_interval_minutes int;
 alter table public.habits add column if not exists default_log_value numeric;
 
+-- Bound habit text fields (mirrors migration 20260610120000_habit_text_length_limits).
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'habits_name_length'
+      and conrelid = 'public.habits'::regclass
+  ) then
+    alter table public.habits add constraint habits_name_length
+      check (char_length(name) <= 120);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'habits_description_length'
+      and conrelid = 'public.habits'::regclass
+  ) then
+    alter table public.habits add constraint habits_description_length
+      check (description is null or char_length(description) <= 1000);
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'habits_unit_length'
+      and conrelid = 'public.habits'::regclass
+  ) then
+    alter table public.habits add constraint habits_unit_length
+      check (unit is null or char_length(unit) <= 32);
+  end if;
+end $$;
+
 do $$
 begin
   if not exists (

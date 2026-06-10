@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "AI Enabled Habit Tracking",
+    "name": "Lagan",
     "slug": "habbitapp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -56,8 +56,8 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png",
-      "name": "AI Enabled Habit Tracking",
-      "shortName": "AI Habits",
+      "name": "Lagan — AI Habit Tracker",
+      "shortName": "Lagan",
       "description": "Lagan is an AI-enabled habit tracker for iOS, Android, and web. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
       "themeColor": "#1A1A1A",
       "backgroundColor": "#f8f9fa",
@@ -98,7 +98,9 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 26
+            "minSdkVersion": 26,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
           }
         }
       ],

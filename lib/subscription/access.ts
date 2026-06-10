@@ -12,6 +12,9 @@ export type ProAccess = {
   source: ProAccessSource;
   expiresAt: string | null;
   trialDaysLeft: number | null;
+  // Set when a past trial is the reason the user is on the free tier, so the
+  // UI can explain the downgrade instead of features silently disappearing.
+  trialEndedAt: string | null;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -34,7 +37,13 @@ export function resolveProAccess(
   now = new Date(),
 ): ProAccess {
   if (profile?.is_pro) {
-    return { hasPro: true, source: "admin", expiresAt: null, trialDaysLeft: null };
+    return {
+      hasPro: true,
+      source: "admin",
+      expiresAt: null,
+      trialDaysLeft: null,
+      trialEndedAt: null,
+    };
   }
 
   if (
@@ -46,6 +55,7 @@ export function resolveProAccess(
       source: "subscription",
       expiresAt: profile.pro_expires_at ?? null,
       trialDaysLeft: null,
+      trialEndedAt: null,
     };
   }
 
@@ -55,10 +65,16 @@ export function resolveProAccess(
       source: "trial",
       expiresAt: profile.pro_trial_ends_at,
       trialDaysLeft: trialDaysLeft(profile.pro_trial_ends_at, now),
+      trialEndedAt: null,
     };
   }
 
-  return { hasPro: false, source: "free", expiresAt: null, trialDaysLeft: null };
+  const endedTimestamp = profile?.pro_trial_ends_at ? Date.parse(profile.pro_trial_ends_at) : NaN;
+  const trialEndedAt =
+    Number.isFinite(endedTimestamp) && endedTimestamp <= now.getTime()
+      ? (profile?.pro_trial_ends_at ?? null)
+      : null;
+  return { hasPro: false, source: "free", expiresAt: null, trialDaysLeft: null, trialEndedAt };
 }
 
 export function shouldShowTrialSubscriptionBanner(
@@ -71,6 +87,19 @@ export function shouldShowTrialSubscriptionBanner(
     typeof access.trialDaysLeft === "number" &&
     access.trialDaysLeft > 0
   );
+}
+
+const TRIAL_ENDED_BANNER_WINDOW_MS = 7 * MS_PER_DAY;
+
+export function shouldShowTrialEndedBanner(
+  access: ProAccess | null | undefined,
+  dismissedForTrialEnd: string | null,
+  now = new Date(),
+): boolean {
+  if (!access || access.source !== "free" || !access.trialEndedAt) return false;
+  if (dismissedForTrialEnd === access.trialEndedAt) return false;
+  const ended = Date.parse(access.trialEndedAt);
+  return Number.isFinite(ended) && now.getTime() - ended <= TRIAL_ENDED_BANNER_WINDOW_MS;
 }
 
 export function subscriptionStatusLabel(

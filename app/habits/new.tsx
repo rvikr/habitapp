@@ -21,7 +21,9 @@ export default function NewHabitScreen() {
       } else if ("migrated" in result && result.migrated === false) {
         Alert.alert(
           t("Habit created"),
-          t("Apply the latest Supabase migration to enable saved smart metrics for this habit."),
+          t(
+            "Some advanced tracking options couldn't be saved yet, but your habit is ready to use.",
+          ),
         );
       }
       router.replace("/");

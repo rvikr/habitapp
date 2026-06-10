@@ -22,6 +22,7 @@ import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/utils/date";
 import { formatAmount, isQuantityHabit, progressForHabit } from "@/lib/coach/habit-intelligence";
+import { useLanguage } from "@/components/language-provider";
 import { getHabitImageForHabit } from "@/lib/data/habit-images";
 
 const COLOR_FG: Record<string, string> = {
@@ -35,6 +36,7 @@ export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const celebrate = useCelebrate();
+  const { t } = useLanguage();
   const [habit, setHabit] = useState<Habit | null>(null);
   const [completions, setCompletions] = useState<HabitCompletion[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,7 +83,7 @@ export default function HabitDetailScreen() {
     try {
       if (!doneToday) celebrate();
       const result = await toggleHabit(habit.id, doneToday);
-      if (!result.ok) Alert.alert("Could not update habit", result.error ?? "Try again.");
+      if (!result.ok) Alert.alert(t("Could not update habit"), result.error ?? t("Try again."));
       load({ force: true });
     } finally {
       setToggling(false);
@@ -89,7 +91,7 @@ export default function HabitDetailScreen() {
   }
 
   async function handleMarkAllDone() {
-    if (!habit) return { ok: false, error: "Habit not loaded." };
+    if (!habit) return { ok: false, error: t("Habit not loaded.") };
     const result = await toggleHabit(habit.id, false, habit.target);
     if (!result.ok) return result;
     setShowLogPrompt(false);
@@ -99,7 +101,7 @@ export default function HabitDetailScreen() {
   }
 
   async function handleLog(value: number, note: string) {
-    if (!habit) return { ok: false, error: "Habit not loaded." };
+    if (!habit) return { ok: false, error: t("Habit not loaded.") };
     const result = await logCompletion(habit.id, value, note);
     if (!result.ok) return result;
     setShowLogPrompt(false);
@@ -113,7 +115,7 @@ export default function HabitDetailScreen() {
     const value = habit.default_log_value ?? 1;
     const result = await logCompletion(habit.id, value, "");
     if (!result.ok) {
-      Alert.alert("Could not log progress", result.error ?? "Try again.");
+      Alert.alert(t("Could not log progress"), result.error ?? t("Try again."));
       return;
     }
     celebrate();
@@ -122,15 +124,15 @@ export default function HabitDetailScreen() {
 
   async function handleDelete() {
     if (!habit) return;
-    Alert.alert("Delete habit?", "This archives the habit and cancels its reminders.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t("Delete habit?"), t("This archives the habit and cancels its reminders."), [
+      { text: t("Cancel"), style: "cancel" },
       {
-        text: "Delete",
+        text: t("Delete"),
         style: "destructive",
         onPress: async () => {
           const result = await deleteHabit(habit.id);
           if (!result.ok) {
-            Alert.alert("Could not delete habit", result.error ?? "Try again.");
+            Alert.alert(t("Could not delete habit"), result.error ?? t("Try again."));
             return;
           }
           router.replace("/");

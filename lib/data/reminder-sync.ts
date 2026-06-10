@@ -10,6 +10,7 @@ import type { ReminderContext } from "./reminders";
 import { formatAmount } from "../coach/habit-intelligence";
 import type { HabitProgress } from "../coach/habit-intelligence";
 import { createQueuedReminderSync } from "./reminder-sync-queue";
+import { reportError } from "../services/sentry";
 
 const STORAGE_KEY = "habbit:scheduled-reminder-ids";
 
@@ -170,7 +171,11 @@ export function scheduleReminderSync(): void {
   if (reminderSyncDebounceTimer) clearTimeout(reminderSyncDebounceTimer);
   reminderSyncDebounceTimer = setTimeout(() => {
     reminderSyncDebounceTimer = null;
-    void syncScheduledReminders();
+    syncScheduledReminders().catch((error) => {
+      reportError(error instanceof Error ? error : new Error(String(error)), {
+        context: "reminder-sync",
+      });
+    });
   }, REMINDER_SYNC_DEBOUNCE_MS);
 }
 

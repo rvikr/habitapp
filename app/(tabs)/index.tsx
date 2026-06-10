@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabitsForToday, getStats } from "@/lib/data/habits";
 import { logCompletion, setCompletionValue, toggleHabit } from "@/lib/data/actions";
+import { flushPendingCompletions } from "@/lib/data/completion-queue";
 import type { StreaksMap } from "@/lib/data/habits";
 import { useCelebrate } from "@/components/celebration";
 import { useTheme } from "@/components/theme-provider";
@@ -15,7 +16,7 @@ import {
   shouldShowFirstLoginWelcome,
   shouldRequireFirstRunOnboarding,
 } from "@/lib/auth/auth-welcome";
-import { TrialSubscriptionBanner } from "@/components/pro-access-banner";
+import { TrialEndedBanner, TrialSubscriptionBanner } from "@/components/pro-access-banner";
 import NotificationPermissionCard from "@/components/notification-permission-card";
 import HabitCard from "@/components/habit-card";
 import ProBadge from "@/components/pro-badge";
@@ -32,7 +33,12 @@ import {
 } from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
-import { shouldShowTrialSubscriptionBanner, type ProAccess } from "@/lib/subscription/access";
+import {
+  shouldShowTrialEndedBanner,
+  shouldShowTrialSubscriptionBanner,
+  type ProAccess,
+} from "@/lib/subscription/access";
+import { getItem, setItem } from "@/lib/platform/storage";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
 import { isStepHabit } from "@/lib/data/steps-shared";
 import {
@@ -59,6 +65,7 @@ type DashboardData = {
 };
 
 const STEP_SYNC_INTERVAL_MS = 30_000;
+const TRIAL_ENDED_DISMISSED_KEY = "habbit:trial-ended-banner-dismissed";
 let trialBannerDismissedForSession = false;
 let coachUpgradeHintDismissedForSession = false;
 
@@ -94,6 +101,7 @@ export default function DashboardScreen() {
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
   const [logHabit, setLogHabit] = useState<Habit | null>(null);
   const [trialBannerDismissed, setTrialBannerDismissed] = useState(trialBannerDismissedForSession);
+  const [trialEndedDismissedAt, setTrialEndedDismissedAt] = useState<string | null>(null);
   const [coachHintDismissed, setCoachHintDismissed] = useState(coachUpgradeHintDismissedForSession);
   const [coachNotifOpen, setCoachNotifOpen] = useState(false);
   const [stepTracking, setStepTracking] = useState<StepTrackingState>({
@@ -117,7 +125,20 @@ export default function DashboardScreen() {
     if (newUser === "1") setShowWelcome(true);
   }, [newUser]);
 
+  useEffect(() => {
+    let cancelled = false;
+    getItem(TRIAL_ENDED_DISMISSED_KEY).then((value) => {
+      if (!cancelled && value) setTrialEndedDismissedAt(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const load = useCallback(async (options?: { force?: boolean }) => {
+    // Replay any completions queued while offline before reading, so the
+    // dashboard reflects them as soon as connectivity returns.
+    await flushPendingCompletions().catch(() => undefined);
     const [result, proAccess, stats] = await Promise.all([
       getHabitsForToday(options),
       getCurrentProAccess(),
@@ -159,6 +180,9 @@ export default function DashboardScreen() {
       : false;
   const showTrialBanner = data
     ? shouldShowTrialSubscriptionBanner(data.proAccess, trialBannerDismissed)
+    : false;
+  const showTrialEndedBanner = data
+    ? shouldShowTrialEndedBanner(data.proAccess, trialEndedDismissedAt)
     : false;
 
   useEffect(() => {
@@ -416,7 +440,9 @@ export default function DashboardScreen() {
       celebrate();
       recordCompletionAndMaybeReview();
     }
-    load({ force: true });
+    // A queued (offline) write isn't on the server yet — refetching now would
+    // revert the optimistic state. The queue flushes on the next focus/load.
+    if (!result.queued) load({ force: true });
   }
 
   async function handleLogSheetSubmit(value: number, note: string) {
@@ -433,7 +459,7 @@ export default function DashboardScreen() {
       celebrate();
       recordCompletionAndMaybeReview();
     }
-    load({ force: true });
+    if (!result.queued) load({ force: true });
     return { ok: true as const };
   }
 
@@ -444,7 +470,7 @@ export default function DashboardScreen() {
     setLogHabit(null);
     celebrate();
     recordCompletionAndMaybeReview();
-    load({ force: true });
+    if (!result.queued) load({ force: true });
     return { ok: true as const };
   }
 
@@ -539,6 +565,19 @@ export default function DashboardScreen() {
               onDismiss={() => {
                 trialBannerDismissedForSession = true;
                 setTrialBannerDismissed(true);
+              }}
+            />
+          </View>
+        ) : null}
+
+        {showTrialEndedBanner && data?.proAccess.trialEndedAt ? (
+          <View className="mx-margin-mobile mt-md mb-xs">
+            <TrialEndedBanner
+              onAction={() => router.push("/pro" as never)}
+              onDismiss={() => {
+                const endedAt = data.proAccess.trialEndedAt as string;
+                setTrialEndedDismissedAt(endedAt);
+                void setItem(TRIAL_ENDED_DISMISSED_KEY, endedAt);
               }}
             />
           </View>

@@ -58,6 +58,24 @@ export function ProUpgradeBanner({
   );
 }
 
+export function TrialEndedBanner({
+  onAction,
+  onDismiss,
+}: {
+  onAction: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <ProUpgradeBanner
+      title="Your Pro trial has ended"
+      body="Your habits, streaks, and data are safe. AI Coach, smart reminders, and weekly reports are paused until you subscribe."
+      actionLabel="View plans"
+      onAction={onAction}
+      onDismiss={onDismiss}
+    />
+  );
+}
+
 export function TrialSubscriptionBanner({
   daysLeft,
   onAction,

@@ -353,6 +353,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
               placeholderTextColor="#8F8A82"
               value={name}
               onChangeText={setName}
+              maxLength={80}
             />
           </View>
 
@@ -369,6 +370,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
               onChangeText={setDescription}
               multiline
               numberOfLines={2}
+              maxLength={500}
             />
           </View>
 
@@ -429,6 +431,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                 placeholderTextColor="#8F8A82"
                 value={unit}
                 onChangeText={setUnit}
+                maxLength={16}
               />
             </View>
             <View className="flex-1">

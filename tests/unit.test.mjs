@@ -522,7 +522,13 @@ test("Pro access helper covers trial subscription and admin override states", ()
   const now = new Date("2026-05-22T00:00:00.000Z");
   assert.deepEqual(
     resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-21T23:59:59.000Z" }, now),
-    { hasPro: false, source: "free", expiresAt: null, trialDaysLeft: null },
+    {
+      hasPro: false,
+      source: "free",
+      expiresAt: null,
+      trialDaysLeft: null,
+      trialEndedAt: "2026-05-21T23:59:59.000Z",
+    },
   );
   assert.deepEqual(
     resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-22T00:00:01.000Z" }, now),
@@ -531,6 +537,7 @@ test("Pro access helper covers trial subscription and admin override states", ()
       source: "trial",
       expiresAt: "2026-05-22T00:00:01.000Z",
       trialDaysLeft: 1,
+      trialEndedAt: null,
     },
   );
   assert.deepEqual(
@@ -547,6 +554,7 @@ test("Pro access helper covers trial subscription and admin override states", ()
       source: "subscription",
       expiresAt: "2026-06-01T00:00:00.000Z",
       trialDaysLeft: null,
+      trialEndedAt: null,
     },
   );
   assert.deepEqual(
@@ -564,6 +572,7 @@ test("Pro access helper covers trial subscription and admin override states", ()
       source: "subscription",
       expiresAt: "2026-06-01T00:00:00.000Z",
       trialDaysLeft: null,
+      trialEndedAt: null,
     },
   );
   assert.deepEqual(resolveProAccess({ is_pro: true }, now), {
@@ -571,6 +580,7 @@ test("Pro access helper covers trial subscription and admin override states", ()
     source: "admin",
     expiresAt: null,
     trialDaysLeft: null,
+    trialEndedAt: null,
   });
   assert.equal(subscriptionStatusLabel({ is_pro: true }, now), "Pro");
   assert.equal(
@@ -609,6 +619,26 @@ test("trial helpers expose rounded days left and session banner visibility", () 
   assert.equal(subscriptionAccess.shouldShowTrialSubscriptionBanner?.(trialAccess, true), false);
   assert.equal(subscriptionAccess.shouldShowTrialSubscriptionBanner?.(paidAccess, false), false);
   assert.equal(subscriptionAccess.shouldShowTrialSubscriptionBanner?.(expiredAccess, false), false);
+
+  // Trial-ended banner: shown to recently lapsed trials, suppressed once
+  // dismissed for that trial end, never shown to active trial/paid users,
+  // and dropped entirely after the 7-day window.
+  assert.equal(subscriptionAccess.shouldShowTrialEndedBanner?.(expiredAccess, null, now), true);
+  assert.equal(
+    subscriptionAccess.shouldShowTrialEndedBanner?.(expiredAccess, "2026-05-22T09:59:59.000Z", now),
+    false,
+  );
+  assert.equal(subscriptionAccess.shouldShowTrialEndedBanner?.(trialAccess, null, now), false);
+  assert.equal(subscriptionAccess.shouldShowTrialEndedBanner?.(paidAccess, null, now), false);
+  const staleNow = new Date("2026-06-05T10:00:00.000Z");
+  assert.equal(
+    subscriptionAccess.shouldShowTrialEndedBanner?.(
+      resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-22T09:59:59.000Z" }, staleNow),
+      null,
+      staleNow,
+    ),
+    false,
+  );
 });
 
 test("AI Edge Functions enforce Pro access before quota and Gemini calls", () => {

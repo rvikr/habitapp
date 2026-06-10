@@ -12,6 +12,7 @@ import {
 import type { AvatarStyle } from "../utils/avatar";
 import { normalizeCoachTone, type CoachTone } from "../coach/coach";
 import { track, resetAnalytics } from "../services/analytics";
+import { reportError } from "../services/sentry";
 import { authCallbackUrl, parseAuthCallbackUrl } from "../auth/auth-redirect";
 import {
   GOOGLE_NATIVE_ANDROID_AUTH_ENABLED,
@@ -24,6 +25,7 @@ import {
   isGoogleNativeDeveloperError,
 } from "../auth/google-native";
 import { buildCompletionValuePayload } from "./completions";
+import { enqueueCompletionOp, flushPendingCompletions, isNetworkFailure } from "./completion-queue";
 import { clearDataCache } from "./cache";
 import { clearHomeWidgetSnapshot } from "../widgets/home-widget";
 import { localDateKey } from "../utils/date";
@@ -47,7 +49,7 @@ import type { Habit } from "../../types/db";
 import { validateHabitLocally, type HabitValidationResult } from "../habits/validate";
 import { validateHabitRemote } from "../habits/validate-remote";
 
-type ActionResult = { ok: boolean; error?: string };
+type ActionResult = { ok: boolean; error?: string; queued?: boolean };
 type HabitMutationData = {
   name: string;
   description: string | null;
@@ -310,13 +312,25 @@ export async function logCompletion(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  void flushPendingCompletions();
   const { error } = await supabase.rpc("log_habit_completion", {
     p_habit_id: habitId,
     p_completed_on: localDateKey(),
     p_increment: value ?? 1,
     p_note: note?.trim() || null,
   });
-  if (error) return mutationResult(error);
+  if (error) {
+    if (!isNetworkFailure(error)) return mutationResult(error);
+    await enqueueCompletionOp({
+      kind: "increment",
+      habitId,
+      userId: user.id,
+      completedOn: localDateKey(),
+      value: value ?? 1,
+      note: note?.trim() || null,
+    });
+    return { ok: true, queued: true };
+  }
   clearDataCache();
   scheduleReminderSync();
   return { ok: true };
@@ -329,13 +343,26 @@ export async function setCompletionValue(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  void flushPendingCompletions();
 
   const { error } = await supabase
     .from("habit_completions")
     .upsert(buildCompletionValuePayload(habitId, user.id, localDateKey(), value, note), {
       onConflict: "habit_id,completed_on",
     });
-  if (error) return mutationResult(error);
+  if (error) {
+    if (!isNetworkFailure(error)) return mutationResult(error);
+    await enqueueCompletionOp({
+      kind: "set_value",
+      habitId,
+      userId: user.id,
+      completedOn: localDateKey(),
+      value,
+      note: note?.trim() || null,
+    });
+    track("habit_progress_set", { habit_id: habitId, queued: true });
+    return { ok: true, queued: true };
+  }
   clearDataCache();
   scheduleReminderSync();
   track("habit_progress_set", { habit_id: habitId });
@@ -349,6 +376,7 @@ export async function toggleHabit(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  void flushPendingCompletions();
 
   if (currentlyDone) {
     const { error } = await supabase
@@ -357,14 +385,24 @@ export async function toggleHabit(
       .eq("habit_id", habitId)
       .eq("user_id", user.id)
       .eq("completed_on", localDateKey());
-    if (error) return mutationResult(error);
+    if (error) {
+      if (!isNetworkFailure(error)) return mutationResult(error);
+      await enqueueCompletionOp({
+        kind: "uncomplete",
+        habitId,
+        userId: user.id,
+        completedOn: localDateKey(),
+      });
+      track("habit_uncompleted", { habit_id: habitId, queued: true });
+      return { ok: true, queued: true };
+    }
     clearDataCache();
     scheduleReminderSync();
     track("habit_uncompleted", { habit_id: habitId });
     return { ok: true };
   }
 
-  let resolvedTarget: number;
+  let resolvedTarget: number | undefined;
   if (knownTarget != null) {
     resolvedTarget = knownTarget > 0 ? knownTarget : 1;
   } else {
@@ -374,7 +412,19 @@ export async function toggleHabit(
       .eq("id", habitId)
       .eq("user_id", user.id)
       .single();
-    if (habitError) return mutationResult(habitError);
+    if (habitError) {
+      if (!isNetworkFailure(habitError)) return mutationResult(habitError);
+      // Offline before the target lookup: queue with no value so the replay
+      // resolves the real target once we're back online.
+      await enqueueCompletionOp({
+        kind: "complete",
+        habitId,
+        userId: user.id,
+        completedOn: localDateKey(),
+      });
+      track("habit_completed", { habit_id: habitId, queued: true });
+      return { ok: true, queued: true };
+    }
     resolvedTarget = Number((habit as { target: number | null } | null)?.target ?? 1);
     if (resolvedTarget <= 0) resolvedTarget = 1;
   }
@@ -385,7 +435,18 @@ export async function toggleHabit(
       { habit_id: habitId, user_id: user.id, completed_on: localDateKey(), value: resolvedTarget },
       { onConflict: "habit_id,completed_on" },
     );
-  if (error) return mutationResult(error);
+  if (error) {
+    if (!isNetworkFailure(error)) return mutationResult(error);
+    await enqueueCompletionOp({
+      kind: "complete",
+      habitId,
+      userId: user.id,
+      completedOn: localDateKey(),
+      value: resolvedTarget,
+    });
+    track("habit_completed", { habit_id: habitId, queued: true });
+    return { ok: true, queued: true };
+  }
   clearDataCache();
   scheduleReminderSync();
   track("habit_completed", { habit_id: habitId });
@@ -647,7 +708,13 @@ export async function updateHabitFull(
   else {
     // Drop this habit's reminders, then rebuild so a shared bundle is re-issued
     // without it.
-    void cancelHabitReminders(habitId).then(() => scheduleReminderSync());
+    cancelHabitReminders(habitId)
+      .then(() => scheduleReminderSync())
+      .catch((error) => {
+        reportError(error instanceof Error ? error : new Error(String(error)), {
+          context: "cancel-habit-reminders",
+        });
+      });
   }
   return { ok: true };
 }
