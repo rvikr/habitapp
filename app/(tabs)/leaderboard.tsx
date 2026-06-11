@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import {
-  Alert,
   View,
   Text,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -88,7 +88,7 @@ export default function LeaderboardScreen() {
   }
 
   async function handleOptOut() {
-    Alert.alert(
+    showAlert(
       t("Leave leaderboard?"),
       t("Your display name and stats will no longer be shown to other users."),
       [

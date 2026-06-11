@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { Alert, View, Text, ScrollView, TouchableOpacity, Switch } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Switch } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -78,7 +79,7 @@ export default function RemindersScreen() {
       const granted = await requestPermission();
       setPermission(granted ? "granted" : "denied");
       if (!granted) {
-        Alert.alert(
+        showAlert(
           "Notifications are disabled",
           "Enable notifications before turning on reminders.",
         );
@@ -90,7 +91,7 @@ export default function RemindersScreen() {
       habit.reminder_strategy === "interval" || habit.reminder_strategy === "conditional_interval";
     // Manual-only habits need at least one time; smart habits work without manual times
     if (enabled && !usesSmartReminders && (habit.reminder_times ?? []).length === 0) {
-      Alert.alert(
+      showAlert(
         "No reminder time set",
         "Edit the habit to add a custom time, or the system will use smart reminders.",
       );
@@ -103,7 +104,7 @@ export default function RemindersScreen() {
       days: habit.reminder_days ?? [0, 1, 2, 3, 4, 5, 6],
     });
     if (!result.ok) {
-      Alert.alert("Could not update reminders", result.error ?? "Try again.");
+      showAlert("Could not update reminders", result.error ?? "Try again.");
       return;
     }
     setHabits((prev) =>

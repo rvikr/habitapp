@@ -34,7 +34,10 @@ export default function TabsLayout() {
           borderTopWidth: 1,
           paddingBottom: (Platform.OS === "ios" ? 20 : 8) + webBottomInset,
           paddingTop: 8,
-          height: (Platform.OS === "ios" ? 80 : 60) + webBottomInset,
+          // Web needs ~70px: each item spends ~28px on the icon block and ~10px
+          // on its own padding, so at 60 the label row collapsed to 5px and
+          // clipped. (Auto height drops the labels entirely on web.)
+          height: (Platform.OS === "ios" ? 80 : Platform.OS === "web" ? 70 : 60) + webBottomInset,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}

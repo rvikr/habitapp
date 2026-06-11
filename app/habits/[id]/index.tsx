@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import {
-  Alert,
   View,
   Text,
   ScrollView,
@@ -8,6 +7,7 @@ import {
   RefreshControl,
   ImageBackground,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -83,7 +83,7 @@ export default function HabitDetailScreen() {
     try {
       if (!doneToday) celebrate();
       const result = await toggleHabit(habit.id, doneToday);
-      if (!result.ok) Alert.alert(t("Could not update habit"), result.error ?? t("Try again."));
+      if (!result.ok) showAlert(t("Could not update habit"), result.error ?? t("Try again."));
       load({ force: true });
     } finally {
       setToggling(false);
@@ -115,7 +115,7 @@ export default function HabitDetailScreen() {
     const value = habit.default_log_value ?? 1;
     const result = await logCompletion(habit.id, value, "");
     if (!result.ok) {
-      Alert.alert(t("Could not log progress"), result.error ?? t("Try again."));
+      showAlert(t("Could not log progress"), result.error ?? t("Try again."));
       return;
     }
     celebrate();
@@ -124,7 +124,7 @@ export default function HabitDetailScreen() {
 
   async function handleDelete() {
     if (!habit) return;
-    Alert.alert(t("Delete habit?"), t("This archives the habit and cancels its reminders."), [
+    showAlert(t("Delete habit?"), t("This archives the habit and cancels its reminders."), [
       { text: t("Cancel"), style: "cancel" },
       {
         text: t("Delete"),
@@ -132,7 +132,7 @@ export default function HabitDetailScreen() {
         onPress: async () => {
           const result = await deleteHabit(habit.id);
           if (!result.ok) {
-            Alert.alert(t("Could not delete habit"), result.error ?? t("Try again."));
+            showAlert(t("Could not delete habit"), result.error ?? t("Try again."));
             return;
           }
           router.replace("/");

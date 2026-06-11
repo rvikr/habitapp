@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   Switch,
   Text,
@@ -9,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -48,7 +48,7 @@ export default function FeedbackScreen() {
     }
 
     setMessage("");
-    Alert.alert(t("Feedback sent"), t("Thanks. Your report was saved for review."), [
+    showAlert(t("Feedback sent"), t("Thanks. Your report was saved for review."), [
       { text: t("Done"), onPress: () => router.back() },
     ]);
   }

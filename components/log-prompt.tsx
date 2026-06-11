@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import type { Habit } from "@/types/db";
 import { parseOptionalPositiveNumber } from "@/lib/auth/validation";
@@ -102,7 +102,7 @@ export default function LogPrompt({
     const goal = habit?.target != null ? Number(habit.target) : null;
     if (goal != null && goal > 0 && amount > goal * IMPLAUSIBLE_TARGET_MULTIPLE) {
       const unit = habit?.unit ? ` ${habit.unit}` : "";
-      Alert.alert(
+      showAlert(
         t("That's a lot — log anyway?"),
         t("{amount}{unit} is much higher than your {goal}{unit} goal. Log it anyway?", {
           amount: formatAmount(amount),
@@ -123,7 +123,7 @@ export default function LogPrompt({
     if (!habit || !onMarkAllDone) return;
     const target = habit.target != null ? formatAmount(Number(habit.target)) : "";
     const unit = habit.unit ? ` ${habit.unit}` : "";
-    Alert.alert(
+    showAlert(
       t("Mark complete?"),
       t("Did you really finish all {target}{unit} of {name}?", {
         target,

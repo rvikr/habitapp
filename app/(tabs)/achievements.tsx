@@ -1,13 +1,13 @@
 import { useState, useCallback } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Text,
   TouchableOpacity,
   View,
   ScrollView,
   RefreshControl,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { getStats, getMilestones } from "@/lib/data/habits";
@@ -99,7 +99,7 @@ export default function AchievementsScreen() {
       if (result.ok) {
         setReport(result.report);
       } else {
-        Alert.alert(t("Could not generate report"), t(result.error));
+        showAlert(t("Could not generate report"), t(result.error));
       }
     } finally {
       setGeneratingReport(false);

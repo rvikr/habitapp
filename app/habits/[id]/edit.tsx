@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Alert, View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -38,7 +39,7 @@ export default function EditHabitScreen() {
     if (result.validation) {
       return { ok: false, validation: result.validation };
     }
-    Alert.alert(t("Could not save habit"), result.error ?? t("Try again."));
+    showAlert(t("Could not save habit"), result.error ?? t("Try again."));
     return { ok: false };
   }
 

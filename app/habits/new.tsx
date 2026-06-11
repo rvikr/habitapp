@@ -1,4 +1,5 @@
-import { Alert, View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -14,12 +15,12 @@ export default function NewHabitScreen() {
     const result = await createHabit(data);
     if (result.ok) {
       if ("merged" in result && result.merged) {
-        Alert.alert(
+        showAlert(
           t("Habit updated"),
           t("A similar habit already existed, so I bundled the new goal into it."),
         );
       } else if ("migrated" in result && result.migrated === false) {
-        Alert.alert(
+        showAlert(
           t("Habit created"),
           t(
             "Some advanced tracking options couldn't be saved yet, but your habit is ready to use.",
@@ -32,7 +33,7 @@ export default function NewHabitScreen() {
     if ("validation" in result && result.validation) {
       return { ok: false, validation: result.validation };
     }
-    Alert.alert(t("Could not create habit"), result.error ?? t("Try again."));
+    showAlert(t("Could not create habit"), result.error ?? t("Try again."));
     return { ok: false };
   }
 

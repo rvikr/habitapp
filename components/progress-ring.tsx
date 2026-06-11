@@ -44,8 +44,9 @@ export default function ProgressRing({
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
-          rotation="-90"
-          origin={`${size / 2}, ${size / 2}`}
+          // rotate(angle cx cy) instead of rotation/origin props: the origin
+          // prop emits a transform-origin DOM attribute React rejects on web.
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </Svg>
       <View className="items-center">{children}</View>

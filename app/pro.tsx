@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Platform,
   ScrollView,
@@ -9,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -56,7 +56,7 @@ export default function ProScreen() {
       setAccess(nextAccess);
       if (nextAccess.hasPro) router.back();
     } catch (error) {
-      Alert.alert(
+      showAlert(
         t("Could not start subscription"),
         error instanceof Error ? error.message : t("Try again."),
       );
@@ -70,14 +70,14 @@ export default function ProScreen() {
     try {
       const nextAccess = await restoreProPurchases();
       setAccess(nextAccess);
-      Alert.alert(
+      showAlert(
         nextAccess.hasPro ? t("Subscription restored") : t("No active subscription found"),
         nextAccess.hasPro
           ? t("Pro access is active on this account.")
           : t("Try another store account if needed."),
       );
     } catch (error) {
-      Alert.alert(
+      showAlert(
         t("Could not restore purchases"),
         error instanceof Error ? error.message : t("Try again."),
       );
@@ -175,7 +175,7 @@ export default function ProScreen() {
                   onPress={() =>
                     item.pack
                       ? buy(item.pack, item.label)
-                      : Alert.alert(
+                      : showAlert(
                           t("Coming soon"),
                           t("Subscriptions will be available shortly. Hang tight!"),
                         )

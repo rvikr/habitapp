@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -53,7 +54,7 @@ export default function CoachSettingsScreen() {
     const result = await updateCoachTone(nextTone);
     setSaving(null);
     if (!result.ok) {
-      Alert.alert(t("Could not update coach"), result.error ?? t("Try again."));
+      showAlert(t("Could not update coach"), result.error ?? t("Try again."));
       load();
     }
   }
@@ -79,34 +80,35 @@ export default function CoachSettingsScreen() {
               onAction={() => router.push("/pro" as never)}
             />
           ) : null}
-          {hasPro !== false && TONES.map((item) => {
-            const active = tone === item.id;
-            return (
-              <TouchableOpacity
-                key={item.id}
-                onPress={() => handleSelect(item.id)}
-                className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
-                style={{ borderWidth: 2, borderColor: active ? "#F26B1F" : "transparent" }}
-              >
-                <MaterialCommunityIcons
-                  name={active ? "radiobox-marked" : "radiobox-blank"}
-                  size={22}
-                  color={active ? "#F26B1F" : "#8F8A82"}
-                />
-                <View className="flex-1">
-                  <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                    {t(item.label)}
-                  </Text>
-                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                    {t(item.sample)}
-                  </Text>
-                </View>
-                {saving === item.id && (
-                  <Text className="text-label-sm text-primary">{t("Saving")}</Text>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          {hasPro !== false &&
+            TONES.map((item) => {
+              const active = tone === item.id;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  onPress={() => handleSelect(item.id)}
+                  className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+                  style={{ borderWidth: 2, borderColor: active ? "#F26B1F" : "transparent" }}
+                >
+                  <MaterialCommunityIcons
+                    name={active ? "radiobox-marked" : "radiobox-blank"}
+                    size={22}
+                    color={active ? "#F26B1F" : "#8F8A82"}
+                  />
+                  <View className="flex-1">
+                    <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                      {t(item.label)}
+                    </Text>
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {t(item.sample)}
+                    </Text>
+                  </View>
+                  {saving === item.id && (
+                    <Text className="text-label-sm text-primary">{t("Saving")}</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
         </View>
       </ScrollView>
     </SafeAreaView>

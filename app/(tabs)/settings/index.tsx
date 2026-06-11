@@ -3,7 +3,6 @@ import Constants from "expo-constants";
 import { requestReviewManually } from "@/lib/platform/store-review";
 import { requestSleepPermission } from "@/lib/platform/sleep";
 import {
-  Alert,
   Linking,
   Platform,
   Switch,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   Image,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -139,12 +139,7 @@ export default function SettingsScreen() {
   );
 
   async function handleSignOut() {
-    if (Platform.OS === "web") {
-      // Alert.alert buttons don't fire on web — use browser confirm instead.
-      if (window.confirm(`${t("Sign out?")} ${t("You can sign back in any time.")}`)) signOut();
-      return;
-    }
-    Alert.alert(t("Sign out?"), t("You can sign back in any time."), [
+    showAlert(t("Sign out?"), t("You can sign back in any time."), [
       { text: t("Cancel"), style: "cancel" },
       { text: t("Sign out"), style: "destructive", onPress: () => signOut() },
     ]);
@@ -157,7 +152,7 @@ export default function SettingsScreen() {
   async function handleRateLagan() {
     const opened = await requestReviewManually();
     if (!opened) {
-      Alert.alert(
+      showAlert(
         t("Store unavailable"),
         t("Lagan's store page is not available on this device yet."),
       );
@@ -180,7 +175,7 @@ export default function SettingsScreen() {
         : status === "providerUpdateRequired"
           ? t("Update Health Connect to enable sleep tracking.")
           : t("Allow health access to enable sleep tracking.");
-    Alert.alert(t("Sleep tracking"), message);
+    showAlert(t("Sleep tracking"), message);
   }
 
   return (
@@ -312,7 +307,7 @@ export default function SettingsScreen() {
             label={t("Contact Support")}
             onPress={() => {
               if (!SUPPORT_EMAIL) {
-                Alert.alert(
+                showAlert(
                   t("Not configured"),
                   t("Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment."),
                 );
@@ -336,10 +331,7 @@ export default function SettingsScreen() {
             label={t("Terms & Conditions")}
             onPress={() => {
               if (!TERMS_URL) {
-                Alert.alert(
-                  t("Not configured"),
-                  t("Set EXPO_PUBLIC_TERMS_URL in your environment."),
-                );
+                showAlert(t("Not configured"), t("Set EXPO_PUBLIC_TERMS_URL in your environment."));
                 return;
               }
               Linking.openURL(TERMS_URL);

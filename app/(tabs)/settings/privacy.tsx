@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Modal,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -58,7 +58,7 @@ export default function PrivacyScreen() {
     const result = await exportMyData();
     setExporting(false);
     if (!result.ok) {
-      Alert.alert("Could not export data", result.error ?? "Try again.");
+      showAlert("Could not export data", result.error ?? "Try again.");
       return;
     }
     setExportText(result.data ?? "{}");
@@ -66,10 +66,10 @@ export default function PrivacyScreen() {
 
   function handleDeletionRequest() {
     if (!deletePassword.trim()) {
-      Alert.alert("Password required", "Confirm your password before requesting account deletion.");
+      showAlert("Password required", "Confirm your password before requesting account deletion.");
       return;
     }
-    Alert.alert(
+    showAlert(
       "Delete account?",
       "This permanently removes your account and all your data (habits, completions, profile). This cannot be undone.",
       [
@@ -82,7 +82,7 @@ export default function PrivacyScreen() {
             const result = await requestAccountDeletion(reason, deletePassword);
             setSavingDeletion(false);
             if (!result.ok) {
-              Alert.alert("Could not delete account", result.error ?? "Try again.");
+              showAlert("Could not delete account", result.error ?? "Try again.");
               return;
             }
             setReason("");
@@ -96,7 +96,7 @@ export default function PrivacyScreen() {
 
   function openPrivacyPolicy() {
     if (!PRIVACY_POLICY_URL) {
-      Alert.alert(
+      showAlert(
         "Privacy policy URL missing",
         "Set EXPO_PUBLIC_PRIVACY_POLICY_URL before submitting to the stores.",
       );
@@ -107,7 +107,7 @@ export default function PrivacyScreen() {
 
   function openAccountDeletionPage() {
     if (!ACCOUNT_DELETION_URL) {
-      Alert.alert(
+      showAlert(
         "Account deletion URL missing",
         "Set EXPO_PUBLIC_ACCOUNT_DELETION_URL before submitting to the stores.",
       );

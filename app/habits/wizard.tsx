@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
 import {
-  Alert,
   ActivityIndicator,
   BackHandler,
   Platform,
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -194,7 +194,7 @@ export default function HabitWizardScreen() {
 
   async function buildRoutine() {
     if (answers.goals.length === 0) {
-      Alert.alert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
+      showAlert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
       return;
     }
     const local = buildRoutineRecommendations(answers);
@@ -216,7 +216,7 @@ export default function HabitWizardScreen() {
   async function createRoutine() {
     const selected = recommendations?.filter((item) => item.selected) ?? [];
     if (selected.length === 0) {
-      Alert.alert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
+      showAlert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
       return;
     }
 
@@ -246,7 +246,7 @@ export default function HabitWizardScreen() {
     // The auth check now happens once for the whole batch, so "sign in again"
     // can only mean a genuine signed-out state — show it once, not per habit.
     if (signedOut) {
-      Alert.alert(t("Some habits were not created"), t("You need to sign in again."));
+      showAlert(t("Some habits were not created"), t("You need to sign in again."));
       return;
     }
 
@@ -260,7 +260,7 @@ export default function HabitWizardScreen() {
       .filter((msg): msg is string => msg !== null);
 
     if (failures.length > 0) {
-      Alert.alert(t("Some habits were not created"), failures.join("\n"));
+      showAlert(t("Some habits were not created"), failures.join("\n"));
       return;
     }
 
@@ -291,7 +291,7 @@ export default function HabitWizardScreen() {
     const result = await toggleHabit(habit.id, false, habit.target ?? null);
     setTutorialCompleting(false);
     if (!result.ok) {
-      Alert.alert(t("Could not complete habit"), result.error ?? t("Try again."));
+      showAlert(t("Could not complete habit"), result.error ?? t("Try again."));
       return; // stay on tutorial to retry or skip
     }
     celebrate(

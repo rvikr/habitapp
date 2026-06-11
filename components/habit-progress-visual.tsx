@@ -143,8 +143,9 @@ export default function HabitProgressVisual({
           fill="none"
           strokeLinecap="round"
           strokeDasharray={`${clamped * 157} 157`}
-          rotation="-90"
-          origin="32, 32"
+          // rotate(angle cx cy) instead of rotation/origin props: the origin
+          // prop emits a transform-origin DOM attribute React rejects on web.
+          transform="rotate(-90 32 32)"
         />
       </Svg>
       {size === "large" && (

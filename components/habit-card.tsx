@@ -131,7 +131,9 @@ export default function HabitCard({
                   onPress={handleToggleTap}
                   disabled={toggling}
                   activeOpacity={0.8}
-                  accessibilityRole="button"
+                  // "checkbox", not "button": a button role renders a real <button>
+                  // on web, and nesting it inside the card's <button> is invalid HTML.
+                  accessibilityRole="checkbox"
                   accessibilityLabel={
                     done
                       ? t("Mark {name} not done", { name: habit.name })
@@ -221,7 +223,9 @@ export default function HabitCard({
           onPress={handleToggleTap}
           disabled={toggling}
           activeOpacity={0.8}
-          accessibilityRole="button"
+          // "checkbox", not "button": a button role renders a real <button>
+          // on web, and nesting it inside the card's <button> is invalid HTML.
+          accessibilityRole="checkbox"
           accessibilityLabel={
             done
               ? t("Mark {name} not done", { name: habit.name })

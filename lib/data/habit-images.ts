@@ -22,7 +22,7 @@ export const HABIT_IMAGES: Partial<Record<HabitType, string>> = {
   healthy_eating:
     "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&h=400&fit=crop&q=75",
   cold_shower:
-    "https://images.unsplash.com/photo-1585066058984-bd4f82b7dba6?w=600&h=400&fit=crop&q=75",
+    "https://images.unsplash.com/photo-1538300342682-cf57afb97285?w=600&h=400&fit=crop&q=75",
   no_social_media:
     "https://images.unsplash.com/photo-1516251193007-45ef944ab0c6?w=600&h=400&fit=crop&q=75",
   coding: "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=600&h=400&fit=crop&q=75",

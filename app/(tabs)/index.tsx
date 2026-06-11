@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Alert, View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -447,7 +448,7 @@ export default function DashboardScreen() {
     if (isStepHabit(habit) && stepTrackingEnabled) {
       const ok = await syncStepHabit(habit, true, true);
       if (!ok) {
-        Alert.alert(
+        showAlert(
           t("Step tracking unavailable"),
           t(
             "Open the habit to log steps manually, or enable motion access in your device settings.",
@@ -475,7 +476,7 @@ export default function DashboardScreen() {
     const result = await toggleHabit(habitId, wasDone, habit.target as number | null);
     if (!result.ok) {
       setData((current) => (current ? { ...current, completedToday: previous } : current));
-      Alert.alert(t("Could not update habit"), result.error ?? t("Try again."));
+      showAlert(t("Could not update habit"), result.error ?? t("Try again."));
       return;
     }
     if (!wasDone) {
@@ -533,7 +534,7 @@ export default function DashboardScreen() {
         "Logged from AI coach",
       );
       if (!result.ok) {
-        Alert.alert(t("Could not log progress"), result.error ?? t("Try again."));
+        showAlert(t("Could not log progress"), result.error ?? t("Try again."));
         return;
       }
       celebrate();
