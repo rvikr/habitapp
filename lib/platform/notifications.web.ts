@@ -1,4 +1,5 @@
 import { supabase, getCurrentUser } from "../supabase/client";
+import { registerAppServiceWorker } from "./sw-register";
 
 const VAPID_PUBLIC_KEY = process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
@@ -23,7 +24,8 @@ async function registerPushSubscription(): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
 
-  const reg = await navigator.serviceWorker.register("/app/sw.js", { scope: "/app/" });
+  const reg = await registerAppServiceWorker();
+  if (!reg) return;
   await navigator.serviceWorker.ready;
 
   const existing = await reg.pushManager.getSubscription();

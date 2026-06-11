@@ -24,6 +24,8 @@ import {
   pickTutorialHabit,
   type CreatedHabit,
 } from "@/lib/coach/post-onboarding";
+import { markOnboardingComplete } from "@/lib/auth/onboarding";
+import { getCurrentSession } from "@/lib/supabase/client";
 import {
   buildRoutineRecommendations,
   type HabitRecommendation,
@@ -261,6 +263,11 @@ export default function HabitWizardScreen() {
       Alert.alert(t("Some habits were not created"), failures.join("\n"));
       return;
     }
+
+    // Routine creation succeeded — record onboarding as done so the dashboard
+    // never auto-launches the wizard for this user again.
+    const session = await getCurrentSession();
+    if (session?.user?.id) void markOnboardingComplete(session.user.id);
 
     const created = buildCreatedHabits(selected, results);
     if (created.length === 0) {

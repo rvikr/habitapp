@@ -32,6 +32,7 @@ import {
 } from "@/lib/supabase/client";
 import { initSentry, setUser as setSentryUser } from "@/lib/services/sentry";
 import { initAnalytics, track } from "@/lib/services/analytics";
+import { registerAppServiceWorker } from "@/lib/platform/sw-register";
 import { logOutRevenueCat, syncRevenueCatSubscription } from "@/lib/subscription/revenuecat";
 import { clearHomeWidgetSnapshot } from "@/lib/widgets/home-widget";
 
@@ -217,6 +218,9 @@ export default function RootLayout() {
   useEffect(() => {
     initSentry();
     initAnalytics();
+    // Web PWA: register early so offline caching and SW updates after a
+    // deploy don't depend on the push-notification opt-in path.
+    void registerAppServiceWorker();
   }, []);
 
   if (!fontsLoaded) return null;

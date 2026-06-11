@@ -1013,10 +1013,27 @@ test("signup and email confirmation copy gives a clear next step", () => {
   assert.match(FIRST_LOGIN_WELCOME_BODY, /all set/i);
 });
 
-test("first-run onboarding is required for new users without habits", () => {
-  assert.equal(shouldRequireFirstRunOnboarding({ newUser: "1", habitCount: 0 }), true);
-  assert.equal(shouldRequireFirstRunOnboarding({ newUser: "1", habitCount: 2 }), false);
-  assert.equal(shouldRequireFirstRunOnboarding({ newUser: undefined, habitCount: 0 }), true);
+test("first-run onboarding is required only for trustworthy empty habit lists", () => {
+  assert.equal(
+    shouldRequireFirstRunOnboarding({ habitCount: 0, dataOk: true, onboardingComplete: false }),
+    true,
+  );
+  assert.equal(
+    shouldRequireFirstRunOnboarding({ habitCount: 2, dataOk: true, onboardingComplete: false }),
+    false,
+  );
+  // A failed fetch must never look like "no habits" — that used to bounce
+  // signed-in users into onboarding on every visit.
+  assert.equal(
+    shouldRequireFirstRunOnboarding({ habitCount: 0, dataOk: false, onboardingComplete: false }),
+    false,
+  );
+  // A user who finished (or skipped past) the wizard is never forced back in,
+  // even after archiving every habit.
+  assert.equal(
+    shouldRequireFirstRunOnboarding({ habitCount: 0, dataOk: true, onboardingComplete: true }),
+    false,
+  );
 });
 
 test("first-login welcome is hidden for existing users with habits", () => {

@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // The PWA's start_url is /app/ (trailing slash). Next's built-in
+  // trailing-slash normalization would answer it with a 308, and a redirected
+  // navigation response breaks the installed iOS PWA ("response served by
+  // service worker has redirections"). Middleware re-implements the redirect
+  // for marketing pages and rewrites (not redirects) /app/ paths instead.
+  skipTrailingSlashRedirect: true,
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "lh3.googleusercontent.com" },

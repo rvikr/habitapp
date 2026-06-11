@@ -22,13 +22,20 @@ export function isPendingSignupForEmail(
   return Boolean(pending && signedIn && pending === signedIn);
 }
 
+// Only a trustworthy, empty habit list from a user who never finished the
+// wizard should force onboarding. A failed fetch (dataOk: false) used to be
+// indistinguishable from "no habits" and bounced existing users into the
+// wizard on every visit.
 export function shouldRequireFirstRunOnboarding({
   habitCount,
+  dataOk,
+  onboardingComplete,
 }: {
-  newUser: string | null | undefined;
   habitCount: number;
+  dataOk: boolean;
+  onboardingComplete: boolean;
 }): boolean {
-  return habitCount === 0;
+  return dataOk && !onboardingComplete && habitCount === 0;
 }
 
 export function shouldShowFirstLoginWelcome({

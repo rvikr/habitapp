@@ -19,6 +19,36 @@ function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse):
 }
 
 export async function middleware(request: NextRequest) {
+  const { pathname: requestPath } = request.nextUrl;
+
+  // ---- /app (the Expo PWA, proxied to Cloud Run) ----------------------------
+  if (requestPath === "/app" || requestPath.startsWith("/app/")) {
+    // Trailing-slash app URLs (/app/, /app/login/) must resolve WITHOUT a
+    // redirect: the iOS PWA launches at start_url /app/ and its service worker
+    // may not serve redirected navigation responses. Rewrite straight to the
+    // Cloud Run origin with the slash stripped (nginx serves the SPA shell).
+    const cloudRunUrl = process.env.CLOUD_RUN_APP_URL ?? "";
+    if (cloudRunUrl && requestPath.endsWith("/")) {
+      const stripped = requestPath.replace(/\/+$/, "");
+      const targetPath = stripped === "/app" ? "/" : stripped.slice("/app".length);
+      return NextResponse.rewrite(new URL(targetPath + request.nextUrl.search, cloudRunUrl));
+    }
+    // Slashless app paths are handled by the rewrites in next.config.ts. The
+    // app manages its own Supabase auth in localStorage — the cookie-based
+    // session work below is irrelevant to it and would add a network round
+    // trip to every app navigation.
+    return NextResponse.next();
+  }
+
+  // ---- marketing site --------------------------------------------------------
+  // skipTrailingSlashRedirect disables Next's automatic 308 (needed above), so
+  // replicate it here for marketing URLs to keep one canonical URL per page.
+  if (requestPath.length > 1 && requestPath.endsWith("/")) {
+    const url = request.nextUrl.clone();
+    url.pathname = requestPath.replace(/\/+$/, "");
+    return NextResponse.redirect(url, 308);
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(

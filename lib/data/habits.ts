@@ -1,6 +1,6 @@
 import type { Habit, HabitCompletion, Milestone } from "../../types/db";
-import { supabase, isSupabaseConfigured, getCurrentUser } from "../supabase/client";
-import { DATA_CACHE_PREFIX, readThroughCache } from "./cache";
+import { supabase, isSupabaseConfigured, getCurrentSession } from "../supabase/client";
+import { DATA_CACHE_PREFIX, getCachedValue, readThroughCache, setCachedValue } from "./cache";
 import { addLocalDays, localDateKey, localDateDaysAgo } from "../utils/date";
 import { streakFromDates } from "../coach/streak";
 import { XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "../coach/xp";
@@ -21,128 +21,165 @@ type DataFetchOptions = { force?: boolean };
 const today = () => localDateKey();
 const DATA_CACHE_TTL_MS = 30_000;
 
+// Reads the locally persisted session instead of supabase.auth.getUser():
+// the latter is a network round trip on every dashboard load, and a transient
+// failure there used to make signed-in users look signed out (empty data →
+// spurious onboarding redirect). RLS still validates the token server-side.
 async function getUser() {
-  return getCurrentUser();
+  const session = await getCurrentSession();
+  return session?.user ?? null;
 }
 
-export async function getHabitsForToday(options?: DataFetchOptions) {
-  const emptyStreaks: StreaksMap = new Map();
-  if (!isSupabaseConfigured()) {
-    return {
-      habits: [] as Habit[],
-      completedToday: new Set<string>(),
-      todayProgress: new Map<string, HabitProgress>(),
-      streaksMap: emptyStreaks,
-      profile: { displayName: "Demo", email: null },
-      leaderboardOptedIn: false,
-      coachSignal: null as CoachSignal | null,
-    };
-  }
+export type TodayDashboard = {
+  // false means the habit list could not be trusted (signed out, network or
+  // query failure) — callers must not treat it as "user has no habits".
+  ok: boolean;
+  userId: string | null;
+  habits: Habit[];
+  completedToday: Set<string>;
+  todayProgress: TodayProgressMap;
+  streaksMap: StreaksMap;
+  profile: { displayName: string; email: string | null };
+  leaderboardOptedIn: boolean;
+  coachSignal: CoachSignal | null;
+};
+
+function emptyTodayDashboard(displayName: string, ok: boolean, userId: string | null) {
+  return {
+    ok,
+    userId,
+    habits: [] as Habit[],
+    completedToday: new Set<string>(),
+    todayProgress: new Map<string, HabitProgress>(),
+    streaksMap: new Map() as StreaksMap,
+    profile: { displayName, email: null as string | null },
+    leaderboardOptedIn: false,
+    coachSignal: null as CoachSignal | null,
+  } satisfies TodayDashboard;
+}
+
+export async function getHabitsForToday(options?: DataFetchOptions): Promise<TodayDashboard> {
+  if (!isSupabaseConfigured()) return emptyTodayDashboard("Demo", false, null);
 
   const user = await getUser();
-  if (!user)
-    return {
-      habits: [] as Habit[],
-      completedToday: new Set<string>(),
-      todayProgress: new Map<string, HabitProgress>(),
-      streaksMap: emptyStreaks,
-      profile: { displayName: "there", email: null },
-      leaderboardOptedIn: false,
-      coachSignal: null as CoachSignal | null,
-    };
+  if (!user) return emptyTodayDashboard("there", false, null);
 
-  return readThroughCache(
-    `${DATA_CACHE_PREFIX}habits-today:${user.id}:${today()}`,
-    DATA_CACHE_TTL_MS,
-    async () => {
-      const [[{ data: habits }, { data: completions }, { data: profile }], aiEnabled] =
-        await Promise.all([
-          Promise.all([
-            supabase
-              .from("habits")
-              .select("*")
-              .eq("user_id", user.id)
-              .is("archived_at", null)
-              .order("created_at", { ascending: true }),
-            supabase
-              .from("habit_completions")
-              .select("habit_id, completed_on, created_at, value")
-              .eq("user_id", user.id)
-              .gte("completed_on", localDateDaysAgo(60)),
-            supabase
-              .from("profiles")
-              .select("display_name, coach_tone")
-              .eq("user_id", user.id)
-              .maybeSingle(),
-          ]),
-          getAiSuggestionsEnabled(),
-        ]);
+  // Cached manually (not via readThroughCache) so failed loads are never
+  // cached: a 30s window of "no habits" was enough to bounce a signed-in
+  // user into onboarding and keep them there on retry.
+  const cacheKey = `${DATA_CACHE_PREFIX}habits-today:${user.id}:${today()}`;
+  if (!options?.force) {
+    const cached = getCachedValue<TodayDashboard>(cacheKey, DATA_CACHE_TTL_MS);
+    if (cached !== null) return cached;
+  }
 
-      const habitsList = (habits ?? []) as Habit[];
-      const completionRows = (completions ?? []) as Pick<
-        HabitCompletion,
-        "habit_id" | "completed_on" | "created_at" | "value"
-      >[];
-      const completionsByHabit = new Map(
-        completionRows
-          .filter((c) => c.completed_on === today())
-          .map((c) => [c.habit_id as string, { value: c.value as number | null }]),
-      );
-      const todayProgress: TodayProgressMap = new Map(
-        habitsList.map((habit) => [
-          habit.id,
-          progressForHabit(habit, completionsByHabit.get(habit.id)),
-        ]),
-      );
-      const completedToday = new Set(
-        [...todayProgress.entries()]
-          .filter(([, progress]) => progress.isDone)
-          .map(([habitId]) => habitId),
-      );
+  let queryResults;
+  try {
+    queryResults = await Promise.all([
+      Promise.all([
+        supabase
+          .from("habits")
+          .select("*")
+          .eq("user_id", user.id)
+          .is("archived_at", null)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("habit_completions")
+          .select("habit_id, completed_on, created_at, value")
+          .eq("user_id", user.id)
+          .gte("completed_on", localDateDaysAgo(60)),
+        supabase
+          .from("profiles")
+          .select("display_name, coach_tone")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]),
+      getAiSuggestionsEnabled().catch(() => false),
+    ] as const);
+  } catch {
+    return emptyTodayDashboard("there", false, user.id);
+  }
 
-      const completionDatesByHabit = new Map<string, string[]>();
-      for (const c of completionRows) {
-        const dates = completionDatesByHabit.get(c.habit_id as string) ?? [];
-        dates.push(c.completed_on as string);
-        completionDatesByHabit.set(c.habit_id as string, dates);
-      }
-      const streaksMap: StreaksMap = new Map(
-        habitsList.map((habit) => [
-          habit.id,
-          streakFromDates(completionDatesByHabit.get(habit.id) ?? []),
-        ]),
-      );
-      const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
-      let coachSignal = chooseTopCoachSignal(
-        buildCoachSignals({ habits: habitsList, completions: completionRows, tone: coachTone }),
-      );
-      if (coachSignal) {
-        coachSignal = {
-          ...coachSignal,
-          message: await resolveCoachMessage(coachSignal, {
-            enabled: aiEnabled,
-            nonBlocking: true,
-          }),
-        };
-      }
-      const displayName =
-        (profile?.display_name as string | null | undefined) ??
-        (user.user_metadata?.full_name as string | undefined) ??
-        user.email?.split("@")[0] ??
-        "there";
+  const [
+    [
+      { data: habits, error: habitsError },
+      { data: completions, error: completionsError },
+      { data: profile },
+    ],
+    aiEnabled,
+  ] = queryResults;
 
-      return {
-        habits: habitsList,
-        completedToday,
-        todayProgress,
-        streaksMap,
-        profile: { displayName, email: user.email ?? null },
-        leaderboardOptedIn: !!(profile?.display_name as string | null | undefined),
-        coachSignal,
-      };
-    },
-    options,
+  // A profile error only degrades the display name; habits/completions errors
+  // make the dashboard untrustworthy.
+  if (habitsError || completionsError) {
+    return emptyTodayDashboard("there", false, user.id);
+  }
+
+  const habitsList = (habits ?? []) as Habit[];
+  const completionRows = (completions ?? []) as Pick<
+    HabitCompletion,
+    "habit_id" | "completed_on" | "created_at" | "value"
+  >[];
+  const completionsByHabit = new Map(
+    completionRows
+      .filter((c) => c.completed_on === today())
+      .map((c) => [c.habit_id as string, { value: c.value as number | null }]),
   );
+  const todayProgress: TodayProgressMap = new Map(
+    habitsList.map((habit) => [
+      habit.id,
+      progressForHabit(habit, completionsByHabit.get(habit.id)),
+    ]),
+  );
+  const completedToday = new Set(
+    [...todayProgress.entries()]
+      .filter(([, progress]) => progress.isDone)
+      .map(([habitId]) => habitId),
+  );
+
+  const completionDatesByHabit = new Map<string, string[]>();
+  for (const c of completionRows) {
+    const dates = completionDatesByHabit.get(c.habit_id as string) ?? [];
+    dates.push(c.completed_on as string);
+    completionDatesByHabit.set(c.habit_id as string, dates);
+  }
+  const streaksMap: StreaksMap = new Map(
+    habitsList.map((habit) => [
+      habit.id,
+      streakFromDates(completionDatesByHabit.get(habit.id) ?? []),
+    ]),
+  );
+  const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
+  let coachSignal = chooseTopCoachSignal(
+    buildCoachSignals({ habits: habitsList, completions: completionRows, tone: coachTone }),
+  );
+  if (coachSignal) {
+    coachSignal = {
+      ...coachSignal,
+      message: await resolveCoachMessage(coachSignal, {
+        enabled: aiEnabled,
+        nonBlocking: true,
+      }),
+    };
+  }
+  const displayName =
+    (profile?.display_name as string | null | undefined) ??
+    (user.user_metadata?.full_name as string | undefined) ??
+    user.email?.split("@")[0] ??
+    "there";
+
+  const result: TodayDashboard = {
+    ok: true,
+    userId: user.id,
+    habits: habitsList,
+    completedToday,
+    todayProgress,
+    streaksMap,
+    profile: { displayName, email: user.email ?? null },
+    leaderboardOptedIn: !!(profile?.display_name as string | null | undefined),
+    coachSignal,
+  };
+  return setCachedValue(cacheKey, result);
 }
 
 export async function getHabit(id: string, options?: DataFetchOptions) {

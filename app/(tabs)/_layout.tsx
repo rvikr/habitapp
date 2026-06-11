@@ -1,5 +1,6 @@
 import { Tabs } from "expo-router";
 import { useColorScheme, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "@/components/language-provider";
 
@@ -11,10 +12,15 @@ const TAB_INACTIVE_DARK = "#7A7E88";
 export default function TabsLayout() {
   const scheme = useColorScheme();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const isDark = scheme === "dark";
   const active = isDark ? TAB_ACTIVE_DARK : TAB_ACTIVE;
   const inactive = isDark ? TAB_INACTIVE_DARK : TAB_INACTIVE;
   const tabBarBg = isDark ? "#16161C" : "#FFFFFF";
+  // In the installed iOS PWA Platform.OS is "web", so the iOS branch never
+  // applies — read the real safe-area inset (CSS env(), viewport-fit=cover)
+  // so the bottom nav clears the iPhone home indicator.
+  const webBottomInset = Platform.OS === "web" ? insets.bottom : 0;
 
   return (
     <Tabs
@@ -26,9 +32,9 @@ export default function TabsLayout() {
           backgroundColor: tabBarBg,
           borderTopColor: isDark ? "#2C2C36" : "#E6E0D5",
           borderTopWidth: 1,
-          paddingBottom: Platform.OS === "ios" ? 20 : 8,
+          paddingBottom: (Platform.OS === "ios" ? 20 : 8) + webBottomInset,
           paddingTop: 8,
-          height: Platform.OS === "ios" ? 80 : 60,
+          height: (Platform.OS === "ios" ? 80 : 60) + webBottomInset,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}

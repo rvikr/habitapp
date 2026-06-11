@@ -16,6 +16,7 @@ import {
   shouldShowFirstLoginWelcome,
   shouldRequireFirstRunOnboarding,
 } from "@/lib/auth/auth-welcome";
+import { hasCompletedOnboarding, markOnboardingComplete } from "@/lib/auth/onboarding";
 import { TrialEndedBanner, TrialSubscriptionBanner } from "@/components/pro-access-banner";
 import NotificationPermissionCard from "@/components/notification-permission-card";
 import HabitCard from "@/components/habit-card";
@@ -53,6 +54,8 @@ import {
 type StatsData = Awaited<ReturnType<typeof getStats>>;
 
 type DashboardData = {
+  ok: boolean;
+  userId: string | null;
   habits: Habit[];
   completedToday: Set<string>;
   todayProgress: Map<string, HabitProgress>;
@@ -68,6 +71,9 @@ const STEP_SYNC_INTERVAL_MS = 30_000;
 const TRIAL_ENDED_DISMISSED_KEY = "habbit:trial-ended-banner-dismissed";
 let trialBannerDismissedForSession = false;
 let coachUpgradeHintDismissedForSession = false;
+// The wizard auto-launches at most once per session: cancelling it must land
+// on the dashboard's empty state, not bounce straight back into the wizard.
+let wizardAutoLaunchedForSession = false;
 
 type StepTrackingStatus =
   | "idle"
@@ -95,6 +101,11 @@ export default function DashboardScreen() {
     useTrackingPreferences();
   const primary = "#F26B1F";
   const [data, setData] = useState<DashboardData | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  // Assume complete until storage says otherwise so a slow read can't flash
+  // the wizard at an onboarded user.
+  const [onboardingComplete, setOnboardingComplete] = useState(true);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const { newUser } = useLocalSearchParams<{ newUser?: string }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
@@ -136,22 +147,47 @@ export default function DashboardScreen() {
   }, []);
 
   const load = useCallback(async (options?: { force?: boolean }) => {
-    // Replay any completions queued while offline before reading, so the
-    // dashboard reflects them as soon as connectivity returns.
-    await flushPendingCompletions().catch(() => undefined);
-    const [result, proAccess, stats] = await Promise.all([
-      getHabitsForToday(options),
-      getCurrentProAccess(),
-      getStats(options),
-    ]);
-    setData({
-      ...result,
-      completedToday: result.completedToday,
-      todayProgress: result.todayProgress,
-      streaksMap: result.streaksMap,
-      proAccess,
-      stats,
-    });
+    try {
+      // Replay any completions queued while offline before reading, so the
+      // dashboard reflects them as soon as connectivity returns.
+      await flushPendingCompletions().catch(() => undefined);
+      const [result, proAccess, stats] = await Promise.all([
+        getHabitsForToday(options),
+        getCurrentProAccess(),
+        getStats(options),
+      ]);
+
+      if (!result.ok) {
+        // A failed load must never clobber a rendered dashboard, and must
+        // never masquerade as "no habits" (which would trigger onboarding).
+        if (!dataRef.current) setLoadFailed(true);
+        return;
+      }
+
+      setLoadFailed(false);
+      if (result.userId) {
+        if (result.habits.length > 0) {
+          // Anyone with habits has, by definition, finished onboarding —
+          // existing users are grandfathered in without a wizard pass.
+          setOnboardingComplete(true);
+          void markOnboardingComplete(result.userId);
+        } else {
+          setOnboardingComplete(await hasCompletedOnboarding(result.userId));
+        }
+        setOnboardingChecked(true);
+      }
+
+      setData({
+        ...result,
+        completedToday: result.completedToday,
+        todayProgress: result.todayProgress,
+        streaksMap: result.streaksMap,
+        proAccess,
+        stats,
+      });
+    } catch {
+      if (!dataRef.current) setLoadFailed(true);
+    }
   }, []);
 
   useFocusEffect(
@@ -171,9 +207,14 @@ export default function DashboardScreen() {
         stepHabit.unit,
       ].join(":")
     : null;
-  const requiresFirstRunOnboarding = data
-    ? shouldRequireFirstRunOnboarding({ newUser, habitCount: data.habits.length })
-    : false;
+  const requiresFirstRunOnboarding =
+    data && onboardingChecked
+      ? shouldRequireFirstRunOnboarding({
+          habitCount: data.habits.length,
+          dataOk: data.ok,
+          onboardingComplete,
+        })
+      : false;
   const showWelcomeBanner =
     showWelcome && data
       ? shouldShowFirstLoginWelcome({ newUser, habitCount: data.habits.length })
@@ -186,7 +227,8 @@ export default function DashboardScreen() {
     : false;
 
   useEffect(() => {
-    if (requiresFirstRunOnboarding) {
+    if (requiresFirstRunOnboarding && !wizardAutoLaunchedForSession) {
+      wizardAutoLaunchedForSession = true;
       router.replace("/habits/wizard" as never);
     }
   }, [requiresFirstRunOnboarding, router]);
@@ -530,6 +572,36 @@ export default function DashboardScreen() {
       locale: language === "hi" ? "hi-IN" : "en-US",
     });
   }, [completedCount, data, language, total]);
+
+  // First load failed and there is nothing cached to show — offer a retry
+  // instead of a permanent skeleton (or, worse, a spurious onboarding bounce).
+  if (loadFailed && !data) {
+    return (
+      <SafeAreaView
+        className="flex-1 bg-background dark:bg-d-background items-center justify-center px-margin-mobile"
+        edges={["top"]}
+      >
+        <View className="w-16 h-16 rounded-full bg-surface-container dark:bg-d-surface-container items-center justify-center mb-lg">
+          <MaterialCommunityIcons name="wifi-off" size={28} color={primary} />
+        </View>
+        <Text className="text-headline-md text-on-background dark:text-d-on-background font-bold mb-sm text-center">
+          {t("Couldn't load your habits")}
+        </Text>
+        <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center mb-lg">
+          {t("Check your connection and try again. Your data is safe.")}
+        </Text>
+        <TouchableOpacity
+          className="bg-primary rounded-full py-md px-xl items-center"
+          onPress={() => {
+            setLoadFailed(false);
+            load({ force: true });
+          }}
+        >
+          <Text className="text-on-primary text-label-lg font-semibold">{t("Retry")}</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>

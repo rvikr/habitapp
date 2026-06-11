@@ -1,20 +1,59 @@
 // Service worker for Lagan PWA at /app/
-// Handles Web Push notifications and minimal offline app-shell caching.
+// Handles Web Push notifications and offline app-shell caching.
+//
+// Hard rules learned from production:
+// 1. NEVER serve a redirected response for a navigation request — iOS Safari
+//    kills the launch with "response served by service worker has
+//    redirections". Upstream layers (Next.js trailing-slash 308, nginx
+//    try_files 301) can introduce redirects at any time, so every response we
+//    hand to respondWith() or cache.put() is stripped of its redirect flag.
+// 2. The app shell (HTML) must be network-first. It references content-hashed
+//    bundles that disappear from the server on each deploy; serving a stale
+//    cached shell bricks the app until the cache is purged.
 
-const CACHE_NAME = "lagan-shell-v1";
-const APP_SHELL = ["/app/", "/app/manifest.webmanifest", "/app/icon-192.png"];
+const CACHE_NAME = "lagan-shell-v2";
+const SHELL_URL = "/app/";
+const PRECACHE_URLS = [SHELL_URL, "/app/manifest.webmanifest", "/app/icon-192.png"];
+
+// Rebuilds a response so `redirected` is false and it is safe for navigations
+// and for caching. Bodies are small (HTML/JSON/icons), so buffering is fine.
+async function cleanResponse(response) {
+  if (!response.redirected) return response;
+  const body = await response.blob();
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+async function fetchAndClean(request) {
+  const response = await fetch(request);
+  return cleanResponse(response);
+}
+
+async function precache() {
+  const cache = await caches.open(CACHE_NAME);
+  await Promise.all(
+    PRECACHE_URLS.map(async (url) => {
+      try {
+        // cache: "reload" bypasses the HTTP cache so a fresh shell is stored.
+        const response = await fetchAndClean(new Request(url, { cache: "reload" }));
+        if (response.ok) await cache.put(url, response);
+      } catch {
+        // Precaching is best effort; runtime caching fills the gaps.
+      }
+    }),
+  );
+}
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL).catch(() => {}))
-      .then(() => self.skipWaiting()),
-  );
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
-  // Prune caches from older SW versions.
+  // Prune caches from older SW versions (including the v1 cache that could
+  // hold a poisoned redirected copy of the shell).
   event.waitUntil(
     caches
       .keys()
@@ -25,16 +64,78 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Network-first for navigations: always try the fresh shell, fall back to the
+// cached copy when offline. Successful fetches refresh the cached shell.
+async function handleNavigation(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetchAndClean(request);
+    if (response.ok) {
+      // Single-page app: every in-scope navigation serves the same shell, so
+      // cache it under one key for the offline fallback.
+      await cache.put(SHELL_URL, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(SHELL_URL);
+    if (cached) return cleanResponse(cached);
+    throw new Error("offline and no cached shell");
+  }
+}
+
+// Cache-first for content-hashed immutable bundles; they never change at the
+// same URL, and caching them is what makes offline launches work.
+async function handleImmutableAsset(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) return cleanResponse(cached);
+  const response = await fetchAndClean(request);
+  if (response.ok) await cache.put(request, response.clone());
+  return response;
+}
+
+// Stale-while-revalidate for the small set of precached static files
+// (manifest, icons): serve fast, refresh in the background.
+async function handlePrecachedStatic(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+  const refresh = fetchAndClean(request)
+    .then(async (response) => {
+      if (response.ok) await cache.put(request, response.clone());
+      return response;
+    })
+    .catch(() => null);
+  if (cached) {
+    return cleanResponse(cached);
+  }
+  const fresh = await refresh;
+  if (fresh) return fresh;
+  throw new Error("offline and not cached");
+}
+
 self.addEventListener("fetch", (event) => {
-  // Only cache-first for same-origin GET requests; pass everything else through.
   const { request } = event;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith(
-    caches.match(request).then((cached) => cached ?? fetch(request)),
-  );
+  if (request.mode === "navigate") {
+    event.respondWith(handleNavigation(request));
+    return;
+  }
+
+  if (url.pathname.startsWith("/app/_expo/static/") || url.pathname.startsWith("/app/assets/")) {
+    event.respondWith(handleImmutableAsset(request));
+    return;
+  }
+
+  if (PRECACHE_URLS.includes(url.pathname)) {
+    event.respondWith(handlePrecachedStatic(request));
+    return;
+  }
+
+  // Everything else (API calls, sw.js itself, cross-cutting requests) goes
+  // straight to the network with default browser semantics.
 });
 
 self.addEventListener("push", (event) => {
