@@ -47,16 +47,66 @@ self.addEventListener("push", (event) => {
     body: data.body,
     icon: "/app/icon-192.png",
     badge: "/app/icon-192.png",
-    data: { url: "/app/" },
+    data: {
+      url: data.url ?? "/app/",
+      habitId: data.habitId ?? null,
+      completeToken: data.completeToken ?? null,
+      completeUrl: data.completeUrl ?? null,
+    },
     requireInteraction: false,
   };
+
+  // Single-habit payloads carry a signed completion token; only those get the
+  // action button. Old-format payloads and bundles degrade to plain tap-to-open.
+  // iOS/macOS Safari ignores `actions` entirely — tap behavior is unchanged there.
+  if (data.completeToken && data.completeUrl) {
+    options.actions = [{ action: "complete", title: "Mark done" }];
+  }
 
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
+// Redeems the "Mark done" token without opening a window, then swaps the
+// notification for a confirmation (or a tap-to-open fallback on failure).
+async function completeFromNotification(data) {
+  const ackOptions = {
+    icon: "/app/icon-192.png",
+    badge: "/app/icon-192.png",
+    tag: "habit-complete-ack",
+    // No completeToken on the ack, so it renders without a button; tapping it
+    // still deep-links via the carried url.
+    data: { url: data.url ?? "/app/" },
+  };
+  try {
+    const res = await fetch(data.completeUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: data.completeToken }),
+    });
+    if (!res.ok) throw new Error("status " + res.status);
+    const body = await res.json().catch(() => ({}));
+    await self.registration.showNotification(
+      body.habitName ? "✓ Logged: " + body.habitName : "✓ Logged",
+      { ...ackOptions, silent: true },
+    );
+  } catch {
+    await self.registration.showNotification(
+      "Couldn't log — tap to open the app",
+      ackOptions,
+    );
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
+  const data = event.notification.data ?? {};
   event.notification.close();
-  const targetUrl = event.notification.data?.url ?? "/app/";
+
+  if (event.action === "complete" && data.completeToken && data.completeUrl) {
+    event.waitUntil(completeFromNotification(data));
+    return;
+  }
+
+  const targetUrl = data.url ?? "/app/";
 
   event.waitUntil(
     self.clients

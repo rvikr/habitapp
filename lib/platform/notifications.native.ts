@@ -10,6 +10,22 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Category for single-habit reminders: adds a "Mark done" button that logs
+// the habit without foregrounding the app. Bundled reminders stay uncategorized
+// (no bulk-complete button) and keep plain tap-to-open behavior.
+export const HABIT_REMINDER_CATEGORY = "habit-reminder";
+export const COMPLETE_ACTION_ID = "complete";
+
+export async function registerNotificationCategories(): Promise<void> {
+  await Notifications.setNotificationCategoryAsync(HABIT_REMINDER_CATEGORY, [
+    {
+      identifier: COMPLETE_ACTION_ID,
+      buttonTitle: "Mark done",
+      options: { opensAppToForeground: false },
+    },
+  ]).catch(() => {});
+}
+
 export async function requestPermission(): Promise<boolean> {
   const { status } = await Notifications.requestPermissionsAsync();
   return status === "granted";
@@ -29,10 +45,11 @@ export async function scheduleWeeklyReminder(
   title: string,
   body: string,
   data: Record<string, unknown>,
+  categoryIdentifier?: string,
 ): Promise<string> {
   const [hour, minute] = time.split(":").map(Number);
   return Notifications.scheduleNotificationAsync({
-    content: { title, body, data },
+    content: { title, body, data, categoryIdentifier },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
       weekday: weekday === 0 ? 1 : weekday + 1,
@@ -48,9 +65,10 @@ export async function scheduleDateReminder(
   title: string,
   body: string,
   data: Record<string, unknown>,
+  categoryIdentifier?: string,
 ): Promise<string> {
   return Notifications.scheduleNotificationAsync({
-    content: { title, body, data },
+    content: { title, body, data, categoryIdentifier },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: fireAt,

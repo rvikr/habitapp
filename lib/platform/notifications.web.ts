@@ -77,6 +77,14 @@ export async function getPermissionStatus(): Promise<"granted" | "denied" | "und
   return Notification.permission === "default" ? "undetermined" : Notification.permission;
 }
 
+// Web notification actions are handled by the service worker (public/sw.js),
+// so category registration is a no-op; the constants exist for signature
+// parity with the native adapter.
+export const HABIT_REMINDER_CATEGORY = "habit-reminder";
+export const COMPLETE_ACTION_ID = "complete";
+
+export async function registerNotificationCategories(): Promise<void> {}
+
 // Web relies on the server-side web-push-reminders edge function for delivery,
 // so client-side scheduling is a no-op.
 export async function scheduleWeeklyReminder(
@@ -85,6 +93,7 @@ export async function scheduleWeeklyReminder(
   _title: string,
   _body: string,
   _data: Record<string, unknown>,
+  _categoryIdentifier?: string,
 ): Promise<string> {
   return "";
 }
@@ -94,6 +103,7 @@ export async function scheduleDateReminder(
   _title: string,
   _body: string,
   _data: Record<string, unknown>,
+  _categoryIdentifier?: string,
 ): Promise<string> {
   return "";
 }

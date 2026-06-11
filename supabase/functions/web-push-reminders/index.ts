@@ -16,13 +16,20 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // @ts-ignore — esm.sh provides a Deno-compatible build of web-push
 import webPush from "https://esm.sh/web-push@3.6.7?bundle";
+import { signActionToken } from "../_shared/push-action-token.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
 const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") ?? "";
 const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:push@lagan.health";
+// Signs "Mark done" action tokens for single-habit notifications. When unset,
+// notifications still send — just without the complete action.
+const PUSH_ACTION_SECRET = Deno.env.get("PUSH_ACTION_SECRET") ?? "";
 const WINDOW_MINUTES = 15;
+// Long enough to cover "tapped the morning reminder at night"; the token's
+// pinned local date means a late redeem still completes the intended day.
+const ACTION_TOKEN_TTL_SECONDS = 12 * 60 * 60;
 
 if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
   webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
@@ -44,6 +51,7 @@ type Subscription = {
 type Habit = {
   id: string;
   name: string;
+  target: number | null;
   reminder_times: string[] | null;
   reminder_days: number[] | null;
 };
@@ -111,12 +119,22 @@ Deno.serve(async (_req) => {
 
     const { data: habits } = await supabase
       .from("habits")
-      .select("id, name, reminder_times, reminder_days")
+      .select("id, name, target, reminder_times, reminder_days")
       .eq("user_id", sub.user_id)
       .is("archived_at", null)
       .eq("reminders_enabled", true);
 
     if (!habits?.length) continue;
+
+    // Today's completions, so reminders for already-done habits are skipped.
+    const { data: completions } = await supabase
+      .from("habit_completions")
+      .select("habit_id, value")
+      .eq("user_id", sub.user_id)
+      .eq("completed_on", localDate);
+    const completionByHabit = new Map<string, number>(
+      (completions ?? []).map((c) => [c.habit_id as string, Number(c.value ?? 1)]),
+    );
 
     // Find habits whose reminder time falls in the current window.
     const dueEntries: { habitId: string; habitName: string; time: string }[] = [];
@@ -125,6 +143,16 @@ Deno.serve(async (_req) => {
       const times = habit.reminder_times ?? [];
       const days = habit.reminder_days ?? [0, 1, 2, 3, 4, 5, 6];
       if (!days.includes(localDay)) continue;
+
+      // Skip habits already completed today; mirrors progressForHabit's done
+      // semantics (value >= target when quantitative, any row otherwise).
+      // Suppressed habits get no web_push_sends row, so un-completing later
+      // doesn't block a future window's reminder.
+      const loggedValue = completionByHabit.get(habit.id);
+      if (loggedValue !== undefined) {
+        const target = habit.target == null ? null : Number(habit.target);
+        if (!target || target <= 0 || loggedValue >= target) continue;
+      }
 
       for (const time of times) {
         if (!/^\d{2}:\d{2}$/.test(time)) continue;
@@ -162,8 +190,32 @@ Deno.serve(async (_req) => {
       keys: { p256dh: sub.p256dh, auth: sub.auth },
     };
 
+    // Single-habit notifications carry a deep link and a signed "Mark done"
+    // action token; bundles deliberately get neither (a bulk-complete button
+    // is too easy to hit by accident, and tap already opens the dashboard).
+    const payload: Record<string, unknown> = { title, body };
+    const single = dueEntries.length === 1 ? dueEntries[0] : null;
+    if (single) {
+      payload.habitId = single.habitId;
+      payload.url = `/app/habits/${single.habitId}`;
+      if (PUSH_ACTION_SECRET) {
+        payload.completeToken = await signActionToken(
+          {
+            u: sub.user_id,
+            h: single.habitId,
+            d: localDate,
+            exp: Math.floor(now.getTime() / 1000) + ACTION_TOKEN_TTL_SECONDS,
+          },
+          PUSH_ACTION_SECRET,
+        );
+        // Carried in the payload so sw.js (a static file with no env access)
+        // never hardcodes the Supabase project URL.
+        payload.completeUrl = `${SUPABASE_URL}/functions/v1/complete-habit-from-push`;
+      }
+    }
+
     try {
-      await webPush.sendNotification(pushSub, JSON.stringify({ title, body }));
+      await webPush.sendNotification(pushSub, JSON.stringify(payload));
 
       // Log each send (unique constraint prevents double-firing on overlapping runs).
       for (const entry of dueEntries) {

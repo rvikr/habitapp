@@ -5,6 +5,7 @@ import {
   getPermissionStatus,
   scheduleWeeklyReminder,
   scheduleDateReminder,
+  HABIT_REMINDER_CATEGORY,
 } from "../platform/notifications";
 import type { ReminderContext } from "./reminders";
 import { formatAmount } from "../coach/habit-intelligence";
@@ -86,6 +87,12 @@ function bundleData(members: ReminderMember[]): Record<string, unknown> {
   return members.length === 1 ? { habitId: members[0].habitId } : { habitId: null };
 }
 
+// Only single-habit reminders get the "Mark done" action category — a
+// bulk-complete button on a bundle is too easy to hit by accident.
+function bundleCategory(members: ReminderMember[]): string | undefined {
+  return members.length === 1 ? HABIT_REMINDER_CATEGORY : undefined;
+}
+
 async function performScheduledReminderSync(): Promise<void> {
   const status = await getPermissionStatus();
   if (status !== "granted") return;
@@ -146,13 +153,20 @@ async function performScheduledReminderSync(): Promise<void> {
       title,
       body,
       bundleData(group.members),
+      bundleCategory(group.members),
     );
     record(group.members, id);
   }
 
   for (const group of dateGroups.values()) {
     const { title, body } = bundleContent(group.members);
-    const id = await scheduleDateReminder(group.fireAt, title, body, bundleData(group.members));
+    const id = await scheduleDateReminder(
+      group.fireAt,
+      title,
+      body,
+      bundleData(group.members),
+      bundleCategory(group.members),
+    );
     record(group.members, id);
   }
 

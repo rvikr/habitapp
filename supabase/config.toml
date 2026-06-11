@@ -6,3 +6,8 @@ verify_jwt = false
 
 [functions.welcome-email]
 verify_jwt = false
+
+# Authenticated by a signed HMAC action token (see _shared/push-action-token.ts),
+# not a user JWT — the service worker redeeming the token has no session.
+[functions.complete-habit-from-push]
+verify_jwt = false
