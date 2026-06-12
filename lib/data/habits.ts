@@ -222,32 +222,38 @@ export async function getStats(options?: DataFetchOptions) {
     `${DATA_CACHE_PREFIX}stats:${user.id}:${today()}`,
     DATA_CACHE_TTL_MS,
     async () => {
-      const [
-        { count: totalCompletions },
-        { count: totalHabits },
-        { data: dateDocs },
-        { data: profile },
-      ] = await Promise.all([
-        supabase
-          .from("habit_completions")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id),
-        supabase
-          .from("habits")
-          .select("id", { count: "exact", head: true })
-          .is("archived_at", null)
-          .eq("user_id", user.id),
-        supabase
+      const [{ count: totalCompletions }, { count: totalHabits }, dateResult, { data: profile }] =
+        await Promise.all([
+          supabase
+            .from("habit_completions")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id),
+          supabase
+            .from("habits")
+            .select("id", { count: "exact", head: true })
+            .is("archived_at", null)
+            .eq("user_id", user.id),
+          // Distinct dates via RPC: the raw rows grow without bound and PostgREST
+          // truncates at 1,000, which silently corrupted streaks for long-tenured
+          // users while re-downloading full history on every load.
+          supabase.rpc("get_completion_dates"),
+          supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle(),
+        ]);
+
+      let dateValues: string[];
+      if (dateResult.error) {
+        // Migration not applied yet: fall back to the legacy full-row scan so
+        // stats keep working against an older database.
+        const { data: dateDocs } = await supabase
           .from("habit_completions")
           .select("completed_on")
           .eq("user_id", user.id)
-          .order("completed_on", { ascending: false }),
-        supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle(),
-      ]);
-
-      const uniqueDates = [...new Set((dateDocs ?? []).map((d) => d.completed_on as string))]
-        .sort()
-        .reverse();
+          .order("completed_on", { ascending: false });
+        dateValues = (dateDocs ?? []).map((d) => d.completed_on as string);
+      } else {
+        dateValues = ((dateResult.data ?? []) as string[]).map(String);
+      }
+      const uniqueDates = [...new Set(dateValues)].sort().reverse();
       let currentStreak = 0;
       const cursor = new Date();
       for (const day of uniqueDates) {

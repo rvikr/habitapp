@@ -14,7 +14,9 @@ import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { requestAccountDeletion } from "@/lib/data/actions";
+import { requestAccountDeletion, signInWithGoogle } from "@/lib/data/actions";
+import { hasPasswordIdentity } from "@/lib/auth/identity";
+import { getCurrentUser } from "@/lib/supabase/client";
 import { exportMyData } from "@/lib/utils/privacy";
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from "@/lib/services/analytics";
 import { isSentryOptedOut, setSentryOptOut } from "@/lib/services/sentry";
@@ -31,6 +33,9 @@ export default function PrivacyScreen() {
   const [reason, setReason] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
   const [savingDeletion, setSavingDeletion] = useState(false);
+  // Assume a password account until the user loads; OAuth-only accounts
+  // confirm deletion with a fresh Google sign-in instead of a password.
+  const [usesPassword, setUsesPassword] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
 
@@ -41,6 +46,9 @@ export default function PrivacyScreen() {
         setCrashReportsOff(sentryOptedOut);
       },
     );
+    getCurrentUser().then((user) => {
+      if (user) setUsesPassword(hasPasswordIdentity(user));
+    });
   }, []);
 
   async function toggleAnalytics(next: boolean) {
@@ -64,8 +72,55 @@ export default function PrivacyScreen() {
     setExportText(result.data ?? "{}");
   }
 
+  async function performDeletion() {
+    setSavingDeletion(true);
+    const result = await requestAccountDeletion(reason, deletePassword);
+    setSavingDeletion(false);
+    if (result.ok) {
+      setReason("");
+      setDeletePassword("");
+      router.replace("/login");
+      return;
+    }
+    if (result.needsReauth) {
+      // OAuth-only account with a stale session: confirm identity with a
+      // fresh Google sign-in, then retry. On web this may redirect the page;
+      // after returning, tapping "Request deletion" again completes it.
+      showAlert(
+        "Confirm it's you",
+        "Sign in with Google again to confirm, then we'll delete your account.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Continue with Google",
+            onPress: async () => {
+              const { error, cancelled } = await signInWithGoogle();
+              if (cancelled) return;
+              if (error) {
+                showAlert("Could not confirm", error.message ?? "Try again.");
+                return;
+              }
+              setSavingDeletion(true);
+              const retry = await requestAccountDeletion(reason, deletePassword);
+              setSavingDeletion(false);
+              if (!retry.ok) {
+                showAlert("Could not delete account", retry.error ?? "Try again.");
+                return;
+              }
+              setReason("");
+              setDeletePassword("");
+              router.replace("/login");
+            },
+          },
+        ],
+      );
+      return;
+    }
+    showAlert("Could not delete account", result.error ?? "Try again.");
+  }
+
   function handleDeletionRequest() {
-    if (!deletePassword.trim()) {
+    if (usesPassword && !deletePassword.trim()) {
       showAlert("Password required", "Confirm your password before requesting account deletion.");
       return;
     }
@@ -74,22 +129,7 @@ export default function PrivacyScreen() {
       "This permanently removes your account and all your data (habits, completions, profile). This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete forever",
-          style: "destructive",
-          onPress: async () => {
-            setSavingDeletion(true);
-            const result = await requestAccountDeletion(reason, deletePassword);
-            setSavingDeletion(false);
-            if (!result.ok) {
-              showAlert("Could not delete account", result.error ?? "Try again.");
-              return;
-            }
-            setReason("");
-            setDeletePassword("");
-            router.replace("/login");
-          },
-        },
+        { text: "Delete forever", style: "destructive", onPress: () => void performDeletion() },
       ],
     );
   }
@@ -217,16 +257,23 @@ export default function PrivacyScreen() {
               multiline
               numberOfLines={3}
             />
-            <TextInput
-              className="bg-surface-lowest text-on-surface rounded-xl px-md py-sm text-body-md"
-              placeholder="Confirm password"
-              placeholderTextColor="#8F8A82"
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              secureTextEntry
-              textContentType="password"
-              autoCapitalize="none"
-            />
+            {usesPassword ? (
+              <TextInput
+                className="bg-surface-lowest text-on-surface rounded-xl px-md py-sm text-body-md"
+                placeholder="Confirm password"
+                placeholderTextColor="#8F8A82"
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                secureTextEntry
+                textContentType="password"
+                autoCapitalize="none"
+              />
+            ) : (
+              <Text className="text-label-sm text-on-error-container">
+                You signed in with Google, so there is no password to confirm. We may ask you to
+                sign in with Google again before deleting.
+              </Text>
+            )}
             <TouchableOpacity
               className="bg-error rounded-full py-sm items-center"
               onPress={handleDeletionRequest}

@@ -8,10 +8,28 @@
 // respond with 404 or 410 (expired/unsubscribed).
 //
 // Required secrets (set with `supabase secrets set`):
-//   VAPID_PRIVATE_KEY   — base64url-encoded P-256 private key
-//   VAPID_PUBLIC_KEY    — base64url-encoded P-256 public key
-//   VAPID_SUBJECT       — mailto: or https: audience (e.g. mailto:push@lagan.health)
+//   VAPID_PRIVATE_KEY          — base64url-encoded P-256 private key
+//   VAPID_PUBLIC_KEY           — base64url-encoded P-256 public key
+//   VAPID_SUBJECT              — mailto: or https: audience (e.g. mailto:push@lagan.health)
+//   WEB_PUSH_CRON_SECRET       — shared secret the cron caller sends as x-cron-secret
 //   (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically)
+//
+// The gateway's JWT check also passes for the public anon key, so without the
+// x-cron-secret gate anyone with the app bundle could trigger full-table
+// reminder scans. The scheduled caller must send the header, mirroring
+// progress-report's setup (see 0019_weekly_progress_reports.sql), e.g.:
+//
+//   select cron.schedule('web-push-reminders', '*/15 * * * *', $cron$
+//     select net.http_post(
+//       url     := (select decrypted_secret from vault.decrypted_secrets where name = 'web_push_reminders_url'),
+//       headers := jsonb_build_object(
+//                    'content-type', 'application/json',
+//                    'authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'anon_key'),
+//                    'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'web_push_cron_secret')
+//                  ),
+//       body    := '{}'::jsonb
+//     );
+//   $cron$);
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // @ts-ignore — esm.sh provides a Deno-compatible build of web-push
@@ -26,6 +44,7 @@ const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:push@lagan.health
 // Signs "Mark done" action tokens for single-habit notifications. When unset,
 // notifications still send — just without the complete action.
 const PUSH_ACTION_SECRET = Deno.env.get("PUSH_ACTION_SECRET") ?? "";
+const CRON_SECRET = Deno.env.get("WEB_PUSH_CRON_SECRET") ?? "";
 const WINDOW_MINUTES = 15;
 // Long enough to cover "tapped the morning reminder at night"; the token's
 // pinned local date means a late redeem still completes the intended day.
@@ -92,7 +111,19 @@ function localDayOfWeek(date: Date, timezone: string): number {
   );
 }
 
-Deno.serve(async (_req) => {
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+Deno.serve(async (req) => {
+  if (!CRON_SECRET || !timingSafeEqual(req.headers.get("x-cron-secret") ?? "", CRON_SECRET)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
   if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
     return new Response(JSON.stringify({ error: "VAPID keys not configured" }), { status: 500 });
   }

@@ -24,6 +24,7 @@ import {
   isGoogleNativeCancellationError,
   isGoogleNativeDeveloperError,
 } from "../auth/google-native";
+import { hasPasswordIdentity, hasRecentSignIn } from "../auth/identity";
 import { buildCompletionValuePayload } from "./completions";
 import { enqueueCompletionOp, flushPendingCompletions, isNetworkFailure } from "./completion-queue";
 import { clearDataCache } from "./cache";
@@ -750,20 +751,31 @@ export async function updatePassword(newPassword: string) {
 export async function requestAccountDeletion(
   reason?: string,
   password?: string,
-): Promise<ActionResult> {
+): Promise<ActionResult & { needsReauth?: boolean }> {
   const user = await getUser();
   if (!user) return notSignedIn();
   const email = user.email?.trim();
-  const confirmationPassword = password?.trim() ?? "";
-  if (!email || !confirmationPassword) {
-    return { ok: false, error: "Confirm your password before deleting your account." };
-  }
   try {
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password: confirmationPassword,
-    });
-    if (signInError) return { ok: false, error: "Password confirmation failed." };
+    if (hasPasswordIdentity(user)) {
+      const confirmationPassword = password?.trim() ?? "";
+      if (!email || !confirmationPassword) {
+        return { ok: false, error: "Confirm your password before deleting your account." };
+      }
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: confirmationPassword,
+      });
+      if (signInError) return { ok: false, error: "Password confirmation failed." };
+    } else if (!hasRecentSignIn(user.last_sign_in_at)) {
+      // OAuth-only account: no password exists, and the delete-account edge
+      // function requires a recent sign-in. Tell the UI to run the provider
+      // sign-in flow, then call this again.
+      return {
+        ok: false,
+        needsReauth: true,
+        error: "Confirm it's you by signing in with Google again.",
+      };
+    }
 
     const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
       "delete-account",

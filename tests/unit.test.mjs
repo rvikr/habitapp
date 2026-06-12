@@ -10,6 +10,7 @@ import {
   xpInLevel,
 } from "../lib/coach/xp.ts";
 import { validatePassword } from "../lib/auth/password.ts";
+import { hasPasswordIdentity, hasRecentSignIn } from "../lib/auth/identity.ts";
 import {
   AUTH_CALLBACK_CONFIRMED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
@@ -3008,6 +3009,42 @@ test("classifyStoredSession drops only parseable, refresh-token-less payloads", 
   // would turn a transient glitch into a permanent sign-out.
   assert.equal(classifyStoredSession('{"refresh_token":"r1","acce'), "unparseable");
   assert.equal(classifyStoredSession("null"), "unparseable");
+});
+
+test("hasPasswordIdentity detects email identities and OAuth-only accounts", () => {
+  // Email/password account: provider listed in identities.
+  assert.equal(hasPasswordIdentity({ identities: [{ provider: "email" }] }), true);
+  // Account with both Google and a password.
+  assert.equal(
+    hasPasswordIdentity({ identities: [{ provider: "google" }, { provider: "email" }] }),
+    true,
+  );
+  // OAuth-only account: no email identity anywhere.
+  assert.equal(
+    hasPasswordIdentity({
+      identities: [{ provider: "google" }],
+      app_metadata: { provider: "google", providers: ["google"] },
+    }),
+    false,
+  );
+  // Fallback to app_metadata when identities are absent.
+  assert.equal(hasPasswordIdentity({ app_metadata: { providers: ["email"] } }), true);
+  assert.equal(hasPasswordIdentity({ app_metadata: { provider: "email" } }), true);
+  assert.equal(hasPasswordIdentity({}), false);
+  assert.equal(hasPasswordIdentity(null), false);
+});
+
+test("hasRecentSignIn honors the re-auth window and rejects garbage timestamps", () => {
+  const now = new Date("2026-06-11T12:00:00Z");
+  assert.equal(hasRecentSignIn("2026-06-11T11:55:00Z", now), true);
+  assert.equal(hasRecentSignIn("2026-06-11T12:00:00Z", now), true);
+  // Just outside the 10-minute window.
+  assert.equal(hasRecentSignIn("2026-06-11T11:49:59Z", now), false);
+  assert.equal(hasRecentSignIn(null, now), false);
+  assert.equal(hasRecentSignIn(undefined, now), false);
+  assert.equal(hasRecentSignIn("not-a-date", now), false);
+  // Custom window.
+  assert.equal(hasRecentSignIn("2026-06-11T11:00:00Z", now, 2 * 60 * 60 * 1000), true);
 });
 
 await testChain;

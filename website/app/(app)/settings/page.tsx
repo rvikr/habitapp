@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { getStats } from "@/lib/habits";
+import { hasPasswordIdentity } from "@/lib/identity";
 import { levelForXp, xpForCompletions } from "@/lib/xp";
 import SettingsForm from "./SettingsForm";
 
@@ -69,6 +70,7 @@ export default async function SettingsPage() {
         userId={user.id}
         displayName={displayName}
         email={user.email ?? ""}
+        usesPassword={hasPasswordIdentity(user)}
       />
     </div>
   );

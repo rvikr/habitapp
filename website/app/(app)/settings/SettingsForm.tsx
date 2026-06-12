@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { hasRecentSignIn } from "@/lib/identity";
 
 interface Props {
   userId: string;
   displayName: string;
   email: string;
+  usesPassword: boolean;
 }
 
 function Toggle({
@@ -34,7 +36,7 @@ function Toggle({
   );
 }
 
-export default function SettingsForm({ userId, displayName, email }: Props) {
+export default function SettingsForm({ userId, displayName, email, usesPassword }: Props) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -90,7 +92,7 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
 
   async function handleDeleteAccount() {
     setDeleteMsg("");
-    if (!deletePassword.trim()) {
+    if (usesPassword && !deletePassword.trim()) {
       setDeleteMsg("Enter your password to confirm account deletion.");
       return;
     }
@@ -99,14 +101,30 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
     }
 
     setDeleting(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password: deletePassword.trim(),
-    });
-    if (signInError) {
-      setDeleting(false);
-      setDeleteMsg("Password confirmation failed.");
-      return;
+    if (usesPassword) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: deletePassword.trim(),
+      });
+      if (signInError) {
+        setDeleting(false);
+        setDeleteMsg("Password confirmation failed.");
+        return;
+      }
+    } else {
+      // OAuth-only account: no password exists, and delete-account requires a
+      // recent sign-in. If the session is stale, round-trip through Google and
+      // land back here so the user can click delete again.
+      const { data } = await supabase.auth.getUser();
+      if (!hasRecentSignIn(data.user?.last_sign_in_at)) {
+        setDeleteMsg("Redirecting to Google to confirm it's you — then click delete again.");
+        await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: `${location.origin}/auth/callback?next=/settings` },
+        });
+        setDeleting(false);
+        return;
+      }
     }
 
     const reason = deleteReason.trim() || null;
@@ -307,13 +325,20 @@ export default function SettingsForm({ userId, displayName, email }: Props) {
               rows={3}
               className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-on-background placeholder:text-outline text-sm font-medium focus:outline-none focus:border-error focus:ring-2 focus:ring-error/15 transition-all"
             />
-            <input
-              type="password"
-              value={deletePassword}
-              onChange={(e) => setDeletePassword(e.target.value)}
-              placeholder="Confirm password"
-              className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-on-background placeholder:text-outline text-sm font-medium focus:outline-none focus:border-error focus:ring-2 focus:ring-error/15 transition-all"
-            />
+            {usesPassword ? (
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Confirm password"
+                className="w-full px-4 py-3 bg-surface border border-outline-variant rounded-xl text-on-background placeholder:text-outline text-sm font-medium focus:outline-none focus:border-error focus:ring-2 focus:ring-error/15 transition-all"
+              />
+            ) : (
+              <p className="text-xs text-on-surface-variant">
+                You signed in with Google, so there is no password to confirm. We may redirect you
+                to Google to confirm it&apos;s you before deleting.
+              </p>
+            )}
             {deleteMsg && <p className="text-xs text-error font-medium">{deleteMsg}</p>}
             <button
               type="button"
