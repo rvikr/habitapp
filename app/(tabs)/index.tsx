@@ -677,6 +677,8 @@ export default function DashboardScreen() {
             <Text
               className="text-headline-lg text-on-background dark:text-d-on-background"
               style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+              numberOfLines={1}
+              ellipsizeMode="tail"
             >
               {isInitialLoading ? "" : t("Hey, {name}", { name: data.profile.displayName })}
             </Text>

@@ -1,5 +1,6 @@
 import type { WeeklyProgressReport } from "../../types/db";
 import { getCurrentUser, isSupabaseConfigured, supabase } from "../supabase/client";
+import { previousUtcWeekStartKey } from "../utils/date";
 import { DATA_CACHE_PREFIX, readThroughCache } from "./cache";
 
 const REPORT_CACHE_TTL_MS = 5 * 60_000;
@@ -93,6 +94,13 @@ export async function generateProgressReportNow(): Promise<GenerateProgressRepor
   } catch {
     return { ok: false, error: "Network error. Check your connection and try again." };
   }
+}
+
+// Stale = the report doesn't cover the most recent completed UTC week, i.e. the
+// Monday cron (or the user) hasn't generated last week's report yet. week_start is
+// a YYYY-MM-DD key, so plain string comparison orders correctly.
+export function isReportStale(report: WeeklyProgressReport): boolean {
+  return report.week_start < previousUtcWeekStartKey();
 }
 
 export function formatReportWeekRange(weekStart: string): string {

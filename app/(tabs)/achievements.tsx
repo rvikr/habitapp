@@ -22,6 +22,7 @@ import {
   formatReportWeekRange,
   generateProgressReportNow,
   getLatestProgressReport,
+  isReportStale,
 } from "@/lib/data/progress-reports";
 import type { Milestone, WeeklyProgressReport, WeeklyReportHabitAnalysis } from "@/types/db";
 
@@ -329,6 +330,26 @@ function WeeklyReportCard({
           {report.summary_text}
         </Text>
       </View>
+
+      {hasPro === true && isReportStale(report) ? (
+        <View className="gap-xs">
+          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+            {t("Last week's report hasn't been generated yet.")}
+          </Text>
+          <TouchableOpacity
+            className="self-start bg-primary rounded-full px-md py-xs flex-row items-center gap-xs"
+            onPress={onGenerateNow}
+            disabled={generatingReport}
+            accessibilityRole="button"
+            accessibilityLabel={t("Generate last week's report")}
+          >
+            {generatingReport ? <ActivityIndicator color="#fff" size="small" /> : null}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {generatingReport ? t("Generating") : t("Generate last week's report")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {typeof snapshot?.completionRate === "number" ? (
         <View className="gap-xs">

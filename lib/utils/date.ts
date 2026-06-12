@@ -16,3 +16,15 @@ export function addLocalDays(date: Date, days: number): Date {
   next.setDate(next.getDate() + days);
   return next;
 }
+
+// Mirrors previousWeekStart() in supabase/functions/progress-report/index.ts:
+// weekly progress reports always cover the previous Monday-based (ISO) UTC week,
+// so both sides must compute the same week_start for staleness checks to hold.
+export function previousUtcWeekStartKey(reference = new Date()): string {
+  const utc = new Date(
+    Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth(), reference.getUTCDate()),
+  );
+  const offsetToMonday = (utc.getUTCDay() + 6) % 7;
+  utc.setUTCDate(utc.getUTCDate() - offsetToMonday - 7);
+  return utc.toISOString().slice(0, 10);
+}

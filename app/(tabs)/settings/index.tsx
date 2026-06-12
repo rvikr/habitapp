@@ -204,10 +204,18 @@ export default function SettingsScreen() {
             </View>
           )}
           <View className="flex-1 ml-md">
-            <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
+            <Text
+              className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {user?.displayName}
             </Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+            <Text
+              className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {user?.email}
             </Text>
             <Text className="text-label-sm text-primary font-semibold">

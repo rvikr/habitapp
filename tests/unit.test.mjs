@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 
-import { addLocalDays, localDateDaysAgo, localDateKey } from "../lib/utils/date.ts";
+import {
+  addLocalDays,
+  localDateDaysAgo,
+  localDateKey,
+  previousUtcWeekStartKey,
+} from "../lib/utils/date.ts";
 import {
   XP_PER_COMPLETION,
   XP_PER_LEVEL,
@@ -483,6 +488,24 @@ test("achievements screen lets Pro users generate a weekly report now", () => {
   assert.match(source, /generatingReport/);
   assert.match(source, /onGenerateNow/);
   assert.match(source, /Generate now/);
+});
+
+test("previousUtcWeekStartKey matches the edge function's previous ISO week", () => {
+  // Friday mid-week → previous Monday-based UTC week starts Jun 1.
+  assert.equal(previousUtcWeekStartKey(new Date("2026-06-12T07:00:00Z")), "2026-06-01");
+  // Monday 00:00 UTC already belongs to the new week, so previous week is Jun 1.
+  assert.equal(previousUtcWeekStartKey(new Date("2026-06-08T00:00:00Z")), "2026-06-01");
+  // Sunday 23:59 UTC is still inside the Jun 1 week, so previous week is May 25.
+  assert.equal(previousUtcWeekStartKey(new Date("2026-06-07T23:59:59Z")), "2026-05-25");
+});
+
+test("achievements screen offers catch-up generation when the latest report is stale", () => {
+  const lib = readFileSync("lib/data/progress-reports.ts", "utf8");
+  assert.match(lib, /export function isReportStale/);
+  assert.match(lib, /week_start < previousUtcWeekStartKey\(\)/);
+  const source = readFileSync("app/(tabs)/achievements.tsx", "utf8");
+  assert.match(source, /isReportStale\(report\)/);
+  assert.match(source, /Generate last week's report/);
 });
 
 test("progress-report edge function accepts authenticated generate-now requests", () => {

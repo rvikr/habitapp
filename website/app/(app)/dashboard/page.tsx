@@ -85,7 +85,20 @@ export default async function DashboardPage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="font-extrabold text-on-background" style={{ fontSize: "28px", letterSpacing: "-0.01em" }}>
-              {greeting()}, {displayName}! 👋
+              {greeting()},{" "}
+              <span
+                style={{
+                  display: "inline-block",
+                  maxWidth: "55%",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  verticalAlign: "bottom",
+                }}
+              >
+                {displayName}
+              </span>
+              ! 👋
             </h1>
             <p className="text-on-surface-variant text-base mt-1">
               {total === 0
