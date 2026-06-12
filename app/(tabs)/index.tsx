@@ -1,5 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import {
+  Linking,
+  Platform,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+} from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
@@ -45,6 +53,7 @@ import {
 import { getItem, setItem } from "@/lib/platform/storage";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
 import { isStepHabit } from "@/lib/data/steps-shared";
+import { GET_APP_URL } from "@/lib/constants";
 import {
   getStepPermissionStatus,
   getTodayStepSnapshot,
@@ -978,9 +987,11 @@ function DashboardHabitSkeleton() {
 function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
   const { t } = useLanguage();
   const busy = state.status === "checking" || state.status === "syncing";
-  const disabled = busy || state.status === "unsupported";
-  const titleKey =
-    state.status === "unsupported"
+  const webUnsupported = Platform.OS === "web" && state.status === "unsupported";
+  const disabled = busy || (state.status === "unsupported" && !webUnsupported);
+  const titleKey = webUnsupported
+    ? "Track steps automatically with the app"
+    : state.status === "unsupported"
       ? "Step tracking is unavailable"
       : state.status === "providerUpdateRequired"
         ? "Health Connect needs an update"
@@ -989,8 +1000,9 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
           : state.status === "error"
             ? "Step tracking needs attention"
             : "Enable step tracking";
-  const bodyKey =
-    state.status === "unsupported"
+  const bodyKey = webUnsupported
+    ? "Automatic step tracking works in the Lagan iOS and Android app. Steps synced there appear here too — or log steps manually."
+    : state.status === "unsupported"
       ? "This device does not expose a pedometer here. Manual step logging still works."
       : state.status === "providerUpdateRequired"
         ? "Update or install Health Connect, then retry. Manual step logging still works."
@@ -999,11 +1011,17 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
           : "Use Health Connect to update your Walk habit from today's Android step total.";
   const body =
     state.status === "error" ? (state.error ?? t("Could not sync steps. Try again.")) : t(bodyKey);
-  const action = busy ? t("Checking...") : state.status === "denied" ? t("Retry") : t("Enable");
+  const action = busy
+    ? t("Checking...")
+    : webUnsupported
+      ? t("Get the app")
+      : state.status === "denied"
+        ? t("Retry")
+        : t("Enable");
 
   return (
     <TouchableOpacity
-      onPress={onEnable}
+      onPress={webUnsupported ? () => Linking.openURL(GET_APP_URL) : onEnable}
       disabled={disabled}
       className="mx-margin-mobile mb-sm bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
       style={{ opacity: disabled ? 0.72 : 1 }}

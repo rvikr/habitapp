@@ -1,5 +1,13 @@
 import { useState, useCallback, useRef } from "react";
-import { View, Text, ScrollView, RefreshControl, TouchableOpacity } from "react-native";
+import {
+  Linking,
+  Platform,
+  View,
+  Text,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -25,6 +33,7 @@ import {
 } from "@/lib/platform/sleep";
 import { summarizeSleepRange, type SleepTrendRange } from "@/lib/data/sleep-shared";
 import { localDateKey, addLocalDays } from "@/lib/utils/date";
+import { GET_APP_URL } from "@/lib/constants";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
 
@@ -518,6 +527,20 @@ export default function ProgressScreen() {
                         days: sleepRange,
                       })}
                     </Text>
+                    {Platform.OS === "web" && (
+                      <>
+                        <Text className="text-label-sm text-center" style={{ color: "#F26B1F" }}>
+                          {t(
+                            "Automatic sleep sync works in the Lagan iOS and Android app. Sleep synced there shows up here.",
+                          )}
+                        </Text>
+                        <TouchableOpacity onPress={() => Linking.openURL(GET_APP_URL)}>
+                          <Text className="text-label-lg font-semibold text-primary">
+                            {t("Get the app")}
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 ) : (
                   <>

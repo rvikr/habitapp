@@ -108,6 +108,18 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Checking...": "चेक कर रहे हैं...",
   Retry: "फिर कोशिश करें",
   Enable: "चालू करें",
+  "Track steps automatically with the app": "ऐप से स्टेप्स अपने-आप ट्रैक करें",
+  "Automatic step tracking works in the Lagan iOS and Android app. Steps synced there appear here too — or log steps manually.":
+    "ऑटोमैटिक स्टेप ट्रैकिंग Lagan iOS और Android ऐप में काम करती है. वहां सिंक हुए स्टेप्स यहां भी दिखेंगे — या स्टेप्स मैन्युअली लॉग करें.",
+  "Get the app": "ऐप पाएं",
+  "Automatic sleep sync works in the Lagan iOS and Android app. Sleep synced there shows up here.":
+    "ऑटोमैटिक नींद सिंक Lagan iOS और Android ऐप में काम करता है. वहां सिंक हुई नींद यहां दिखती है.",
+  "Automatic sleep sync works in the Lagan iOS and Android app. You can still log sleep manually on web.":
+    "ऑटोमैटिक नींद सिंक Lagan iOS और Android ऐप में काम करता है. वेब पर आप नींद मैन्युअली लॉग कर सकते हैं.",
+  "Auto-sync needs the Lagan mobile app. On web, log steps manually.":
+    "ऑटो-सिंक के लिए Lagan मोबाइल ऐप चाहिए. वेब पर स्टेप्स मैन्युअली लॉग करें.",
+  "Auto-sync needs the Lagan mobile app. Synced sleep still shows here.":
+    "ऑटो-सिंक के लिए Lagan मोबाइल ऐप चाहिए. सिंक हुई नींद यहां फिर भी दिखेगी.",
 
   Achievements: "उपलब्धियां",
   "Level {level}": "लेवल {level}",

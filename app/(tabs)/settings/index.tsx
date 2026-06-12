@@ -171,7 +171,11 @@ export default function SettingsScreen() {
     }
     const message =
       status === "unavailable"
-        ? t("Sleep sync isn't available on this device.")
+        ? Platform.OS === "web"
+          ? t(
+              "Automatic sleep sync works in the Lagan iOS and Android app. You can still log sleep manually on web.",
+            )
+          : t("Sleep sync isn't available on this device.")
         : status === "providerUpdateRequired"
           ? t("Update Health Connect to enable sleep tracking.")
           : t("Allow health access to enable sleep tracking.");
@@ -275,14 +279,22 @@ export default function SettingsScreen() {
           <TrackingToggleRow
             icon="walk"
             label={t("Step tracking")}
-            description={t("Auto-sync steps from your device pedometer.")}
+            description={
+              Platform.OS === "web"
+                ? t("Auto-sync needs the Lagan mobile app. On web, log steps manually.")
+                : t("Auto-sync steps from your device pedometer.")
+            }
             value={stepsEnabled}
             onValueChange={setStepsEnabled}
           />
           <TrackingToggleRow
             icon="sleep"
             label={t("Sleep tracking")}
-            description={t("Auto-sync sleep from Health Connect or Apple Health.")}
+            description={
+              Platform.OS === "web"
+                ? t("Auto-sync needs the Lagan mobile app. Synced sleep still shows here.")
+                : t("Auto-sync sleep from Health Connect or Apple Health.")
+            }
             value={sleepEnabled}
             onValueChange={handleSleepToggle}
           />

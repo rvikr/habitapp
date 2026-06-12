@@ -885,6 +885,24 @@ test("settings requests sleep permission before enabling sleep tracking", () => 
   assert.match(settingsScreen, /requestSleepPermission/);
 });
 
+test("web surfaces explain that auto-tracking needs the mobile app with a get-the-app link", () => {
+  const constants = readFileSync("lib/constants.ts", "utf8");
+  assert.match(constants, /GET_APP_URL = "https:\/\/lagan\.health"/);
+
+  const dashboardScreen = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboardScreen, /Platform\.OS === "web" && state\.status === "unsupported"/);
+  assert.match(dashboardScreen, /Track steps automatically with the app/);
+  assert.match(dashboardScreen, /Linking\.openURL\(GET_APP_URL\)/);
+
+  const progressScreen = readFileSync("app/(tabs)/progress.tsx", "utf8");
+  assert.match(progressScreen, /Automatic sleep sync works in the Lagan iOS and Android app/);
+  assert.match(progressScreen, /Linking\.openURL\(GET_APP_URL\)/);
+
+  const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
+  assert.match(settingsScreen, /You can still log sleep manually on web/);
+  assert.match(settingsScreen, /Auto-sync needs the Lagan mobile app/);
+});
+
 test("store-facing support and legal links have production build defaults", () => {
   const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
   assert.match(settingsScreen, /https:\/\/lagan\.health\/terms/);
@@ -1098,6 +1116,13 @@ test("tracking preference copy has Hindi translations", () => {
     "Sleep tracking is off",
     "Turn on Sleep tracking in Settings to sync from Health Connect or Apple Health.",
     "Auto-sync is paused. Turn it back on in Settings, or keep logging sleep manually below.",
+    "Track steps automatically with the app",
+    "Automatic step tracking works in the Lagan iOS and Android app. Steps synced there appear here too — or log steps manually.",
+    "Get the app",
+    "Automatic sleep sync works in the Lagan iOS and Android app. Sleep synced there shows up here.",
+    "Automatic sleep sync works in the Lagan iOS and Android app. You can still log sleep manually on web.",
+    "Auto-sync needs the Lagan mobile app. On web, log steps manually.",
+    "Auto-sync needs the Lagan mobile app. Synced sleep still shows here.",
   ];
 
   for (const message of messages) {
