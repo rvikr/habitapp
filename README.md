@@ -229,9 +229,14 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
 - Admin tables: [`supabase/admin_schema.sql`](supabase/admin_schema.sql).
 - Leaderboard RPC: [`supabase/get_leaderboard.sql`](supabase/get_leaderboard.sql).
 - Edge Functions: [`supabase/functions/`](supabase/functions/) — `coach-message`,
-  `delete-account`, `habit-routine`, `smart-reminders`, `sync-subscription`, and
-  `revenuecat-webhook`. Deploy with
+  `coach-push`, `delete-account`, `habit-routine`, `smart-reminders`,
+  `sync-subscription`, and `revenuecat-webhook`. Deploy with
   `supabase functions deploy <name> --project-ref <ref>`.
+  `coach-push` is cron-driven and needs the `COACH_PUSH_CRON_SECRET` secret,
+  `coach_push_url`/`coach_push_cron_secret` vault entries, a
+  `cron.schedule('coach-push', '*/15 * * * *', …)` job, and the `coach_push`
+  feature flag enabled (see the header of
+  [`supabase/functions/coach-push/index.ts`](supabase/functions/coach-push/index.ts)).
 - Pro subscriptions use RevenueCat entitlement `pro` with product ids
   `pro_monthly` and `pro_annual`. Set `REVENUECAT_SECRET_API_KEY` and
   `REVENUECAT_WEBHOOK_AUTH_TOKEN` as Supabase Edge Function secrets. Deploy

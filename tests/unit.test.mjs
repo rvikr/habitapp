@@ -95,7 +95,13 @@ import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
 import { buildCreatedHabits, pickTutorialHabit } from "../lib/coach/post-onboarding.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
+import {
+  buildCoachSignals as buildCoachSignalsPort,
+  chooseTopCoachSignal as chooseTopCoachSignalPort,
+  localTimeContext,
+} from "../supabase/functions/_shared/coach-signals.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
+import { dismissCoachCard, isCoachCardDismissed } from "../lib/coach/coach-card-dismissal.ts";
 import { generateContent, parseRetryDelayMs } from "../supabase/functions/_shared/gemini.ts";
 import { createLimiter } from "../lib/utils/concurrency-limiter.ts";
 import {
@@ -2341,16 +2347,192 @@ test("coach detects target habits falling behind by time of day", () => {
   assert.match(signal?.message ?? "", /only completed 30%/i);
 });
 
-test("AI coach notification only shows secondary Open when primary logs progress", () => {
-  const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
-  const primaryLabelIndex = dashboardSource.indexOf("{coachActionLabel(data.coachSignal, t)}");
-  const secondaryOpenIndex = dashboardSource.indexOf('{t("Open")}', primaryLabelIndex);
+test("AI coach card only shows secondary Open when primary logs progress", () => {
+  const cardSource = readFileSync("components/coach-card.tsx", "utf8");
+  const primaryLabelIndex = cardSource.indexOf("{coachActionLabel(signal, t)}");
+  const secondaryOpenIndex = cardSource.indexOf('{t("Open")}', primaryLabelIndex);
 
   assert.notEqual(primaryLabelIndex, -1);
   assert.notEqual(secondaryOpenIndex, -1);
-  const secondaryOpenGuard = dashboardSource.slice(primaryLabelIndex, secondaryOpenIndex);
-  assert.match(secondaryOpenGuard, /data\.coachSignal\.suggestedAction\s*===\s*"log_value"/);
-  assert.match(secondaryOpenGuard, /data\.coachSignal\.suggestedValue\s*!=\s*null/);
+  const secondaryOpenGuard = cardSource.slice(primaryLabelIndex, secondaryOpenIndex);
+  assert.match(secondaryOpenGuard, /signal\.suggestedAction\s*===\s*"log_value"/);
+  assert.match(secondaryOpenGuard, /signal\.suggestedValue\s*!=\s*null/);
+});
+
+test("dashboard auto-shows the coach card but never for the encouragement fallback", () => {
+  const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboardSource, /coachSignal\.kind\s*!==\s*"encouragement"/);
+  assert.match(dashboardSource, /dismissCoachCard\(coachSignal\)/);
+});
+
+test("coach card dismissal persists for the same signal on the same day", async () => {
+  const storage = createMemoryStorage();
+  const now = new Date(2026, 5, 12, 9, 0);
+  const signal = { kind: "streak_risk", habitId: "habit-1" };
+
+  assert.equal(await isCoachCardDismissed(signal, storage, now), false);
+  await dismissCoachCard(signal, storage, now);
+  assert.equal(await isCoachCardDismissed(signal, storage, now), true);
+
+  const later = new Date(2026, 5, 12, 21, 30);
+  assert.equal(await isCoachCardDismissed(signal, storage, later), true);
+});
+
+test("coach card dismissal resets the next day", async () => {
+  const storage = createMemoryStorage();
+  const today = new Date(2026, 5, 12, 9, 0);
+  const signal = { kind: "behind_progress", habitId: "habit-1" };
+
+  await dismissCoachCard(signal, storage, today);
+  const tomorrow = new Date(2026, 5, 13, 9, 0);
+  assert.equal(await isCoachCardDismissed(signal, storage, tomorrow), false);
+});
+
+test("coach card dismissal is isolated per signal kind and habit", async () => {
+  const storage = createMemoryStorage();
+  const now = new Date(2026, 5, 12, 9, 0);
+
+  await dismissCoachCard({ kind: "streak_risk", habitId: "habit-1" }, storage, now);
+  assert.equal(
+    await isCoachCardDismissed({ kind: "behind_progress", habitId: "habit-1" }, storage, now),
+    false,
+  );
+  assert.equal(
+    await isCoachCardDismissed({ kind: "streak_risk", habitId: "habit-2" }, storage, now),
+    false,
+  );
+  assert.equal(
+    await isCoachCardDismissed({ kind: "streak_risk", habitId: "habit-1" }, storage, now),
+    true,
+  );
+
+  // Dismissing a second signal must not clear the first.
+  await dismissCoachCard({ kind: "behind_progress", habitId: "habit-1" }, storage, now);
+  assert.equal(
+    await isCoachCardDismissed({ kind: "streak_risk", habitId: "habit-1" }, storage, now),
+    true,
+  );
+});
+
+test("coach card dismissal survives corrupted storage", async () => {
+  const storage = createMemoryStorage({ "habbit:coach-card:dismissed": "not json" });
+  const now = new Date(2026, 5, 12, 9, 0);
+  const signal = { kind: "streak_risk", habitId: "habit-1" };
+
+  assert.equal(await isCoachCardDismissed(signal, storage, now), false);
+  await dismissCoachCard(signal, storage, now);
+  assert.equal(await isCoachCardDismissed(signal, storage, now), true);
+});
+
+// The server port runs the same engine against the user's IANA timezone
+// instead of the device clock; with the host timezone both must agree exactly.
+function portSignalsFor(habits, completions, now, tone) {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return buildCoachSignalsPort({
+    habits,
+    completions,
+    local: localTimeContext(now, timezone),
+    tone,
+  });
+}
+
+test("server coach signal port matches the client engine for behind_progress", () => {
+  const now = new Date(2026, 4, 14, 16, 0);
+  const completions = [
+    {
+      habit_id: coachHabit.id,
+      completed_on: "2026-05-14",
+      created_at: "2026-05-14T09:00:00",
+      value: 600,
+    },
+  ];
+  const clientTop = chooseTopCoachSignal(
+    buildCoachSignals({ habits: [coachHabit], completions, now, tone: "friendly" }),
+  );
+  const portTop = chooseTopCoachSignalPort(
+    portSignalsFor([coachHabit], completions, now, "friendly"),
+  );
+  assert.equal(clientTop?.kind, "behind_progress");
+  assert.deepEqual(portTop, clientTop);
+});
+
+test("server coach signal port matches the client engine for streak_risk", () => {
+  const now = new Date(2026, 4, 14, 9, 0);
+  const completions = [
+    {
+      habit_id: coachHabit.id,
+      completed_on: "2026-05-13",
+      created_at: "2026-05-13T09:00:00",
+      value: 2000,
+    },
+    {
+      habit_id: coachHabit.id,
+      completed_on: "2026-05-12",
+      created_at: "2026-05-12T09:00:00",
+      value: 2000,
+    },
+  ];
+  const clientTop = chooseTopCoachSignal(
+    buildCoachSignals({ habits: [coachHabit], completions, now, tone: "strict" }),
+  );
+  const portTop = chooseTopCoachSignalPort(
+    portSignalsFor([coachHabit], completions, now, "strict"),
+  );
+  assert.equal(clientTop?.kind, "streak_risk");
+  assert.deepEqual(portTop, clientTop);
+});
+
+test("server coach signal port falls back to encouragement like the client", () => {
+  const now = new Date(2026, 4, 14, 9, 0);
+  const clientTop = chooseTopCoachSignal(
+    buildCoachSignals({ habits: [coachHabit], completions: [], now, tone: "friendly" }),
+  );
+  const portTop = chooseTopCoachSignalPort(portSignalsFor([coachHabit], [], now, "friendly"));
+  assert.equal(clientTop?.kind, "encouragement");
+  assert.deepEqual(portTop, clientTop);
+});
+
+test("coach signal priorities stay in sync between client and server port", () => {
+  const clientSource = readFileSync("lib/coach/coach.ts", "utf8");
+  const portSource = readFileSync("supabase/functions/_shared/coach-signals.ts", "utf8");
+  const markers = [
+    "priority: 95",
+    "priority: 82",
+    "priority: 50",
+    "priority: 10",
+    "60 + Math.min(streak, 10)",
+    "70 + Math.max(0, Math.round((expectedProgressForDay(",
+  ];
+  for (const marker of markers) {
+    assert.ok(clientSource.includes(marker), `client engine missing: ${marker}`);
+    assert.ok(portSource.includes(marker), `server port missing: ${marker}`);
+  }
+});
+
+test("coach push only fires inside explicit send windows with a daily cap", () => {
+  const source = readFileSync("supabase/functions/coach-push/index.ts", "utf8");
+  // Window-gated kinds only — the daily encouragement fallback must never push.
+  assert.match(source, /behind_progress: \{ start: 12 \* 60, end: 14 \* 60 \}/);
+  assert.match(source, /streak_risk: \{ start: 18 \* 60, end: 20 \* 60 \}/);
+  assert.ok(!/encouragement.*start:/.test(source));
+  // Kill switch, cap check, and insert-before-send race protection.
+  assert.match(source, /eq\("key", "coach_push"\)/);
+  const capIndex = source.indexOf('from("coach_push_sends")');
+  const insertIndex = source.indexOf('from("coach_push_sends").insert');
+  const sendIndex = source.indexOf("webPush.sendNotification");
+  assert.ok(capIndex >= 0 && insertIndex > capIndex && sendIndex > insertIndex);
+  // Cron-secret gate before any work, like web-push-reminders.
+  assert.match(source, /x-cron-secret/);
+  assert.match(source, /timingSafeEqual/);
+});
+
+test("coach push migration enforces the one-per-day cap with service-role-only access", () => {
+  const sql = readFileSync("supabase/migrations/20260612120000_coach_push_sends.sql", "utf8");
+  assert.match(sql, /unique \(user_id, local_date\)/i);
+  assert.match(sql, /enable row level security/i);
+  assert.match(sql, /to service_role/);
+  assert.match(sql, /revoke all on public\.coach_push_sends from anon, authenticated/i);
+  assert.match(sql, /'coach_push'/);
 });
 
 test("coach detects same-weekday late skip windows and suggests an easier version", () => {

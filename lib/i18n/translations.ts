@@ -341,6 +341,8 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "AI COACH": "AI कोच",
   "Log {value}{unit}": "{value}{unit} लॉग करें",
   Open: "खोलें",
+  "Personalized AI coaching with Pro": "Pro के साथ personalized AI कोचिंग",
+  Dismiss: "हटाएं",
   "Most productive on {day}s": "{day} को सबसे productive",
   "Consistency up {percent}% this month": "इस महीने consistency {percent}% बढ़ी",
   "Consistency down {percent}% this month": "इस महीने consistency {percent}% घटी",

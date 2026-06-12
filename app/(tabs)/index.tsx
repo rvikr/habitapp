@@ -20,6 +20,8 @@ import {
 import { hasCompletedOnboarding, markOnboardingComplete } from "@/lib/auth/onboarding";
 import { TrialEndedBanner, TrialSubscriptionBanner } from "@/components/pro-access-banner";
 import NotificationPermissionCard from "@/components/notification-permission-card";
+import CoachCard, { CoachHeaderButton } from "@/components/coach-card";
+import { dismissCoachCard, isCoachCardDismissed } from "@/lib/coach/coach-card-dismissal";
 import HabitCard from "@/components/habit-card";
 import ProBadge from "@/components/pro-badge";
 import ProgressRing from "@/components/progress-ring";
@@ -115,7 +117,11 @@ export default function DashboardScreen() {
   const [trialBannerDismissed, setTrialBannerDismissed] = useState(trialBannerDismissedForSession);
   const [trialEndedDismissedAt, setTrialEndedDismissedAt] = useState<string | null>(null);
   const [coachHintDismissed, setCoachHintDismissed] = useState(coachUpgradeHintDismissedForSession);
-  const [coachNotifOpen, setCoachNotifOpen] = useState(false);
+  // null = automatic (auto-show unless dismissed today); the bot button toggles
+  // an explicit override so it survives as a manual entry point.
+  const [coachCardOverride, setCoachCardOverride] = useState<"shown" | "hidden" | null>(null);
+  // Pessimistic default avoids a flash of the card before storage answers.
+  const [coachCardDismissed, setCoachCardDismissed] = useState(true);
   const [stepTracking, setStepTracking] = useState<StepTrackingState>({
     status: "idle",
     lastSyncedAt: null,
@@ -196,6 +202,38 @@ export default function DashboardScreen() {
       load();
     }, [load]),
   );
+
+  const coachSignal = data?.coachSignal ?? null;
+  const coachSignalKind = coachSignal?.kind ?? null;
+  const coachSignalHabitId = coachSignal?.habitId ?? null;
+
+  // Re-check persisted dismissal (and drop any manual override) only when the
+  // signal identity changes — the 30s dashboard reload recreates the signal
+  // object, and resetting on every load would undo the user's choice.
+  useEffect(() => {
+    setCoachCardOverride(null);
+    if (!coachSignalKind || !coachSignalHabitId) return;
+    let cancelled = false;
+    void isCoachCardDismissed({ kind: coachSignalKind, habitId: coachSignalHabitId }).then(
+      (dismissed) => {
+        if (!cancelled) setCoachCardDismissed(dismissed);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [coachSignalKind, coachSignalHabitId]);
+
+  const coachSignalActive = !!coachSignal && !data?.completedToday.has(coachSignal.habitId);
+  // Encouragement is the daily fallback signal — auto-surfacing it would train
+  // users to ignore the card, so it only appears via the bot button.
+  const coachCardVisible =
+    coachSignalActive &&
+    !!coachSignal &&
+    (coachCardOverride === "shown" ||
+      (coachCardOverride !== "hidden" &&
+        !coachCardDismissed &&
+        coachSignal.kind !== "encouragement"));
 
   const habits = data?.habits ?? [];
   const stepHabit = habits.find(isStepHabit) ?? null;
@@ -701,37 +739,12 @@ export default function DashboardScreen() {
             {isInitialLoading && <SkeletonText className="mt-xs h-8" width={152} />}
           </View>
           <View className="flex-row items-center gap-sm">
-            <TouchableOpacity
-              className="w-10 h-10 rounded-full bg-surface-container dark:bg-d-surface-container items-center justify-center"
-              onPress={() => setCoachNotifOpen((v) => !v)}
-            >
-              <MaterialCommunityIcons
-                name="robot-happy-outline"
-                size={20}
-                color={
-                  data?.coachSignal && !data.completedToday.has(data.coachSignal.habitId)
-                    ? primary
-                    : colorScheme === "dark"
-                      ? "#e4e1ea"
-                      : "#444"
-                }
-              />
-              {data?.coachSignal && !data.completedToday.has(data.coachSignal.habitId) ? (
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    width: 9,
-                    height: 9,
-                    borderRadius: 4.5,
-                    backgroundColor: primary,
-                    borderWidth: 1.5,
-                    borderColor: colorScheme === "dark" ? "#16161C" : "#FFFFFF",
-                  }}
-                />
-              ) : null}
-            </TouchableOpacity>
+            <CoachHeaderButton
+              signal={coachSignal}
+              active={coachSignalActive}
+              cardVisible={coachCardVisible}
+              onPress={() => setCoachCardOverride(coachCardVisible ? "hidden" : "shown")}
+            />
             <TouchableOpacity
               className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center"
               onPress={() => router.push("/habits/new")}
@@ -741,108 +754,35 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* AI Coach notification panel */}
-        {coachNotifOpen &&
-          data?.coachSignal &&
-          !data.completedToday.has(data.coachSignal.habitId) && (
-            <View
-              className="mx-margin-mobile mb-sm rounded-2xl p-md gap-sm"
-              style={{ backgroundColor: primary }}
-            >
-              <View className="flex-row items-start gap-sm">
-                <View
-                  className="w-8 h-8 rounded-full items-center justify-center"
-                  style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-                >
-                  <MaterialCommunityIcons name="robot-happy-outline" size={18} color="#fff" />
-                </View>
-                <View className="flex-1">
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: "700",
-                      color: "rgba(255,255,255,0.75)",
-                      letterSpacing: 0.5,
-                    }}
-                  >
-                    {t("AI COACH")}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: "#fff", marginTop: 3, lineHeight: 20 }}>
-                    {data.coachSignal.message}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => setCoachNotifOpen(false)}>
-                  <MaterialCommunityIcons name="close" size={18} color="rgba(255,255,255,0.7)" />
-                </TouchableOpacity>
-              </View>
-              <View className="flex-row gap-sm">
-                <TouchableOpacity
-                  onPress={() => {
-                    setCoachNotifOpen(false);
-                    void handleCoachAction(data.coachSignal!);
-                  }}
-                  className="flex-1 rounded-full py-sm items-center"
-                  style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-                >
-                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
-                    {coachActionLabel(data.coachSignal, t)}
-                  </Text>
-                </TouchableOpacity>
-                {data.coachSignal.suggestedAction === "log_value" &&
-                  data.coachSignal.suggestedValue != null && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        setCoachNotifOpen(false);
-                        router.push(`/habits/${data.coachSignal!.habitId}`);
-                      }}
-                      className="flex-1 rounded-full py-sm items-center"
-                      style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
-                    >
-                      <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
-                        {t("Open")}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-              </View>
-              {!data.proAccess.hasPro && !coachHintDismissed ? (
-                <View
-                  className="flex-row items-center gap-xs rounded-full px-sm py-xs"
-                  style={{ backgroundColor: "rgba(255,255,255,0.15)" }}
-                >
-                  <TouchableOpacity
-                    className="flex-1 flex-row items-center gap-xs"
-                    onPress={() => {
-                      setCoachNotifOpen(false);
-                      router.push("/pro" as never);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("Personalized AI coaching with Pro")}
-                  >
-                    <MaterialCommunityIcons name="star-four-points" size={14} color="#fff" />
-                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600", flex: 1 }}>
-                      {t("Personalized AI coaching with Pro")}
-                    </Text>
-                    <MaterialCommunityIcons
-                      name="chevron-right"
-                      size={16}
-                      color="rgba(255,255,255,0.85)"
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      coachUpgradeHintDismissedForSession = true;
-                      setCoachHintDismissed(true);
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("Dismiss")}
-                  >
-                    <MaterialCommunityIcons name="close" size={14} color="rgba(255,255,255,0.7)" />
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </View>
-          )}
+        {/* AI Coach card — auto-shown when a signal needs attention */}
+        {coachCardVisible && coachSignal && (
+          <CoachCard
+            signal={coachSignal}
+            hasPro={data?.proAccess.hasPro ?? false}
+            onAction={(signal) => {
+              setCoachCardOverride("hidden");
+              void handleCoachAction(signal);
+            }}
+            onOpenHabit={(habitId) => {
+              setCoachCardOverride("hidden");
+              router.push(`/habits/${habitId}`);
+            }}
+            onDismiss={() => {
+              setCoachCardOverride("hidden");
+              setCoachCardDismissed(true);
+              void dismissCoachCard(coachSignal);
+            }}
+            onUpsell={() => {
+              setCoachCardOverride("hidden");
+              router.push("/pro" as never);
+            }}
+            upsellDismissed={coachHintDismissed}
+            onUpsellDismiss={() => {
+              coachUpgradeHintDismissedForSession = true;
+              setCoachHintDismissed(true);
+            }}
+          />
+        )}
 
         {/* Today's progress card */}
         {!isInitialLoading && total > 0 && (
@@ -1012,17 +952,6 @@ export default function DashboardScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-function coachActionLabel(
-  signal: CoachSignal,
-  t: (k: string, v?: Record<string, string | number>) => string,
-): string {
-  if (signal.suggestedAction === "log_value" && signal.suggestedValue) {
-    const unit = signal.unit ? ` ${signal.unit}` : "";
-    return t("Log {value}{unit}", { value: signal.suggestedValue, unit });
-  }
-  return t("Open");
 }
 
 type StepTrackingCardProps = {

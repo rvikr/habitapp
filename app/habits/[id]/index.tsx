@@ -11,9 +11,12 @@ import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { getHabit, weekProgressFor, streakFor } from "@/lib/data/habits";
+import { getHabit, weekProgressFor, streakFor, getHabitCoachInsight } from "@/lib/data/habits";
 import { toggleHabit, deleteHabit, logCompletion } from "@/lib/data/actions";
 import { useCelebrate } from "@/components/celebration";
+import CoachCard from "@/components/coach-card";
+import type { CoachSignal } from "@/lib/coach/coach";
+import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import Icon from "@/components/icon";
 import LogEntryFab from "@/components/log-entry-fab";
 import LogPrompt from "@/components/log-prompt";
@@ -42,6 +45,10 @@ export default function HabitDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showLogPrompt, setShowLogPrompt] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [insight, setInsight] = useState<CoachSignal | null>(null);
+  const [insightDismissed, setInsightDismissed] = useState(false);
+  // Pessimistic default so the Pro upsell row never flashes at Pro users.
+  const [hasPro, setHasPro] = useState(true);
 
   const load = useCallback(
     async (options?: { force?: boolean }) => {
@@ -49,6 +56,12 @@ export default function HabitDetailScreen() {
       const { habit: h, completions: c } = await getHabit(id, options);
       setHabit(h);
       setCompletions(c);
+      const [nextInsight, access] = await Promise.all([
+        h ? getHabitCoachInsight(h, c) : Promise.resolve(null),
+        getCurrentProAccess().catch(() => null),
+      ]);
+      setInsight(nextInsight);
+      if (access) setHasPro(access.hasPro);
     },
     [id],
   );
@@ -120,6 +133,24 @@ export default function HabitDetailScreen() {
     }
     celebrate();
     load();
+  }
+
+  async function handleInsightAction(signal: CoachSignal) {
+    if (!habit) return;
+    // Sleep habits need the structured prompt (bed/wake times), same as the
+    // dashboard's coach action; everything else logs the suggested value.
+    const sleepHabit = habit.habit_type === "sleep" || habit.metric_type === "hours";
+    if (signal.suggestedAction === "log_value" && signal.suggestedValue && !sleepHabit) {
+      const result = await logCompletion(habit.id, signal.suggestedValue, "Logged from AI coach");
+      if (!result.ok) {
+        showAlert(t("Could not log progress"), result.error ?? t("Try again."));
+        return;
+      }
+      celebrate();
+      load({ force: true });
+      return;
+    }
+    setShowLogPrompt(true);
   }
 
   async function handleDelete() {
@@ -241,6 +272,18 @@ export default function HabitDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {/* AI Coach tip for this habit */}
+        {insight && !insightDismissed && (
+          <CoachCard
+            variant="compact"
+            signal={insight}
+            hasPro={hasPro}
+            onAction={(signal) => void handleInsightAction(signal)}
+            onDismiss={() => setInsightDismissed(true)}
+            onUpsell={() => router.push("/pro" as never)}
+          />
+        )}
 
         {/* Weekly bars */}
         <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-md">

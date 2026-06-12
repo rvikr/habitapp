@@ -13,6 +13,7 @@ import {
 } from "../coach/coach";
 import { resolveCoachMessage } from "../coach/coach-ai";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
+import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
 
 export type TodayProgressMap = Map<string, HabitProgress>;
 export type StreaksMap = Map<string, number>;
@@ -90,7 +91,9 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
           .gte("completed_on", localDateDaysAgo(60)),
         supabase
           .from("profiles")
-          .select("display_name, coach_tone")
+          .select(
+            "display_name, coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at",
+          )
           .eq("user_id", user.id)
           .maybeSingle(),
       ]),
@@ -150,6 +153,9 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
     ]),
   );
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
+  // Personalized messages are Pro-only server-side: gating here keeps free
+  // users on the instant template instead of a guaranteed-402 round trip.
+  const hasPro = resolveProAccess(profile as ProAccessProfile | null).hasPro;
   let coachSignal = chooseTopCoachSignal(
     buildCoachSignals({ habits: habitsList, completions: completionRows, tone: coachTone }),
   );
@@ -157,7 +163,7 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
     coachSignal = {
       ...coachSignal,
       message: await resolveCoachMessage(coachSignal, {
-        enabled: aiEnabled,
+        enabled: aiEnabled && hasPro,
         nonBlocking: true,
       }),
     };
@@ -211,6 +217,62 @@ export async function getHabit(id: string, options?: DataFetchOptions) {
     },
     options,
   );
+}
+
+type CoachProfileRow = ProAccessProfile & { coach_tone?: string | null };
+
+// Top coach signal for a single habit, for the habit detail screen. Unlike the
+// dashboard's top signal this may be the low-priority encouragement fallback —
+// a quiet tip is appropriate on a page dedicated to the habit.
+export async function getHabitCoachInsight(
+  habit: Habit,
+  completions: Pick<HabitCompletion, "completed_on" | "created_at" | "value">[],
+): Promise<CoachSignal | null> {
+  if (!isSupabaseConfigured()) return null;
+  const user = await getUser();
+  if (!user) return null;
+
+  const todayCompletion = completions.find((c) => c.completed_on === today());
+  if (progressForHabit(habit, todayCompletion).isDone) return null;
+
+  const [profile, aiEnabled] = await Promise.all([
+    readThroughCache(
+      `${DATA_CACHE_PREFIX}coach-profile:${user.id}`,
+      DATA_CACHE_TTL_MS,
+      async () => {
+        const { data } = await supabase
+          .from("profiles")
+          .select(
+            "coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at",
+          )
+          .eq("user_id", user.id)
+          .maybeSingle();
+        return (data ?? null) as CoachProfileRow | null;
+      },
+    ),
+    getAiSuggestionsEnabled().catch(() => false),
+  ]);
+
+  const signal = chooseTopCoachSignal(
+    buildCoachSignals({
+      habits: [habit],
+      completions: completions.map((c) => ({
+        habit_id: habit.id,
+        completed_on: c.completed_on,
+        created_at: c.created_at,
+        value: c.value,
+      })),
+      tone: normalizeCoachTone(profile?.coach_tone),
+    }),
+  );
+  if (!signal) return null;
+
+  const hasPro = resolveProAccess(profile).hasPro;
+  const message = await resolveCoachMessage(signal, {
+    enabled: aiEnabled && hasPro,
+    nonBlocking: true,
+  });
+  return { ...signal, message };
 }
 
 export async function getStats(options?: DataFetchOptions) {
