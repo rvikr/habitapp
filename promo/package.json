@@ -1,0 +1,18 @@
+{
+  "name": "lagan-promo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-contained animated promo video pipeline for Lagan (rendered with Playwright + ffmpeg).",
+  "scripts": {
+    "render": "node render-frames.mjs",
+    "render:test": "node render-frames.mjs --fmt 9x16 --frames 30",
+    "vo": "powershell -ExecutionPolicy Bypass -File ./tts.ps1",
+    "build": "node build.mjs",
+    "all": "node render-frames.mjs && powershell -ExecutionPolicy Bypass -File ./tts.ps1 && node build.mjs"
+  },
+  "devDependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "playwright": "^1.60.0"
+  }
+}

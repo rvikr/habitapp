@@ -1,0 +1,70 @@
+{
+  "fps": 30,
+  "durationMs": 30000,
+  "scenes": [
+    {
+      "id": "signin",
+      "start": 0,
+      "end": 3000,
+      "captionTop": "Meet Lagan",
+      "captionBottom": "Your AI habit coach",
+      "vo": "Meet Lagan, your AI habit coach."
+    },
+    {
+      "id": "wizard",
+      "start": 3000,
+      "end": 8000,
+      "captionTop": "AI builds your routine",
+      "captionBottom": "Answer a few questions",
+      "vo": "Answer a few questions, and AI builds your routine."
+    },
+    {
+      "id": "today",
+      "start": 8000,
+      "end": 13500,
+      "captionTop": "Track with one tap",
+      "captionBottom": "Keep your streak alive",
+      "vo": "Track habits with a tap, and keep your streak alive."
+    },
+    {
+      "id": "coach",
+      "start": 13500,
+      "end": 17000,
+      "captionTop": "Coaching that adapts",
+      "captionBottom": "Personal nudges, on time",
+      "vo": "Get coaching that adapts to your momentum."
+    },
+    {
+      "id": "detail",
+      "start": 17000,
+      "end": 20500,
+      "captionTop": "Steps & sleep, auto-synced",
+      "captionBottom": "No extra logging",
+      "vo": "Steps and sleep sync automatically."
+    },
+    {
+      "id": "progress",
+      "start": 20500,
+      "end": 24500,
+      "captionTop": "See your progress grow",
+      "captionBottom": "Consistency & balance",
+      "vo": "Watch your consistency and balance grow."
+    },
+    {
+      "id": "leaderboard",
+      "start": 24500,
+      "end": 27500,
+      "captionTop": "Badges, XP & ranks",
+      "captionBottom": "Level up together",
+      "vo": "Earn badges, level up, and climb the ranks."
+    },
+    {
+      "id": "cta",
+      "start": 27500,
+      "end": 30000,
+      "captionTop": "Build better habits",
+      "captionBottom": "iOS · Android · Web",
+      "vo": "Lagan. Build better habits."
+    }
+  ]
+}

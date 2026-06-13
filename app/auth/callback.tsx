@@ -83,10 +83,13 @@ export default function AuthCallbackScreen() {
         return;
       }
 
-      // On native, an established session always lands on home — rendering the
-      // "success" screen would only flash for a frame (e.g. the Google OAuth deep
-      // link re-entering the app). Skip it and keep the neutral spinner until redirect.
-      if (Platform.OS !== "web" && hasSession) {
+      // The "Congratulations, your email is confirmed!" success screen is only
+      // meaningful for a genuine email-signup confirmation. OAuth (e.g. Google) and
+      // returning-user logins establish a session with no pending-signup match and no
+      // `type=signup`, so they must skip the success screen and land straight on home —
+      // otherwise an existing user re-authenticating sees a bogus "email confirmed".
+      const isEmailConfirmation = welcome || parsed.type === "signup";
+      if (hasSession && !isEmailConfirmation) {
         requestAnimationFrame(() => {
           if (mountedRef.current) router.replace(homeDestination(welcome) as never);
         });

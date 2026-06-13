@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lagan — promo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- LogoMark template reused by JS -->
+    <template id="logo">
+      <svg viewBox="0 0 36 36" fill="none" class="mark">
+        <rect x="4" y="4" width="12" height="12" rx="3" fill="#F26B1F" />
+        <rect x="20" y="4" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.75" />
+        <rect x="4" y="20" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.5" />
+        <rect x="20" y="20" width="12" height="12" rx="3" fill="#F26B1F" opacity="0.8" />
+      </svg>
+    </template>
+
+    <div class="stage">
+      <div class="glow" id="glow"></div>
+
+      <!-- Brand header -->
+      <div class="brand">
+        <svg viewBox="0 0 36 36" fill="none" class="mark">
+          <rect x="4" y="4" width="12" height="12" rx="3" fill="#F26B1F" />
+          <rect x="20" y="4" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.75" />
+          <rect x="4" y="20" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.5" />
+          <rect x="20" y="20" width="12" height="12" rx="3" fill="#F26B1F" opacity="0.8" />
+        </svg>
+        <span class="word">Lagan</span>
+      </div>
+
+      <!-- Phone -->
+      <div class="phone">
+        <div class="notch"></div>
+        <div class="phone-screen" id="phoneScreen">
+          <!-- 1 · SIGN-IN -->
+          <div class="screen" data-scene="signin">
+            <div class="signin">
+              <div class="logobox">
+                <svg viewBox="0 0 36 36" fill="none" style="width: 9cqw; height: 9cqw">
+                  <rect x="4" y="4" width="12" height="12" rx="3" fill="#F26B1F" />
+                  <rect x="20" y="4" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.75" />
+                  <rect x="4" y="20" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.5" />
+                  <rect x="20" y="20" width="12" height="12" rx="3" fill="#F26B1F" opacity="0.8" />
+                </svg>
+              </div>
+              <div class="name sg">Lagan</div>
+              <div class="tag">Daily devotion. Gently rewarded.</div>
+              <div class="field">you@example.com</div>
+              <div class="field">••••••••</div>
+              <div class="cta">Continue</div>
+            </div>
+          </div>
+
+          <!-- 2 · WIZARD -->
+          <div class="screen" data-scene="wizard">
+            <div class="statusbar">
+              <span class="time">9:41</span>
+              <span class="bars"><i style="height: 8cqh; background: var(--success)"></i><i style="height: 6cqh; background: var(--textMute)"></i><i style="height: 4cqh; background: var(--border)"></i></span>
+            </div>
+            <div class="wizard">
+              <div class="eyebrow">Step 1 of 6</div>
+              <div class="sg" style="font-size: 5.3cqw; font-weight: 700; margin-top: 1.6cqw">What's your goal?</div>
+              <div class="chips">
+                <div class="chip sel">⚡ Energy</div>
+                <div class="chip sel">🏃 Fitness</div>
+                <div class="chip">🧠 Focus</div>
+                <div class="chip sel">😴 Sleep</div>
+                <div class="chip">🧘 Stress</div>
+              </div>
+              <div class="thinking" data-gen="thinking">
+                <span class="spinner" id="wizSpinner"></span>
+                <span>Building your routine…</span>
+              </div>
+              <div data-gen="results" style="margin-top: 3cqw">
+                <div class="gen-habit"><span>💧</span><span>Drink Water<div class="why">Boosts energy &amp; focus</div></span></div>
+                <div class="gen-habit"><span>🏃</span><span>Evening Walk<div class="why">6,000 steps for fitness</div></span></div>
+                <div class="gen-habit"><span>😴</span><span>Sleep by 11pm<div class="why">Better recovery</div></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3 · TODAY -->
+          <div class="screen" data-scene="today">
+            <div class="statusbar">
+              <span class="time">9:41</span>
+              <span class="bars"><i style="height: 8cqh; background: var(--success)"></i><i style="height: 6cqh; background: var(--textMute)"></i><i style="height: 4cqh; background: var(--border)"></i></span>
+            </div>
+            <div class="screen-head">
+              <div>
+                <div class="h1 sg">Good morning</div>
+                <div class="h2"><span id="doneCount">3</span> of 5 habits done</div>
+              </div>
+              <div class="pill">🔥 <span id="streakNum">12</span></div>
+            </div>
+            <div class="ringcard">
+              <svg width="13cqw" height="13cqw" viewBox="0 0 46 46" style="flex-shrink: 0">
+                <circle cx="23" cy="23" r="17" fill="none" stroke="var(--border)" stroke-width="5" />
+                <circle id="ringFill" cx="23" cy="23" r="17" fill="none" stroke="var(--primary)" stroke-width="5"
+                  stroke-dasharray="106.8" stroke-dashoffset="106.8" stroke-linecap="round" transform="rotate(-90 23 23)" />
+              </svg>
+              <div>
+                <div style="font-size: 3.7cqw; font-weight: 700">Today's progress</div>
+                <div style="font-size: 3.3cqw; color: var(--textMute)">Keep going!</div>
+              </div>
+            </div>
+            <div class="habit"><span class="emoji">💧</span><div style="flex: 1"><div class="label">Drink Water</div><div class="sub">2500ml</div></div><div class="check done"><svg width="9cqw" height="9cqw" viewBox="0 0 12 12"><path d="M2 6L5 9L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div></div>
+            <div class="habit"><span class="emoji">📖</span><div style="flex: 1"><div class="label">Read 10 pages</div><div class="sub">Atomic Habits</div></div><div class="check done"><svg width="9cqw" height="9cqw" viewBox="0 0 12 12"><path d="M2 6L5 9L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div></div>
+            <div class="habit"><span class="emoji">🧘</span><div style="flex: 1"><div class="label">Meditation</div><div class="sub">10 min</div></div><div class="check done"><svg width="9cqw" height="9cqw" viewBox="0 0 12 12"><path d="M2 6L5 9L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div></div>
+            <!-- the habit that gets tapped -->
+            <div class="habit" id="tapHabit"><span class="emoji">🏃</span><div style="flex: 1"><div class="label">Evening walk</div><div class="sub">30 min</div></div>
+              <div class="check todo" id="tapCheckTodo"></div>
+              <div class="check done" id="tapCheckDone" style="position: absolute; right: 4.3cqw; opacity: 0; transform: scale(0.4)"><svg width="9cqw" height="9cqw" viewBox="0 0 12 12"><path d="M2 6L5 9L10 3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg></div>
+            </div>
+            <div id="confettiWrap"></div>
+          </div>
+
+          <!-- 4 · COACH -->
+          <div class="screen" data-scene="coach">
+            <div class="coach-head">
+              <div class="coach-av">✨</div>
+              <div>
+                <div class="sg" style="font-size: 4.3cqw; font-weight: 700">AI Coach</div>
+                <div style="font-size: 3.3cqw; color: var(--textMute)">Powered by Lagan</div>
+              </div>
+            </div>
+            <div class="bubble" data-msg="1"><span class="lead">Nice work — 3 done already.</span> You usually skip your walk after 6pm. Want a 10-minute version tonight?</div>
+            <div class="bubble me" data-msg="2">Yes, let's do the short one 💪</div>
+            <div class="bubble" data-msg="3"><span class="lead">Done!</span> Reminder set for 5:45pm. That keeps your 🔥 12-day streak alive.</div>
+          </div>
+
+          <!-- 5 · DETAIL + STEPS -->
+          <div class="screen" data-scene="detail">
+            <div class="statusbar">
+              <span class="time">9:41</span>
+              <span class="bars"><i style="height: 8cqh; background: var(--success)"></i><i style="height: 6cqh; background: var(--textMute)"></i><i style="height: 4cqh; background: var(--border)"></i></span>
+            </div>
+            <div class="detail">
+              <div class="row" style="justify-content: space-between; align-items: flex-start">
+                <div>
+                  <div class="sg" style="font-size: 5.3cqw; font-weight: 700">🏃 Evening walk</div>
+                  <div style="font-size: 3.3cqw; color: var(--textMute); margin-top: 0.6cqw">This week</div>
+                </div>
+                <div class="pill">🔥 12</div>
+              </div>
+              <div class="bars-chart">
+                <div class="bar" data-h="60"></div>
+                <div class="bar" data-h="85"></div>
+                <div class="bar" data-h="45"></div>
+                <div class="bar" data-h="92"></div>
+                <div class="bar" data-h="70"></div>
+                <div class="bar" data-h="100"></div>
+                <div class="bar" data-h="78"></div>
+              </div>
+              <div class="daylabels"><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span></div>
+              <div class="steps-card">
+                <span style="font-size: 8cqw">👟</span>
+                <div style="flex: 1">
+                  <div class="big"><span id="stepsNum">0</span> <span style="font-size: 3.3cqw; color: var(--textMute); font-weight: 600">/ 6,000 steps</span></div>
+                  <div style="font-size: 3.1cqw; color: var(--success); margin-top: 0.6cqw">● Synced from Health · just now</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 6 · PROGRESS -->
+          <div class="screen" data-scene="progress">
+            <div class="statusbar">
+              <span class="time">9:41</span>
+              <span class="bars"><i style="height: 8cqh; background: var(--success)"></i><i style="height: 6cqh; background: var(--textMute)"></i><i style="height: 4cqh; background: var(--border)"></i></span>
+            </div>
+            <div class="progress">
+              <div class="eyebrow">Progress</div>
+              <div class="sg" style="font-size: 5.3cqw; font-weight: 700; margin-top: 1cqw">Last 4 weeks</div>
+              <div class="heatmap" id="heatmap"></div>
+              <div class="wheel-row">
+                <svg class="wheel" id="wheel" viewBox="0 0 100 100"></svg>
+                <div>
+                  <div class="sg" style="font-size: 4.3cqw; font-weight: 700">Life balance</div>
+                  <div style="font-size: 3.3cqw; color: var(--textMute); margin-top: 0.6cqw">Fitness · Sleep · Focus<br />Health · Learning</div>
+                </div>
+              </div>
+              <div class="xp-card">
+                <div class="row" style="justify-content: space-between">
+                  <span class="sg" style="font-size: 4cqw; font-weight: 700">Level <span id="lvlNum">5</span></span>
+                  <span style="font-size: 3.3cqw; color: var(--accent); font-weight: 700" id="xpLabel">+10 XP</span>
+                </div>
+                <div class="xp-bar-track"><div class="xp-bar-fill" id="xpFill"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7 · LEADERBOARD + BADGE -->
+          <div class="screen" data-scene="leaderboard">
+            <div class="statusbar">
+              <span class="time">9:41</span>
+              <span class="bars"><i style="height: 8cqh; background: var(--success)"></i><i style="height: 6cqh; background: var(--textMute)"></i><i style="height: 4cqh; background: var(--border)"></i></span>
+            </div>
+            <div class="screen-head" style="padding-bottom: 3cqw">
+              <div><div class="eyebrow">Leaderboard</div><div class="h1 sg" style="margin-top: 0.6cqw">This Week</div></div>
+            </div>
+            <div class="lb">
+              <div class="rowitem"><span class="rank">🥇</span><span class="av" style="background: hsl(142,50%,40%)">A</span><div><div class="nm">Aisha M.</div><div class="st">🔥 34 day streak</div></div><span class="xp">3,820<div style="font-size: 2.6cqw; color: var(--textDim)">XP</div></span></div>
+              <div class="rowitem you"><span class="rank">🥈</span><span class="av" style="background: var(--primary)">R</span><div><div class="nm" style="color: var(--primary)">You</div><div class="st">🔥 22 day streak</div></div><span class="xp" style="color: var(--primary)" id="lbXp">3,610<div style="font-size: 2.6cqw; color: var(--textDim)">XP</div></span></div>
+              <div class="rowitem"><span class="rank" style="color: var(--textDim); font-weight: 700">3</span><span class="av" style="background: hsl(200,50%,40%)">J</span><div><div class="nm">James T.</div><div class="st">🔥 18 day streak</div></div><span class="xp">2,940<div style="font-size: 2.6cqw; color: var(--textDim)">XP</div></span></div>
+              <div class="rowitem"><span class="rank" style="color: var(--textDim); font-weight: 700">4</span><span class="av" style="background: hsl(280,50%,40%)">S</span><div><div class="nm">Sofia K.</div><div class="st">🔥 12 day streak</div></div><span class="xp">1,980<div style="font-size: 2.6cqw; color: var(--textDim)">XP</div></span></div>
+            </div>
+            <div class="badge-pop" id="badgePop">🏅</div>
+          </div>
+
+          <!-- 8 · CTA -->
+          <div class="screen" data-scene="cta">
+            <div class="ctaScreen">
+              <div class="logobox">
+                <svg viewBox="0 0 36 36" fill="none" style="width: 11cqw; height: 11cqw">
+                  <rect x="4" y="4" width="12" height="12" rx="3" fill="#F26B1F" />
+                  <rect x="20" y="4" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.75" />
+                  <rect x="4" y="20" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.5" />
+                  <rect x="20" y="20" width="12" height="12" rx="3" fill="#F26B1F" opacity="0.8" />
+                </svg>
+              </div>
+              <div class="big sg">Lagan</div>
+              <div class="sub">Build better habits.</div>
+              <div class="store-badges">
+                <div class="store-badge"> App Store</div>
+                <div class="store-badge">▶ Google Play</div>
+              </div>
+              <div class="store-badge" style="margin-top: 2cqw; border-color: rgba(242,107,31,0.4); color: var(--primary)">🌐 lagan.health</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Captions -->
+      <div class="captions" id="captions"></div>
+
+      <!-- Progress dots -->
+      <div class="dots" id="dots"></div>
+    </div>
+
+    <script src="timeline.js"></script>
+  </body>
+</html>
