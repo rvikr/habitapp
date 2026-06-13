@@ -39,6 +39,10 @@ export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const celebrate = useCelebrate();
+  const handleBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
+  };
   const { t } = useLanguage();
   const [habit, setHabit] = useState<Habit | null>(null);
   const [completions, setCompletions] = useState<HabitCompletion[]>([]);
@@ -172,7 +176,7 @@ export default function HabitDetailScreen() {
     ]);
   }
 
-  if (!habit) return <HabitDetailSkeleton onBack={() => router.back()} />;
+  if (!habit) return <HabitDetailSkeleton onBack={handleBack} />;
 
   const imageUrl = getHabitImageForHabit(habit);
   const accentColor = "#FFC56B";
@@ -181,7 +185,7 @@ export default function HabitDetailScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center justify-between px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={handleBack}>
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <View className="flex-row gap-sm">
