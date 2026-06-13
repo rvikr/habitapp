@@ -80,7 +80,7 @@ export default function CoachSettingsScreen() {
               onAction={() => router.push("/pro" as never)}
             />
           ) : null}
-          {hasPro !== false &&
+          {hasPro === true &&
             TONES.map((item) => {
               const active = tone === item.id;
               return (

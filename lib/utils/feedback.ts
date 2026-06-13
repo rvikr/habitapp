@@ -39,5 +39,13 @@ export async function submitFeedback(
   });
 
   if (error) return { ok: false, error: error.message };
+
+  // Fire-and-forget: notify team via email. Don't fail the submission if this errors.
+  supabase.functions
+    .invoke("support-email", {
+      body: { message: input.message.trim(), category: input.category, rating: input.rating },
+    })
+    .catch(() => {});
+
   return { ok: true };
 }

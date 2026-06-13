@@ -21,7 +21,7 @@ type Props = {
   /** Today's already-logged amount, used for the progress line and quick-add math. */
   currentValue?: number;
   onSubmit: (value: number, note: string) => Promise<{ ok: boolean; error?: string }> | void;
-  /** When provided, shows a "Mark all done" button that logs the full target after confirming. */
+  /** When provided, shows a "Mark all done" button that logs the full target in one tap. */
   onMarkAllDone?: () => Promise<{ ok: boolean; error?: string }> | void;
   onDismiss: () => void;
 };
@@ -119,36 +119,20 @@ export default function LogPrompt({
     await submitValue(amount);
   }
 
-  function handleMarkAllDone() {
+  async function handleMarkAllDone() {
     if (!habit || !onMarkAllDone) return;
-    const target = habit.target != null ? formatAmount(Number(habit.target)) : "";
-    const unit = habit.unit ? ` ${habit.unit}` : "";
-    showAlert(
-      t("Mark complete?"),
-      t("Did you really finish all {target}{unit} of {name}?", {
-        target,
-        unit,
-        name: habit.name,
-      }),
-      [
-        { text: t("Cancel"), style: "cancel" },
-        {
-          text: t("Yes, all done"),
-          onPress: async () => {
-            setError(null);
-            setSubmitting(true);
-            try {
-              const result = await onMarkAllDone();
-              if (result && !result.ok) {
-                setError(result.error ?? t("Could not save. Try again."));
-              }
-            } finally {
-              setSubmitting(false);
-            }
-          },
-        },
-      ],
-    );
+    // "Mark all done" is a preset action — log the full target in one tap without
+    // re-confirming. Manually typed amounts still confirm via handleSubmit.
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await onMarkAllDone();
+      if (result && !result.ok) {
+        setError(result.error ?? t("Could not save. Try again."));
+      }
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const target = habit?.target != null ? Number(habit.target) : null;

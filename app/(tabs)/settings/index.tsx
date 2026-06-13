@@ -30,7 +30,6 @@ import {
 } from "@/lib/subscription/access";
 
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || "https://lagan.health/terms";
-const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || "support@lagan.health";
 const APP_VERSION = Constants.expoConfig?.version ?? "—";
 
 type UserInfo = {
@@ -356,16 +355,7 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="email-outline"
             label={t("Contact Support")}
-            onPress={() => {
-              if (!SUPPORT_EMAIL) {
-                showAlert(
-                  t("Not configured"),
-                  t("Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment."),
-                );
-                return;
-              }
-              Linking.openURL(`mailto:${SUPPORT_EMAIL}`);
-            }}
+            onPress={() => router.push("/settings/feedback" as never)}
           />
           <SettingsRow
             icon="shield-lock"
