@@ -118,6 +118,13 @@ const HI_TRANSLATIONS: Record<string, string> = {
     "ऑटोमैटिक नींद सिंक Lagan iOS और Android ऐप में काम करता है. वेब पर आप नींद मैन्युअली लॉग कर सकते हैं.",
   "Auto-sync needs the Lagan mobile app. On web, log steps manually.":
     "ऑटो-सिंक के लिए Lagan मोबाइल ऐप चाहिए. वेब पर स्टेप्स मैन्युअली लॉग करें.",
+  "Automatic step tracking works in the Lagan iOS and Android app. You can still log steps manually on web.":
+    "ऑटोमैटिक स्टेप ट्रैकिंग Lagan iOS और Android ऐप में काम करती है. वेब पर आप स्टेप्स मैन्युअली लॉग कर सकते हैं.",
+  "Step tracking isn't available on this device.": "इस डिवाइस पर स्टेप ट्रैकिंग उपलब्ध नहीं है.",
+  "Update Health Connect to enable step tracking.":
+    "स्टेप ट्रैकिंग चालू करने के लिए Health Connect अपडेट करें.",
+  "Allow motion access to enable step tracking.":
+    "स्टेप ट्रैकिंग चालू करने के लिए मोशन एक्सेस की अनुमति दें.",
   "Auto-sync needs the Lagan mobile app. Synced sleep still shows here.":
     "ऑटो-सिंक के लिए Lagan मोबाइल ऐप चाहिए. सिंक हुई नींद यहां फिर भी दिखेगी.",
 

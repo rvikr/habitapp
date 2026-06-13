@@ -868,7 +868,10 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
-        {stepHabit &&
+        {/* Web has no pedometer, so auto step tracking is messaged once in Settings.
+            Suppress the dashboard prompt here to avoid a redundant "Get the app" card. */}
+        {Platform.OS !== "web" &&
+          stepHabit &&
           stepTrackingEnabled &&
           !["idle", "tracking", "synced", "checking", "syncing"].includes(stepTracking.status) && (
             <StepTrackingCard

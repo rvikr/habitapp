@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import Constants from "expo-constants";
 import { requestReviewManually } from "@/lib/platform/store-review";
 import { requestSleepPermission } from "@/lib/platform/sleep";
+import { isStepTrackingAvailable, requestStepPermission } from "@/lib/platform/steps";
 import {
   Linking,
   Platform,
@@ -159,6 +160,36 @@ export default function SettingsScreen() {
     }
   }
 
+  async function handleStepToggle(next: boolean) {
+    if (!next) {
+      setStepsEnabled(false);
+      return;
+    }
+    // Auto step tracking needs a device pedometer (mobile only). On web — and on
+    // any device without one — mirror the sleep toggle: surface a message and
+    // leave the switch off instead of flipping a preference that can never sync.
+    if (!(await isStepTrackingAvailable())) {
+      const message =
+        Platform.OS === "web"
+          ? t(
+              "Automatic step tracking works in the Lagan iOS and Android app. You can still log steps manually on web.",
+            )
+          : t("Step tracking isn't available on this device.");
+      showAlert(t("Step tracking"), message);
+      return;
+    }
+    const status = await requestStepPermission();
+    if (status === "granted") {
+      setStepsEnabled(true);
+      return;
+    }
+    const message =
+      status === "providerUpdateRequired"
+        ? t("Update Health Connect to enable step tracking.")
+        : t("Allow motion access to enable step tracking.");
+    showAlert(t("Step tracking"), message);
+  }
+
   async function handleSleepToggle(next: boolean) {
     if (!next) {
       setSleepEnabled(false);
@@ -285,7 +316,7 @@ export default function SettingsScreen() {
                 : t("Auto-sync steps from your device pedometer.")
             }
             value={stepsEnabled}
-            onValueChange={setStepsEnabled}
+            onValueChange={handleStepToggle}
           />
           <TrackingToggleRow
             icon="sleep"

@@ -24,13 +24,25 @@ export default function AuthCallbackScreen() {
   const routeCallbackUrl = authCallbackUrlFromParams(`/${AUTH_CALLBACK_PATH}`, callbackParams);
   const currentUrl = Linking.useURL();
   const handledUrlRef = useRef<string | null>(null);
+  // Tracks real unmount only. On web, `Linking.useURL()` starts null then resolves
+  // to the page URL, re-running the effect below. A per-run `cancelled` flag would
+  // be flipped by that re-run's cleanup and suppress the state updates from the run
+  // that actually exchanged the code — leaving the screen stuck on the spinner. This
+  // ref is cleared solely by the dedicated unmount effect, so the productive run can
+  // always finish.
+  const mountedRef = useRef(true);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [shouldWelcome, setShouldWelcome] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
+  useEffect(() => {
     async function finishAuth() {
       const url =
         currentUrl ?? (await Linking.getInitialURL()) ?? browserLocationUrl() ?? routeCallbackUrl;
@@ -63,7 +75,7 @@ export default function AuthCallbackScreen() {
         ? await consumePendingSignupWelcome(session.user.email).catch(() => false)
         : false;
 
-      if (cancelled) return;
+      if (!mountedRef.current) return;
       setShouldWelcome(welcome);
 
       if (parsed.type === "recovery") {
@@ -76,7 +88,7 @@ export default function AuthCallbackScreen() {
       // link re-entering the app). Skip it and keep the neutral spinner until redirect.
       if (Platform.OS !== "web" && hasSession) {
         requestAnimationFrame(() => {
-          if (!cancelled) router.replace(homeDestination(welcome) as never);
+          if (mountedRef.current) router.replace(homeDestination(welcome) as never);
         });
         return;
       }
@@ -84,15 +96,11 @@ export default function AuthCallbackScreen() {
     }
 
     finishAuth().catch((e) => {
-      if (!cancelled) {
+      if (mountedRef.current) {
         setError(e instanceof Error ? e.message : t("Could not complete authentication."));
         setStatus("error");
       }
     });
-
-    return () => {
-      cancelled = true;
-    };
   }, [currentUrl, routeCallbackUrl, router, t]);
 
   return (
