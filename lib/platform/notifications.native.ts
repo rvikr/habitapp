@@ -49,7 +49,7 @@ export async function scheduleWeeklyReminder(
 ): Promise<string> {
   const [hour, minute] = time.split(":").map(Number);
   return Notifications.scheduleNotificationAsync({
-    content: { title, body, data, categoryIdentifier },
+    content: { title, body, data, ...(categoryIdentifier ? { categoryIdentifier } : {}) },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
       weekday: weekday === 0 ? 1 : weekday + 1,
@@ -68,7 +68,7 @@ export async function scheduleDateReminder(
   categoryIdentifier?: string,
 ): Promise<string> {
   return Notifications.scheduleNotificationAsync({
-    content: { title, body, data, categoryIdentifier },
+    content: { title, body, data, ...(categoryIdentifier ? { categoryIdentifier } : {}) },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: fireAt,
