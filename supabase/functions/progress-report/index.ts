@@ -1,6 +1,6 @@
 // deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
 import { generateContent } from "../_shared/gemini.ts";
@@ -72,6 +72,14 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// Loosely-typed service-role client. These functions run without generated
+// Database types, so a bare client type resolves to supabase-js's strict
+// declaration defaults (schema `never`), which rejects both the real client
+// value and untyped table writes. An explicit `any`-schema alias keeps every
+// helper's client parameter consistent and matches this file's existing
+// `as any` usage.
+type AdminClient = SupabaseClient<any, any, any>;
+
 type ProUserRow = { user_id: string };
 type ProgressReportRequest = { mode?: string };
 type GenerateForUserResult = { status: "written" | "skipped" | "failed"; reason?: string };
@@ -138,7 +146,7 @@ function outputText(body: any): string | null {
 // Fetches the raw rows and delegates all math to the pure buildWeeklyStats in
 // ./stats.ts (which is exercised directly by the Node unit tests).
 async function computeWeeklyStats(
-  admin: ReturnType<typeof createClient>,
+  admin: AdminClient,
   userId: string,
   weekStartDate: Date,
 ): Promise<WeeklyStats | null> {
@@ -231,7 +239,7 @@ async function generateSummary(stats: WeeklyStats): Promise<{ text: string; gene
 }
 
 async function generateForUser(
-  admin: ReturnType<typeof createClient>,
+  admin: AdminClient,
   userId: string,
   weekStartDate: Date,
 ): Promise<GenerateForUserResult> {
@@ -290,7 +298,7 @@ async function generateForUser(
 }
 
 async function getProgressReport(
-  admin: ReturnType<typeof createClient>,
+  admin: AdminClient,
   userId: string,
   weekStartDate: Date,
 ): Promise<WeeklyProgressReportRow | null> {
@@ -307,7 +315,7 @@ async function getProgressReport(
   return (data as WeeklyProgressReportRow | null) ?? null;
 }
 
-async function runCronBatch(admin: ReturnType<typeof createClient>) {
+async function runCronBatch(admin: AdminClient) {
   const now = new Date();
   const previousWeek = previousWeekStart(now);
 
@@ -381,7 +389,7 @@ function statusForGenerateResult(result: GenerateForUserResult): number {
   return 200;
 }
 
-async function runGenerateNow(req: Request, admin: ReturnType<typeof createClient>) {
+async function runGenerateNow(req: Request, admin: AdminClient) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return json({ error: "Missing authorization header" }, 401);
 

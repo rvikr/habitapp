@@ -1,0 +1,79 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.108.1",
+    "https://esm.sh/@types/web-push@~3.6.4/index.d.ts": "https://esm.sh/@types/web-push@3.6.4/index.d.ts"
+  },
+  "remote": {
+    "https://deno.land/std@0.224.0/async/delay.ts": "f90dd685b97c2f142b8069082993e437b1602b8e2561134827eeb7c12b95c499",
+    "https://deno.land/std@0.224.0/http/server.ts": "f9313804bf6467a1704f45f76cb6cd0a3396a3b31c316035e6a4c2035d1ea514",
+    "https://esm.sh/@supabase/supabase-js@2.108.1": "fca0990662d240263b440bc055ea919312c0d27f7ab295e835e1644cf49200ce",
+    "https://esm.sh/web-push@3.6.7?bundle": "8d155b07e025fb85049f5e65985c075ddd733349ac25802b7868dbd066c6a54b"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@babel/core@^7.25.0",
+        "npm:@expo-google-fonts/manrope@~0.4.2",
+        "npm:@expo-google-fonts/plus-jakarta-sans@~0.2.3",
+        "npm:@expo-google-fonts/space-grotesk@~0.4.1",
+        "npm:@expo/vector-icons@^15.0.3",
+        "npm:@kingstinct/react-native-healthkit@^14.0.1",
+        "npm:@react-native-async-storage/async-storage@2.2.0",
+        "npm:@react-native-google-signin/google-signin@^16.1.2",
+        "npm:@sentry/react-native@7.2",
+        "npm:@supabase/supabase-js@^2.45.4",
+        "npm:@types/react@~19.1.10",
+        "npm:babel-preset-expo@~54.0.10",
+        "npm:eslint-config-expo@10.0",
+        "npm:eslint-config-prettier@^10.0.1",
+        "npm:eslint@^9.18.0",
+        "npm:expo-build-properties@~1.0.10",
+        "npm:expo-constants@~18.0.13",
+        "npm:expo-crypto@~15.0.9",
+        "npm:expo-device@~8.0.10",
+        "npm:expo-file-system@~19.0.23",
+        "npm:expo-font@~14.0.12",
+        "npm:expo-haptics@~15.0.8",
+        "npm:expo-health-connect@~0.1.1",
+        "npm:expo-linking@~8.0.12",
+        "npm:expo-localization@~17.0.9",
+        "npm:expo-notifications@~0.32.17",
+        "npm:expo-router@~6.0.24",
+        "npm:expo-secure-store@~15.0.8",
+        "npm:expo-sensors@~15.0.8",
+        "npm:expo-sharing@~14.0.8",
+        "npm:expo-splash-screen@~31.0.13",
+        "npm:expo-status-bar@~3.0.9",
+        "npm:expo-store-review@~9.0.9",
+        "npm:expo-updates@~29.0.18",
+        "npm:expo-web-browser@~15.0.11",
+        "npm:expo@~54.0.35",
+        "npm:husky@^9.1.7",
+        "npm:lint-staged@^15.4.3",
+        "npm:nativewind@^4.1.23",
+        "npm:playwright@^1.60.0",
+        "npm:posthog-react-native@^4.44.0",
+        "npm:prettier@^3.4.2",
+        "npm:react-dom@19.1.0",
+        "npm:react-native-confetti-cannon@^1.5.2",
+        "npm:react-native-health-connect@^3.5.0",
+        "npm:react-native-purchases@^10.1.2",
+        "npm:react-native-reanimated@~4.1.1",
+        "npm:react-native-safe-area-context@5.6",
+        "npm:react-native-screens@4.16",
+        "npm:react-native-svg@15.12.1",
+        "npm:react-native-web@0.21",
+        "npm:react-native-worklets@0.5.1",
+        "npm:react-native@0.81.5",
+        "npm:react@19.1.0",
+        "npm:sharp@~0.34.5",
+        "npm:tailwindcss@^3.4.14",
+        "npm:typescript@~5.9.2"
+      ],
+      "overrides": {
+        "postcss": "8.5.14"
+      }
+    }
+  }
+}
