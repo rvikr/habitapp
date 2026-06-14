@@ -1,0 +1,21 @@
+{
+  "name": "Lagan MVP social post",
+  "primaryExport": "lagan-mvp-social-post-1080.png",
+  "editableSource": "post.html",
+  "caption": "caption.md",
+  "dimensions": {
+    "width": 1080,
+    "height": 1080,
+    "format": "square"
+  },
+  "channelFit": ["Instagram feed", "LinkedIn feed", "X image post", "general social feed"],
+  "claims": [
+    "AI habit tracker and coach",
+    "AI routine builder",
+    "Smart reminders",
+    "Habit logging and progress tracking",
+    "Streaks, XP, badges, and ranks",
+    "Free to start",
+    "iOS, Android, and web"
+  ]
+}

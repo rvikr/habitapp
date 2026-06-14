@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lagan Social Post</title>
+    <style>
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        src: url("../../../website/public/fonts/PlusJakartaSans-Regular.woff2") format("woff2");
+        font-weight: 400;
+      }
+
+      @font-face {
+        font-family: "Plus Jakarta Sans";
+        src: url("../../../website/public/fonts/PlusJakartaSans-Bold.woff2") format("woff2");
+        font-weight: 700;
+      }
+
+      :root {
+        --bg: #0b0b0e;
+        --surface: #15151a;
+        --surface-hi: #202027;
+        --border: #34343e;
+        --text: #ffffff;
+        --muted: #b7bac2;
+        --dim: #7d818b;
+        --primary: #f26b1f;
+        --primary-dark: #c94d08;
+        --gold: #ffc56b;
+        --green: #3ebb7f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #111;
+        font-family: "Plus Jakarta Sans", Arial, sans-serif;
+      }
+
+      .post {
+        width: 1080px;
+        height: 1080px;
+        position: relative;
+        overflow: hidden;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 78% 14%, rgba(242, 107, 31, 0.32), transparent 26%),
+          radial-gradient(circle at 17% 92%, rgba(62, 187, 127, 0.22), transparent 24%),
+          linear-gradient(145deg, #0b0b0e 0%, #151417 58%, #0b0b0e 100%);
+      }
+
+      .noise {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent 82%);
+      }
+
+      .wrap {
+        position: relative;
+        z-index: 1;
+        height: 100%;
+        padding: 58px 70px 60px;
+        display: grid;
+        grid-template-columns: 500px 1fr;
+        gap: 44px;
+      }
+
+      .left {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-width: 0;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .brand img {
+        width: 70px;
+        height: 70px;
+        border-radius: 8px;
+        box-shadow: 0 20px 52px rgba(242, 107, 31, 0.2);
+      }
+
+      .brand-copy {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .app-name {
+        font-size: 38px;
+        font-weight: 700;
+        line-height: 1;
+      }
+
+      .tag {
+        color: var(--gold);
+        font-size: 20px;
+        font-weight: 700;
+      }
+
+      h1 {
+        margin: 54px 0 0;
+        font-size: 84px;
+        line-height: 0.98;
+        font-weight: 700;
+      }
+
+      .accent {
+        color: var(--primary);
+      }
+
+      .subhead {
+        margin-top: 28px;
+        max-width: 470px;
+        color: var(--muted);
+        font-size: 27px;
+        line-height: 1.34;
+      }
+
+      .features {
+        margin-top: 34px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .chip {
+        min-height: 86px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.055);
+        border-radius: 8px;
+        padding: 15px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .chip svg {
+        flex: 0 0 auto;
+      }
+
+      .chip span {
+        display: block;
+        font-size: 20px;
+        line-height: 1.12;
+        font-weight: 700;
+      }
+
+      .cta-row {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+      }
+
+      .cta {
+        background: var(--primary);
+        color: #fff;
+        border-radius: 8px;
+        padding: 19px 26px;
+        font-size: 25px;
+        font-weight: 700;
+        box-shadow: 0 18px 48px rgba(242, 107, 31, 0.34);
+      }
+
+      .platforms {
+        color: var(--muted);
+        font-size: 21px;
+        line-height: 1.26;
+      }
+
+      .right {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-top: 28px;
+      }
+
+      .halo {
+        position: absolute;
+        width: 520px;
+        height: 720px;
+        border-radius: 50%;
+        background: linear-gradient(180deg, rgba(242, 107, 31, 0.28), rgba(255, 197, 107, 0.06));
+        filter: blur(22px);
+      }
+
+      .phone {
+        position: relative;
+        width: 362px;
+        height: 744px;
+        border-radius: 42px;
+        padding: 16px;
+        background: linear-gradient(160deg, #33333c, #09090b 45%, #24242c);
+        box-shadow:
+          0 38px 90px rgba(0, 0, 0, 0.52),
+          0 0 0 1px rgba(255, 255, 255, 0.09);
+        transform: rotate(3deg);
+      }
+
+      .screen {
+        height: 100%;
+        overflow: hidden;
+        border-radius: 30px;
+        background: var(--bg);
+        border: 1px solid #282832;
+      }
+
+      .status {
+        height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        background: #17171d;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .bars {
+        display: flex;
+        align-items: end;
+        gap: 4px;
+        height: 16px;
+      }
+
+      .bars i {
+        display: block;
+        width: 4px;
+        border-radius: 2px;
+        background: var(--muted);
+      }
+
+      .bars i:nth-child(1) {
+        height: 8px;
+      }
+
+      .bars i:nth-child(2) {
+        height: 12px;
+      }
+
+      .bars i:nth-child(3) {
+        height: 16px;
+        background: var(--green);
+      }
+
+      .screen-pad {
+        padding: 22px 19px;
+      }
+
+      .screen-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .screen-title {
+        font-size: 21px;
+        line-height: 1.12;
+        font-weight: 700;
+      }
+
+      .screen-date {
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .streak {
+        min-width: 64px;
+        height: 38px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        color: var(--primary);
+        background: rgba(242, 107, 31, 0.15);
+        border: 1px solid rgba(242, 107, 31, 0.34);
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .progress-card {
+        margin-top: 20px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 17px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .ring {
+        position: relative;
+        width: 78px;
+        height: 78px;
+      }
+
+      .ring svg {
+        display: block;
+      }
+
+      .ring strong {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: var(--primary);
+        font-size: 19px;
+      }
+
+      .progress-card h2 {
+        margin: 0 0 5px;
+        font-size: 20px;
+      }
+
+      .progress-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .habit-list {
+        margin-top: 18px;
+        display: grid;
+        gap: 9px;
+      }
+
+      .habit {
+        background: var(--surface-hi);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 13px 13px;
+        display: grid;
+        grid-template-columns: 34px 1fr 28px;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .habit-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--gold);
+      }
+
+      .habit-title {
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .habit-note {
+        margin-top: 3px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .done {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: var(--primary);
+      }
+
+      .todo {
+        width: 28px;
+        height: 28px;
+        border: 2px solid #4b4b56;
+        border-radius: 8px;
+      }
+
+      .coach {
+        margin-top: 17px;
+        padding: 14px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, rgba(242, 107, 31, 0.2), rgba(255, 197, 107, 0.11));
+        border: 1px solid rgba(242, 107, 31, 0.3);
+      }
+
+      .coach-label {
+        color: var(--gold);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .coach-text {
+        margin-top: 5px;
+        color: var(--text);
+        font-size: 14px;
+        line-height: 1.32;
+      }
+
+      .floating {
+        position: absolute;
+        left: 2px;
+        bottom: 166px;
+        width: 166px;
+        padding: 14px;
+        border-radius: 8px;
+        background: rgba(21, 21, 26, 0.92);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: 0 18px 42px rgba(0, 0, 0, 0.4);
+      }
+
+      .floating strong {
+        display: block;
+        font-size: 34px;
+        color: var(--gold);
+        line-height: 1;
+      }
+
+      .floating span {
+        margin-top: 7px;
+        display: block;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.16;
+        font-weight: 700;
+      }
+
+      .download {
+        position: absolute;
+        right: 70px;
+        bottom: 58px;
+        color: var(--dim);
+        font-size: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="post" aria-label="Lagan social media post">
+      <div class="noise"></div>
+      <div class="wrap">
+        <section class="left">
+          <div>
+            <div class="brand">
+              <img src="../../../assets/icon.png" alt="Lagan app icon" />
+              <div class="brand-copy">
+                <div class="app-name">Lagan</div>
+                <div class="tag">AI habit tracker & coach</div>
+              </div>
+            </div>
+
+            <h1>Build the habit. <span class="accent">Keep the streak.</span></h1>
+            <p class="subhead">
+              Turn small daily actions into routines, reminders, progress, and rewards.
+            </p>
+
+            <div class="features" aria-label="MVP features">
+              <div class="chip">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                  <path d="M13 3l2.2 5.4 5.8.5-4.4 3.8 1.3 5.7-4.9-3-4.9 3 1.3-5.7L5 8.9l5.8-.5L13 3z" fill="#FFC56B" />
+                </svg>
+                <span>AI routine builder</span>
+              </div>
+              <div class="chip">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                  <path d="M13 23a4 4 0 0 0 3.7-2.5H9.3A4 4 0 0 0 13 23z" fill="#F26B1F" />
+                  <path d="M6 18h14l-1.7-2.2V11a5.3 5.3 0 0 0-10.6 0v4.8L6 18z" stroke="#F26B1F" stroke-width="2.2" stroke-linejoin="round" />
+                </svg>
+                <span>Smart reminders</span>
+              </div>
+              <div class="chip">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                  <path d="M7 21h12M8 17l3.2-3.6 3 2.6L19 8" stroke="#3EBB7F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M18 8h-4M18 8v4" stroke="#3EBB7F" stroke-width="2.5" stroke-linecap="round" />
+                </svg>
+                <span>Progress tracking</span>
+              </div>
+              <div class="chip">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+                  <path d="M7 4h12v5a6 6 0 0 1-12 0V4z" stroke="#FFC56B" stroke-width="2.2" />
+                  <path d="M9 22h8M13 15v7" stroke="#FFC56B" stroke-width="2.2" stroke-linecap="round" />
+                  <path d="M7 7H4a4 4 0 0 0 4 4M19 7h3a4 4 0 0 1-4 4" stroke="#FFC56B" stroke-width="2.2" stroke-linecap="round" />
+                </svg>
+                <span>XP, badges & ranks</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cta-row">
+            <div class="cta">Download Lagan</div>
+            <div class="platforms">Free to start<br />iOS, Android, Web</div>
+          </div>
+        </section>
+
+        <section class="right" aria-label="Lagan app preview">
+          <div class="halo"></div>
+          <div class="floating">
+            <strong>12</strong>
+            <span>day streak in motion</span>
+          </div>
+          <div class="phone">
+            <div class="screen">
+              <div class="status">
+                <span>9:41</span>
+                <span class="bars"><i></i><i></i><i></i></span>
+              </div>
+              <div class="screen-pad">
+                <div class="screen-head">
+                  <div>
+                    <div class="screen-title">Today's Focus</div>
+                    <div class="screen-date">3 of 5 habits done</div>
+                  </div>
+                  <div class="streak">12</div>
+                </div>
+
+                <div class="progress-card">
+                  <div class="ring">
+                    <svg width="78" height="78" viewBox="0 0 78 78" aria-hidden="true">
+                      <circle cx="39" cy="39" r="29" fill="none" stroke="#34343E" stroke-width="8" />
+                      <circle cx="39" cy="39" r="29" fill="none" stroke="#F26B1F" stroke-width="8" stroke-dasharray="182" stroke-dashoffset="73" stroke-linecap="round" transform="rotate(-90 39 39)" />
+                    </svg>
+                    <strong>60%</strong>
+                  </div>
+                  <div>
+                    <h2>Daily progress</h2>
+                    <p>One tap keeps momentum visible.</p>
+                  </div>
+                </div>
+
+                <div class="habit-list">
+                  <div class="habit">
+                    <div class="habit-icon">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M9 2c2.2 3 4.5 5.5 4.5 8.2A4.5 4.5 0 0 1 9 14.7a4.5 4.5 0 0 1-4.5-4.5C4.5 7.5 6.8 5 9 2z" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div><div class="habit-title">Drink water</div><div class="habit-note">2500 ml target</div></div>
+                    <div class="done">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M3 8.3l3.1 3.1L13 4.7" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="habit">
+                    <div class="habit-icon">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M4 3h7a3 3 0 0 1 3 3v9H7a3 3 0 0 1-3-3V3z" stroke="currentColor" stroke-width="1.8" />
+                      </svg>
+                    </div>
+                    <div><div class="habit-title">Read 10 pages</div><div class="habit-note">Build focus</div></div>
+                    <div class="done">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M3 8.3l3.1 3.1L13 4.7" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="habit">
+                    <div class="habit-icon">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M7.5 3.5a3 3 0 1 1 3 5.2A4.8 4.8 0 0 1 14 13H4a4.8 4.8 0 0 1 3.5-4.3 3 3 0 0 1 0-5.2z" stroke="currentColor" stroke-width="1.8" />
+                      </svg>
+                    </div>
+                    <div><div class="habit-title">Meditation</div><div class="habit-note">10 minutes</div></div>
+                    <div class="done">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="M3 8.3l3.1 3.1L13 4.7" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="habit">
+                    <div class="habit-icon">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                        <path d="M4 13c2.2-1.4 3.1-3 3.2-5.5M7.2 7.5l3.2 1.7 3.6 3.8M7.3 7.4l2.2-2.5 2.4 1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                        <circle cx="10.8" cy="3.4" r="1.6" fill="currentColor" />
+                      </svg>
+                    </div>
+                    <div><div class="habit-title">Evening walk</div><div class="habit-note">Steps can sync</div></div>
+                    <div class="todo"></div>
+                  </div>
+                </div>
+
+                <div class="coach">
+                  <div class="coach-label">AI COACH</div>
+                  <div class="coach-text">Missed yesterday? Start tiny today and protect the streak.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="download">lagan.health</div>
+    </main>
+  </body>
+</html>

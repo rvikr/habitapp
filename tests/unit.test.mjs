@@ -433,6 +433,45 @@ test("leaderboard service API is source-controlled and service-only", () => {
   assert.match(edgeFunction, /admin\.rpc\("get_leaderboard_position"/);
 });
 
+test("profiles entitlement columns are not writable by authenticated users", () => {
+  const sql = readFileSync(
+    "supabase/migrations/20260614120000_restrict_profiles_entitlement_writes.sql",
+    "utf8",
+  );
+  // Blanket INSERT/UPDATE is revoked, then re-granted column-by-column.
+  assert.match(sql, /revoke insert, update on table public\.profiles from anon, authenticated/i);
+
+  const insertGrant = sql.match(/grant insert \(([^)]*)\)/i)?.[1] ?? "";
+  const updateGrant = sql.match(/grant update \(([^)]*)\)/i)?.[1] ?? "";
+
+  // The columns the app + website legitimately write must stay writable.
+  for (const col of ["display_name", "avatar_style", "avatar_seed", "coach_tone", "updated_at"]) {
+    assert.ok(updateGrant.includes(col), `update grant should include ${col}`);
+  }
+  assert.ok(insertGrant.includes("user_id"), "insert grant should include user_id");
+
+  // No entitlement column may be writable by a non-privileged user (the path
+  // that previously let any user self-grant Pro).
+  for (const col of [
+    "is_pro",
+    "revenuecat_entitlement_active",
+    "revenuecat_status",
+    "pro_expires_at",
+    "pro_trial_ends_at",
+  ]) {
+    assert.ok(!updateGrant.includes(col), `update grant must not expose ${col}`);
+    assert.ok(!insertGrant.includes(col), `insert grant must not expose ${col}`);
+  }
+});
+
+test("support-email escapes user-influenced fields in the notification HTML", () => {
+  const source = readFileSync("supabase/functions/support-email/index.ts", "utf8");
+  assert.match(source, /function escapeHtml/);
+  // category flows through the escape helper, not raw interpolation.
+  assert.match(source, /\$\{escapeHtml\(categoryLabel\)\}/);
+  assert.doesNotMatch(source, /Category:<\/strong> \$\{categoryLabel\}/);
+});
+
 test("AI quota RPC is service-only and records quota events", () => {
   const sql = readFileSync("supabase/migrations/0013_ai_quota_and_auth_hardening.sql", "utf8");
   assert.match(sql, /create table if not exists public\.ai_usage_counters/i);
@@ -906,7 +945,11 @@ test("web surfaces explain that auto-tracking needs the mobile app with a get-th
 test("store-facing support and legal links have production build defaults", () => {
   const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
   assert.match(settingsScreen, /https:\/\/lagan\.health\/terms/);
-  assert.match(settingsScreen, /support@lagan\.health/);
+  // "Contact Support" routes to the in-app feedback flow, which emails the team
+  // via the support-email edge function (production address lives in eas.json's
+  // EXPO_PUBLIC_SUPPORT_EMAIL, asserted below) rather than a mailto: link.
+  assert.match(settingsScreen, /Contact Support/);
+  assert.match(settingsScreen, /settings\/feedback/);
 
   const privacyScreen = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
   assert.match(privacyScreen, /https:\/\/lagan\.health\/privacy/);

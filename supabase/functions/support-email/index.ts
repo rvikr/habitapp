@@ -17,6 +17,11 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPPORT_NOTIFY_EMAIL = Deno.env.get("SUPPORT_NOTIFY_EMAIL") ?? "royalkastle@gmail.com";
 const FROM_ADDRESS = Deno.env.get("SUPPORT_EMAIL_FROM") ?? "Lagan <hello@lagan.health>";
 
+// Mirrors FeedbackCategory in lib/utils/feedback.ts. An unknown value (the body
+// is attacker-controllable) collapses to "other" so only a fixed, safe set ever
+// reaches the email — defense in depth on top of escapeHtml below.
+const FEEDBACK_CATEGORIES = ["bug", "idea", "usability", "other"] as const;
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type",
@@ -27,6 +32,17 @@ function json(body: unknown, status = 200) {
     status,
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
+}
+
+// Escape before interpolating any user-influenced value into the notification
+// HTML so a crafted field (e.g. category) can't inject markup into the email.
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 Deno.serve(async (req) => {
@@ -56,7 +72,10 @@ Deno.serve(async (req) => {
   }
 
   const message = typeof body.message === "string" ? body.message.trim() : "";
-  const category = typeof body.category === "string" ? body.category : "other";
+  const rawCategory = typeof body.category === "string" ? body.category.toLowerCase() : "";
+  const category = (FEEDBACK_CATEGORIES as readonly string[]).includes(rawCategory)
+    ? rawCategory
+    : "other";
   const rating = typeof body.rating === "number" ? body.rating : null;
 
   if (!message) return json({ error: "message is required" }, 400);
@@ -65,12 +84,12 @@ Deno.serve(async (req) => {
   const subject = `[Lagan] ${categoryLabel} from ${user.email ?? "a user"}`;
   const ratingLine = rating != null ? `<p><strong>Rating:</strong> ${rating}/5 ⭐</p>` : "";
   const html = `
-    <p><strong>From:</strong> ${user.email ?? user.id}</p>
-    <p><strong>Category:</strong> ${categoryLabel}</p>
+    <p><strong>From:</strong> ${escapeHtml(user.email ?? user.id)}</p>
+    <p><strong>Category:</strong> ${escapeHtml(categoryLabel)}</p>
     ${ratingLine}
     <p><strong>Message:</strong></p>
     <blockquote style="border-left:3px solid #F26B1F;padding-left:12px;margin:8px 0;color:#374151;">
-      ${message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}
+      ${escapeHtml(message).replace(/\n/g, "<br>")}
     </blockquote>
   `;
 
