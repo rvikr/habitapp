@@ -474,13 +474,27 @@ export async function updateAvatar(style: AvatarStyle, seed: string): Promise<Ac
 export async function updateCoachTone(tone: CoachTone): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
-  const { error } = await supabase.from("profiles").upsert({
-    user_id: user.id,
+  const payload = {
     coach_tone: normalizeCoachTone(tone),
     updated_at: new Date().toISOString(),
-  });
-  if (!error) clearDataCache();
-  return mutationResult(error);
+  };
+  // Update-first (not upsert): the profiles row exists for every user, and
+  // PostgREST's upsert would try to write user_id in the DO UPDATE SET, which
+  // migration 20260614120000 revoked UPDATE on — failing with permission denied.
+  const { data: updated, error } = await supabase
+    .from("profiles")
+    .update(payload)
+    .eq("user_id", user.id)
+    .select("user_id");
+  if (error) return mutationResult(error);
+  if (!updated || updated.length === 0) {
+    const { error: insertError } = await supabase
+      .from("profiles")
+      .insert({ user_id: user.id, ...payload });
+    if (insertError) return mutationResult(insertError);
+  }
+  clearDataCache();
+  return mutationResult(null);
 }
 
 export async function updateHabitReminders(

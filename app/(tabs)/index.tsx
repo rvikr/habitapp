@@ -710,7 +710,7 @@ export default function DashboardScreen() {
 
         {/* Header */}
         <View className="flex-row items-center justify-between px-margin-mobile pt-md pb-sm">
-          <View>
+          <View className="flex-1 pr-sm">
             <Text
               className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
               style={{ letterSpacing: 0.3, textTransform: "uppercase" }}
@@ -747,7 +747,7 @@ export default function DashboardScreen() {
             ) : null}
             {isInitialLoading && <SkeletonText className="mt-xs h-8" width={152} />}
           </View>
-          <View className="flex-row items-center gap-sm">
+          <View className="flex-row items-center gap-sm shrink-0">
             <CoachHeaderButton
               signal={coachSignal}
               active={coachSignalActive}

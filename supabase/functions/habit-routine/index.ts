@@ -225,7 +225,17 @@ serve(async (req) => {
           text:
             "You refine habit recommendations for an onboarding routine. Return JSON only. " +
             "Keep habits concrete, non-medical, beginner-safe, and compatible with the provided enum values. " +
-            "Return 3 to 5 recommendations. Preserve core local habit metadata unless a small improvement is clearly useful.",
+            "Return 3 to 5 recommendations. Preserve core local habit metadata unless a small improvement is clearly useful. " +
+            "Personalize quantity targets to the user using the evidence-based ranges below, and follow a " +
+            "BASELINE + PROGRESSIVE philosophy: when answers include a current-behavior baseline " +
+            "(stepsBaseline / waterBaseline: low|some|moderate|high), set the first target only slightly above what they " +
+            "already do so it is achievable — never drop a generic ideal on someone starting low. " +
+            "water_intake: daily ml target ~30-35 ml per kg of body weight (EFSA total-water intake is ~2.0-2.5 L), clamped 1500-4000. " +
+            "walk: daily step target is age-aware (mortality benefit plateaus ~6000-8000 steps for ages 60+, ~8000-10000 under 60; " +
+            "Paluch 2022), tiered by fitness level, clamped 3000-12000 — do NOT default everyone to 10000. " +
+            "sleep: recommended hours by age (teens 8-10, adults 7-9, 65+ 7-8). " +
+            "If a metric or baseline is missing, keep the provided local target. In each habit's 'reason', briefly say why the " +
+            "target fits this person. Targets are general wellness guidance, never medical advice, and must stay beginner-safe.",
         },
       ],
     },

@@ -2354,6 +2354,78 @@ test("routine builder keeps beginner fitness targets gentle", () => {
   assert.ok(!walk || (walk.target ?? 0) <= 6000);
 });
 
+test("routine builder sizes water target from body weight (~33 ml/kg)", () => {
+  const base = {
+    goals: ["health"],
+    lifestyle: "home",
+    sleep: "okay",
+    workload: "normal",
+    stress: "low",
+    fitnessLevel: "beginner",
+  };
+  const light = buildRoutineRecommendations({ ...base, weightKg: 50 }).find(
+    (h) => h.habitType === "water_intake",
+  );
+  const heavy = buildRoutineRecommendations({ ...base, weightKg: 90 }).find(
+    (h) => h.habitType === "water_intake",
+  );
+  // 50 kg → ~1650 ml; 90 kg → ~2950 ml. Heavier person gets a larger target.
+  assert.ok(light && light.target >= 1500 && light.target <= 1800);
+  assert.ok(heavy && heavy.target >= 2800 && heavy.target <= 3100);
+  assert.ok(heavy.target > light.target);
+});
+
+test("routine builder ramps water up from a low current baseline, not to the full ideal", () => {
+  const routine = buildRoutineRecommendations({
+    goals: ["health"],
+    lifestyle: "home",
+    sleep: "okay",
+    workload: "normal",
+    stress: "low",
+    fitnessLevel: "beginner",
+    weightKg: 90, // ideal ~2950 ml
+    waterBaseline: "low", // currently ~500 ml
+  });
+  const water = routine.find((h) => h.habitType === "water_intake");
+  // Starts near baseline + one step (~1000 ml), far below the 2950 ml ideal.
+  assert.ok(water && water.target <= 1200);
+});
+
+test("routine builder makes step target age-aware and never a blanket 10k", () => {
+  const base = {
+    goals: ["fitness"],
+    lifestyle: "active",
+    sleep: "good",
+    workload: "normal",
+    stress: "low",
+    fitnessLevel: "advanced",
+  };
+  const younger = buildRoutineRecommendations({ ...base, age: 30 }).find(
+    (h) => h.habitType === "walk",
+  );
+  const older = buildRoutineRecommendations({ ...base, age: 70 }).find(
+    (h) => h.habitType === "walk",
+  );
+  assert.ok(younger && younger.target <= 10000);
+  // 70-year-old advanced walker is capped well below the 10k marketing number.
+  assert.ok(older && older.target <= 8000 && older.target < younger.target);
+});
+
+test("routine builder ramps steps up from current activity baseline", () => {
+  const routine = buildRoutineRecommendations({
+    goals: ["fitness"],
+    lifestyle: "active",
+    sleep: "good",
+    workload: "normal",
+    stress: "low",
+    fitnessLevel: "advanced", // ideal ceiling ~10k
+    stepsBaseline: "low", // currently ~2500 steps
+  });
+  const walk = routine.find((h) => h.habitType === "walk");
+  // Starts near baseline + one step (~4000), not the 10k ceiling.
+  assert.ok(walk && walk.target <= 4500);
+});
+
 test("AI routine sanitizer rejects invalid names enums and oversized routines", () => {
   const fallback = buildRoutineRecommendations({
     goals: ["focus"],

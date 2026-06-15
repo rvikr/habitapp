@@ -106,14 +106,30 @@ export async function setDisplayName(
   const avatarStyle = (user.user_metadata?.avatar_style as string | undefined) ?? "avataaars";
   const avatarSeed =
     (user.user_metadata?.avatar_seed as string | undefined) ?? user.id.slice(0, 12);
-  const { error } = await supabase.from("profiles").upsert({
-    user_id: user.id,
+  const payload = {
     display_name: displayName,
     avatar_style: avatarStyle,
     avatar_seed: avatarSeed,
     updated_at: new Date().toISOString(),
-  });
-  if (error) return { ok: false, error: error.message };
+  };
+  // A profiles row already exists for every user (the handle_new_user trigger
+  // creates it at signup), so this is normally an UPDATE. We can't use upsert():
+  // PostgREST puts the on-conflict column (user_id) into the DO UPDATE SET, and
+  // migration 20260614120000 deliberately revoked UPDATE on user_id — so upsert
+  // fails with "permission denied" on every existing row. Update-first, then
+  // insert only if no row exists, keeps writes within the granted columns.
+  const { data: updated, error: updateError } = await supabase
+    .from("profiles")
+    .update(payload)
+    .eq("user_id", user.id)
+    .select("user_id");
+  if (updateError) return { ok: false, error: updateError.message };
+  if (!updated || updated.length === 0) {
+    const { error: insertError } = await supabase
+      .from("profiles")
+      .insert({ user_id: user.id, ...payload });
+    if (insertError) return { ok: false, error: insertError.message };
+  }
   clearDataCache();
   return { ok: true };
 }

@@ -223,7 +223,7 @@ export function CoachHeaderButton({
             ? "h-10 rounded-full bg-surface-container dark:bg-d-surface-container flex-row items-center gap-xs px-sm"
             : "w-10 h-10 rounded-full bg-surface-container dark:bg-d-surface-container items-center justify-center"
         }
-        style={previewing ? { maxWidth: 176 } : undefined}
+        style={previewing ? { maxWidth: 150 } : undefined}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel="AI Coach"

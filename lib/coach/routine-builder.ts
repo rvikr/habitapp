@@ -7,7 +7,19 @@ export type RoutineWizardAnswers = {
   workload: "low" | "normal" | "high";
   stress: "low" | "medium" | "high";
   fitnessLevel: "beginner" | "intermediate" | "advanced";
+  // Optional body metrics used to size quantity targets (water, steps). Null
+  // when the user skips them; all target math falls back to fitness-based
+  // defaults so the routine never depends on these being present.
+  age?: number | null;
+  heightCm?: number | null;
+  weightKg?: number | null;
+  // Optional current-behavior baselines. Targets ramp up from where the user
+  // already is (progressive) rather than dropping an ideal on day one.
+  stepsBaseline?: ActivityBaseline | null;
+  waterBaseline?: ActivityBaseline | null;
 };
+
+export type ActivityBaseline = "low" | "some" | "moderate" | "high";
 
 export type HabitRecommendation = {
   id: string;
@@ -297,6 +309,101 @@ export function buildRoutineRecommendations(answers: RoutineWizardAnswers): Habi
   }));
 }
 
+function clampRound(value: number, step: number, min: number, max: number): number {
+  const rounded = Math.round(value / step) * step;
+  return Math.min(max, Math.max(min, rounded));
+}
+
+// Approximate current daily volume each baseline bucket represents, so a target
+// can ramp up from where the user already is rather than from zero.
+const STEP_BASELINE_STEPS: Record<ActivityBaseline, number> = {
+  low: 2500,
+  some: 4000,
+  moderate: 6500,
+  high: 9000,
+};
+// 1 glass ≈ 250 ml.
+const WATER_BASELINE_ML: Record<ActivityBaseline, number> = {
+  low: 500,
+  some: 1000,
+  moderate: 1750,
+  high: 2250,
+};
+
+// Progressive goal: if we know where the user is, start one achievable step
+// above it (capped at the ideal) so the first target is reachable; if they are
+// already at/above the ideal, keep their level instead of inflating it.
+function progressiveTarget(
+  baseline: number | null,
+  ideal: number,
+  stepUp: number,
+  round: number,
+  min: number,
+  max: number,
+): number {
+  if (baseline == null) return clampRound(ideal, round, min, max);
+  if (baseline >= ideal) return clampRound(baseline, round, min, max);
+  return clampRound(Math.min(baseline + stepUp, ideal), round, min, max);
+}
+
+// Daily water "ideal": ~33 ml per kg of body weight (midpoint of the common
+// 30–35 ml/kg guide; EFSA total-water AI is ~2.0–2.5 L). Falls back to 2 L when
+// weight is unknown. Clamped to a sane daily range.
+function waterIdealMl(weightKg: number | null): number {
+  if (weightKg && weightKg > 0) return clampRound(weightKg * 33, 50, 1500, 4000);
+  return 2000;
+}
+
+function waterTargetMl(answers: RoutineWizardAnswers): number {
+  const ideal = waterIdealMl(answers.weightKg ?? null);
+  const baseline = answers.waterBaseline ? WATER_BASELINE_ML[answers.waterBaseline] : null;
+  return progressiveTarget(baseline, ideal, 500, 50, 1000, 4000);
+}
+
+// Daily step "ideal" ceiling. Paluch et al. 2022 (Lancet Public Health) found
+// the all-cause-mortality benefit plateaus around 6–8k steps for adults 60+ and
+// 8–10k for under-60s — so the ceiling is age-aware, then tiered by fitness.
+function stepIdeal(fitnessLevel: RoutineWizardAnswers["fitnessLevel"], age: number | null): number {
+  const older = age != null && age >= 60;
+  const base = older
+    ? fitnessLevel === "beginner"
+      ? 6000
+      : fitnessLevel === "intermediate"
+        ? 7000
+        : 8000
+    : fitnessLevel === "beginner"
+      ? 8000
+      : fitnessLevel === "intermediate"
+        ? 9000
+        : 10000;
+  const scaled = age != null && age >= 75 ? base * 0.85 : base;
+  return clampRound(scaled, 500, 3000, 12000);
+}
+
+function stepTarget(answers: RoutineWizardAnswers): number {
+  const ideal = stepIdeal(answers.fitnessLevel, answers.age ?? null);
+  const baseline = answers.stepsBaseline ? STEP_BASELINE_STEPS[answers.stepsBaseline] : null;
+  if (baseline != null) return progressiveTarget(baseline, ideal, 1500, 500, 3000, 12000);
+  // No baseline: keep the first goal gentle (close to the previous defaults),
+  // capped by the age-aware ideal so older users never get a 10k starting goal.
+  const gentle =
+    answers.fitnessLevel === "beginner"
+      ? 5000
+      : answers.fitnessLevel === "intermediate"
+        ? 7000
+        : 9000;
+  return clampRound(Math.min(gentle, ideal), 500, 3000, 12000);
+}
+
+// Recommended sleep duration by age band (National Sleep Foundation): teens
+// 8–10h, adults 7–9h, older adults 7–8h. Defaults to 8h when age is unknown.
+function sleepTargetHours(age: number | null): number {
+  if (age == null) return 8;
+  if (age < 18) return 9;
+  if (age >= 65) return 7.5;
+  return 8;
+}
+
 function adjustForAnswers(
   template: RecommendationTemplate,
   answers: RoutineWizardAnswers,
@@ -306,22 +413,35 @@ function adjustForAnswers(
     reminderTimes: [...template.reminderTimes],
     reminderDays: [...template.reminderDays],
   };
+  const age = answers.age ?? null;
+  const personalizedWater = (answers.weightKg ?? null) != null || answers.waterBaseline != null;
+  const personalizedSteps = age != null || answers.stepsBaseline != null;
+
+  if (next.id === "water") {
+    next.target = waterTargetMl(answers);
+    if (personalizedWater) {
+      next.reason =
+        "Sized to your body and current intake — we build up gradually, not all at once.";
+    }
+  }
   if (next.id === "walk") {
-    next.target =
-      answers.fitnessLevel === "beginner"
-        ? 5000
-        : answers.fitnessLevel === "intermediate"
-          ? 8000
-          : 10000;
+    next.target = stepTarget(answers);
+    if (personalizedSteps) {
+      next.reason =
+        "Matched to your age and current activity, not a generic 10k — easy to grow over time.";
+    }
+  }
+  if (next.id === "sleep") {
+    next.target = sleepTargetHours(age);
+    if (answers.sleep === "good") {
+      next.name = "Keep Sleep Consistent";
+      next.description = "Protect the sleep rhythm that is already working.";
+    }
   }
   if (next.id === "workout") {
     next.target =
       answers.fitnessLevel === "beginner" ? 15 : answers.fitnessLevel === "intermediate" ? 30 : 45;
     next.defaultLogValue = answers.fitnessLevel === "beginner" ? 5 : 15;
-  }
-  if (next.id === "sleep" && answers.sleep === "good") {
-    next.name = "Keep Sleep Consistent";
-    next.description = "Protect the sleep rhythm that is already working.";
   }
   if (next.id === "focus" && answers.workload === "high") {
     next.target = 45;

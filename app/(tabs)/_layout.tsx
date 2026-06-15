@@ -17,10 +17,13 @@ export default function TabsLayout() {
   const active = isDark ? TAB_ACTIVE_DARK : TAB_ACTIVE;
   const inactive = isDark ? TAB_INACTIVE_DARK : TAB_INACTIVE;
   const tabBarBg = isDark ? "#16161C" : "#FFFFFF";
-  // In the installed iOS PWA Platform.OS is "web", so the iOS branch never
-  // applies — read the real safe-area inset (CSS env(), viewport-fit=cover)
-  // so the bottom nav clears the iPhone home indicator.
-  const webBottomInset = Platform.OS === "web" ? insets.bottom : 0;
+  // Once we override tabBarStyle.height/paddingBottom, React Navigation stops
+  // auto-applying the safe-area inset, so we must add it back ourselves. This
+  // matters on Android gesture-nav devices (the nav pill overlapped the tabs,
+  // making them hard to tap) and in the installed iOS PWA, where Platform.OS is
+  // "web" and the iOS branch never runs (CSS env(), viewport-fit=cover). iOS
+  // native keeps its existing hand-tuned padding.
+  const bottomInset = Platform.OS === "ios" ? 0 : insets.bottom;
 
   return (
     <Tabs
@@ -32,12 +35,12 @@ export default function TabsLayout() {
           backgroundColor: tabBarBg,
           borderTopColor: isDark ? "#2C2C36" : "#E6E0D5",
           borderTopWidth: 1,
-          paddingBottom: (Platform.OS === "ios" ? 20 : 8) + webBottomInset,
+          paddingBottom: (Platform.OS === "ios" ? 20 : 8) + bottomInset,
           paddingTop: 8,
           // Web needs ~70px: each item spends ~28px on the icon block and ~10px
           // on its own padding, so at 60 the label row collapsed to 5px and
           // clipped. (Auto height drops the labels entirely on web.)
-          height: (Platform.OS === "ios" ? 80 : Platform.OS === "web" ? 70 : 60) + webBottomInset,
+          height: (Platform.OS === "ios" ? 80 : Platform.OS === "web" ? 70 : 60) + bottomInset,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}

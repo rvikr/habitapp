@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Platform, View, Text, TouchableOpacity } from "react-native";
+import { Linking, Platform, View, Text, TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
 import { useLanguage } from "@/components/language-provider";
@@ -53,6 +53,11 @@ export default function NotificationPermissionCard() {
     );
   }
 
+  // When denied, the OS won't show the permission dialog again, so on native we
+  // deep-link straight to the app's system settings instead of a dead-end label.
+  // On web the browser can't be reopened programmatically, so we keep guidance.
+  const deniedOnNative = status === "denied" && Platform.OS !== "web";
+
   return (
     <View className="bg-primary-fixed rounded-xl p-md flex-row items-center gap-md mx-margin-mobile mb-md">
       <MaterialCommunityIcons name="bell-alert" size={24} color="#F26B1F" />
@@ -62,11 +67,13 @@ export default function NotificationPermissionCard() {
         </Text>
         <Text className="text-label-sm text-on-surface-variant">
           {status === "denied"
-            ? t("Notifications blocked — enable in Settings.")
+            ? deniedOnNative
+              ? t("Notifications are off — turn them on to get habit reminders.")
+              : t("Notifications blocked — enable in Settings.")
             : t("Allow notifications for habit reminders.")}
         </Text>
       </View>
-      {status !== "denied" && (
+      {status === "undetermined" && (
         <TouchableOpacity
           className="bg-primary px-md py-xs rounded-full"
           onPress={async () => {
@@ -75,6 +82,16 @@ export default function NotificationPermissionCard() {
           }}
         >
           <Text className="text-on-primary text-label-sm font-semibold">{t("Allow")}</Text>
+        </TouchableOpacity>
+      )}
+      {deniedOnNative && (
+        <TouchableOpacity
+          className="bg-primary px-md py-xs rounded-full"
+          onPress={() => {
+            void Linking.openSettings();
+          }}
+        >
+          <Text className="text-on-primary text-label-sm font-semibold">{t("Settings")}</Text>
         </TouchableOpacity>
       )}
     </View>

@@ -28,6 +28,7 @@ import { markOnboardingComplete } from "@/lib/auth/onboarding";
 import { getCurrentSession } from "@/lib/supabase/client";
 import {
   buildRoutineRecommendations,
+  type ActivityBaseline,
   type HabitRecommendation,
   type RoutineWizardAnswers,
 } from "@/lib/coach/routine-builder";
@@ -35,7 +36,15 @@ import { refineRoutineRecommendations } from "@/lib/coach/routine-ai";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 
-type StepId = "goals" | "lifestyle" | "sleep" | "workload" | "stress" | "fitnessLevel";
+type StepId =
+  | "goals"
+  | "lifestyle"
+  | "sleep"
+  | "workload"
+  | "stress"
+  | "fitnessLevel"
+  | "body"
+  | "baseline";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
 type PostCreatePhase = "confirm" | "notifications" | "tutorial" | null;
 
@@ -96,6 +105,25 @@ const FITNESS_OPTIONS: Option<RoutineWizardAnswers["fitnessLevel"]>[] = [
   { value: "advanced", label: "Advanced", detail: "Ready for more", icon: "arm-flex" },
 ];
 
+const STEPS_BASELINE_OPTIONS: Option<ActivityBaseline>[] = [
+  {
+    value: "low",
+    label: "Barely move",
+    detail: "Mostly sitting (under 3k steps)",
+    icon: "seat-recline-normal",
+  },
+  { value: "some", label: "A little", detail: "Some walking (3–5k)", icon: "walk" },
+  { value: "moderate", label: "Moderately active", detail: "On my feet a lot (5–8k)", icon: "run" },
+  { value: "high", label: "Very active", detail: "Lots of walking (8k+)", icon: "run-fast" },
+];
+
+const WATER_BASELINE_OPTIONS: Option<ActivityBaseline>[] = [
+  { value: "low", label: "Hardly any", detail: "0–2 glasses a day", icon: "cup-outline" },
+  { value: "some", label: "Some", detail: "3–5 glasses", icon: "cup" },
+  { value: "moderate", label: "A fair amount", detail: "6–8 glasses", icon: "cup-water" },
+  { value: "high", label: "Lots", detail: "8+ glasses", icon: "water" },
+];
+
 const STEPS: { id: StepId; title: string; subtitle: string }[] = [
   {
     id: "goals",
@@ -127,6 +155,17 @@ const STEPS: { id: StepId; title: string; subtitle: string }[] = [
     title: "Where is your fitness level?",
     subtitle: "Movement goals should feel doable from day one.",
   },
+  {
+    id: "body",
+    title: "A few details about you",
+    subtitle:
+      "Optional — lets me size your water and step goals to your body. Leave blank to skip.",
+  },
+  {
+    id: "baseline",
+    title: "Where are you starting from?",
+    subtitle: "I set your first targets near what you already do, then build up. Optional.",
+  },
 ];
 
 const INITIAL_ANSWERS: RoutineWizardAnswers = {
@@ -136,6 +175,11 @@ const INITIAL_ANSWERS: RoutineWizardAnswers = {
   workload: "normal",
   stress: "medium",
   fitnessLevel: "beginner",
+  age: null,
+  heightCm: null,
+  weightKg: null,
+  stepsBaseline: null,
+  waterBaseline: null,
 };
 
 export default function HabitWizardScreen() {
@@ -346,6 +390,9 @@ export default function HabitWizardScreen() {
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
                 {t("Review the suggestions, edit the basics, then create your routine.")}
               </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("Targets are general wellness guidance, not medical advice.")}
+              </Text>
               {loadingRoutine && (
                 <View className="flex-row items-center gap-xs pt-xs">
                   <ActivityIndicator size="small" color="#F26B1F" />
@@ -488,7 +535,11 @@ export default function HabitWizardScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 32 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <WizardHeader title="Habit Builder" onBack={() => router.back()} />
         <View className="px-margin-mobile gap-lg">
           <View className="gap-xs">
@@ -560,6 +611,61 @@ export default function HabitWizardScreen() {
                   }
                 />
               ))}
+            {step.id === "body" && (
+              <BodyMetricsStep
+                age={answers.age ?? null}
+                heightCm={answers.heightCm ?? null}
+                weightKg={answers.weightKg ?? null}
+                onChange={(patch) => setAnswers((current) => ({ ...current, ...patch }))}
+              />
+            )}
+            {step.id === "baseline" && (
+              <View className="gap-lg">
+                <View className="gap-sm">
+                  <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant">
+                    {t("How much do you walk on a normal day?")}
+                  </Text>
+                  {STEPS_BASELINE_OPTIONS.map((option) => (
+                    <ChoiceRow
+                      key={option.value}
+                      option={option}
+                      selected={answers.stepsBaseline === option.value}
+                      onPress={() =>
+                        setAnswers((current) => ({
+                          ...current,
+                          stepsBaseline:
+                            current.stepsBaseline === option.value ? null : option.value,
+                        }))
+                      }
+                    />
+                  ))}
+                </View>
+                <View className="gap-sm">
+                  <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant">
+                    {t("How much water do you drink now?")}
+                  </Text>
+                  {WATER_BASELINE_OPTIONS.map((option) => (
+                    <ChoiceRow
+                      key={option.value}
+                      option={option}
+                      selected={answers.waterBaseline === option.value}
+                      onPress={() =>
+                        setAnswers((current) => ({
+                          ...current,
+                          waterBaseline:
+                            current.waterBaseline === option.value ? null : option.value,
+                        }))
+                      }
+                    />
+                  ))}
+                </View>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  {t(
+                    "Targets are general wellness guidance, not medical advice. Adjust any of them before creating your routine.",
+                  )}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View className="flex-row gap-sm">
@@ -835,6 +941,101 @@ function ChoiceRow({
         color={selected ? "#F26B1F" : "#8F8A82"}
       />
     </TouchableOpacity>
+  );
+}
+
+function BodyMetricsStep({
+  age,
+  heightCm,
+  weightKg,
+  onChange,
+}: {
+  age: number | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  onChange: (patch: Partial<RoutineWizardAnswers>) => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <View className="gap-md">
+      <NumberField
+        label={t("Age")}
+        unit={t("years")}
+        placeholder={t("e.g. 30")}
+        initial={age}
+        allowDecimal={false}
+        onChangeValue={(value) => onChange({ age: value })}
+      />
+      <NumberField
+        label={t("Height")}
+        unit={t("cm")}
+        placeholder={t("e.g. 170")}
+        initial={heightCm}
+        allowDecimal={false}
+        onChangeValue={(value) => onChange({ heightCm: value })}
+      />
+      <NumberField
+        label={t("Weight")}
+        unit={t("kg")}
+        placeholder={t("e.g. 70")}
+        initial={weightKg}
+        allowDecimal
+        onChangeValue={(value) => onChange({ weightKg: value })}
+      />
+      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+        {t(
+          "We use this only to set realistic water and step targets. Leave blank to use standard goals.",
+        )}
+      </Text>
+    </View>
+  );
+}
+
+function NumberField({
+  label,
+  unit,
+  placeholder,
+  initial,
+  allowDecimal,
+  onChangeValue,
+}: {
+  label: string;
+  unit: string;
+  placeholder: string;
+  initial: number | null;
+  allowDecimal: boolean;
+  onChangeValue: (value: number | null) => void;
+}) {
+  const [text, setText] = useState(initial == null ? "" : String(initial));
+  return (
+    <View className="gap-xs">
+      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+        {label}
+      </Text>
+      <View className="flex-row items-center bg-surface-lowest dark:bg-d-surface-lowest rounded-xl px-md">
+        <TextInput
+          className="flex-1 text-on-surface dark:text-d-on-surface text-body-md py-md"
+          value={text}
+          onChangeText={(raw) => {
+            // Keep only digits (plus one optional dot for weight). Local string
+            // state keeps typing smooth; only a valid positive number is lifted up.
+            const cleaned = allowDecimal
+              ? raw.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1")
+              : raw.replace(/[^0-9]/g, "");
+            setText(cleaned);
+            const parsed = Number(cleaned);
+            onChangeValue(Number.isFinite(parsed) && parsed > 0 ? parsed : null);
+          }}
+          keyboardType={allowDecimal ? "decimal-pad" : "number-pad"}
+          placeholder={placeholder}
+          placeholderTextColor="#8F8A82"
+          maxLength={allowDecimal ? 6 : 3}
+        />
+        <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant ml-sm">
+          {unit}
+        </Text>
+      </View>
+    </View>
   );
 }
 
