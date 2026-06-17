@@ -93,8 +93,7 @@ export default function ProgressScreen() {
         if (now - lastSleepSyncAt.current > AUTO_SLEEP_SYNC_MS) {
           lastSleepSyncAt.current = now;
           syncLastNightSleep({ requestPermission: false })
-            .then(() => getSleepDashboardData({ force: true }))
-            .then(setSleepData)
+            .then(() => load({ force: true }))
             .catch(() => {});
         }
       }
@@ -107,8 +106,7 @@ export default function ProgressScreen() {
     if (trackingHydrated && sleepEnabled) {
       lastSleepSyncAt.current = Date.now();
       syncLastNightSleep({ requestPermission: false })
-        .then(() => getSleepDashboardData({ force: true }))
-        .then(setSleepData)
+        .then(() => load({ force: true }))
         .catch(() => {});
     }
     setRefreshing(false);

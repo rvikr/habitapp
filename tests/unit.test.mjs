@@ -914,6 +914,27 @@ test("progress tab auto sleep sync does not request native sleep permission", ()
   assert.match(progressScreen, /syncLastNightSleep\(\{\s*requestPermission:\s*false\s*\}\)/);
 });
 
+test("progress tab sleep sync refreshes all habit metrics after syncing", () => {
+  const progressScreen = readFileSync("app/(tabs)/progress.tsx", "utf8");
+  const syncBlock =
+    progressScreen.match(
+      /syncLastNightSleep\(\{\s*requestPermission:\s*false\s*\}\)[\s\S]*?\.catch\(\(\) => \{\}\);/,
+    )?.[0] ?? "";
+
+  assert.match(syncBlock, /load\(\{ force: true \}\)/);
+});
+
+test("home step sync refreshes dashboard metrics after persisting step completion", () => {
+  const homeScreen = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const persistBlock =
+    homeScreen.match(
+      /const persistStepCount = useCallback\([\s\S]*?setStepTracking\(\{ status: "tracking", lastSyncedAt: now \}\);[\s\S]*?\}, \[[^\]]*\]\);/,
+    )?.[0] ?? "";
+
+  assert.match(persistBlock, /setCompletionValue\(habit\.id, steps, "Synced from step counter"\)/);
+  assert.match(persistBlock, /load\(\{ force: true \}\)/);
+});
+
 test("sleep tracking is disabled by default", () => {
   const provider = readFileSync("components/tracking-preferences-provider.tsx", "utf8");
   assert.match(provider, /\[sleepEnabled,\s*setSleepEnabledState\]\s*=\s*useState\(false\)/);
@@ -1787,6 +1808,7 @@ test("sleep score is duration-first with neutral consistency and stage points", 
 
 test("sleep completion value stores hours from synced minutes", () => {
   assert.equal(buildSleepCompletionValue(465), 7.8);
+  assert.equal(buildSleepCompletionValue(455), 7.6);
   assert.equal(buildSleepCompletionValue(-20), 0);
 });
 

@@ -346,7 +346,8 @@ export default function DashboardScreen() {
 
     lastStepSaveAtRef.current = now;
     setStepTracking({ status: "tracking", lastSyncedAt: now });
-  }, []);
+    await load({ force: true });
+  }, [load]);
 
   const syncStepHabit = useCallback(
     async (habit: Habit, shouldRequestPermission: boolean, forcePersist = true) => {
