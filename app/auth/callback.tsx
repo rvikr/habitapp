@@ -59,13 +59,8 @@ export default function AuthCallbackScreen() {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(parsed.code);
         if (exchangeError) throw exchangeError;
         clearDataCache();
-      } else if (parsed.accessToken && parsed.refreshToken) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: parsed.accessToken,
-          refresh_token: parsed.refreshToken,
-        });
-        if (sessionError) throw sessionError;
-        clearDataCache();
+      } else {
+        throw new Error("Missing authentication code.");
       }
 
       const { data: sessionData } = await supabase.auth.getSession();

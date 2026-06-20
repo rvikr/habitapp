@@ -17,10 +17,13 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const SUPPORT_NOTIFY_EMAIL = Deno.env.get("SUPPORT_NOTIFY_EMAIL") ?? "royalkastle@gmail.com";
 const FROM_ADDRESS = Deno.env.get("SUPPORT_EMAIL_FROM") ?? "Lagan <hello@lagan.health>";
 
-// Mirrors FeedbackCategory in lib/utils/feedback.ts. An unknown value (the body
-// is attacker-controllable) collapses to "other" so only a fixed, safe set ever
-// reaches the email — defense in depth on top of escapeHtml below.
+// Mirrors FeedbackCategory in lib/utils/feedback.ts. Stored rows are still
+// normalized before email rendering as defense in depth on top of escapeHtml.
 const FEEDBACK_CATEGORIES = ["bug", "idea", "usability", "other"] as const;
+const MAX_MESSAGE_LENGTH = 2000;
+const MIN_MESSAGE_LENGTH = 10;
+const MAX_FEEDBACK_EMAILS_PER_HOUR = 5;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -64,27 +67,76 @@ Deno.serve(async (req) => {
   );
   if (authError || !user) return json({ error: "Unauthorized" }, 401);
 
-  let body: { message?: unknown; category?: unknown; rating?: unknown };
+  let body: { feedbackReportId?: unknown };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const message = typeof body.message === "string" ? body.message.trim() : "";
-  const rawCategory = typeof body.category === "string" ? body.category.toLowerCase() : "";
+  const feedbackReportId =
+    typeof body.feedbackReportId === "string" && UUID_PATTERN.test(body.feedbackReportId)
+      ? body.feedbackReportId
+      : null;
+  if (!feedbackReportId) return json({ error: "feedbackReportId is required" }, 400);
+
+  const { data: report, error: reportError } = await supabase
+    .from("feedback_reports")
+    .select("id, email, category, rating, message, created_at, support_email_sent_at")
+    .eq("id", feedbackReportId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (reportError) {
+    console.error("feedback report lookup failed", reportError);
+    return json({ error: "Could not load feedback report" }, 500);
+  }
+  if (!report) return json({ error: "Feedback report not found" }, 404);
+
+  const message = typeof report.message === "string" ? report.message.trim() : "";
+  if (message.length < MIN_MESSAGE_LENGTH) return json({ error: "message is too short" }, 400);
+  if (message.length > MAX_MESSAGE_LENGTH) return json({ error: "message is too long" }, 400);
+
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentCount, error: rateError } = await supabase
+    .from("feedback_reports")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", oneHourAgo);
+  if (rateError) {
+    console.error("feedback rate limit lookup failed", rateError);
+    return json({ error: "Could not check feedback rate limit" }, 500);
+  }
+  if ((recentCount ?? 0) > MAX_FEEDBACK_EMAILS_PER_HOUR) {
+    return json({ error: "Too many feedback emails" }, 429);
+  }
+
+  if (report.support_email_sent_at) return json({ ok: true, duplicate: true });
+
+  const { data: claimed, error: claimError } = await supabase
+    .from("feedback_reports")
+    .update({ support_email_sent_at: new Date().toISOString() })
+    .eq("id", report.id)
+    .is("support_email_sent_at", null)
+    .select("id")
+    .maybeSingle();
+  if (claimError) {
+    console.error("feedback email claim failed", claimError);
+    return json({ error: "Could not claim feedback email" }, 500);
+  }
+  if (!claimed) return json({ ok: true, duplicate: true });
+
+  const rawCategory = typeof report.category === "string" ? report.category.toLowerCase() : "";
   const category = (FEEDBACK_CATEGORIES as readonly string[]).includes(rawCategory)
     ? rawCategory
     : "other";
-  const rating = typeof body.rating === "number" ? body.rating : null;
-
-  if (!message) return json({ error: "message is required" }, 400);
+  const rating = typeof report.rating === "number" ? report.rating : null;
+  const replyTo = typeof report.email === "string" && report.email.trim() ? report.email : undefined;
 
   const categoryLabel = category.charAt(0).toUpperCase() + category.slice(1);
-  const subject = `[Lagan] ${categoryLabel} from ${user.email ?? "a user"}`;
+  const subject = `[Lagan] ${categoryLabel} from ${replyTo ?? "a user"}`;
   const ratingLine = rating != null ? `<p><strong>Rating:</strong> ${rating}/5 ⭐</p>` : "";
   const html = `
-    <p><strong>From:</strong> ${escapeHtml(user.email ?? user.id)}</p>
+    <p><strong>From:</strong> ${escapeHtml(replyTo ?? user.id)}</p>
     <p><strong>Category:</strong> ${escapeHtml(categoryLabel)}</p>
     ${ratingLine}
     <p><strong>Message:</strong></p>
@@ -102,7 +154,7 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       from: FROM_ADDRESS,
       to: SUPPORT_NOTIFY_EMAIL,
-      reply_to: user.email ?? undefined,
+      reply_to: replyTo,
       subject,
       html,
     }),

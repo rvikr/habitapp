@@ -1,0 +1,35 @@
+# Repository Coverage Ledger: worker-03
+
+Scan target: repository-wide scan of `C:\Users\rk\habbitapp`
+
+Parent inputs consumed as read-only:
+
+- `C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\artifacts\02_discovery\rank_input.csv`
+- `C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\artifacts\02_discovery\deep_review_input.csv`
+
+## Coverage Summary
+
+| Area | Representative paths | Disposition | Notes |
+| --- | --- | --- | --- |
+| Supabase profile RLS and grants | `supabase/admin_schema.sql`, `supabase/migrations/0002_leaderboard.sql`, `supabase/migrations/20260614120000_restrict_profiles_entitlement_writes.sql` | Candidate | `CS-W03-001` preserves the entitlement column write risk for deployment-state validation. |
+| Subscription entitlement sinks | `lib/subscription/access.ts`, `lib/subscription/revenuecat.ts`, `lib/data/habits.ts`, `lib/data/reminders.ts`, `supabase/migrations/0018_free_pro_subscriptions.sql` | Candidate-linked | These are sinks for `CS-W03-001`, not independent root causes. |
+| Admin website authorization | `website/app/admin/layout.tsx`, `website/lib/admin/auth.ts`, admin server actions and pages | Suppressed | Admin layout checks current user email against `ADMIN_EMAILS`; server actions call `requireAdmin()` before service-role work. |
+| Website auth redirects | `website/app/auth/callback/route.ts`, `website/app/login/LoginForm.tsx` | Suppressed | Same-origin relative path sanitization blocks obvious open redirect variants. |
+| Public OG image route | `website/app/api/og/card/route.tsx` | Suppressed | Query parameters are rendered through React/Satori; tone is allowlisted/defaulted. No raw HTML sink found. |
+| No-JWT Edge Functions | `revenuecat-webhook`, `progress-report`, `welcome-email`, `complete-habit-from-push` | Suppressed | Each reviewed no-JWT function adds a shared secret, HMAC token, provider refetch, or user-authenticated mode check. |
+| User-scoped service-role Edge Functions | `delete-account`, `sync-subscription`, `leaderboard`, AI and support functions | Suppressed | Reviewed functions verify user identity and scope privileged operations to the verified user or server-side RPC policy. |
+| Cron/push jobs | `web-push-reminders`, `coach-push`, `public/sw.js` | Suppressed | Cron jobs use per-function secrets; service worker fetch caching is same-origin; complete action depends on signed token data. |
+| Database owner data | habits, completions, sleep entries, reminder tables, push subscriptions | Suppressed | Reviewed owner-policy patterns and integrity constraints did not produce a separate cross-user access candidate in this pass. |
+| SQL injection | Supabase query builders, website search params, RPC calls | Suppressed | No raw user-controlled SQL execution path was identified in reviewed application surfaces. |
+| XSS/template injection | website React pages, support email escaping, JSON-LD, OG route | Suppressed | User-controlled text is escaped by React or explicit escaping in reviewed sinks. |
+| SSRF | RevenueCat, Resend, Gemini, Expo push, web push | Suppressed | High-privilege outbound calls use fixed providers; web push endpoints are user subscription endpoints for encrypted push delivery, not privileged metadata fetches. |
+| Secret exposure | config, deployment files, app public environment use | Suppressed | Service-role and provider secrets are referenced from server contexts. Local env files were intentionally not opened. |
+| Generated/build/dev artifacts | coverage output, node_modules-like generated trees, local reports, screenshots | Not prioritized | Parent worklists include non-runtime/generated artifacts. They were considered for coverage but did not drive high-impact runtime candidates. |
+
+## Candidate Inventory
+
+1. `CS-W03-001`: Profile entitlement columns can be self-updated in admin-schema deployments without the later column grant hardening.
+
+## Validation Handoff
+
+Central validation should verify the effective deployed grants on `public.profiles` and the deployment workflow for `supabase/admin_schema.sql` relative to `20260614120000_restrict_profiles_entitlement_writes.sql`. The candidate should be closed if every supported deployment always applies the hardening migration after any schema file that adds entitlement columns and no later grant reopens those columns to anon/authenticated roles.

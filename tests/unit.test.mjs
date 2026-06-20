@@ -472,6 +472,31 @@ test("support-email escapes user-influenced fields in the notification HTML", ()
   assert.doesNotMatch(source, /Category:<\/strong> \$\{categoryLabel\}/);
 });
 
+test("support-email requires stored feedback and server-side abuse limits", () => {
+  const source = readFileSync("supabase/functions/support-email/index.ts", "utf8");
+  const client = readFileSync("lib/utils/feedback.ts", "utf8");
+
+  assert.match(source, /MAX_MESSAGE_LENGTH = 2000/);
+  assert.match(source, /feedbackReportId/);
+  assert.match(source, /\.from\("feedback_reports"\)[\s\S]*\.eq\("user_id", user\.id\)/);
+  assert.match(source, /support_email_sent_at/);
+  assert.match(source, /\.gte\("created_at", oneHourAgo\)/);
+  assert.match(source, /return json\(\{ error: "Too many feedback emails" \}, 429\)/);
+  assert.match(client, /\.select\("id"\)/);
+  assert.match(client, /feedbackReportId: report\.id/);
+});
+
+test("support-email migration tracks sent notifications for duplicate suppression", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_support_email_limits.sql"),
+  );
+  assert.ok(migrationName, "expected support email limits migration");
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  assert.match(sql, /support_email_sent_at/i);
+  assert.match(sql, /feedback_reports_user_email_sent_idx/i);
+});
+
 test("AI quota RPC is service-only and records quota events", () => {
   const sql = readFileSync("supabase/migrations/0013_ai_quota_and_auth_hardening.sql", "utf8");
   assert.match(sql, /create table if not exists public\.ai_usage_counters/i);
@@ -498,6 +523,19 @@ test("AI quota RPC is service-only and records quota events", () => {
   assert.match(sql, /daily_quota_exceeded/i);
 });
 
+test("validate-habit is included in the AI quota SQL whitelist", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_validate_habit_quota.sql"),
+  );
+  assert.ok(migrationName, "expected a validate-habit quota migration");
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  assert.match(sql, /ai_usage_counters_feature_check[\s\S]*validate-habit/i);
+  assert.match(sql, /ai_usage_events_feature_check[\s\S]*validate-habit/i);
+  assert.match(sql, /p_feature not in \([\s\S]*'validate-habit'/i);
+  assert.match(sql, /grant execute on function public\.consume_ai_quota/i);
+});
+
 test("AI Edge Functions enforce server-side quota before Gemini calls", () => {
   for (const [path, feature] of [
     ["supabase/functions/coach-message/index.ts", "coach-message"],
@@ -517,6 +555,22 @@ test("AI Edge Functions enforce server-side quota before Gemini calls", () => {
     assert.match(source, /SUPABASE_SERVICE_ROLE_KEY/);
     assert.match(source, /recordAiUsageEvent/);
   }
+});
+
+test("validate-habit quota guard failures return a warning validation result", () => {
+  const source = readFileSync("supabase/functions/validate-habit/index.ts", "utf8");
+  const guardIndex = source.indexOf('enforceAiQuota(admin, user.id, "validate-habit")');
+  const warningIndex = source.indexOf('quota.reason === "quota_guard_failed"');
+
+  assert.ok(guardIndex >= 0, "expected validate-habit quota guard");
+  assert.ok(warningIndex > guardIndex, "quota guard failure should be handled after enforcement");
+  assert.match(source, /function unavailableResult/);
+  assert.match(source, /status: "warn"/);
+  assert.match(source, /source: "gemini_unavailable"/);
+  assert.match(
+    source,
+    /if \(quota\.reason === "quota_guard_failed"\) return json\(unavailableResult\(quota\.reason\)\)/,
+  );
 });
 
 test("progress report client exposes an authenticated generate-now action", () => {
@@ -1202,6 +1256,21 @@ test("auth callback params can reconstruct a callback URL when native Linking ha
   });
 
   assert.equal(url, "/auth/callback?code=auth-code&state=first-state");
+});
+
+test("auth callback parser ignores unbound bearer tokens from query and fragment params", () => {
+  const source = readFileSync("lib/auth/auth-redirect.ts", "utf8");
+
+  assert.match(source, /code: firstParam\(allParams\.code\)/);
+  assert.doesNotMatch(source, /access_token|refresh_token|accessToken|refreshToken/);
+});
+
+test("auth callback completion paths do not install sessions from parsed bearer tokens", () => {
+  const callbackScreen = readFileSync("app/auth/callback.tsx", "utf8");
+  const nativeActions = readFileSync("lib/data/actions.ts", "utf8");
+
+  assert.doesNotMatch(callbackScreen, /parsed\.accessToken|parsed\.refreshToken|setSession\(/);
+  assert.doesNotMatch(nativeActions, /parsed\.accessToken|parsed\.refreshToken|setSession\(/);
 });
 
 test("web auth callback URL keeps the Expo Router base path so the PWA handles OAuth", () => {
@@ -1971,6 +2040,33 @@ test("bundling unions active reminder times and days without copying disabled de
   );
 });
 
+test("bundling caps and deduplicates active reminder arrays", () => {
+  const merged = mergeHabitReminders(
+    {
+      enabled: true,
+      times: ["05:00", "05:00", "04:00", "03:00", "02:00", "01:00"],
+      days: [6, 6, 5, 4, 3, 2, 1, 0],
+    },
+    {
+      enabled: true,
+      times: ["00:00", "06:00", "07:00", "08:00", "09:00", "10:00"],
+      days: [0, 1, 2, 3, 4, 5, 6],
+    },
+  );
+
+  assert.deepEqual(merged.times, [
+    "00:00",
+    "01:00",
+    "02:00",
+    "03:00",
+    "04:00",
+    "05:00",
+    "06:00",
+    "07:00",
+  ]);
+  assert.deepEqual(merged.days, [0, 1, 2, 3, 4, 5, 6]);
+});
+
 function createMemoryStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
   return {
@@ -2100,6 +2196,68 @@ test("AI smart reminder plans keep valid habit plans and drop invalid ones", asy
     [10, 14],
   );
   assert.equal(plans.has("invalid-habit"), false);
+});
+
+test("smart-reminders context sanitizer bounds progress before Gemini input", async () => {
+  const { sanitizeSmartReminderContexts } = await import(
+    "../supabase/functions/_shared/smart-reminder-input.ts"
+  );
+  const context = {
+    habitId: "water-1",
+    habitName: "Drink water",
+    habitType: "water_intake",
+    metricType: "volume_ml",
+    strategy: "interval",
+    intervalMinutes: 120,
+    target: 2000,
+    unit: "ml",
+    progress: {
+      current: 250,
+      target: 2000,
+      ratio: 0.125,
+      label: "250 / 2000 ml",
+      nested: { ignored: "x".repeat(1000) },
+    },
+    completions: [
+      { completedOn: "2026-05-08", createdAt: "2026-05-08T10:00:00.000Z", value: 250 },
+    ],
+    manualTimes: ["10:00", "10:00", "not-a-time"],
+    reminderDays: [1, 1, 2, 9],
+    streak: 2,
+    typicalHour: 10,
+    currentTime: "09:15",
+  };
+
+  const sanitized = sanitizeSmartReminderContexts([context]);
+  assert.equal(sanitized?.length, 1);
+  assert.deepEqual(sanitized?.[0].progress, {
+    current: 250,
+    target: 2000,
+    ratio: 0.125,
+    label: "250 / 2000 ml",
+  });
+  assert.deepEqual(sanitized?.[0].manualTimes, ["10:00"]);
+  assert.deepEqual(sanitized?.[0].reminderDays, [1, 2]);
+  assert.equal(
+    sanitizeSmartReminderContexts([
+      { ...context, progress: { ...context.progress, label: "x".repeat(121) } },
+    ]),
+    null,
+  );
+});
+
+test("smart-reminders sanitizes contexts before quota and Gemini input", () => {
+  const source = readFileSync("supabase/functions/smart-reminders/index.ts", "utf8");
+  const sanitizeIndex = source.indexOf("const contexts = sanitizeSmartReminderContexts(body.contexts)");
+  const quotaIndex = source.indexOf('enforceAiQuota(admin, user.id, "smart-reminders")');
+  const geminiIndex = source.indexOf("generateContent(GEMINI_REMINDER_MODEL");
+
+  assert.match(source, /import \{ sanitizeSmartReminderContexts \} from "\.\.\/_shared\/smart-reminder-input\.ts"/);
+  assert.ok(sanitizeIndex >= 0, "expected context sanitization");
+  assert.ok(quotaIndex > sanitizeIndex, "contexts must be sanitized before quota consumption");
+  assert.ok(geminiIndex > sanitizeIndex, "contexts must be sanitized before Gemini input");
+  assert.match(source, /contexts,/);
+  assert.doesNotMatch(source, /progress: isRecord\(item\.progress\) \? item\.progress : \{\}/);
 });
 
 test("AI smart reminder plans reuse cached responses for matching contexts", async () => {
@@ -2465,6 +2623,48 @@ test("AI routine sanitizer rejects invalid names enums and oversized routines", 
   assert.equal(sanitizeHabitRecommendations([...fallback, ...fallback], fallback), fallback);
 });
 
+test("habit-routine answer sanitizer accepts only bounded wizard answers", async () => {
+  const { sanitizeRoutineAnswers } = await import(
+    "../supabase/functions/_shared/routine-input.ts"
+  );
+  const valid = {
+    goals: [" focus ", "energy"],
+    lifestyle: "office",
+    sleep: "okay",
+    workload: "high",
+    stress: "medium",
+    fitnessLevel: "beginner",
+    age: 34,
+    heightCm: 175,
+    weightKg: 70,
+    stepsBaseline: "low",
+    waterBaseline: "some",
+  };
+
+  assert.deepEqual(sanitizeRoutineAnswers(valid), {
+    ...valid,
+    goals: ["focus", "energy"],
+  });
+  assert.equal(sanitizeRoutineAnswers({ ...valid, goals: Array(6).fill("fitness") }), null);
+  assert.equal(sanitizeRoutineAnswers({ ...valid, goals: ["x".repeat(49)] }), null);
+  assert.equal(sanitizeRoutineAnswers({ ...valid, lifestyle: "other" }), null);
+  assert.equal(sanitizeRoutineAnswers({ ...valid, extra: "not allowed" }), null);
+});
+
+test("habit-routine sanitizes answers before quota and Gemini input", () => {
+  const source = readFileSync("supabase/functions/habit-routine/index.ts", "utf8");
+  const sanitizeIndex = source.indexOf("const sanitizedAnswers = sanitizeRoutineAnswers(body.answers)");
+  const quotaIndex = source.indexOf('enforceAiQuota(admin, user.id, "habit-routine")');
+  const geminiIndex = source.indexOf("generateContent(GEMINI_ROUTINE_MODEL");
+
+  assert.match(source, /import \{ sanitizeRoutineAnswers \} from "\.\.\/_shared\/routine-input\.ts"/);
+  assert.ok(sanitizeIndex >= 0, "expected answer sanitization");
+  assert.ok(quotaIndex > sanitizeIndex, "answers must be sanitized before quota consumption");
+  assert.ok(geminiIndex > sanitizeIndex, "answers must be sanitized before Gemini input");
+  assert.match(source, /answers: sanitizedAnswers/);
+  assert.doesNotMatch(source, /answers: body\.answers/);
+});
+
 const coachHabit = {
   id: "coach-water",
   user_id: "u1",
@@ -2652,6 +2852,107 @@ test("server coach signal port falls back to encouragement like the client", () 
   const portTop = chooseTopCoachSignalPort(portSignalsFor([coachHabit], [], now, "friendly"));
   assert.equal(clientTop?.kind, "encouragement");
   assert.deepEqual(portTop, clientTop);
+});
+
+test("web push reminder cron normalizes subscription timezones before local calculations", () => {
+  const source = readFileSync("supabase/functions/web-push-reminders/index.ts", "utf8");
+
+  assert.match(source, /import \{ normalizeTimeZone \} from "\.\.\/_shared\/timezone\.ts"/);
+  assert.match(source, /const timezone = normalizeTimeZone\(sub\.timezone\)/);
+  assert.match(source, /localMinuteOfDay\(now, timezone\)/);
+  assert.match(source, /localDayOfWeek\(now, timezone\)/);
+  assert.match(source, /localDateString\(now, timezone\)/);
+});
+
+test("server coach signal time context falls back to UTC for invalid subscription timezones", () => {
+  const now = new Date("2026-05-14T16:30:00.000Z");
+  const local = localTimeContext(now, "Not/AZone");
+
+  assert.deepEqual(local, {
+    todayKey: "2026-05-14",
+    hour: 16,
+    minute: 30,
+    dayOfWeek: 4,
+    timezone: "UTC",
+  });
+});
+
+test("web push endpoint validation allows only known HTTPS push providers", async () => {
+  const { isAllowedWebPushEndpoint } = await import(
+    "../supabase/functions/_shared/web-push-endpoint.ts"
+  );
+
+  assert.equal(isAllowedWebPushEndpoint("https://fcm.googleapis.com/fcm/send/abc"), true);
+  assert.equal(
+    isAllowedWebPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/abc"),
+    true,
+  );
+  assert.equal(isAllowedWebPushEndpoint("https://web.push.apple.com/Qabc"), true);
+  assert.equal(isAllowedWebPushEndpoint("https://wns2-par02p.notify.windows.com/w/?token=x"), true);
+
+  assert.equal(isAllowedWebPushEndpoint("http://fcm.googleapis.com/fcm/send/abc"), false);
+  assert.equal(isAllowedWebPushEndpoint("https://example.com/push"), false);
+  assert.equal(isAllowedWebPushEndpoint("https://localhost/push"), false);
+  assert.equal(isAllowedWebPushEndpoint("https://127.0.0.1/push"), false);
+  assert.equal(isAllowedWebPushEndpoint("https://10.0.0.5/push"), false);
+  assert.equal(isAllowedWebPushEndpoint("https://169.254.169.254/latest/meta-data"), false);
+  assert.equal(isAllowedWebPushEndpoint("https://[::1]/push"), false);
+});
+
+test("web push workers validate stored endpoints before sending notifications", () => {
+  const reminderSource = readFileSync("supabase/functions/web-push-reminders/index.ts", "utf8");
+  const coachSource = readFileSync("supabase/functions/coach-push/index.ts", "utf8");
+
+  for (const source of [reminderSource, coachSource]) {
+    assert.match(source, /import \{ isAllowedWebPushEndpoint \} from "\.\.\/_shared\/web-push-endpoint\.ts"/);
+    const validationIndex = source.indexOf("isAllowedWebPushEndpoint(sub.endpoint)");
+    const sendIndex = source.indexOf("webPush.sendNotification");
+    assert.ok(validationIndex >= 0, "worker should validate each stored endpoint");
+    assert.ok(sendIndex > validationIndex, "endpoint validation must happen before send");
+    assert.match(source, /\.from\("web_push_subscriptions"\)\.delete\(\)\.eq\("id", sub\.id\)/);
+  }
+});
+
+test("web push endpoint hardening migration constrains new subscription endpoints", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_web_push_endpoint_hardening.sql"),
+  );
+  assert.ok(migrationName, "expected a web push endpoint hardening migration");
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  assert.match(sql, /web_push_subscriptions_endpoint_allowed/i);
+  assert.match(sql, /fcm\\.googleapis\\.com/i);
+  assert.match(sql, /updates\\.push\\.services\\.mozilla\\.com/i);
+  assert.match(sql, /web\\.push\\.apple\\.com/i);
+  assert.match(sql, /notify\\.windows\\.com/i);
+  assert.match(sql, /not valid/i);
+});
+
+test("web push reminder cron bounds reminder arrays before per-reminder database work", () => {
+  const source = readFileSync("supabase/functions/web-push-reminders/index.ts", "utf8");
+  const timesIndex = source.indexOf("normalizeReminderTimes(habit.reminder_times)");
+  const daysIndex = source.indexOf("normalizeReminderDays(habit.reminder_days)");
+  const dedupeIndex = source.indexOf('from("web_push_sends")');
+
+  assert.ok(timesIndex >= 0, "expected reminder_times normalization");
+  assert.ok(daysIndex >= 0, "expected reminder_days normalization");
+  assert.ok(dedupeIndex > timesIndex, "normalization must happen before per-reminder DB work");
+  assert.match(source, /MAX_REMINDER_TIMES_PER_HABIT = 8/);
+});
+
+test("reminder array hardening migration enforces bounded unique times and days", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_reminder_array_hardening.sql"),
+  );
+  assert.ok(migrationName, "expected a reminder array hardening migration");
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  assert.match(sql, /valid_reminder_times/i);
+  assert.match(sql, /valid_reminder_days/i);
+  assert.match(sql, /cardinality\(times\) <= 8/i);
+  assert.match(sql, /cardinality\(days\) <= 7/i);
+  assert.match(sql, /count\(distinct value\)/i);
+  assert.match(sql, /not valid/i);
 });
 
 test("coach signal priorities stay in sync between client and server port", () => {

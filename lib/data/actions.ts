@@ -290,16 +290,8 @@ async function signInWithGoogleOAuth(): Promise<{ error: Error | null; cancelled
       if (!exchangeError) clearDataCache();
       return { error: exchangeError as Error | null };
     }
-    if (parsed.accessToken && parsed.refreshToken) {
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: parsed.accessToken,
-        refresh_token: parsed.refreshToken,
-      });
-      if (!sessionError) clearDataCache();
-      return { error: sessionError as Error | null };
-    }
 
-    return { error: new Error("No authentication tokens received.") };
+    return { error: new Error("No authentication code received.") };
   } catch (err) {
     if (__DEV__) console.error("[Google OAuth] error:", err);
     return { error: err instanceof Error ? err : networkError() };

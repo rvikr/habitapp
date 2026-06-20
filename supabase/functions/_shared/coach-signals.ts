@@ -15,6 +15,8 @@
 // This module is dependency-free so the Node test runner can import it with
 // --experimental-strip-types.
 
+import { normalizeTimeZone } from "./timezone.ts";
+
 export type CoachTone = "friendly" | "motivational" | "calm" | "strict" | "military";
 
 export type CoachSignalKind =
@@ -73,6 +75,8 @@ type BuildCoachSignalsInput = {
   tone?: CoachTone | null;
 };
 
+export { normalizeTimeZone };
+
 const COACH_ACTIVE_START_HOUR = 8;
 const COACH_ACTIVE_END_HOUR = 22;
 const DAY_NAMES = [
@@ -86,9 +90,10 @@ const DAY_NAMES = [
 ];
 
 export function localTimeContext(now: Date, timezone: string): LocalTimeContext {
-  const todayKey = now.toLocaleDateString("en-CA", { timeZone: timezone }).slice(0, 10);
+  const safeTimezone = normalizeTimeZone(timezone);
+  const todayKey = now.toLocaleDateString("en-CA", { timeZone: safeTimezone }).slice(0, 10);
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: safeTimezone,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -99,7 +104,7 @@ export function localTimeContext(now: Date, timezone: string): LocalTimeContext 
   const hour = parseInt(part("hour"), 10) % 24;
   const minute = parseInt(part("minute"), 10);
   const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(part("weekday"));
-  return { todayKey, hour, minute, dayOfWeek, timezone };
+  return { todayKey, hour, minute, dayOfWeek, timezone: safeTimezone };
 }
 
 export function dateKeyDaysAgo(todayKey: string, daysAgo: number): string {
@@ -108,8 +113,9 @@ export function dateKeyDaysAgo(todayKey: string, daysAgo: number): string {
 }
 
 function hourInTimezone(isoTimestamp: string, timezone: string): number {
+  const safeTimezone = normalizeTimeZone(timezone);
   const value = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: safeTimezone,
     hour: "2-digit",
     hour12: false,
   })

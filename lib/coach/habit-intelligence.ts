@@ -481,24 +481,36 @@ export type HabitReminderSettings = {
   days: number[] | null | undefined;
 };
 
+const MAX_REMINDER_TIMES_PER_HABIT = 8;
+const DEFAULT_REMINDER_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const REMINDER_TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
 export function mergeHabitReminders(
   existing: HabitReminderSettings,
   candidate: HabitReminderSettings,
 ) {
   const enabled = !!existing.enabled || !!candidate.enabled;
   const activeReminderSets = [existing, candidate].filter((settings) => !!settings.enabled);
-  const times = Array.from(
-    new Set(activeReminderSets.flatMap((settings) => settings.times ?? [])),
-  ).sort();
-  const days = Array.from(
-    new Set(activeReminderSets.flatMap((settings) => settings.days ?? [])),
-  ).sort();
+  const times = normalizeReminderTimes(activeReminderSets.flatMap((settings) => settings.times ?? []));
+  const days = normalizeReminderDays(activeReminderSets.flatMap((settings) => settings.days ?? []));
 
   return {
     enabled,
     times,
-    days: enabled ? (days.length > 0 ? days : [0, 1, 2, 3, 4, 5, 6]) : [0, 1, 2, 3, 4, 5, 6],
+    days: enabled ? (days.length > 0 ? days : DEFAULT_REMINDER_DAYS) : DEFAULT_REMINDER_DAYS,
   };
+}
+
+function normalizeReminderTimes(times: string[]): string[] {
+  return Array.from(new Set(times.filter((time) => REMINDER_TIME_PATTERN.test(time))))
+    .sort()
+    .slice(0, MAX_REMINDER_TIMES_PER_HABIT);
+}
+
+function normalizeReminderDays(days: number[]): number[] {
+  return Array.from(new Set(days.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)))
+    .sort((a, b) => a - b)
+    .slice(0, DEFAULT_REMINDER_DAYS.length);
 }
 
 export const SMART_REMINDER_ACTIVE_START_HOUR = 8;

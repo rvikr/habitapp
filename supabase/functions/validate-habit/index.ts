@@ -101,6 +101,18 @@ function okResult(source: "gemini" | "gemini_unavailable") {
   return { status: "ok" as const, category: null, message: null, suggestion: null, source };
 }
 
+function unavailableResult(reason: string) {
+  return {
+    status: "warn" as const,
+    category: null,
+    message:
+      "AI safety review is temporarily unavailable. Review this habit carefully before saving.",
+    suggestion: null,
+    source: "gemini_unavailable" as const,
+    reason,
+  };
+}
+
 function validateHabitSchema() {
   return {
     type: "object",
@@ -147,13 +159,14 @@ serve(async (req) => {
 
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     console.error("AI quota guard is not configured for validate-habit");
-    return json(okResult("gemini_unavailable"));
+    return json(unavailableResult("quota_guard_unavailable"));
   }
 
   const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
   const quota = await enforceAiQuota(admin, user.id, "validate-habit");
   if (!quota.allowed) {
     console.warn("AI validate-habit blocked", { userId: user.id, reason: quota.reason });
+    if (quota.reason === "quota_guard_failed") return json(unavailableResult(quota.reason));
     return json(okResult("gemini_unavailable"));
   }
 

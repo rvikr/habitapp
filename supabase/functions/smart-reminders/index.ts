@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
 import { generateContent } from "../_shared/gemini.ts";
+import { sanitizeSmartReminderContexts } from "../_shared/smart-reminder-input.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -23,28 +24,6 @@ type SmartReminderRequest = {
   contexts?: unknown;
 };
 
-const HABIT_TYPES = new Set([
-  "water_intake",
-  "walk",
-  "sleep",
-  "read",
-  "run",
-  "cycling",
-  "meditate",
-  "workout",
-  "journal",
-  "vitamins",
-  "healthy_eating",
-  "cold_shower",
-  "no_social_media",
-  "coding",
-  "stretch",
-  "cooking",
-  "custom",
-]);
-const METRIC_TYPES = new Set(["volume_ml", "steps", "hours", "pages", "minutes", "distance_km", "boolean"]);
-const REMINDER_STRATEGIES = new Set(["interval", "conditional_interval"]);
-
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -54,65 +33,6 @@ function json(body: unknown, status = 200) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
-}
-
-function cleanText(value: unknown, maxLength: number): string | null {
-  if (typeof value !== "string") return null;
-  const cleaned = value.replace(/\s+/g, " ").trim();
-  if (!cleaned || cleaned.length > maxLength) return null;
-  return cleaned;
-}
-
-function cleanTime(value: unknown): string | null {
-  if (typeof value !== "string" || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
-  return value;
-}
-
-function cleanNumber(value: unknown): number | null {
-  if (value == null) return null;
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return value;
-}
-
-function cleanContext(item: unknown) {
-  if (!isRecord(item)) return null;
-  const habitId = cleanText(item.habitId, 64);
-  const habitName = cleanText(item.habitName, 80);
-  const habitType = item.habitType;
-  const metricType = item.metricType;
-  const strategy = item.strategy;
-  const currentTime = cleanTime(item.currentTime);
-  if (!habitId || !habitName || !currentTime) return null;
-  if (typeof habitType !== "string" || !HABIT_TYPES.has(habitType)) return null;
-  if (typeof metricType !== "string" || !METRIC_TYPES.has(metricType)) return null;
-  if (typeof strategy !== "string" || !REMINDER_STRATEGIES.has(strategy)) return null;
-
-  return {
-    habitId,
-    habitName,
-    habitType,
-    metricType,
-    strategy,
-    intervalMinutes: cleanNumber(item.intervalMinutes),
-    target: cleanNumber(item.target),
-    unit: typeof item.unit === "string" ? item.unit.slice(0, 16) : null,
-    progress: isRecord(item.progress) ? item.progress : {},
-    completions: Array.isArray(item.completions) ? item.completions.slice(-14) : [],
-    manualTimes: Array.isArray(item.manualTimes) ? item.manualTimes.filter(cleanTime).slice(0, 8) : [],
-    reminderDays: Array.isArray(item.reminderDays)
-      ? item.reminderDays.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
-      : [],
-    streak: cleanNumber(item.streak),
-    typicalHour: cleanNumber(item.typicalHour),
-    currentTime,
-  };
-}
-
-function sanitizeContexts(input: unknown) {
-  if (!Array.isArray(input) || input.length < 1 || input.length > 20) return null;
-  const contexts = input.map(cleanContext);
-  if (contexts.some((context) => !context)) return null;
-  return contexts;
 }
 
 function outputText(body: any): string | null {
@@ -144,7 +64,7 @@ serve(async (req) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
-  const contexts = sanitizeContexts(body.contexts);
+  const contexts = sanitizeSmartReminderContexts(body.contexts);
   if (!contexts) return json({ error: "Invalid reminder contexts" }, 400);
 
   if (!SUPABASE_SERVICE_ROLE_KEY) {

@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
 import { generateContent } from "../_shared/gemini.ts";
+import { sanitizeRoutineAnswers } from "../_shared/routine-input.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -189,6 +190,10 @@ serve(async (req) => {
   if (!Array.isArray(localRecommendations) || localRecommendations.length === 0) {
     return json({ error: "Invalid local recommendations" }, 400);
   }
+  const sanitizedAnswers = sanitizeRoutineAnswers(body.answers);
+  if (!sanitizedAnswers) {
+    return json({ error: "Invalid answers" }, 400);
+  }
   if (!SUPABASE_SERVICE_ROLE_KEY) {
     console.error("AI quota guard is not configured for habit-routine");
     return json({ recommendations: localRecommendations, generated: false, reason: "quota_guard_unavailable" }, 503);
@@ -245,7 +250,7 @@ serve(async (req) => {
         parts: [
           {
             text: JSON.stringify({
-              answers: body.answers,
+              answers: sanitizedAnswers,
               localRecommendations,
             }),
           },

@@ -35,6 +35,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // @ts-ignore — esm.sh provides a Deno-compatible build of web-push
 import webPush from "https://esm.sh/web-push@3.6.7?bundle";
 import { signActionToken } from "../_shared/push-action-token.ts";
+import { normalizeTimeZone } from "../_shared/timezone.ts";
+import { isAllowedWebPushEndpoint } from "../_shared/web-push-endpoint.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,6 +48,9 @@ const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") ?? "mailto:push@lagan.health
 const PUSH_ACTION_SECRET = Deno.env.get("PUSH_ACTION_SECRET") ?? "";
 const CRON_SECRET = Deno.env.get("WEB_PUSH_CRON_SECRET") ?? "";
 const WINDOW_MINUTES = 15;
+const MAX_REMINDER_TIMES_PER_HABIT = 8;
+const DEFAULT_REMINDER_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const REMINDER_TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 // Long enough to cover "tapped the morning reminder at night"; the token's
 // pinned local date means a late redeem still completes the intended day.
 const ACTION_TOKEN_TTL_SECONDS = 12 * 60 * 60;
@@ -111,6 +116,31 @@ function localDayOfWeek(date: Date, timezone: string): number {
   );
 }
 
+function normalizeReminderTimes(times: string[] | null): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const time of times ?? []) {
+    if (!REMINDER_TIME_PATTERN.test(time) || seen.has(time)) continue;
+    seen.add(time);
+    normalized.push(time);
+    if (normalized.length >= MAX_REMINDER_TIMES_PER_HABIT) break;
+  }
+  return normalized.sort();
+}
+
+function normalizeReminderDays(days: number[] | null): number[] {
+  if (days == null) return DEFAULT_REMINDER_DAYS;
+  const normalized: number[] = [];
+  const seen = new Set<number>();
+  for (const day of days) {
+    if (!Number.isInteger(day) || day < 0 || day > 6 || seen.has(day)) continue;
+    seen.add(day);
+    normalized.push(day);
+    if (normalized.length >= DEFAULT_REMINDER_DAYS.length) break;
+  }
+  return normalized.sort((a, b) => a - b);
+}
+
 function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let diff = 0;
@@ -144,9 +174,17 @@ Deno.serve(async (req) => {
   }
 
   for (const sub of subscriptions as Subscription[]) {
-    const localMinute = localMinuteOfDay(now, sub.timezone);
-    const localDay = localDayOfWeek(now, sub.timezone);
-    const localDate = localDateString(now, sub.timezone);
+    if (!isAllowedWebPushEndpoint(sub.endpoint)) {
+      console.warn("pruning invalid web push endpoint", { subscriptionId: sub.id });
+      await supabase.from("web_push_subscriptions").delete().eq("id", sub.id);
+      pruned++;
+      continue;
+    }
+
+    const timezone = normalizeTimeZone(sub.timezone);
+    const localMinute = localMinuteOfDay(now, timezone);
+    const localDay = localDayOfWeek(now, timezone);
+    const localDate = localDateString(now, timezone);
 
     const { data: habits } = await supabase
       .from("habits")
@@ -171,8 +209,8 @@ Deno.serve(async (req) => {
     const dueEntries: { habitId: string; habitName: string; time: string }[] = [];
 
     for (const habit of habits as Habit[]) {
-      const times = habit.reminder_times ?? [];
-      const days = habit.reminder_days ?? [0, 1, 2, 3, 4, 5, 6];
+      const times = normalizeReminderTimes(habit.reminder_times);
+      const days = normalizeReminderDays(habit.reminder_days);
       if (!days.includes(localDay)) continue;
 
       // Skip habits already completed today; mirrors progressForHabit's done
@@ -186,7 +224,6 @@ Deno.serve(async (req) => {
       }
 
       for (const time of times) {
-        if (!/^\d{2}:\d{2}$/.test(time)) continue;
         const [h, m] = time.split(":").map(Number);
         const reminderMinute = h * 60 + m;
         if (Math.abs(reminderMinute - localMinute) >= WINDOW_MINUTES) continue;

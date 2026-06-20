@@ -23,27 +23,32 @@ export async function submitFeedback(
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You need to sign in again." };
 
-  const { error } = await supabase.from("feedback_reports").insert({
-    user_id: user.id,
-    email: input.includeEmail ? (user.email ?? null) : null,
-    category: input.category,
-    rating: input.rating,
-    message: input.message.trim(),
-    app_version: Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? null,
-    build_number: String(
-      Constants.expoConfig?.android?.versionCode ?? Constants.nativeBuildVersion ?? "",
-    ),
-    platform: Platform.OS,
-    os_version: Device.osVersion ?? null,
-    device_name: Device.deviceName ?? Device.modelName ?? null,
-  });
+  const { data: report, error } = await supabase
+    .from("feedback_reports")
+    .insert({
+      user_id: user.id,
+      email: input.includeEmail ? (user.email ?? null) : null,
+      category: input.category,
+      rating: input.rating,
+      message: input.message.trim(),
+      app_version: Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? null,
+      build_number: String(
+        Constants.expoConfig?.android?.versionCode ?? Constants.nativeBuildVersion ?? "",
+      ),
+      platform: Platform.OS,
+      os_version: Device.osVersion ?? null,
+      device_name: Device.deviceName ?? Device.modelName ?? null,
+    })
+    .select("id")
+    .single();
 
   if (error) return { ok: false, error: error.message };
+  if (!report?.id) return { ok: false, error: "Could not save feedback." };
 
   // Fire-and-forget: notify team via email. Don't fail the submission if this errors.
   supabase.functions
     .invoke("support-email", {
-      body: { message: input.message.trim(), category: input.category, rating: input.rating },
+      body: { feedbackReportId: report.id },
     })
     .catch(() => {});
 

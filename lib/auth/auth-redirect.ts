@@ -13,8 +13,6 @@ export function authCallbackUrl() {
 
 export type ParsedAuthCallback = {
   code: string | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   type: string | null;
   error: string | null;
   errorDescription: string | null;
@@ -28,8 +26,6 @@ export function parseAuthCallbackUrl(url: string): ParsedAuthCallback {
 
   return {
     code: firstParam(allParams.code),
-    accessToken: firstParam(allParams.access_token),
-    refreshToken: firstParam(allParams.refresh_token),
     type: firstParam(allParams.type),
     error: firstParam(allParams.error),
     errorDescription: firstParam(allParams.error_description),

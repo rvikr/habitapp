@@ -46,6 +46,7 @@ import webPush from "https://esm.sh/web-push@3.6.7?bundle";
 import { signActionToken } from "../_shared/push-action-token.ts";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { generateContent } from "../_shared/gemini.ts";
+import { isAllowedWebPushEndpoint } from "../_shared/web-push-endpoint.ts";
 import {
   buildCoachSignals,
   chooseTopCoachSignal,
@@ -230,23 +231,32 @@ Deno.serve(async (req) => {
   if (subError) return json({ error: subError.message }, 500);
   if (!subscriptions?.length) return json({ sent: 0, pruned: 0 });
 
+  let sent = 0;
+  let pruned = 0;
+
   // One computation per user; the push goes to all of their endpoints. The
   // most recently seen subscription decides the timezone.
   const subsByUser = new Map<string, Subscription[]>();
   for (const sub of subscriptions as Subscription[]) {
+    if (!isAllowedWebPushEndpoint(sub.endpoint)) {
+      console.warn("pruning invalid web push endpoint", { subscriptionId: sub.id });
+      await supabase.from("web_push_subscriptions").delete().eq("id", sub.id);
+      pruned++;
+      continue;
+    }
+
     const list = subsByUser.get(sub.user_id) ?? [];
     list.push(sub);
     subsByUser.set(sub.user_id, list);
   }
 
-  let sent = 0;
-  let pruned = 0;
   const planned: Record<string, unknown>[] = [];
 
   for (const [userId, subs] of subsByUser) {
     subs.sort((a, b) => (a.last_seen_at < b.last_seen_at ? 1 : -1));
-    const timezone = subs[0].timezone || "UTC";
-    const local = localTimeContext(now, timezone);
+    const requestedTimezone = subs[0].timezone || "UTC";
+    const local = localTimeContext(now, requestedTimezone);
+    const timezone = local.timezone;
     const localMinute = local.hour * 60 + local.minute;
 
     // Cheap early exit: which signal kinds are pushable right now?

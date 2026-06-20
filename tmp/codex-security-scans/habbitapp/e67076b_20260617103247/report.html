@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>habbitapp Codex Security Scan</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #fff;
+      --bg-elev: #fafafa;
+      --bg-muted: #f5f5f7;
+      --fg: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --code: #f3f4f6;
+      --shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b0f14;
+        --bg-elev: #0f141b;
+        --bg-muted: #121923;
+        --fg: #e5e7eb;
+        --muted: #9ca3af;
+        --border: #243040;
+        --accent: #60a5fa;
+        --code: #111827;
+        --shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 15px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    body.sidebar-collapsed .layout { grid-template-columns: 44px minmax(0, 1fr); }
+
+    .sidebar {
+      min-height: 100vh;
+      border-right: 1px solid var(--border);
+      background: var(--bg-muted);
+    }
+
+    .toc-inner {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      padding: 10px 8px;
+    }
+
+    .nav-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin: 0 0 8px;
+      text-transform: uppercase;
+    }
+
+    .nav-toggle {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fg);
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px;
+    }
+
+    .nav-toggle:hover { box-shadow: var(--shadow); }
+    .nav-meta { color: var(--muted); font-size: 12px; margin: 0 0 12px; padding: 0 4px; }
+
+    body.sidebar-collapsed .toc-inner {
+      display: flex;
+      align-items: center;
+      padding: 8px 6px;
+    }
+
+    body.sidebar-collapsed .nav-title span,
+    body.sidebar-collapsed .nav-meta,
+    body.sidebar-collapsed .toc { display: none; }
+
+    main { max-width: 1040px; padding: 32px 44px 80px; }
+    h1, h2, h3 { line-height: 1.2; margin-top: 1.7em; }
+    h1:first-child { margin-top: 0; }
+    h2 { border-top: 1px solid var(--border); padding-top: 1em; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: var(--code); border-radius: 4px; padding: 0.1em 0.3em; }
+    pre { background: var(--code); border: 1px solid var(--border); border-radius: 8px; overflow: auto; padding: 16px; }
+    pre code { background: transparent; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 18px 0; }
+    th, td { border: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+    th { text-align: left; background: var(--code); }
+
+    main h3[id^="0-"] + table,
+    main h3[id^="1-"] + table,
+    main h3[id^="2-"] + table,
+    main h3[id^="3-"] + table,
+    main h3[id^="4-"] + table,
+    main h3[id^="5-"] + table,
+    main h3[id^="6-"] + table,
+    main h3[id^="7-"] + table,
+    main h3[id^="8-"] + table,
+    main h3[id^="9-"] + table {
+      margin: 10px 0 24px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      background: var(--bg-elev);
+      box-shadow: var(--shadow);
+    }
+
+    main h3[id^="0-"] + table th,
+    main h3[id^="1-"] + table th,
+    main h3[id^="2-"] + table th,
+    main h3[id^="3-"] + table th,
+    main h3[id^="4-"] + table th,
+    main h3[id^="5-"] + table th,
+    main h3[id^="6-"] + table th,
+    main h3[id^="7-"] + table th,
+    main h3[id^="8-"] + table th,
+    main h3[id^="9-"] + table th { display: none; }
+
+    main h3[id^="0-"] + table td:first-child,
+    main h3[id^="1-"] + table td:first-child,
+    main h3[id^="2-"] + table td:first-child,
+    main h3[id^="3-"] + table td:first-child,
+    main h3[id^="4-"] + table td:first-child,
+    main h3[id^="5-"] + table td:first-child,
+    main h3[id^="6-"] + table td:first-child,
+    main h3[id^="7-"] + table td:first-child,
+    main h3[id^="8-"] + table td:first-child,
+    main h3[id^="9-"] + table td:first-child {
+      width: 170px;
+      color: var(--muted);
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    main h3[id^="0-"] + table td,
+    main h3[id^="1-"] + table td,
+    main h3[id^="2-"] + table td,
+    main h3[id^="3-"] + table td,
+    main h3[id^="4-"] + table td,
+    main h3[id^="5-"] + table td,
+    main h3[id^="6-"] + table td,
+    main h3[id^="7-"] + table td,
+    main h3[id^="8-"] + table td,
+    main h3[id^="9-"] + table td { border-left: 0; border-right: 0; }
+
+    .toc { list-style: none; padding: 0; margin: 0; }
+    .toc a {
+      display: block;
+      border-radius: 6px;
+      color: var(--fg);
+      font-size: 13px;
+      line-height: 1.3;
+      padding: 4px 6px;
+      position: relative;
+      transition: background 160ms ease, color 160ms ease, padding-left 160ms ease;
+    }
+
+    .toc a:hover { background: var(--bg-elev); text-decoration: none; }
+    .toc-item { list-style: none; margin: 1px 0; }
+    .toc-item.depth-1 > a { font-weight: 700; }
+    .toc-item.depth-2 { padding-left: 14px; }
+    .toc-item.depth-3 { padding-left: 28px; }
+
+    .toc-item.active > a {
+      color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      font-weight: 700;
+      padding-left: 10px;
+    }
+
+    .toc-item.active > a::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 3px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+
+    @media (max-width: 900px) {
+      .layout { display: block; }
+      .sidebar { min-height: 0; border-right: 0; border-bottom: 1px solid var(--border); }
+      .toc-inner { position: static; height: auto; max-height: 45vh; }
+      main { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" aria-label="Table of contents">
+      <div class="toc-inner">
+        <div class="nav-title">
+          <span>Outline</span>
+          <button id="navToggle" class="nav-toggle" aria-pressed="false" aria-label="Collapse sidebar" title="Collapse sidebar">
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path id="navToggleIcon" d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div class="nav-meta">habbitapp Codex Security Scan</div>
+        <ul class="toc">
+          <li class="toc-item depth-1"><a href="#security-review-habbitapp">Security Review: habbitapp</a></li>
+<li class="toc-item depth-2"><a href="#scope">Scope</a></li>
+<li class="toc-item depth-3"><a href="#scan-summary">Scan Summary</a></li>
+<li class="toc-item depth-2"><a href="#threat-model">Threat Model</a></li>
+<li class="toc-item depth-1"><a href="#overview">Overview</a></li>
+<li class="toc-item depth-1"><a href="#threat-model-trust-boundaries-and-assumptions">Threat Model, Trust Boundaries, and Assumptions</a></li>
+<li class="toc-item depth-1"><a href="#attack-surface-mitigations-and-attacker-stories">Attack Surface, Mitigations, and Attacker Stories</a></li>
+<li class="toc-item depth-1"><a href="#severity-calibration-critical-high-medium-low">Severity Calibration (Critical, High, Medium, Low)</a></li>
+<li class="toc-item depth-2"><a href="#findings">Findings</a></li>
+<li class="toc-item depth-3"><a href="#confidence-scale">Confidence Scale</a></li>
+<li class="toc-item depth-3"><a href="#1-stored-web-push-endpoints-let-users-steer-reminder-cron-outbound-requests">[1] Stored web-push endpoints let users steer reminder cron outbound requests</a></li>
+<li class="toc-item depth-3"><a href="#2-stored-web-push-endpoints-let-users-steer-coach-push-outbound-requests">[2] Stored web-push endpoints let users steer coach-push outbound requests</a></li>
+<li class="toc-item depth-2"><a href="#reviewed-surfaces">Reviewed Surfaces</a></li>
+<li class="toc-item depth-1"><a href="#reviewed-surfaces">Reviewed Surfaces</a></li>
+<li class="toc-item depth-2"><a href="#open-questions-and-follow-up">Open Questions And Follow Up</a></li>
+        </ul>
+      </div>
+    </aside>
+    <main>
+      <h1 id="security-review-habbitapp">Security Review: habbitapp</h1>
+
+<h2 id="scope">Scope</h2>
+
+<ul><li>In scope: repository-wide scan of <code>C:\Users\rk\habbitapp</code> at commit <code>e67076b</code>.</li><li>Scan mode: Codex Security Deep Security Scan, continued from completed worker discovery artifacts at <code>C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247</code>.</li><li>Context: threat model generated during scan from repository code and worker threat models.</li><li>Validation mode: static source and migration trace; no live Supabase deployment or Web Push runtime harness was available.</li><li>Limitation: after the completed discovery round, the user instructed not to rerun agents, so the centralized tail uses the preserved completed worker data rather than launching additional discovery rounds.</li></ul>
+
+<h3 id="scan-summary">Scan Summary</h3>
+
+<table>
+<thead><tr>
+<th>Field</th>
+<th>Value</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Reportable findings</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Severity mix</td>
+<td>medium: 2</td>
+</tr>
+<tr>
+<td>Confidence mix</td>
+<td>medium: 2</td>
+</tr>
+<tr>
+<td>Coverage</td>
+<td>1,010 source-like worklist rows reviewed by workers; canonical validation focused on merged candidates and high-impact surfaces</td>
+</tr>
+<tr>
+<td>Validation mode</td>
+<td>Static trace against source, migrations, and scheduled function code</td>
+</tr>
+<tr>
+<td>Final markdown</td>
+<td><code>C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\report.md</code></td>
+</tr>
+<tr>
+<td>Final HTML</td>
+<td><code>C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\report.html</code></td>
+</tr>
+</tbody></table>
+
+<h2 id="threat-model">Threat Model</h2>
+
+<h1 id="overview">Overview</h1>
+
+<p>Lagan is a habit-tracking application with an Expo/React Native client, a Next.js website/admin surface, Supabase database migrations, and Supabase Edge Functions. The security-relevant runtime surfaces are authenticated mobile/web users, public website routes, scheduled Edge Functions that run with service-role credentials, admin-only Next.js server actions, and database RPC/RLS policies.</p>
+
+<h1 id="threat-model-trust-boundaries-and-assumptions">Threat Model, Trust Boundaries, and Assumptions</h1>
+
+<ul><li>Authenticated end users are untrusted across user, subscription, habit, feedback, AI quota, and notification boundaries.</li><li>Browser clients and mobile clients can bypass client-side validation and call Supabase tables, RPCs, and Edge Functions directly with their own JWTs.</li><li>Supabase service-role Edge Functions are privileged and must not let user-controlled stored data choose arbitrary privileged network, data, or admin effects.</li><li>Admin actions are high privilege and rely on server-side session checks plus an <code>ADMIN_EMAILS</code> allowlist.</li><li>Scheduled functions are not public API surfaces, but they process stored user data and can create delayed cross-boundary effects.</li><li>Operator-only setup scripts and documentation are in scope as deployment hazards when the README presents them as production setup inputs, but later ordered migrations are strong counterevidence when they supersede a standalone script.</li></ul>
+
+<h1 id="attack-surface-mitigations-and-attacker-stories">Attack Surface, Mitigations, and Attacker Stories</h1>
+
+<ul><li>Web push subscriptions: authenticated users can create/update their own <code>web_push_subscriptions</code> rows; scheduled service-role functions later read those rows and call outbound push delivery APIs.</li><li>AI functions: authenticated Pro users can trigger Gemini-backed functions, with quota guards limiting cost and frequency.</li><li>Support email: authenticated users can invoke a Resend-backed function; HTML output escapes user fields, but email cost/abuse limits rely mostly on client/database flow.</li><li>OG image route: public GET route renders images from query parameters; fixed dimensions and constrained message helpers reduce impact.</li><li>Admin site: server actions call <code>requireAdmin</code> and then use a service-role client for privileged mutations.</li><li>Database migrations: RLS and explicit grants are the primary controls for user-owned data and privileged subscription/leaderboard/pro-access fields.</li></ul>
+
+<h1 id="severity-calibration-critical-high-medium-low">Severity Calibration (Critical, High, Medium, Low)</h1>
+
+<ul><li>Critical: unauthenticated account takeover, service-role secret disclosure, broad cross-user data modification, or credible remote code execution from an exposed production surface.</li><li>High: authenticated but realistic privilege escalation, meaningful cross-user data exposure, or strong SSRF/file/network impact reaching sensitive internal services.</li><li>Medium: authenticated or delayed service-side request/control abuse with constrained payloads or uncertain internal target impact; bounded resource abuse with clear production cost or availability effect.</li><li>Low: self-only issues, minor metadata exposure, weak abuse paths already constrained by quota/rate limits, or deployment-only hazards with strong checked-in counterevidence.</li></ul>
+
+
+<h2 id="findings">Findings</h2>
+
+<table>
+<thead><tr>
+<th>#</th>
+<th>Finding</th>
+<th>Severity</th>
+<th>Confidence</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><a href="#1-stored-web-push-endpoints-let-users-steer-reminder-cron-outbound-requests">Stored web-push endpoints let users steer reminder cron outbound requests</a></td>
+<td>Medium</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>2</td>
+<td><a href="#2-stored-web-push-endpoints-let-users-steer-coach-push-outbound-requests">Stored web-push endpoints let users steer coach-push outbound requests</a></td>
+<td>Medium</td>
+<td>Medium</td>
+</tr>
+</tbody></table>
+
+<h3 id="confidence-scale">Confidence Scale</h3>
+
+<table>
+<thead><tr>
+<th>Label</th>
+<th>Meaning</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>high</td>
+<td>Direct source, configuration, or runtime evidence supports the finding, with no material unresolved reachability or exploitability blocker.</td>
+</tr>
+<tr>
+<td>medium</td>
+<td>Source evidence supports a plausible issue, but runtime behavior, deployment configuration, role reachability, type constraints, or exploit reliability still need proof.</td>
+</tr>
+<tr>
+<td>low</td>
+<td>Weak or incomplete evidence; include only when the user explicitly wants follow-up candidates in the final report.</td>
+</tr>
+</tbody></table>
+
+<h3 id="1-stored-web-push-endpoints-let-users-steer-reminder-cron-outbound-requests">[1] Stored web-push endpoints let users steer reminder cron outbound requests</h3>
+
+<table>
+<thead><tr>
+<th>Field</th>
+<th>Value</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Severity</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Confidence</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Confidence rationale</td>
+<td>Static source trace proves stored endpoint control reaches the reminder sender, but exact <code>web-push</code> runtime URL constraints were not reproduced locally.</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>SSRF / server-side callback abuse</td>
+</tr>
+<tr>
+<td>CWE</td>
+<td>CWE-918 Server-Side Request Forgery</td>
+</tr>
+<tr>
+<td>Affected lines</td>
+<td><code>supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:15</code>, <code>supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:43-46</code>, <code>supabase/functions/web-push-reminders/index.ts:135-137</code>, <code>supabase/functions/web-push-reminders/index.ts:219-249</code></td>
+</tr>
+</tbody></table>
+
+<h4 id="summary">Summary</h4>
+
+<p>Authenticated users can manage their own <code>web_push_subscriptions</code> rows, and the schema stores <code>endpoint</code> as unconstrained text. The reminder cron later runs with service-role credentials, reads every stored subscription, and passes the stored endpoint to <code>webPush.sendNotification</code>. There is no repository control that proves the endpoint came from a browser <code>PushSubscription</code> or that it belongs to an expected push-service origin.</p>
+
+<h4 id="validation">Validation</h4>
+
+<p>Method: static code trace. The migration defines the unbounded endpoint column and owner write policy, while <code>web-push-reminders</code> selects <code>endpoint</code>, builds <code>pushSub</code>, and calls <code>webPush.sendNotification</code>. No endpoint allowlist, URL parser, scheme/host check, or server-side subscription provenance check was found. Runtime behavior of the external <code>web-push</code> library was not reproduced, so confidence remains medium.</p>
+
+<h4 id="dataflow">Dataflow</h4>
+
+<p>Authenticated user-controlled row in <code>web_push_subscriptions.endpoint</code> -&gt; service-role reminder cron selects subscription rows -&gt; <code>pushSub.endpoint = sub.endpoint</code> -&gt; <code>webPush.sendNotification(pushSub, ...)</code>.</p>
+
+<h4 id="reachability">Reachability</h4>
+
+<p>A signed-in user can write their own subscription row through the exposed Supabase table policy. The scheduled worker is cron-secret gated, but that only protects direct invocation; it still processes attacker-controlled stored endpoints during normal scheduled delivery when the user has due reminders. The outbound request shape is constrained to Web Push delivery, reducing but not eliminating server-side callback risk.</p>
+
+<h4 id="severity">Severity</h4>
+
+<p>Medium. The attacker has a realistic authenticated source and can influence a service-side outbound destination, but exploitation is delayed by reminder timing and constrained by Web Push request semantics. Evidence that the runtime can reach internal HTTPS services or cloud metadata would raise severity; proof that <code>web-push</code> enforces only real browser push service origins would lower it.</p>
+
+<h4 id="remediation">Remediation</h4>
+
+<p>Validate endpoints server-side before insert/update and before send. Restrict endpoints to known push-service HTTPS origins, reject private/link-local/localhost destinations after DNS/IP normalization, store only subscriptions created through browser PushManager flows, and add tests for malicious endpoints in the scheduled sender. Consider per-user subscription limits and stale endpoint pruning independent of send failures.</p>
+
+<h3 id="2-stored-web-push-endpoints-let-users-steer-coach-push-outbound-requests">[2] Stored web-push endpoints let users steer coach-push outbound requests</h3>
+
+<table>
+<thead><tr>
+<th>Field</th>
+<th>Value</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Severity</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Confidence</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td>Confidence rationale</td>
+<td>Static source trace proves stored endpoint control reaches the coach-push sender, but exact <code>web-push</code> runtime URL constraints were not reproduced locally.</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>SSRF / server-side callback abuse</td>
+</tr>
+<tr>
+<td>CWE</td>
+<td>CWE-918 Server-Side Request Forgery</td>
+</tr>
+<tr>
+<td>Affected lines</td>
+<td><code>supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:15</code>, <code>supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:43-46</code>, <code>supabase/functions/coach-push/index.ts:226-229</code>, <code>supabase/functions/coach-push/index.ts:347-353</code></td>
+</tr>
+</tbody></table>
+
+<h4 id="summary">Summary</h4>
+
+<p>The coach-push scheduled function independently consumes the same user-managed subscription endpoint data. When the feature flag and send conditions allow a coach push, the service-role worker groups subscriptions by user and sends to every stored endpoint without validating endpoint destination or provenance.</p>
+
+<h4 id="validation">Validation</h4>
+
+<p>Method: static code trace. The migration permits authenticated users to manage rows containing arbitrary endpoint text. <code>coach-push</code> selects <code>id, user_id, endpoint, p256dh, auth, timezone, last_seen_at</code>, groups rows by user, and passes each stored endpoint to <code>webPush.sendNotification</code>. No destination validation appears in the function or schema. Runtime behavior of the external <code>web-push</code> package was not reproduced, so confidence remains medium.</p>
+
+<h4 id="dataflow">Dataflow</h4>
+
+<p>Authenticated user-controlled row in <code>web_push_subscriptions.endpoint</code> -&gt; service-role coach-push cron selects subscription rows -&gt; grouped subscriptions retain <code>sub.endpoint</code> -&gt; <code>webPush.sendNotification({ endpoint: sub.endpoint, ... }, ...)</code>.</p>
+
+<h4 id="reachability">Reachability</h4>
+
+<p>A signed-in user can seed the stored endpoint. The coach sender is cron-secret gated and feature-flagged, and delivery depends on eligible coach signals, but those are normal production preconditions for the scheduled workflow rather than counterevidence. The outbound request is constrained to Web Push semantics, which keeps this at medium severity.</p>
+
+<h4 id="severity">Severity</h4>
+
+<p>Medium. This is an authenticated stored-destination control issue in a privileged scheduled workflow, with constrained payload/method and feature-gated timing. Evidence of reachable internal targets from the Edge Function environment would raise severity; a proven push-service-origin enforcement in <code>web-push</code> would lower it.</p>
+
+<h4 id="remediation">Remediation</h4>
+
+<p>Use the same endpoint validation/provenance guard as the reminder sender. Revalidate stored endpoints before sending, constrain origins to known browser push providers, reject private/network-local destinations after canonicalization, and add tests for malicious stored endpoints in <code>coach-push</code>. Add per-user subscription caps to limit fanout amplification.</p>
+
+<h2 id="reviewed-surfaces">Reviewed Surfaces</h2>
+
+<h1 id="reviewed-surfaces">Reviewed Surfaces</h1>
+
+<table>
+<thead><tr>
+<th>Surface</th>
+<th>Risk Area</th>
+<th>Outcome</th>
+<th>Notes</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Web push reminders</td>
+<td>SSRF/callback abuse</td>
+<td>Reported</td>
+<td>Stored endpoints reach <code>webPush.sendNotification</code> in the reminder cron.</td>
+</tr>
+<tr>
+<td>Coach push</td>
+<td>SSRF/callback abuse</td>
+<td>Reported</td>
+<td>Same stored endpoint control reaches a separate scheduled sender.</td>
+</tr>
+<tr>
+<td>Profiles entitlement writes</td>
+<td>Authz / privilege escalation</td>
+<td>Rejected</td>
+<td>Current migration set contains explicit column-level grants that close the self-upgrade path.</td>
+</tr>
+<tr>
+<td>Support email</td>
+<td>Email/cost abuse</td>
+<td>Rejected</td>
+<td>Authenticated-only and escaped; server-side length/rate limits remain recommended.</td>
+</tr>
+<tr>
+<td>Habit routine AI</td>
+<td>AI resource abuse</td>
+<td>Rejected</td>
+<td>Pro and quota controls limit cost and reachability.</td>
+</tr>
+<tr>
+<td>Admin email allowlist</td>
+<td>Admin authz</td>
+<td>Needs follow-up</td>
+<td>Confirm deployed Supabase settings require email ownership before session issuance.</td>
+</tr>
+<tr>
+<td>OG card route</td>
+<td>Public render DoS</td>
+<td>Rejected</td>
+<td>Fixed dimensions and constrained copy keep impact low; input/rate limits are hardening.</td>
+</tr>
+<tr>
+<td>Standalone leaderboard SQL</td>
+<td>Deployment drift</td>
+<td>Needs follow-up</td>
+<td>Do not reapply standalone SQL after ordered migrations; prefer migrations only.</td>
+</tr>
+</tbody></table>
+
+
+<h2 id="open-questions-and-follow-up">Open Questions And Follow Up</h2>
+
+<ul><li>Validate the deployed Web Push runtime with a disposable environment to confirm whether <code>web-push@3.6.7</code> rejects non-push-service HTTPS origins before making a network request.</li><li>Confirm Supabase auth settings for the admin website: email confirmation should be required before a session can satisfy <code>ADMIN_EMAILS</code>.</li><li>Remove or clearly deprecate <code>supabase/get_leaderboard.sql</code> from manual setup docs, or update it to match the latest restrictive migration.</li></ul>
+    </main>
+  </div>
+  <script>
+    const toggle = document.getElementById('navToggle');
+    const icon = document.getElementById('navToggleIcon');
+    const collapsedKey = 'codex-security-report:sidebar-collapsed';
+
+    function setCollapsed(collapsed) {
+      document.body.classList.toggle('sidebar-collapsed', collapsed);
+      if (toggle) {
+        toggle.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+        toggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+        toggle.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      }
+      if (icon) icon.setAttribute('d', collapsed ? 'M9 6l6 6-6 6' : 'M15 6l-6 6 6 6');
+      try { localStorage.setItem(collapsedKey, collapsed ? '1' : '0'); } catch {}
+    }
+
+    try { setCollapsed(localStorage.getItem(collapsedKey) === '1'); } catch {}
+    if (toggle) toggle.addEventListener('click', () => setCollapsed(!document.body.classList.contains('sidebar-collapsed')));
+
+    const tocLinks = Array.from(document.querySelectorAll('.toc a'));
+    const sections = tocLinks.map((link) => {
+      const id = decodeURIComponent(link.getAttribute('href').slice(1));
+      return [link, document.getElementById(id)];
+    }).filter((pair) => pair[1]);
+
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (!visible) return;
+      tocLinks.forEach((link) => link.parentElement.classList.remove('active'));
+      const active = tocLinks.find((link) => link.getAttribute('href') === '#' + visible.target.id);
+      if (active) active.parentElement.classList.add('active');
+    }, { rootMargin: '-10% 0px -75% 0px', threshold: [0, 1] });
+
+    sections.forEach(([, section]) => observer.observe(section));
+  </script>
+</body>
+</html>
