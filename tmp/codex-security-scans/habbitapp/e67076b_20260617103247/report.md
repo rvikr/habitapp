@@ -10,15 +10,15 @@
 
 ### Scan Summary
 
-| Field | Value |
-| --- | --- |
-| Reportable findings | 2 |
-| Severity mix | medium: 2 |
-| Confidence mix | medium: 2 |
-| Coverage | 1,010 source-like worklist rows reviewed by workers; canonical validation focused on merged candidates and high-impact surfaces |
-| Validation mode | Static trace against source, migrations, and scheduled function code |
-| Final markdown | `C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\report.md` |
-| Final HTML | `C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\report.html` |
+| Field               | Value                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Reportable findings | 2                                                                                                                               |
+| Severity mix        | medium: 2                                                                                                                       |
+| Confidence mix      | medium: 2                                                                                                                       |
+| Coverage            | 1,010 source-like worklist rows reviewed by workers; canonical validation focused on merged candidates and high-impact surfaces |
+| Validation mode     | Static trace against source, migrations, and scheduled function code                                                            |
+| Final markdown      | `C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\report.md`                                     |
+| Final HTML          | `C:\Users\rk\habbitapp\tmp\codex-security-scans\habbitapp\e67076b_20260617103247\report.html`                                   |
 
 ## Threat Model
 
@@ -51,32 +51,31 @@ Lagan is a habit-tracking application with an Expo/React Native client, a Next.j
 - Medium: authenticated or delayed service-side request/control abuse with constrained payloads or uncertain internal target impact; bounded resource abuse with clear production cost or availability effect.
 - Low: self-only issues, minor metadata exposure, weak abuse paths already constrained by quota/rate limits, or deployment-only hazards with strong checked-in counterevidence.
 
-
 ## Findings
 
-| # | Finding | Severity | Confidence |
-| --- | --- | --- | --- |
-| 1 | [Stored web-push endpoints let users steer reminder cron outbound requests](#1-stored-web-push-endpoints-let-users-steer-reminder-cron-outbound-requests) | medium | medium |
-| 2 | [Stored web-push endpoints let users steer coach-push outbound requests](#2-stored-web-push-endpoints-let-users-steer-coach-push-outbound-requests) | medium | medium |
+| #   | Finding                                                                                                                                                   | Severity | Confidence |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------- |
+| 1   | [Stored web-push endpoints let users steer reminder cron outbound requests](#1-stored-web-push-endpoints-let-users-steer-reminder-cron-outbound-requests) | medium   | medium     |
+| 2   | [Stored web-push endpoints let users steer coach-push outbound requests](#2-stored-web-push-endpoints-let-users-steer-coach-push-outbound-requests)       | medium   | medium     |
 
 ### Confidence Scale
 
-| Label | Meaning |
-| --- | --- |
-| high | Direct source, configuration, or runtime evidence supports the finding, with no material unresolved reachability or exploitability blocker. |
+| Label  | Meaning                                                                                                                                                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| high   | Direct source, configuration, or runtime evidence supports the finding, with no material unresolved reachability or exploitability blocker.                               |
 | medium | Source evidence supports a plausible issue, but runtime behavior, deployment configuration, role reachability, type constraints, or exploit reliability still need proof. |
-| low | Weak or incomplete evidence; include only when the user explicitly wants follow-up candidates in the final report. |
+| low    | Weak or incomplete evidence; include only when the user explicitly wants follow-up candidates in the final report.                                                        |
 
 ### [1] Stored web-push endpoints let users steer reminder cron outbound requests
 
-| Field | Value |
-| --- | --- |
-| Severity | medium |
-| Confidence | medium |
-| Confidence rationale | Static source trace proves stored endpoint control reaches the reminder sender, but exact `web-push` runtime URL constraints were not reproduced locally. |
-| Category | SSRF / server-side callback abuse |
-| CWE | CWE-918 Server-Side Request Forgery |
-| Affected lines | `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:15`, `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:43-46`, `supabase/functions/web-push-reminders/index.ts:135-137`, `supabase/functions/web-push-reminders/index.ts:219-249` |
+| Field                | Value                                                                                                                                                                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity             | medium                                                                                                                                                                                                                                                                  |
+| Confidence           | medium                                                                                                                                                                                                                                                                  |
+| Confidence rationale | Static source trace proves stored endpoint control reaches the reminder sender, but exact `web-push` runtime URL constraints were not reproduced locally.                                                                                                               |
+| Category             | SSRF / server-side callback abuse                                                                                                                                                                                                                                       |
+| CWE                  | CWE-918 Server-Side Request Forgery                                                                                                                                                                                                                                     |
+| Affected lines       | `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:15`, `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:43-46`, `supabase/functions/web-push-reminders/index.ts:135-137`, `supabase/functions/web-push-reminders/index.ts:219-249` |
 
 #### Summary
 
@@ -104,14 +103,14 @@ Validate endpoints server-side before insert/update and before send. Restrict en
 
 ### [2] Stored web-push endpoints let users steer coach-push outbound requests
 
-| Field | Value |
-| --- | --- |
-| Severity | medium |
-| Confidence | medium |
-| Confidence rationale | Static source trace proves stored endpoint control reaches the coach-push sender, but exact `web-push` runtime URL constraints were not reproduced locally. |
-| Category | SSRF / server-side callback abuse |
-| CWE | CWE-918 Server-Side Request Forgery |
-| Affected lines | `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:15`, `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:43-46`, `supabase/functions/coach-push/index.ts:226-229`, `supabase/functions/coach-push/index.ts:347-353` |
+| Field                | Value                                                                                                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Severity             | medium                                                                                                                                                                                                                                                  |
+| Confidence           | medium                                                                                                                                                                                                                                                  |
+| Confidence rationale | Static source trace proves stored endpoint control reaches the coach-push sender, but exact `web-push` runtime URL constraints were not reproduced locally.                                                                                             |
+| Category             | SSRF / server-side callback abuse                                                                                                                                                                                                                       |
+| CWE                  | CWE-918 Server-Side Request Forgery                                                                                                                                                                                                                     |
+| Affected lines       | `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:15`, `supabase/migrations/20260605060845_0024_web_push_subscriptions.sql:43-46`, `supabase/functions/coach-push/index.ts:226-229`, `supabase/functions/coach-push/index.ts:347-353` |
 
 #### Summary
 
@@ -141,17 +140,16 @@ Use the same endpoint validation/provenance guard as the reminder sender. Revali
 
 # Reviewed Surfaces
 
-| Surface | Risk Area | Outcome | Notes |
-| --- | --- | --- | --- |
-| Web push reminders | SSRF/callback abuse | Reported | Stored endpoints reach `webPush.sendNotification` in the reminder cron. |
-| Coach push | SSRF/callback abuse | Reported | Same stored endpoint control reaches a separate scheduled sender. |
-| Profiles entitlement writes | Authz / privilege escalation | Rejected | Current migration set contains explicit column-level grants that close the self-upgrade path. |
-| Support email | Email/cost abuse | Rejected | Authenticated-only and escaped; server-side length/rate limits remain recommended. |
-| Habit routine AI | AI resource abuse | Rejected | Pro and quota controls limit cost and reachability. |
-| Admin email allowlist | Admin authz | Needs follow-up | Confirm deployed Supabase settings require email ownership before session issuance. |
-| OG card route | Public render DoS | Rejected | Fixed dimensions and constrained copy keep impact low; input/rate limits are hardening. |
-| Standalone leaderboard SQL | Deployment drift | Needs follow-up | Do not reapply standalone SQL after ordered migrations; prefer migrations only. |
-
+| Surface                     | Risk Area                    | Outcome         | Notes                                                                                         |
+| --------------------------- | ---------------------------- | --------------- | --------------------------------------------------------------------------------------------- |
+| Web push reminders          | SSRF/callback abuse          | Reported        | Stored endpoints reach `webPush.sendNotification` in the reminder cron.                       |
+| Coach push                  | SSRF/callback abuse          | Reported        | Same stored endpoint control reaches a separate scheduled sender.                             |
+| Profiles entitlement writes | Authz / privilege escalation | Rejected        | Current migration set contains explicit column-level grants that close the self-upgrade path. |
+| Support email               | Email/cost abuse             | Rejected        | Authenticated-only and escaped; server-side length/rate limits remain recommended.            |
+| Habit routine AI            | AI resource abuse            | Rejected        | Pro and quota controls limit cost and reachability.                                           |
+| Admin email allowlist       | Admin authz                  | Needs follow-up | Confirm deployed Supabase settings require email ownership before session issuance.           |
+| OG card route               | Public render DoS            | Rejected        | Fixed dimensions and constrained copy keep impact low; input/rate limits are hardening.       |
+| Standalone leaderboard SQL  | Deployment drift             | Needs follow-up | Do not reapply standalone SQL after ordered migrations; prefer migrations only.               |
 
 ## Open Questions And Follow Up
 

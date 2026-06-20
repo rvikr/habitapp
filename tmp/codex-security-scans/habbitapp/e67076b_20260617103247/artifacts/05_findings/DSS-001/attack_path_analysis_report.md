@@ -3,6 +3,7 @@
 Decision: reportable.
 
 Attack path:
+
 1. An authenticated user writes or updates their own `web_push_subscriptions` row with an endpoint value they control.
 2. The scheduled service-role worker reads subscription rows across users.
 3. When the relevant send conditions are met, the worker passes the stored endpoint into `webPush.sendNotification`.

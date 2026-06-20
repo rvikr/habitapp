@@ -13,7 +13,6 @@ Local seed/frontier searches focused on repository-specific high-impact surfaces
 
 No advisory-seeded rows were opened.
 
-
 # worker-02
 
 # Seed Research
@@ -71,7 +70,6 @@ Seed conclusions:
 - Local frontier discovery found two independently reachable SSRF/callback-abuse candidates in scheduled web-push sender functions.
 - A non-promoted safety-control mismatch was recorded in coverage: `validate-habit` uses `enforceAiQuota(..., "validate-habit")`, but the latest reviewed SQL quota function whitelist observed in migrations did not include `validate-habit`. The app fails open to local validation when the remote AI path is unavailable. This is tracked as a deferred/safety-control row, not a promoted security candidate in this discovery pass.
 
-
 # worker-03
 
 # Seed Research: worker-03
@@ -124,7 +122,6 @@ This candidate is grounded in a concrete source-to-sink chain:
 
 No external vulnerability feed or web research was used for this worker pass. The discovery work was code-grounded and repository-local.
 
-
 # worker-04
 
 # Seed Research
@@ -141,7 +138,6 @@ Local seed/frontier lanes derived from the repository threat model and worklist:
 - OAuth/callback and route middleware in `website/app/auth/callback/route.ts` and `website/middleware.ts`.
 
 Historical migration notes were treated as context only when later migrations explicitly fixed the issue. For example, profile entitlement self-grant and public profile overexposure are documented in migrations and then remediated with column grants and view/RPC restrictions; these were not promoted as current candidates.
-
 
 # worker-05
 
@@ -161,7 +157,6 @@ Local repository context used as seed-like background:
 - Supabase migration and Edge Function comments identifying intentional JWT-disabled functions and their replacement controls.
 
 No advisory-seeded exact rows were created. Coverage rows close repository-specific high-impact families from local code evidence.
-
 
 # worker-06
 

@@ -1,6 +1,7 @@
 # Validation Report: Stored web-push endpoints let users steer reminder cron outbound requests
 
 Rubric:
+
 - [x] Attacker-controlled source is present in the checked-in code.
 - [x] Source reaches a privileged scheduled worker.
 - [x] The worker performs an outbound request using the stored endpoint.
