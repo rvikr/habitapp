@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { ActivityIndicator, Platform, Text, TouchableOpacity, View } from "react-native";
+import { Platform, Text, TouchableOpacity, View } from "react-native";
 import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -95,11 +95,11 @@ export default function AuthCallbackScreen() {
 
     finishAuth().catch((e) => {
       if (mountedRef.current) {
-        setError(e instanceof Error ? e.message : t("Could not complete authentication."));
+        setError(e instanceof Error ? e.message : "Could not complete authentication.");
         setStatus("error");
       }
     });
-  }, [currentUrl, routeCallbackUrl, router, t]);
+  }, [currentUrl, routeCallbackUrl, router]);
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background items-center justify-center px-margin-mobile">
@@ -109,7 +109,7 @@ export default function AuthCallbackScreen() {
             {t("Link could not be opened")}
           </Text>
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
-            {error}
+            {error ? t(error) : null}
           </Text>
         </>
       ) : status === "success" ? (
@@ -126,6 +126,7 @@ export default function AuthCallbackScreen() {
           <View className="w-full gap-sm mt-lg">
             <TouchableOpacity
               className="bg-primary rounded-full py-md items-center"
+              accessibilityRole="button"
               onPress={() => router.replace(homeDestination(shouldWelcome) as never)}
             >
               <Text className="text-on-primary text-label-lg font-semibold">
@@ -134,6 +135,7 @@ export default function AuthCallbackScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               className="bg-surface-container dark:bg-d-surface-container rounded-full py-md items-center"
+              accessibilityRole="button"
               onPress={() => router.replace("/login" as never)}
             >
               <Text className="text-primary text-label-lg font-semibold">{t("Sign in")}</Text>
@@ -142,7 +144,6 @@ export default function AuthCallbackScreen() {
         </>
       ) : (
         <>
-          <ActivityIndicator size="large" color="#F26B1F" />
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant mt-md">
             {t("Finishing sign in...")}
           </Text>

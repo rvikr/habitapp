@@ -1,12 +1,5 @@
 import { useState, useCallback } from "react";
-import {
-  ActivityIndicator,
-  Text,
-  TouchableOpacity,
-  View,
-  ScrollView,
-  RefreshControl,
-} from "react-native";
+import { Text, TouchableOpacity, View, ScrollView, RefreshControl } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -297,14 +290,15 @@ function WeeklyReportCard({
         {hasPro === true ? (
           <TouchableOpacity
             className="self-start bg-primary rounded-full px-md py-xs flex-row items-center gap-xs"
-            onPress={onGenerateNow}
-            disabled={generatingReport}
+            onPress={() => {
+              if (!generatingReport) onGenerateNow();
+            }}
             accessibilityRole="button"
-            accessibilityLabel={t("Generate now")}
+            accessibilityLabel={generatingReport ? t("Generating...") : t("Generate now")}
+            accessibilityState={{ disabled: generatingReport }}
           >
-            {generatingReport ? <ActivityIndicator color="#fff" size="small" /> : null}
             <Text className="text-on-primary text-label-lg font-semibold">
-              {generatingReport ? t("Generating") : t("Generate now")}
+              {generatingReport ? t("Generating...") : t("Generate now")}
             </Text>
           </TouchableOpacity>
         ) : null}
@@ -338,14 +332,17 @@ function WeeklyReportCard({
           </Text>
           <TouchableOpacity
             className="self-start bg-primary rounded-full px-md py-xs flex-row items-center gap-xs"
-            onPress={onGenerateNow}
-            disabled={generatingReport}
+            onPress={() => {
+              if (!generatingReport) onGenerateNow();
+            }}
             accessibilityRole="button"
-            accessibilityLabel={t("Generate last week's report")}
+            accessibilityLabel={
+              generatingReport ? t("Generating...") : t("Generate last week's report")
+            }
+            accessibilityState={{ disabled: generatingReport }}
           >
-            {generatingReport ? <ActivityIndicator color="#fff" size="small" /> : null}
             <Text className="text-on-primary text-label-lg font-semibold">
-              {generatingReport ? t("Generating") : t("Generate last week's report")}
+              {generatingReport ? t("Generating...") : t("Generate last week's report")}
             </Text>
           </TouchableOpacity>
         </View>

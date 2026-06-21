@@ -54,6 +54,8 @@ function SettingsRow({
   return (
     <TouchableOpacity
       className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl mb-xs"
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
     >
       <MaterialCommunityIcons name={icon as any} size={20} color={danger ? "#FF5A5A" : "#F26B1F"} />
@@ -224,6 +226,8 @@ export default function SettingsScreen() {
         {/* Profile card */}
         <TouchableOpacity
           className="mx-margin-mobile mb-lg flex-row items-center bg-surface-container dark:bg-d-surface-container rounded-xl p-md"
+          accessibilityRole="button"
+          accessibilityLabel={t("Edit Profile")}
           onPress={() => router.push("/settings/profile")}
         >
           {user?.avatarUrl ? (
@@ -266,6 +270,9 @@ export default function SettingsScreen() {
           </Text>
           <TouchableOpacity
             className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl"
+            accessibilityRole="switch"
+            accessibilityLabel={colorScheme === "dark" ? t("Dark mode") : t("Light mode")}
+            accessibilityState={{ checked: colorScheme === "dark" }}
             onPress={toggle}
           >
             <MaterialCommunityIcons
@@ -289,6 +296,8 @@ export default function SettingsScreen() {
           </Text>
           <TouchableOpacity
             className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl"
+            accessibilityRole="button"
+            accessibilityLabel={t("Change language")}
             onPress={toggleLanguage}
           >
             <MaterialCommunityIcons name="translate" size={20} color="#F26B1F" />

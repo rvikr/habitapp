@@ -56,6 +56,7 @@ export default function CoachCard({
   const compact = variant === "compact";
   const showPrimaryAction =
     !compact || (signal.suggestedAction === "log_value" && signal.suggestedValue != null);
+  const actionLabel = coachActionLabel(signal, t);
 
   return (
     <View
@@ -100,19 +101,21 @@ export default function CoachCard({
       {showPrimaryAction && (
         <View className="flex-row gap-sm">
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
             onPress={() => onAction(signal)}
             className="flex-1 rounded-full py-sm items-center"
             style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
           >
-            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>
-              {coachActionLabel(signal, t)}
-            </Text>
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}>{actionLabel}</Text>
           </TouchableOpacity>
           {!compact &&
             signal.suggestedAction === "log_value" &&
             signal.suggestedValue != null &&
             onOpenHabit && (
               <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={t("Open habit")}
                 onPress={() => onOpenHabit(signal.habitId)}
                 className="flex-1 rounded-full py-sm items-center"
                 style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
@@ -173,6 +176,7 @@ export function CoachHeaderButton({
   cardVisible,
   onPress,
 }: CoachHeaderButtonProps) {
+  const { t } = useLanguage();
   const { colorScheme } = useTheme();
   const attention = active && !!signal && signal.kind !== "encouragement";
   const previewing = attention && !cardVisible;
@@ -202,7 +206,6 @@ export function CoachHeaderButton({
     <Animated.View style={previewing ? pulseStyle : undefined}>
       {previewing ? (
         <Animated.View
-          pointerEvents="none"
           style={[
             {
               position: "absolute",
@@ -212,6 +215,7 @@ export function CoachHeaderButton({
               right: -3,
               borderRadius: 23,
               backgroundColor: PRIMARY,
+              pointerEvents: "none",
             },
             haloStyle,
           ]}
@@ -226,7 +230,7 @@ export function CoachHeaderButton({
         style={previewing ? { maxWidth: 150 } : undefined}
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel="AI Coach"
+        accessibilityLabel={t("AI Coach")}
       >
         <MaterialCommunityIcons name="robot-happy-outline" size={20} color={iconColor} />
         {previewing && signal ? (

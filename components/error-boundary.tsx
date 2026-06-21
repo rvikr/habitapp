@@ -37,7 +37,12 @@ export default class ErrorBoundary extends Component<Props, State> {
             {this.state.error.message}
           </Text>
         </ScrollView>
-        <TouchableOpacity className="bg-primary rounded-full px-xl py-sm" onPress={this.reset}>
+        <TouchableOpacity
+          className="bg-primary rounded-full px-xl py-sm"
+          accessibilityRole="button"
+          accessibilityLabel="Try again"
+          onPress={this.reset}
+        >
           <Text className="text-on-primary text-label-lg font-semibold">Try again</Text>
         </TouchableOpacity>
       </View>

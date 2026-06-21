@@ -14,6 +14,7 @@ import {
 import { resolveCoachMessage } from "../coach/coach-ai";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
 import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
+import { dashboardDisplayName } from "./display-name";
 
 export type TodayProgressMap = Map<string, HabitProgress>;
 export type StreaksMap = Map<string, number>;
@@ -168,11 +169,11 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
       }),
     };
   }
-  const displayName =
-    (profile?.display_name as string | null | undefined) ??
-    (user.user_metadata?.full_name as string | undefined) ??
-    user.email?.split("@")[0] ??
-    "there";
+  const displayName = dashboardDisplayName({
+    profileDisplayName: profile?.display_name as string | null | undefined,
+    fullName: user.user_metadata?.full_name as string | null | undefined,
+    email: user.email ?? null,
+  });
 
   const result: TodayDashboard = {
     ok: true,
@@ -350,11 +351,11 @@ export async function getStats(options?: DataFetchOptions) {
       const totalXp = xpForCompletions(completions);
 
       return {
-        displayName:
-          (profile?.display_name as string | null | undefined) ??
-          (user.user_metadata?.full_name as string | undefined) ??
-          user.email?.split("@")[0] ??
-          "there",
+        displayName: dashboardDisplayName({
+          profileDisplayName: profile?.display_name as string | null | undefined,
+          fullName: user.user_metadata?.full_name as string | null | undefined,
+          email: user.email ?? null,
+        }),
         email: user.email ?? null,
         level: levelForXp(totalXp),
         xp: xpInLevel(totalXp),

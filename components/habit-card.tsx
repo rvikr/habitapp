@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { View, Text, TouchableOpacity, ImageBackground, StyleProp, ViewStyle } from "react-native";
+import type { ReactNode } from "react";
+import { View, Text, TouchableOpacity, StyleProp, ViewStyle } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Habit } from "@/types/db";
 import type { HabitProgress } from "@/lib/coach/habit-intelligence";
 import { useLanguage } from "@/components/language-provider";
-import { getHabitImageForHabit } from "@/lib/data/habit-images";
+import { getHabitVisualForHabit, type HabitVisual } from "@/lib/data/habit-images";
 
 type Props = {
   habit: Habit;
@@ -13,6 +14,7 @@ type Props = {
   streak?: number;
   variant?: "default" | "grid";
   style?: StyleProp<ViewStyle>;
+  toggleAccessibilityLabel?: string;
   onToggle: () => void | Promise<void>;
   onPress: () => void;
 };
@@ -42,6 +44,90 @@ function CheckIcon({ size = 14, color }: { size?: number; color: string }) {
   );
 }
 
+function HabitVisualSurface({
+  visual,
+  minHeight,
+  children,
+  style,
+}: {
+  visual: HabitVisual;
+  minHeight: number;
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      style={[
+        {
+          minHeight,
+          overflow: "hidden",
+          backgroundColor: visual.base,
+        },
+        style,
+      ]}
+    >
+      <View
+        style={{
+          position: "absolute",
+          width: 150,
+          height: 150,
+          borderRadius: 75,
+          top: -46,
+          left: -34,
+          backgroundColor: visual.accent,
+          opacity: 0.3,
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          width: 190,
+          height: 190,
+          borderRadius: 95,
+          right: -54,
+          bottom: -70,
+          backgroundColor: visual.glow,
+          opacity: 0.18,
+        }}
+      />
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 600 400"
+        style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, opacity: 0.55 }}
+      >
+        <Path
+          d={visual.mark}
+          fill="none"
+          stroke={visual.accent}
+          strokeWidth="24"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M58 340 C188 284 316 380 542 300"
+          fill="none"
+          stroke={visual.glow}
+          strokeWidth="10"
+          opacity="0.35"
+          strokeLinecap="round"
+        />
+      </Svg>
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.42)",
+        }}
+      />
+      {children}
+    </View>
+  );
+}
+
 export default function HabitCard({
   habit,
   done,
@@ -49,23 +135,23 @@ export default function HabitCard({
   streak = 0,
   variant = "default",
   style,
+  toggleAccessibilityLabel,
   onToggle,
   onPress,
 }: Props) {
   const [toggling, setToggling] = useState(false);
   const { t } = useLanguage();
 
-  const accentColor = "#FFC56B";
+  const visual = getHabitVisualForHabit(habit);
+  const accentColor = visual.glow;
   const primaryColor = "#F26B1F";
 
-  const subtitle =
-    progress?.label ??
-    (habit.description ||
+  const subtitle = progress
+    ? t(progress.label)
+    : habit.description ||
       (habit.target
         ? t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit ?? "" }).trim()
-        : null));
-
-  const imageUrl = getHabitImageForHabit(habit);
+        : null);
 
   async function handleToggleTap(e: { stopPropagation: () => void }) {
     e.stopPropagation();
@@ -87,20 +173,7 @@ export default function HabitCard({
         accessibilityLabel={t("Open {name} details", { name: habit.name })}
         style={[{ borderRadius: 16, overflow: "hidden", minHeight: 130 }, style]}
       >
-        <ImageBackground
-          source={{ uri: imageUrl }}
-          style={{ flex: 1, padding: 12, minHeight: 130 }}
-        >
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.52)",
-            }}
-          />
+        <HabitVisualSurface visual={visual} minHeight={130} style={{ flex: 1, padding: 12 }}>
           <View style={{ flex: 1, zIndex: 1, justifyContent: "space-between" }}>
             <Text style={{ fontSize: 14, fontWeight: "700", color: "#fff" }} numberOfLines={2}>
               {habit.name}
@@ -135,9 +208,10 @@ export default function HabitCard({
                   // on web, and nesting it inside the card's <button> is invalid HTML.
                   accessibilityRole="checkbox"
                   accessibilityLabel={
-                    done
+                    toggleAccessibilityLabel ??
+                    (done
                       ? t("Mark {name} not done", { name: habit.name })
-                      : t("Mark {name} done", { name: habit.name })
+                      : t("Mark {name} done", { name: habit.name }))
                   }
                   accessibilityState={{ checked: done, disabled: toggling }}
                   style={{
@@ -157,7 +231,7 @@ export default function HabitCard({
               </View>
             </View>
           </View>
-        </ImageBackground>
+        </HabitVisualSurface>
       </TouchableOpacity>
     );
   }
@@ -170,28 +244,17 @@ export default function HabitCard({
       accessibilityLabel={t("Open {name} details", { name: habit.name })}
       style={{ borderRadius: 16, overflow: "hidden" }}
     >
-      <ImageBackground
-        source={{ uri: imageUrl }}
+      <HabitVisualSurface
+        visual={visual}
+        minHeight={80}
         style={{
           flexDirection: "row",
           alignItems: "center",
           padding: 14,
           paddingLeft: 16,
           gap: 12,
-          minHeight: 80,
         }}
       >
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.52)",
-          }}
-        />
-
         <View style={{ flex: 1, zIndex: 1 }}>
           <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }} numberOfLines={1}>
             {habit.name}
@@ -227,9 +290,10 @@ export default function HabitCard({
           // on web, and nesting it inside the card's <button> is invalid HTML.
           accessibilityRole="checkbox"
           accessibilityLabel={
-            done
+            toggleAccessibilityLabel ??
+            (done
               ? t("Mark {name} not done", { name: habit.name })
-              : t("Mark {name} done", { name: habit.name })
+              : t("Mark {name} done", { name: habit.name }))
           }
           accessibilityState={{ checked: done, disabled: toggling }}
           style={{
@@ -247,7 +311,7 @@ export default function HabitCard({
         >
           {done && <CheckIcon size={14} color="#fff" />}
         </TouchableOpacity>
-      </ImageBackground>
+      </HabitVisualSurface>
     </TouchableOpacity>
   );
 }

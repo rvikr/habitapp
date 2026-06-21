@@ -144,13 +144,22 @@ export default function LogPrompt({
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1 justify-end"
       >
-        <TouchableOpacity className="flex-1" onPress={onDismiss} />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Dismiss log prompt")}
+          className="flex-1"
+          onPress={onDismiss}
+        />
         <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-t-3xl p-lg">
           <View className="flex-row items-center justify-between mb-md">
             <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold">
               {habit?.unit ? t("Log {unit}", { unit: habit.unit }) : t("Log progress")}
             </Text>
-            <TouchableOpacity onPress={onDismiss}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t("Close log prompt")}
+              onPress={onDismiss}
+            >
               <MaterialCommunityIcons name="close" size={24} color="#8F8A82" />
             </TouchableOpacity>
           </View>
@@ -168,6 +177,9 @@ export default function LogPrompt({
               {chips.map((chip) => (
                 <TouchableOpacity
                   key={chip.label}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Log {value}", { value: chip.label })}
+                  accessibilityState={{ disabled: submitting }}
                   className="bg-surface-container dark:bg-d-surface-container rounded-full px-md py-sm"
                   onPress={() => submitValue(chip.value)}
                   disabled={submitting}
@@ -206,6 +218,9 @@ export default function LogPrompt({
           />
           {error && <Text className="text-error text-label-sm mb-sm">{error}</Text>}
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("Log progress")}
+            accessibilityState={{ disabled: submitting }}
             className="bg-primary rounded-full py-sm items-center"
             onPress={handleSubmit}
             disabled={submitting}
@@ -217,6 +232,9 @@ export default function LogPrompt({
 
           {onMarkAllDone && (
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t("Mark all done")}
+              accessibilityState={{ disabled: submitting }}
               className="py-sm items-center mt-xs"
               onPress={handleMarkAllDone}
               disabled={submitting}

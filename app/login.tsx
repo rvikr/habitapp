@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ActivityIndicator,
   Modal,
   Linking,
 } from "react-native";
@@ -17,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { signIn, signUp, resetPassword, signInWithGoogle } from "@/lib/data/actions";
 import { validatePassword } from "@/lib/auth/password";
+import { authErrorMessageKey } from "@/lib/supabase/auth-error";
 import {
   SIGNUP_CONFIRMATION_MESSAGE,
   consumePendingSignupWelcome,
@@ -72,6 +72,7 @@ export default function LoginScreen() {
   }
 
   async function handleGoogleSignIn() {
+    if (loading || googleLoading) return;
     setGoogleLoading(true);
     setError(null);
     setMessage(null);
@@ -79,7 +80,7 @@ export default function LoginScreen() {
     try {
       const { error: e, cancelled } = await signInWithGoogle();
       if (cancelled) return;
-      if (e) setError(e.message);
+      if (e) setError(t(authErrorMessageKey(e)));
     } catch {
       setError(t("Network error. Check your connection and try again."));
     } finally {
@@ -88,6 +89,7 @@ export default function LoginScreen() {
   }
 
   async function handleSubmit() {
+    if (loading || googleLoading) return;
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
       setError(t("Email and password are required."));
@@ -100,7 +102,7 @@ export default function LoginScreen() {
     if (mode === "signup") {
       const pwError = validatePassword(password);
       if (pwError) {
-        setError(pwError);
+        setError(t(pwError));
         return;
       }
       if (password !== confirmPassword) {
@@ -116,7 +118,7 @@ export default function LoginScreen() {
       if (mode === "signin") {
         const { error: e } = await signIn(trimmedEmail, password);
         if (e) {
-          setError(e.message);
+          setError(t(authErrorMessageKey(e)));
         } else {
           const shouldWelcome = await consumePendingSignupWelcome(trimmedEmail).catch(() => false);
           router.replace(
@@ -126,7 +128,7 @@ export default function LoginScreen() {
       } else {
         const { data, error: e } = await signUp(trimmedEmail, password);
         if (e) {
-          setError(e.message);
+          setError(t(authErrorMessageKey(e)));
         } else if (!data?.user || data.user.identities?.length === 0) {
           setError(t("An account with this email already exists. Try signing in instead."));
         } else {
@@ -156,6 +158,8 @@ export default function LoginScreen() {
                 <LogoChainL size={44} />
                 <TouchableOpacity
                   className="flex-row items-center gap-xs rounded-full px-sm py-xs"
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Change language")}
                   onPress={toggleLanguage}
                   style={{
                     backgroundColor: "rgba(255, 255, 255, 0.08)",
@@ -236,7 +240,10 @@ export default function LoginScreen() {
                     {t("Password")}
                   </Text>
                   {mode === "signin" && (
-                    <TouchableOpacity onPress={() => setShowForgot(true)}>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      onPress={() => setShowForgot(true)}
+                    >
                       <Text className="text-primary text-label-sm font-semibold">
                         {t("Forgot password?")}
                       </Text>
@@ -265,6 +272,8 @@ export default function LoginScreen() {
                   />
                   <TouchableOpacity
                     className="px-md py-sm"
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? t("Hide password") : t("Show password")}
                     onPress={() => setShowPassword((v) => !v)}
                   >
                     <Ionicons
@@ -304,6 +313,12 @@ export default function LoginScreen() {
                     />
                     <TouchableOpacity
                       className="px-md py-sm"
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        showConfirmPassword
+                          ? t("Hide confirm password")
+                          : t("Show confirm password")
+                      }
                       onPress={() => setShowConfirmPassword((v) => !v)}
                     >
                       <Ionicons
@@ -334,16 +349,18 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 className="bg-primary rounded-full py-md items-center mt-xs"
+                accessibilityRole="button"
                 onPress={handleSubmit}
-                disabled={loading || googleLoading}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text className="text-on-primary text-label-lg font-semibold">
-                    {mode === "signin" ? t("Sign in") : t("Create account")}
-                  </Text>
-                )}
+                <Text className="text-on-primary text-label-lg font-semibold">
+                  {loading
+                    ? mode === "signin"
+                      ? t("Signing in...")
+                      : t("Creating account...")
+                    : mode === "signin"
+                      ? t("Sign in")
+                      : t("Create account")}
+                </Text>
               </TouchableOpacity>
 
               <View className="flex-row items-center gap-sm my-xs">
@@ -362,27 +379,20 @@ export default function LoginScreen() {
 
               <TouchableOpacity
                 className="flex-row items-center justify-center gap-sm rounded-full py-md"
+                accessibilityRole="button"
+                accessibilityLabel={t("Sign in with Google")}
                 onPress={handleGoogleSignIn}
-                disabled={loading || googleLoading}
                 style={{ borderColor: "rgba(255, 255, 255, 0.16)", borderWidth: 1 }}
               >
-                {googleLoading ? (
-                  <ActivityIndicator color="#8F8A82" />
-                ) : (
-                  <>
-                    <AntDesign name="google" size={20} color="#4285F4" />
-                    <Text
-                      className="text-label-lg font-semibold"
-                      style={{ color: LOGIN_COLORS.text }}
-                    >
-                      {t("Continue with Google")}
-                    </Text>
-                  </>
-                )}
+                {!googleLoading && <AntDesign name="google" size={20} color="#4285F4" />}
+                <Text className="text-label-lg font-semibold" style={{ color: LOGIN_COLORS.text }}>
+                  {googleLoading ? t("Continuing...") : t("Continue with Google")}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 className="items-center py-sm"
+                accessibilityRole="button"
                 onPress={() => switchMode(mode === "signin" ? "signup" : "signin")}
               >
                 <Text className="text-label-lg" style={{ color: LOGIN_COLORS.muted }}>
@@ -401,6 +411,7 @@ export default function LoginScreen() {
               <View className="flex-row items-center gap-md">
                 {process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ? (
                   <TouchableOpacity
+                    accessibilityRole="link"
                     onPress={() => Linking.openURL(process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL!)}
                   >
                     <Text className="text-label-sm" style={{ color: LOGIN_COLORS.muted }}>
@@ -445,7 +456,15 @@ function ForgotPasswordModal({
     null,
   );
 
+  useEffect(() => {
+    if (visible) {
+      setEmail(initialEmail);
+      setFeedback(null);
+    }
+  }, [visible, initialEmail]);
+
   async function send() {
+    if (sending) return;
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
       setFeedback({ text: t("Email is required."), type: "error" });
@@ -459,7 +478,7 @@ function ForgotPasswordModal({
     setFeedback(null);
     try {
       const { error } = await resetPassword(trimmedEmail);
-      if (error) setFeedback({ text: error.message, type: "error" });
+      if (error) setFeedback({ text: t(authErrorMessageKey(error)), type: "error" });
       else setFeedback({ text: t("Reset link sent. Check your email."), type: "success" });
     } catch {
       setFeedback({
@@ -505,18 +524,18 @@ function ForgotPasswordModal({
           )}
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center mt-sm"
+            accessibilityRole="button"
             onPress={send}
-            disabled={sending}
           >
-            {sending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">
-                {t("Send reset link")}
-              </Text>
-            )}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {sending ? t("Sending...") : t("Send reset link")}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity className="items-center py-sm" onPress={onDismiss}>
+          <TouchableOpacity
+            className="items-center py-sm"
+            accessibilityRole="button"
+            onPress={onDismiss}
+          >
             <Text style={{ color: LOGIN_COLORS.muted }}>{t("Cancel")}</Text>
           </TouchableOpacity>
         </View>

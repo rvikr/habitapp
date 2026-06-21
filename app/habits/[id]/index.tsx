@@ -1,12 +1,7 @@
 import { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  ImageBackground,
-} from "react-native";
+import type { ReactNode } from "react";
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -18,7 +13,6 @@ import CoachCard from "@/components/coach-card";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import Icon from "@/components/icon";
-import LogEntryFab from "@/components/log-entry-fab";
 import LogPrompt from "@/components/log-prompt";
 import HabitProgressVisual from "@/components/habit-progress-visual";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
@@ -26,7 +20,7 @@ import type { Habit, HabitCompletion } from "@/types/db";
 import { localDateKey } from "@/lib/utils/date";
 import { formatAmount, isQuantityHabit, progressForHabit } from "@/lib/coach/habit-intelligence";
 import { useLanguage } from "@/components/language-provider";
-import { getHabitImageForHabit } from "@/lib/data/habit-images";
+import { getHabitVisualForHabit, type HabitVisual } from "@/lib/data/habit-images";
 
 const COLOR_FG: Record<string, string> = {
   primary: "#F26B1F",
@@ -34,6 +28,84 @@ const COLOR_FG: Record<string, string> = {
   tertiary: "#E4A23A",
   neutral: "#5A554D",
 };
+
+function HabitDetailVisualSurface({
+  visual,
+  children,
+}: {
+  visual: HabitVisual;
+  children: ReactNode;
+}) {
+  return (
+    <View
+      style={{
+        minHeight: 200,
+        padding: 20,
+        overflow: "hidden",
+        backgroundColor: visual.base,
+      }}
+    >
+      <View
+        style={{
+          position: "absolute",
+          width: 190,
+          height: 190,
+          borderRadius: 95,
+          top: -60,
+          left: -42,
+          backgroundColor: visual.accent,
+          opacity: 0.3,
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          width: 250,
+          height: 250,
+          borderRadius: 125,
+          right: -72,
+          bottom: -88,
+          backgroundColor: visual.glow,
+          opacity: 0.18,
+        }}
+      />
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 600 400"
+        style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, opacity: 0.58 }}
+      >
+        <Path
+          d={visual.mark}
+          fill="none"
+          stroke={visual.accent}
+          strokeWidth="24"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <Path
+          d="M58 340 C188 284 316 380 542 300"
+          fill="none"
+          stroke={visual.glow}
+          strokeWidth="10"
+          opacity="0.35"
+          strokeLinecap="round"
+        />
+      </Svg>
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.42)",
+        }}
+      />
+      {children}
+    </View>
+  );
+}
 
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -178,21 +250,44 @@ export default function HabitDetailScreen() {
 
   if (!habit) return <HabitDetailSkeleton onBack={handleBack} />;
 
-  const imageUrl = getHabitImageForHabit(habit);
+  const visual = getHabitVisualForHabit(habit);
   const accentColor = "#FFC56B";
   const fg = COLOR_FG[habit.color] ?? "#F26B1F";
+  const quantityPending = isQuantityHabit(habit) && !doneToday;
+  const toggleAccessibilityLabel = doneToday
+    ? t("Mark {name} as undone", { name: habit.name })
+    : quantityPending
+      ? t("Log custom amount")
+      : t("Mark {name} as done today", { name: habit.name });
+  const toggleLabel = doneToday
+    ? t("Mark as undone")
+    : quantityPending
+      ? t("Log custom amount")
+      : t("Mark as done today");
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center justify-between px-margin-mobile py-sm">
-        <TouchableOpacity onPress={handleBack}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={handleBack}
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <View className="flex-row gap-sm">
-          <TouchableOpacity onPress={() => router.push(`/habits/${habit.id}/edit`)}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("Edit habit")}
+            onPress={() => router.push(`/habits/${habit.id}/edit`)}
+          >
             <MaterialCommunityIcons name="pencil" size={22} color="#F26B1F" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleDelete}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("Delete habit")}
+            onPress={handleDelete}
+          >
             <MaterialCommunityIcons name="delete" size={22} color="#FF5A5A" />
           </TouchableOpacity>
         </View>
@@ -203,19 +298,8 @@ export default function HabitDetailScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Header hero with habit image background */}
         <View className="mx-margin-mobile mb-lg" style={{ borderRadius: 20, overflow: "hidden" }}>
-          <ImageBackground source={{ uri: imageUrl }} style={{ padding: 20, minHeight: 200 }}>
-            <View
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: "rgba(0,0,0,0.45)",
-              }}
-            />
+          <HabitDetailVisualSurface visual={visual}>
             <View style={{ zIndex: 1 }}>
               <View className="flex-row items-center gap-md mb-md">
                 <View
@@ -244,11 +328,11 @@ export default function HabitDetailScreen() {
               )}
               {progress && (
                 <Text className="text-body-md font-semibold mt-sm" style={{ color: accentColor }}>
-                  {progress.label}
+                  {t(progress.label)}
                 </Text>
               )}
             </View>
-          </ImageBackground>
+          </HabitDetailVisualSurface>
         </View>
 
         {/* Stats */}
@@ -256,13 +340,13 @@ export default function HabitDetailScreen() {
           <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
             <Text className="text-headline-md font-bold text-primary">{streak}</Text>
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              day streak
+              {t("day streak")}
             </Text>
           </View>
           <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
             <Text className="text-headline-md font-bold text-secondary">{completions.length}</Text>
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              total logs
+              {t("total logs")}
             </Text>
           </View>
           <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
@@ -272,7 +356,7 @@ export default function HabitDetailScreen() {
               color={doneToday ? "#3EBB7F" : "#8F8A82"}
             />
             <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              {progress?.ratio ? `${Math.round(progress.ratio * 100)}%` : "today"}
+              {progress?.ratio ? `${Math.round(progress.ratio * 100)}%` : t("today")}
             </Text>
           </View>
         </View>
@@ -292,7 +376,7 @@ export default function HabitDetailScreen() {
         {/* Weekly bars */}
         <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
-            THIS WEEK
+            {t("THIS WEEK")}
           </Text>
           <View className="flex-row justify-between">
             {weekDays.map((day) => (
@@ -304,7 +388,7 @@ export default function HabitDetailScreen() {
                   {day.done && <MaterialCommunityIcons name="check" size={16} color="#fff" />}
                 </View>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {day.label}
+                  {t(day.label)}
                 </Text>
               </View>
             ))}
@@ -315,6 +399,11 @@ export default function HabitDetailScreen() {
         <View className="px-margin-mobile gap-sm">
           {habit.target != null && (
             <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t("Log {value}", {
+                value: `+${formatAmount(habit.default_log_value ?? 1)} ${habit.unit ?? ""}`.trim(),
+              })}
+              accessibilityState={{ disabled: doneToday }}
               className="rounded-full py-sm items-center bg-secondary"
               onPress={handleQuickLog}
               disabled={doneToday}
@@ -326,18 +415,17 @@ export default function HabitDetailScreen() {
             </TouchableOpacity>
           )}
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={toggleAccessibilityLabel}
+            accessibilityState={{ disabled: toggling }}
             className={`rounded-full py-sm items-center ${doneToday ? "bg-secondary" : "bg-primary"}`}
             onPress={handleToggle}
             disabled={toggling}
           >
-            <Text className="text-on-primary text-label-lg font-semibold">
-              {doneToday ? "Mark as undone" : "Mark as done today"}
-            </Text>
+            <Text className="text-on-primary text-label-lg font-semibold">{toggleLabel}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {habit.target != null && <LogEntryFab onPress={() => setShowLogPrompt(true)} />}
 
       <LogPrompt
         visible={showLogPrompt}
@@ -352,10 +440,16 @@ export default function HabitDetailScreen() {
 }
 
 function HabitDetailSkeleton({ onBack }: { onBack: () => void }) {
+  const { t } = useLanguage();
+
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center justify-between px-margin-mobile py-sm">
-        <TouchableOpacity onPress={onBack}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={onBack}
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <View className="flex-row gap-sm">

@@ -8,7 +8,6 @@ import {
   Image,
   Modal,
   TextInput,
-  ActivityIndicator,
 } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -127,6 +126,8 @@ export default function LeaderboardScreen() {
               setShowOptIn(true);
             }}
             className="p-xs"
+            accessibilityRole="button"
+            accessibilityLabel={t("Edit leaderboard profile")}
           >
             <MaterialCommunityIcons name="account-edit" size={22} color="#F26B1F" />
           </TouchableOpacity>
@@ -138,6 +139,8 @@ export default function LeaderboardScreen() {
           <TouchableOpacity
             onPress={() => setShowOptIn(true)}
             className="mx-margin-mobile mb-lg bg-primary-fixed rounded-xl p-md flex-row items-center gap-md"
+            accessibilityRole="button"
+            accessibilityLabel={t("Join the leaderboard")}
           >
             <MaterialCommunityIcons name="trophy-award" size={24} color="#F26B1F" />
             <View className="flex-1">
@@ -169,6 +172,8 @@ export default function LeaderboardScreen() {
               }}
               hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
               className="p-xs"
+              accessibilityRole="button"
+              accessibilityLabel={t("Share your rank")}
             >
               <MaterialCommunityIcons
                 name="share-variant"
@@ -354,27 +359,43 @@ function OptInModal({
 
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center mt-sm"
-            onPress={onSave}
-            disabled={saving}
+            onPress={() => {
+              if (!saving) onSave();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={saving ? t("Saving...") : optedIn ? t("Save") : t("Join")}
+            accessibilityState={{ disabled: saving }}
           >
-            {saving ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">
-                {optedIn ? t("Save") : t("Join")}
-              </Text>
-            )}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {saving ? t("Saving...") : optedIn ? t("Save") : t("Join")}
+            </Text>
           </TouchableOpacity>
 
           {optedIn && (
-            <TouchableOpacity className="items-center py-sm" onPress={onOptOut} disabled={saving}>
+            <TouchableOpacity
+              className="items-center py-sm"
+              onPress={() => {
+                if (!saving) onOptOut();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t("Remove me from the leaderboard")}
+              accessibilityState={{ disabled: saving }}
+            >
               <Text className="text-error text-label-lg">
                 {t("Remove me from the leaderboard")}
               </Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity className="items-center py-sm" onPress={onDismiss} disabled={saving}>
+          <TouchableOpacity
+            className="items-center py-sm"
+            onPress={() => {
+              if (!saving) onDismiss();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={t("Cancel")}
+            accessibilityState={{ disabled: saving }}
+          >
             <Text className="text-on-surface-variant dark:text-d-on-surface-variant">
               {t("Cancel")}
             </Text>

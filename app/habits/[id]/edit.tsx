@@ -45,11 +45,19 @@ export default function EditHabitScreen() {
 
   if (!habit) {
     return (
-      <SafeAreaView
-        className="flex-1 bg-background dark:bg-d-background items-center justify-center"
-        edges={["top"]}
-      >
-        <View className="w-full px-margin-mobile gap-md">
+      <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
+        <View className="flex-row items-center px-margin-mobile py-sm">
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("Go back")}
+            onPress={() => router.back()}
+            className="mr-md"
+          >
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
+          </TouchableOpacity>
+          <SkeletonText className="h-8" width={140} />
+        </View>
+        <View className="w-full px-margin-mobile gap-md mt-lg">
           <SkeletonText className="h-8" width={140} />
           <Skeleton className="h-14 rounded-xl" />
           <Skeleton className="h-28 rounded-xl" />
@@ -63,7 +71,12 @@ export default function EditHabitScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">

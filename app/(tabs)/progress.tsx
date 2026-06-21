@@ -532,7 +532,11 @@ export default function ProgressScreen() {
                             "Automatic sleep sync works in the Lagan iOS and Android app. Sleep synced there shows up here.",
                           )}
                         </Text>
-                        <TouchableOpacity onPress={() => Linking.openURL(GET_APP_URL)}>
+                        <TouchableOpacity
+                          onPress={() => Linking.openURL(GET_APP_URL)}
+                          accessibilityRole="button"
+                          accessibilityLabel={t("Get the app")}
+                        >
                           <Text className="text-label-lg font-semibold text-primary">
                             {t("Get the app")}
                           </Text>
@@ -631,6 +635,9 @@ export default function ProgressScreen() {
                           onPress={() => setSleepRange(option)}
                           className="px-sm py-1 rounded-full"
                           style={{ backgroundColor: active ? "#3EBB7F" : "transparent" }}
+                          accessibilityRole="button"
+                          accessibilityLabel={t("Show {days} day sleep trend", { days: option })}
+                          accessibilityState={{ selected: active }}
                         >
                           <Text
                             className="text-label-sm font-semibold"

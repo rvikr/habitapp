@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Linking,
   Modal,
   ScrollView,
@@ -20,6 +19,7 @@ import { getCurrentUser } from "@/lib/supabase/client";
 import { exportMyData } from "@/lib/utils/privacy";
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from "@/lib/services/analytics";
 import { isSentryOptedOut, setSentryOptOut } from "@/lib/services/sentry";
+import { useLanguage } from "@/components/language-provider";
 
 const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || "https://lagan.health/privacy";
@@ -28,6 +28,7 @@ const ACCOUNT_DELETION_URL =
 
 export default function PrivacyScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [analyticsOff, setAnalyticsOff] = useState(false);
   const [crashReportsOff, setCrashReportsOff] = useState(false);
   const [reason, setReason] = useState("");
@@ -66,7 +67,7 @@ export default function PrivacyScreen() {
     const result = await exportMyData();
     setExporting(false);
     if (!result.ok) {
-      showAlert("Could not export data", result.error ?? "Try again.");
+      showAlert(t("Could not export data"), t(result.error ?? "Try again."));
       return;
     }
     setExportText(result.data ?? "{}");
@@ -87,24 +88,24 @@ export default function PrivacyScreen() {
       // fresh Google sign-in, then retry. On web this may redirect the page;
       // after returning, tapping "Request deletion" again completes it.
       showAlert(
-        "Confirm it's you",
-        "Sign in with Google again to confirm, then we'll delete your account.",
+        t("Confirm it's you"),
+        t("Sign in with Google again to confirm, then we'll delete your account."),
         [
-          { text: "Cancel", style: "cancel" },
+          { text: t("Cancel"), style: "cancel" },
           {
-            text: "Continue with Google",
+            text: t("Continue with Google"),
             onPress: async () => {
               const { error, cancelled } = await signInWithGoogle();
               if (cancelled) return;
               if (error) {
-                showAlert("Could not confirm", error.message ?? "Try again.");
+                showAlert(t("Could not confirm"), t(error.message ?? "Try again."));
                 return;
               }
               setSavingDeletion(true);
               const retry = await requestAccountDeletion(reason, deletePassword);
               setSavingDeletion(false);
               if (!retry.ok) {
-                showAlert("Could not delete account", retry.error ?? "Try again.");
+                showAlert(t("Could not delete account"), t(retry.error ?? "Try again."));
                 return;
               }
               setReason("");
@@ -116,20 +117,29 @@ export default function PrivacyScreen() {
       );
       return;
     }
-    showAlert("Could not delete account", result.error ?? "Try again.");
+    showAlert(t("Could not delete account"), t(result.error ?? "Try again."));
   }
 
   function handleDeletionRequest() {
     if (usesPassword && !deletePassword.trim()) {
-      showAlert("Password required", "Confirm your password before requesting account deletion.");
+      showAlert(
+        t("Password required"),
+        t("Confirm your password before requesting account deletion."),
+      );
       return;
     }
     showAlert(
-      "Delete account?",
-      "This permanently removes your account and all your data (habits, completions, profile). This cannot be undone.",
+      t("Delete account?"),
+      t(
+        "This permanently removes your account and all your data (habits, completions, profile). This cannot be undone.",
+      ),
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete forever", style: "destructive", onPress: () => void performDeletion() },
+        { text: t("Cancel"), style: "cancel" },
+        {
+          text: t("Delete forever"),
+          style: "destructive",
+          onPress: () => void performDeletion(),
+        },
       ],
     );
   }
@@ -137,8 +147,8 @@ export default function PrivacyScreen() {
   function openPrivacyPolicy() {
     if (!PRIVACY_POLICY_URL) {
       showAlert(
-        "Privacy policy URL missing",
-        "Set EXPO_PUBLIC_PRIVACY_POLICY_URL before submitting to the stores.",
+        t("Privacy policy URL missing"),
+        t("Set EXPO_PUBLIC_PRIVACY_POLICY_URL before submitting to the stores."),
       );
       return;
     }
@@ -148,8 +158,8 @@ export default function PrivacyScreen() {
   function openAccountDeletionPage() {
     if (!ACCOUNT_DELETION_URL) {
       showAlert(
-        "Account deletion URL missing",
-        "Set EXPO_PUBLIC_ACCOUNT_DELETION_URL before submitting to the stores.",
+        t("Account deletion URL missing"),
+        t("Set EXPO_PUBLIC_ACCOUNT_DELETION_URL before submitting to the stores."),
       );
       return;
     }
@@ -159,11 +169,16 @@ export default function PrivacyScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
-          Privacy & Data
+          {t("Privacy & Data")}
         </Text>
       </View>
 
@@ -173,10 +188,10 @@ export default function PrivacyScreen() {
             <View className="flex-row items-center justify-between">
               <View className="flex-1 mr-md">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  Analytics opt-out
+                  {t("Analytics opt-out")}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  Stops product analytics events on this device.
+                  {t("Stops product analytics events on this device.")}
                 </Text>
               </View>
               <Switch
@@ -192,10 +207,10 @@ export default function PrivacyScreen() {
             <View className="flex-row items-center justify-between">
               <View className="flex-1 mr-md">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  Crash reporting opt-out
+                  {t("Crash reporting opt-out")}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  Stops crash reports from being sent from this device.
+                  {t("Stops crash reports from being sent from this device.")}
                 </Text>
               </View>
               <Switch
@@ -209,14 +224,19 @@ export default function PrivacyScreen() {
 
           <TouchableOpacity
             className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center"
-            onPress={handleExport}
+            accessibilityRole="button"
+            accessibilityLabel={exporting ? t("Exporting...") : t("View my data export")}
+            accessibilityState={{ disabled: exporting }}
+            onPress={() => {
+              if (!exporting) void handleExport();
+            }}
           >
             <MaterialCommunityIcons name="file-export-outline" size={22} color="#F26B1F" />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-              View my data export
+              {t("View my data export")}
             </Text>
             {exporting ? (
-              <ActivityIndicator color="#F26B1F" />
+              <Text className="text-label-sm text-primary font-semibold">{t("Exporting...")}</Text>
             ) : (
               <MaterialCommunityIcons name="chevron-right" size={20} color="#8F8A82" />
             )}
@@ -224,33 +244,37 @@ export default function PrivacyScreen() {
 
           <TouchableOpacity
             className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center"
+            accessibilityRole="button"
+            accessibilityLabel={t("Privacy policy")}
             onPress={openPrivacyPolicy}
           >
             <MaterialCommunityIcons name="shield-account-outline" size={22} color="#F26B1F" />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-              Privacy policy
+              {t("Privacy policy")}
             </Text>
             <MaterialCommunityIcons name="open-in-new" size={20} color="#8F8A82" />
           </TouchableOpacity>
 
           <TouchableOpacity
             className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center"
+            accessibilityRole="button"
+            accessibilityLabel={t("Account deletion page")}
             onPress={openAccountDeletionPage}
           >
             <MaterialCommunityIcons name="account-remove-outline" size={22} color="#F26B1F" />
             <Text className="flex-1 ml-md text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-              Account deletion page
+              {t("Account deletion page")}
             </Text>
             <MaterialCommunityIcons name="open-in-new" size={20} color="#8F8A82" />
           </TouchableOpacity>
 
           <View className="bg-error-container rounded-xl p-md gap-sm">
             <Text className="text-body-md text-on-error-container font-semibold">
-              Request account deletion
+              {t("Request account deletion")}
             </Text>
             <TextInput
               className="bg-surface-lowest text-on-surface rounded-xl px-md py-sm text-body-md"
-              placeholder="Optional note"
+              placeholder={t("Optional note")}
               placeholderTextColor="#8F8A82"
               value={reason}
               onChangeText={setReason}
@@ -260,7 +284,7 @@ export default function PrivacyScreen() {
             {usesPassword ? (
               <TextInput
                 className="bg-surface-lowest text-on-surface rounded-xl px-md py-sm text-body-md"
-                placeholder="Confirm password"
+                placeholder={t("Confirm password")}
                 placeholderTextColor="#8F8A82"
                 value={deletePassword}
                 onChangeText={setDeletePassword}
@@ -270,20 +294,25 @@ export default function PrivacyScreen() {
               />
             ) : (
               <Text className="text-label-sm text-on-error-container">
-                You signed in with Google, so there is no password to confirm. We may ask you to
-                sign in with Google again before deleting.
+                {t(
+                  "You signed in with Google, so there is no password to confirm. We may ask you to sign in with Google again before deleting.",
+                )}
               </Text>
             )}
             <TouchableOpacity
               className="bg-error rounded-full py-sm items-center"
-              onPress={handleDeletionRequest}
-              disabled={savingDeletion}
+              accessibilityRole="button"
+              accessibilityLabel={
+                savingDeletion ? t("Requesting deletion...") : t("Request deletion")
+              }
+              accessibilityState={{ disabled: savingDeletion }}
+              onPress={() => {
+                if (!savingDeletion) handleDeletionRequest();
+              }}
             >
-              {savingDeletion ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-on-error text-label-lg font-semibold">Request deletion</Text>
-              )}
+              <Text className="text-on-error text-label-lg font-semibold">
+                {savingDeletion ? t("Requesting deletion...") : t("Request deletion")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -297,9 +326,13 @@ export default function PrivacyScreen() {
         <SafeAreaView className="flex-1 bg-background dark:bg-d-background">
           <View className="flex-row items-center justify-between px-margin-mobile py-sm">
             <Text className="text-headline-md text-on-background dark:text-d-on-background">
-              Data export
+              {t("Data export")}
             </Text>
-            <TouchableOpacity onPress={() => setExportText(null)}>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t("Close data export")}
+              onPress={() => setExportText(null)}
+            >
               <MaterialCommunityIcons name="close" size={24} color="#F26B1F" />
             </TouchableOpacity>
           </View>

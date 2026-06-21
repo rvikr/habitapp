@@ -1,8 +1,10 @@
-import { Tabs } from "expo-router";
+import { useEffect, useState } from "react";
+import { Redirect, Tabs } from "expo-router";
 import { useColorScheme, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "@/components/language-provider";
+import { getCurrentSession } from "@/lib/supabase/client";
 
 const TAB_ACTIVE = "#F26B1F";
 const TAB_ACTIVE_DARK = "#F26B1F";
@@ -13,6 +15,8 @@ export default function TabsLayout() {
   const scheme = useColorScheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const isDark = scheme === "dark";
   const active = isDark ? TAB_ACTIVE_DARK : TAB_ACTIVE;
   const inactive = isDark ? TAB_INACTIVE_DARK : TAB_INACTIVE;
@@ -24,6 +28,21 @@ export default function TabsLayout() {
   // "web" and the iOS branch never runs (CSS env(), viewport-fit=cover). iOS
   // native keeps its existing hand-tuned padding.
   const bottomInset = Platform.OS === "ios" ? 0 : insets.bottom;
+
+  useEffect(() => {
+    let mounted = true;
+    void getCurrentSession().then((session) => {
+      if (!mounted) return;
+      setHasSession(Boolean(session));
+      setSessionChecked(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!sessionChecked) return null;
+  if (!hasSession) return <Redirect href="/login" />;
 
   return (
     <Tabs

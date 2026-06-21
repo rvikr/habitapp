@@ -1,6 +1,7 @@
 import { View, Text, FlatList, TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useTheme } from "@/components/theme-provider";
+import { useLanguage } from "@/components/language-provider";
 import Icon from "./icon";
 import type { ComputedBadge } from "@/lib/coach/badges";
 
@@ -41,6 +42,7 @@ type Props = { badges: ComputedBadge[]; onShare?: (badge: ComputedBadge) => void
 
 export default function BadgeGrid({ badges, onShare }: Props) {
   const { colorScheme } = useTheme();
+  const { t } = useLanguage();
   const dark = colorScheme === "dark";
 
   return (
@@ -75,6 +77,8 @@ export default function BadgeGrid({ badges, onShare }: Props) {
                   onPress={() => onShare(item)}
                   hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                   className="p-xs"
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Share badge {name}", { name: item.name })}
                 >
                   <MaterialCommunityIcons name="share-variant" size={16} color={fg + "cc"} />
                 </TouchableOpacity>

@@ -20,6 +20,8 @@ export default function AccountDeletionPage() {
         </Text>
         <TouchableOpacity
           className="bg-primary rounded-full py-sm items-center"
+          accessibilityRole="button"
+          accessibilityLabel={t("Sign in")}
           onPress={() => router.replace("/login")}
         >
           <Text className="text-on-primary text-label-lg font-semibold">{t("Sign in")}</Text>

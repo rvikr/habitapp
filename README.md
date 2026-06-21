@@ -160,6 +160,16 @@ npm run typecheck               # tsc --noEmit
 npm run lint                    # ESLint (eslint-config-expo + prettier)
 npm run format                  # Prettier write
 npm test                        # Unit tests (node --experimental-strip-types)
+npm run smoke:first-run         # First-user web smokes; needs Expo web on localhost:8083
+npm run qa:first-run:readiness  # Checks local prerequisites for live/native first-run QA
+npm run qa:first-run:readiness:skip-native-install  # Same, omits Android/iOS first-install gates
+npm run qa:first-run:readiness:web  # Web/live-auth readiness without native tooling checks
+npm run qa:first-run:live-web  # Calls live Supabase auth settings before manual web auth QA
+npm run qa:first-run:proof-template  # Writes tmp/first-run-live-proof-template.json
+npm run qa:first-run:proof-validate  # Validates tmp/first-run-live-proof-current.json
+
+First-run smoke harnesses live in `scripts/first-run/`; generated screenshots and JSON are
+written to ignored `tmp/first-run-*` artifacts.
 
 # Next website/admin
 cd website

@@ -15,7 +15,12 @@ export default function TopAppBar({ title, showBack, trailing }: Props) {
   return (
     <View className="flex-row items-center px-margin-mobile py-sm bg-background dark:bg-d-background">
       {showBack && (
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
       )}

@@ -7,6 +7,26 @@ Mark each item: ✅ pass · ❌ fail · ⏭️ skip · `<note>`
 
 ---
 
+## First-run release gate
+
+Run this gate before claiming the first-time-user experience is release-ready.
+
+| Priority | Gate                      | Evidence required                                                                                                                                   |
+| -------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0       | Local first-run web smoke | `npm run smoke:first-run` exits 0 while Expo web is running on `localhost:8083`                                                                     |
+| P0       | Live email signup         | New user signs up against the target Supabase project, receives the confirmation email, opens the link, and lands in the app                        |
+| P0       | Live password recovery    | Confirmed user requests a reset email, opens the reset link, sets a new password, and signs in with it                                              |
+| P0       | Live Google sign-in       | New Google account completes OAuth on web, Android, and iOS with the configured Supabase redirect URLs                                              |
+| P0       | Android first install     | Fresh install opens to login, completes signup/sign-in, creates the first habit, logs it, survives app restart, and signs out cleanly               |
+| P0       | iOS first install         | Fresh install opens to login, completes signup/sign-in, creates the first habit, logs it, survives app restart, and signs out cleanly               |
+| P1       | Native notifications      | Android and iOS permission prompts appear from Reminders, a one-minute reminder fires, tapping it opens the app, and disabling reminders cancels it |
+| P1       | Production observability  | A test event appears in PostHog and a controlled test crash appears in Sentry for the preview build                                                 |
+
+Current local automation covers the first row only. The remaining rows need real backend
+delivery, OAuth provider configuration, or native devices/emulators.
+
+---
+
 ## 1. Authentication
 
 | #    | Test                                                                     | iOS | Android | Web |

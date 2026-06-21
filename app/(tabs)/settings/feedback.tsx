@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  ActivityIndicator,
-  ScrollView,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ScrollView, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -56,7 +48,12 @@ export default function FeedbackScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
@@ -78,6 +75,9 @@ export default function FeedbackScreen() {
                     key={item.id}
                     onPress={() => setCategory(item.id)}
                     className={`flex-row items-center px-md py-sm rounded-xl ${active ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(item.label)}
+                    accessibilityState={{ selected: active }}
                   >
                     <MaterialCommunityIcons
                       name={item.icon}
@@ -105,6 +105,9 @@ export default function FeedbackScreen() {
                   key={value}
                   onPress={() => setRating(value)}
                   className={`flex-1 h-11 rounded-xl items-center justify-center ${rating >= value ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Rate {value} out of 5", { value })}
+                  accessibilityState={{ selected: rating === value }}
                 >
                   <MaterialCommunityIcons
                     name="star"
@@ -156,16 +159,16 @@ export default function FeedbackScreen() {
 
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center"
-            onPress={handleSubmit}
-            disabled={sending}
+            onPress={() => {
+              if (!sending) void handleSubmit();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={sending ? t("Sending...") : t("Send feedback")}
+            accessibilityState={{ disabled: sending }}
           >
-            {sending ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">
-                {t("Send feedback")}
-              </Text>
-            )}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {sending ? t("Sending...") : t("Send feedback")}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

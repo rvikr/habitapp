@@ -1,15 +1,34 @@
+import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import HabitForm from "@/components/habit-form";
 import { createHabit } from "@/lib/data/actions";
 import { useLanguage } from "@/components/language-provider";
+import { getCurrentSession } from "@/lib/supabase/client";
 
 export default function NewHabitScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getCurrentSession()
+      .then((session) => {
+        if (!active) return;
+        setHasSession(Boolean(session));
+      })
+      .finally(() => {
+        if (active) setSessionChecked(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleCreate(data: Parameters<typeof createHabit>[0]) {
     const result = await createHabit(data);
@@ -37,10 +56,18 @@ export default function NewHabitScreen() {
     return { ok: false };
   }
 
+  if (!sessionChecked) return null;
+  if (!hasSession) return <Redirect href="/login" />;
+
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="mr-md"
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">

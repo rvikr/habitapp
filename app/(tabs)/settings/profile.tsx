@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -41,7 +41,12 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
@@ -53,16 +58,16 @@ export default function ProfileScreen() {
         <View className="px-margin-mobile mt-lg">
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center"
-            onPress={handleSave}
-            disabled={loading}
+            onPress={() => {
+              if (!loading) void handleSave();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={loading ? t("Saving...") : saved ? t("Saved!") : t("Save changes")}
+            accessibilityState={{ disabled: loading }}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">
-                {saved ? t("Saved!") : t("Save changes")}
-              </Text>
-            )}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {loading ? t("Saving...") : saved ? t("Saved!") : t("Save changes")}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -15,7 +15,12 @@ export default function LogoutButton({ className }: Props) {
   }
 
   return (
-    <TouchableOpacity onPress={handleSignOut} className={className}>
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={t("Sign out")}
+      onPress={handleSignOut}
+      className={className}
+    >
       <Text className="text-error text-body-md font-semibold">{t("Sign out")}</Text>
     </TouchableOpacity>
   );

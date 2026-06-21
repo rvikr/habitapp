@@ -1,19 +1,12 @@
 import { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  ActivityIndicator,
-  Share,
-  Platform,
-} from "react-native";
+import { View, Text, Modal, TouchableOpacity, Share, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { getBadgeShareMessage, getRankShareMessage } from "@/lib/utils/share-messages";
 import { useTheme } from "@/components/theme-provider";
+import { useLanguage } from "@/components/language-provider";
 
 const APP_URL = "https://lagan.health";
 
@@ -38,6 +31,7 @@ interface Props {
 export default function ShareCardModal({ data, onClose }: Props) {
   const [sharing, setSharing] = useState(false);
   const { colorScheme } = useTheme();
+  const { t } = useLanguage();
   const isDark = colorScheme === "dark";
   // The card preview stays dark in both themes — it mirrors the shared image.
   // Only the sheet chrome around it follows the active theme.
@@ -137,11 +131,13 @@ export default function ShareCardModal({ data, onClose }: Props) {
                   textTransform: "uppercase",
                 }}
               >
-                Your Card
+                {t("Your Card")}
               </Text>
               <TouchableOpacity
                 onPress={onClose}
                 hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={t("Close share card")}
               >
                 <MaterialCommunityIcons name="close" size={22} color={mutedText} />
               </TouchableOpacity>
@@ -209,8 +205,12 @@ export default function ShareCardModal({ data, onClose }: Props) {
 
             {/* Action buttons */}
             <TouchableOpacity
-              onPress={handleShareImage}
-              disabled={sharing}
+              onPress={() => {
+                if (!sharing) void handleShareImage();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={sharing ? t("Preparing...") : t("Share Card")}
+              accessibilityState={{ disabled: sharing }}
               style={{
                 backgroundColor: accentColor,
                 borderRadius: 14,
@@ -223,18 +223,16 @@ export default function ShareCardModal({ data, onClose }: Props) {
                 opacity: sharing ? 0.7 : 1,
               }}
             >
-              {sharing ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <MaterialCommunityIcons name="share-variant" size={18} color="#fff" />
-              )}
+              {!sharing && <MaterialCommunityIcons name="share-variant" size={18} color="#fff" />}
               <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>
-                {sharing ? "Preparing…" : "Share Card"}
+                {sharing ? t("Preparing...") : t("Share Card")}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleShareText}
+              accessibilityRole="button"
+              accessibilityLabel={t("Share as Text")}
               style={{
                 borderRadius: 14,
                 paddingVertical: 14,
@@ -246,7 +244,7 @@ export default function ShareCardModal({ data, onClose }: Props) {
               }}
             >
               <Text style={{ color: secondaryText, fontSize: 14, fontWeight: "600" }}>
-                Share as Text
+                {t("Share as Text")}
               </Text>
             </TouchableOpacity>
           </View>

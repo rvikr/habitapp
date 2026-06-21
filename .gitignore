@@ -20,6 +20,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# local smoke-test artifacts
+tmp/first-run-*.png
+tmp/first-run-*.json
+tmp/first-run-*-debug.cjs
+
 # typescript
 next-env.d.ts
 *.tsbuildinfo

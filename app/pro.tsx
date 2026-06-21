@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Linking,
-  Platform,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Linking, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -106,7 +98,12 @@ export default function ProScreen() {
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile py-sm flex-row items-center">
-          <TouchableOpacity onPress={() => router.back()} className="mr-md">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mr-md"
+            accessibilityRole="button"
+            accessibilityLabel={t("Go back")}
+          >
             <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
           </TouchableOpacity>
           <Text className="text-headline-md text-on-background dark:text-d-on-background">
@@ -171,15 +168,18 @@ export default function ProScreen() {
                 <TouchableOpacity
                   key={item.label}
                   className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
-                  disabled={Boolean(busy)}
-                  onPress={() =>
-                    item.pack
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Buy {label}", { label: t(item.label) })}
+                  accessibilityState={{ disabled: Boolean(busy) }}
+                  onPress={() => {
+                    if (busy) return;
+                    return item.pack
                       ? buy(item.pack, item.label)
                       : showAlert(
                           t("Coming soon"),
                           t("Subscriptions will be available shortly. Hang tight!"),
-                        )
-                  }
+                        );
+                  }}
                 >
                   <View className="w-11 h-11 rounded-full bg-primary-fixed items-center justify-center">
                     <MaterialCommunityIcons name={item.icon as any} size={22} color="#F26B1F" />
@@ -202,7 +202,9 @@ export default function ProScreen() {
                     </Text>
                   </View>
                   {busy === item.label ? (
-                    <ActivityIndicator color="#F26B1F" />
+                    <Text className="text-label-sm text-primary font-semibold">
+                      {t("Processing...")}
+                    </Text>
                   ) : (
                     <MaterialCommunityIcons name="chevron-right" size={22} color="#8F8A82" />
                   )}
@@ -211,7 +213,9 @@ export default function ProScreen() {
             </View>
           )}
 
-          {loading && Platform.OS !== "web" && <ActivityIndicator color="#F26B1F" />}
+          {loading && Platform.OS !== "web" && (
+            <Text className="text-label-sm text-primary text-center">{t("Loading plans...")}</Text>
+          )}
 
           <ProComparison />
 
@@ -219,8 +223,12 @@ export default function ProScreen() {
             {Platform.OS !== "web" && (
               <TouchableOpacity
                 className="self-center py-xs"
-                onPress={restore}
-                disabled={Boolean(busy)}
+                onPress={() => {
+                  if (!busy) void restore();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={busy === "restore" ? t("Restoring") : t("Restore purchases")}
+                accessibilityState={{ disabled: Boolean(busy) }}
               >
                 <Text className="text-label-sm text-primary font-semibold">
                   {busy === "restore" ? t("Restoring") : t("Restore purchases")}
@@ -247,7 +255,11 @@ export default function ProScreen() {
               </>
             )}
             <View className="flex-row justify-center gap-md pt-xs">
-              <TouchableOpacity onPress={() => Linking.openURL("https://lagan.health/terms")}>
+              <TouchableOpacity
+                onPress={() => Linking.openURL("https://lagan.health/terms")}
+                accessibilityRole="link"
+                accessibilityLabel={t("Terms of Use")}
+              >
                 <Text className="text-label-sm text-primary font-semibold">
                   {t("Terms of Use")}
                 </Text>
@@ -255,7 +267,11 @@ export default function ProScreen() {
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
                 ·
               </Text>
-              <TouchableOpacity onPress={() => Linking.openURL("https://lagan.health/privacy")}>
+              <TouchableOpacity
+                onPress={() => Linking.openURL("https://lagan.health/privacy")}
+                accessibilityRole="link"
+                accessibilityLabel={t("Privacy Policy")}
+              >
                 <Text className="text-label-sm text-primary font-semibold">
                   {t("Privacy Policy")}
                 </Text>

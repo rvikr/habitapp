@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
   BackHandler,
   Platform,
   ScrollView,
@@ -24,7 +23,7 @@ import {
   pickTutorialHabit,
   type CreatedHabit,
 } from "@/lib/coach/post-onboarding";
-import { markOnboardingComplete } from "@/lib/auth/onboarding";
+import { completeCurrentUserOnboarding, markOnboardingComplete } from "@/lib/auth/onboarding";
 import { getCurrentSession } from "@/lib/supabase/client";
 import {
   buildRoutineRecommendations,
@@ -236,6 +235,19 @@ export default function HabitWizardScreen() {
     );
   }
 
+  async function handleExitWizard() {
+    await completeCurrentUserOnboarding();
+    router.replace("/?newUser=1");
+  }
+
+  function handleNextStep() {
+    if (step.id === "goals" && answers.goals.length === 0) {
+      showAlert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
+      return;
+    }
+    setStepIndex((value) => value + 1);
+  }
+
   async function buildRoutine() {
     if (answers.goals.length === 0) {
       showAlert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
@@ -258,6 +270,7 @@ export default function HabitWizardScreen() {
   }
 
   async function createRoutine() {
+    if (creating) return;
     const selected = recommendations?.filter((item) => item.selected) ?? [];
     if (selected.length === 0) {
       showAlert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
@@ -326,6 +339,7 @@ export default function HabitWizardScreen() {
   }
 
   async function handleTutorialComplete() {
+    if (tutorialCompleting) return;
     const habit = pickTutorialHabit(createdHabits);
     if (!habit) {
       router.replace("/?newUser=1");
@@ -363,7 +377,7 @@ export default function HabitWizardScreen() {
         habit={tutorialHabit}
         completing={tutorialCompleting}
         onComplete={handleTutorialComplete}
-        onSkip={() => router.replace("/?newUser=1")}
+        onSkip={handleExitWizard}
       />
     );
   }
@@ -395,7 +409,6 @@ export default function HabitWizardScreen() {
               </Text>
               {loadingRoutine && (
                 <View className="flex-row items-center gap-xs pt-xs">
-                  <ActivityIndicator size="small" color="#F26B1F" />
                   <Text className="text-label-sm text-primary">
                     {t("Checking for AI refinements...")}
                   </Text>
@@ -451,6 +464,11 @@ export default function HabitWizardScreen() {
                     <TouchableOpacity
                       className={`w-9 h-9 rounded-full items-center justify-center ${item.selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}
                       onPress={() => updateRecommendation(item.id, { selected: !item.selected })}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(item.selected ? "Remove {label}" : "Add {label}", {
+                        label: t(item.name),
+                      })}
+                      accessibilityState={{ selected: item.selected }}
                     >
                       <MaterialCommunityIcons
                         name={item.selected ? "check" : "plus"}
@@ -496,6 +514,10 @@ export default function HabitWizardScreen() {
                     <TouchableOpacity
                       className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-xs items-center"
                       onPress={() => setEditingId(editing ? null : item.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t(editing ? "Finish editing {label}" : "Edit {label}", {
+                        label: t(item.name),
+                      })}
                     >
                       <Text className="text-label-lg text-primary font-semibold">
                         {editing ? t("Done") : t("Edit")}
@@ -504,6 +526,8 @@ export default function HabitWizardScreen() {
                     <TouchableOpacity
                       className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-xs items-center"
                       onPress={() => updateRecommendation(item.id, { selected: false })}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("Remove {label}", { label: t(item.name) })}
                     >
                       <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
                         {t("Remove")}
@@ -517,15 +541,13 @@ export default function HabitWizardScreen() {
             <TouchableOpacity
               className={`rounded-full py-md items-center ${creating ? "bg-outline" : "bg-primary"}`}
               onPress={createRoutine}
-              disabled={creating}
+              accessibilityRole="button"
+              accessibilityLabel={creating ? t("Creating routine...") : t("Create routine")}
+              accessibilityState={{ disabled: creating }}
             >
-              {creating ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-on-primary text-label-lg font-semibold">
-                  {t("Create routine")}
-                </Text>
-              )}
+              <Text className="text-on-primary text-label-lg font-semibold">
+                {creating ? t("Creating routine...") : t("Create routine")}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -671,7 +693,10 @@ export default function HabitWizardScreen() {
           <View className="flex-row gap-sm">
             <TouchableOpacity
               className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-md items-center"
-              onPress={() => (stepIndex === 0 ? router.back() : setStepIndex((value) => value - 1))}
+              onPress={() =>
+                stepIndex === 0 ? handleExitWizard() : setStepIndex((value) => value - 1)
+              }
+              accessibilityRole="button"
             >
               <Text className="text-label-lg text-primary font-semibold">
                 {stepIndex === 0 ? t("Cancel") : t("Back")}
@@ -679,9 +704,8 @@ export default function HabitWizardScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               className="flex-1 bg-primary rounded-full py-md items-center"
-              onPress={() =>
-                stepIndex === STEPS.length - 1 ? buildRoutine() : setStepIndex((value) => value + 1)
-              }
+              onPress={() => (stepIndex === STEPS.length - 1 ? buildRoutine() : handleNextStep())}
+              accessibilityRole="button"
             >
               <Text className="text-label-lg text-on-primary font-semibold">
                 {stepIndex === STEPS.length - 1 ? t("Build routine") : t("Next")}
@@ -745,6 +769,7 @@ function ConfirmScreen({ habits, onContinue }: { habits: CreatedHabit[]; onConti
           <TouchableOpacity
             className="bg-primary rounded-full py-md items-center"
             onPress={onContinue}
+            accessibilityRole="button"
           >
             <Text className="text-on-primary text-label-lg font-semibold">{t("Let's begin")}</Text>
           </TouchableOpacity>
@@ -801,19 +826,24 @@ function NotificationPrimerScreen({ onResolved }: { onResolved: () => void }) {
             <TouchableOpacity
               className={`rounded-full py-md items-center ${busy ? "bg-outline" : "bg-primary"}`}
               onPress={handleEnable}
-              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={busy ? t("Enabling...") : t("Enable reminders")}
+              accessibilityState={{ disabled: busy }}
             >
-              {busy ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-on-primary text-label-lg font-semibold">
-                  {t("Enable reminders")}
-                </Text>
-              )}
+              <Text className="text-on-primary text-label-lg font-semibold">
+                {busy ? t("Enabling...") : t("Enable reminders")}
+              </Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity className="items-center py-sm" onPress={onResolved} disabled={busy}>
+          <TouchableOpacity
+            className="items-center py-sm"
+            onPress={() => {
+              if (!busy) onResolved();
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: busy }}
+          >
             <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
               {showIosInstallGuide ? t("Continue") : t("Maybe later")}
             </Text>
@@ -868,16 +898,23 @@ function TutorialScreen({
           <TouchableOpacity
             className={`rounded-full py-md items-center ${completing ? "bg-outline" : "bg-primary"}`}
             onPress={onComplete}
-            disabled={completing}
+            accessibilityRole="button"
+            accessibilityLabel={completing ? t("Completing...") : t("Complete")}
+            accessibilityState={{ disabled: completing }}
           >
-            {completing ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">{t("Complete")}</Text>
-            )}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {completing ? t("Completing...") : t("Complete")}
+            </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity className="items-center py-sm" onPress={onSkip} disabled={completing}>
+          <TouchableOpacity
+            className="items-center py-sm"
+            onPress={() => {
+              if (!completing) onSkip();
+            }}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: completing }}
+          >
             <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
               {t("Skip for now")}
             </Text>
@@ -892,7 +929,12 @@ function WizardHeader({ title, onBack }: { title: string; onBack: () => void }) 
   const { t } = useLanguage();
   return (
     <View className="flex-row items-center px-margin-mobile py-sm">
-      <TouchableOpacity onPress={onBack} className="mr-md">
+      <TouchableOpacity
+        onPress={onBack}
+        className="mr-md"
+        accessibilityRole="button"
+        accessibilityLabel={t("Go back")}
+      >
         <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
       </TouchableOpacity>
       <Text className="text-headline-md text-on-background dark:text-d-on-background">
@@ -917,6 +959,9 @@ function ChoiceRow({
       className={`flex-row items-center rounded-xl p-md gap-md ${selected ? "bg-primary-fixed dark:bg-d-surface-high" : "bg-surface-lowest dark:bg-d-surface-lowest"}`}
       onPress={onPress}
       activeOpacity={0.75}
+      accessibilityRole="button"
+      accessibilityLabel={t("Select {label}", { label: t(option.label) })}
+      accessibilityState={{ selected }}
     >
       <View
         className={`w-11 h-11 rounded-full items-center justify-center ${selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}

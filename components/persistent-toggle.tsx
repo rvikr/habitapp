@@ -33,6 +33,9 @@ export default function PersistentToggle({
   return (
     <TouchableOpacity
       className="flex-row items-center justify-between py-sm"
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked }}
       onPress={handleToggle}
     >
       <Text className="text-body-md text-on-surface dark:text-d-on-surface flex-1">{label}</Text>
@@ -44,10 +47,7 @@ export default function PersistentToggle({
           className="w-5 h-5 rounded-full bg-white"
           style={{
             transform: [{ translateX: checked ? 20 : 0 }],
-            shadowColor: "#000",
-            shadowOpacity: 0.15,
-            shadowRadius: 2,
-            elevation: 2,
+            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.15)",
           }}
         />
       </View>

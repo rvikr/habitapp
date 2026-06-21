@@ -76,6 +76,7 @@ export default function NotificationPermissionCard() {
       {status === "undetermined" && (
         <TouchableOpacity
           className="bg-primary px-md py-xs rounded-full"
+          accessibilityRole="button"
           onPress={async () => {
             const granted = await requestPermission();
             setStatus(granted ? "granted" : "denied");
@@ -87,6 +88,7 @@ export default function NotificationPermissionCard() {
       {deniedOnNative && (
         <TouchableOpacity
           className="bg-primary px-md py-xs rounded-full"
+          accessibilityRole="button"
           onPress={() => {
             void Linking.openSettings();
           }}

@@ -83,6 +83,7 @@ export default function HabitValidationModal({
             <TouchableOpacity
               className="bg-primary-fixed dark:bg-d-surface-container rounded-xl px-md py-sm"
               onPress={() => onApplySuggestion(suggestion)}
+              accessibilityRole="button"
             >
               <Text className="text-label-sm text-primary">{t("Suggested")}</Text>
               <Text className="text-body-md text-on-surface dark:text-d-on-surface">
@@ -103,6 +104,7 @@ export default function HabitValidationModal({
             <TouchableOpacity
               className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-sm items-center"
               onPress={onEdit}
+              accessibilityRole="button"
             >
               <Text className="text-on-surface dark:text-d-on-surface text-label-lg font-semibold">
                 {t("Edit habit")}
@@ -112,6 +114,7 @@ export default function HabitValidationModal({
               <TouchableOpacity
                 className="flex-1 bg-primary rounded-full py-sm items-center"
                 onPress={onContinue}
+                accessibilityRole="button"
               >
                 <Text className="text-on-primary text-label-lg font-semibold">
                   {t("Continue anyway")}

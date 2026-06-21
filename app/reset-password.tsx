@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { updatePassword } from "@/lib/data/actions";
@@ -15,13 +15,14 @@ export default function ResetPasswordScreen() {
   const [message, setMessage] = useState<{ text: string; type: "error" | "success" } | null>(null);
 
   async function handleSave() {
+    if (loading) return;
     if (password !== confirm) {
       setMessage({ text: t("Passwords do not match."), type: "error" });
       return;
     }
     const pwError = validatePassword(password);
     if (pwError) {
-      setMessage({ text: pwError, type: "error" });
+      setMessage({ text: t(pwError), type: "error" });
       return;
     }
 
@@ -30,7 +31,7 @@ export default function ResetPasswordScreen() {
     const { error } = await updatePassword(password);
     setLoading(false);
     if (error) {
-      setMessage({ text: error.message, type: "error" });
+      setMessage({ text: t(error.message), type: "error" });
       return;
     }
     setMessage({ text: t("Password updated."), type: "success" });
@@ -72,16 +73,12 @@ export default function ResetPasswordScreen() {
         )}
         <TouchableOpacity
           className="bg-primary rounded-full py-sm items-center mt-sm"
+          accessibilityRole="button"
           onPress={handleSave}
-          disabled={loading}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-on-primary text-label-lg font-semibold">
-              {t("Update password")}
-            </Text>
-          )}
+          <Text className="text-on-primary text-label-lg font-semibold">
+            {loading ? t("Updating...") : t("Update password")}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

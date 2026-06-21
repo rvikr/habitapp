@@ -12,6 +12,7 @@ import { getReminderSchedule } from "@/lib/data/reminders";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import { useLanguage } from "@/components/language-provider";
 import type { Habit } from "@/types/db";
 import type { ReminderStrategy } from "@/lib/coach/habit-intelligence";
 
@@ -20,17 +21,22 @@ const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 function smartReminderSummary(
   intervalMinutes: number | null | undefined,
   strategy: ReminderStrategy,
+  t: (key: string, vars?: Record<string, string | number>) => string,
 ): string {
   const interval = intervalMinutes ?? 720;
   const slotsPerDay = Math.round((14 * 60) / interval);
   const count = Math.max(1, slotsPerDay);
-  const suffix = strategy === "conditional_interval" ? ", stops once done" : "";
-  if (count === 1) return `1 smart reminder/day${suffix}`;
-  return `Up to ${count} smart reminders/day${suffix}`;
+  if (strategy === "conditional_interval") {
+    if (count === 1) return t("1 smart reminder/day, stops once done");
+    return t("Up to {count} smart reminders/day, stops once done", { count });
+  }
+  if (count === 1) return t("1 smart reminder/day");
+  return t("Up to {count} smart reminders/day", { count });
 }
 
 export default function RemindersScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [permission, setPermission] = useState<"granted" | "denied" | "undetermined">(
     "undetermined",
@@ -80,8 +86,8 @@ export default function RemindersScreen() {
       setPermission(granted ? "granted" : "denied");
       if (!granted) {
         showAlert(
-          "Notifications are disabled",
-          "Enable notifications before turning on reminders.",
+          t("Notifications are disabled"),
+          t("Enable notifications before turning on reminders."),
         );
         return;
       }
@@ -92,8 +98,8 @@ export default function RemindersScreen() {
     // Manual-only habits need at least one time; smart habits work without manual times
     if (enabled && !usesSmartReminders && (habit.reminder_times ?? []).length === 0) {
       showAlert(
-        "No reminder time set",
-        "Edit the habit to add a custom time, or the system will use smart reminders.",
+        t("No reminder time set"),
+        t("Edit the habit to add a custom time, or the system will use smart reminders."),
       );
       return;
     }
@@ -104,7 +110,7 @@ export default function RemindersScreen() {
       days: habit.reminder_days ?? [0, 1, 2, 3, 4, 5, 6],
     });
     if (!result.ok) {
-      showAlert("Could not update reminders", result.error ?? "Try again.");
+      showAlert(t("Could not update reminders"), t(result.error ?? "Try again."));
       return;
     }
     setHabits((prev) =>
@@ -115,11 +121,16 @@ export default function RemindersScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
-          Reminders
+          {t("Reminders")}
         </Text>
       </View>
 
@@ -128,17 +139,19 @@ export default function RemindersScreen() {
           <MaterialCommunityIcons name="bell-alert" size={24} color="#F26B1F" />
           <View className="flex-1">
             <Text className="text-body-md text-on-background font-semibold">
-              Enable notifications
+              {t("Enable notifications")}
             </Text>
             <Text className="text-label-sm text-on-surface-variant">
-              Allow notifications to receive habit reminders.
+              {t("Allow notifications to receive habit reminders.")}
             </Text>
           </View>
           <TouchableOpacity
             className="bg-primary px-md py-xs rounded-full"
+            accessibilityRole="button"
+            accessibilityLabel={t("Allow notifications")}
             onPress={handleRequestPermission}
           >
-            <Text className="text-on-primary text-label-sm font-semibold">Allow</Text>
+            <Text className="text-on-primary text-label-sm font-semibold">{t("Allow")}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -147,9 +160,11 @@ export default function RemindersScreen() {
         <View className="px-margin-mobile gap-sm">
           {hasPro === false ? (
             <ProUpgradeBanner
-              title="AI-timed reminders"
-              body="Free reminders use standard timing. Upgrade to Pro for AI-optimized reminder timing, plus AI Coach and weekly reports."
-              actionLabel="View plans"
+              title={t("AI-timed reminders")}
+              body={t(
+                "Free reminders use standard timing. Upgrade to Pro for AI-optimized reminder timing, plus AI Coach and weekly reports.",
+              )}
+              actionLabel={t("View plans")}
               onAction={() => router.push("/pro" as never)}
             />
           ) : null}
@@ -178,12 +193,13 @@ export default function RemindersScreen() {
                     {smartReminderSummary(
                       habit.reminder_interval_minutes,
                       habit.reminder_strategy as ReminderStrategy,
+                      t,
                     )}
                   </Text>
                 )}
                 {habit.reminder_times && habit.reminder_times.length > 0 && (
                   <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                    Custom override: {habit.reminder_times.join(", ")}
+                    {t("Custom override: {times}", { times: habit.reminder_times.join(", ") })}
                   </Text>
                 )}
                 {habit.reminder_days && habit.reminder_days.length < 7 && (

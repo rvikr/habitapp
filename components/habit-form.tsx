@@ -1,13 +1,5 @@
 import { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Switch,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch } from "react-native";
 import Icon from "./icon";
 import HabitCatalogPicker from "./habit-catalog-picker";
 import type { Habit } from "@/types/db";
@@ -190,6 +182,7 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   }
 
   async function handleSubmit() {
+    if (loading) return;
     if (!name.trim()) return;
     const parsedTarget = parseOptionalPositiveNumber(target);
     if (!parsedTarget.ok) {
@@ -386,6 +379,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                   className="w-12 h-12 rounded-xl items-center justify-center"
                   style={{ backgroundColor: icon === ic ? "#F26B1F" : "#F2EDE4" }}
                   onPress={() => setIcon(ic)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Select {label}", { label: ic.replace(/_/g, " ") })}
+                  accessibilityState={{ selected: icon === ic }}
                 >
                   <Icon name={ic} size={24} color={icon === ic ? "#fff" : "#484554"} />
                 </TouchableOpacity>
@@ -409,6 +405,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                     borderColor: color === c.id ? c.hex : "transparent",
                   }}
                   onPress={() => setColor(c.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Select color {label}", { label: t(c.label) })}
+                  accessibilityState={{ selected: color === c.id }}
                 >
                   <View className="w-5 h-5 rounded-full mb-xs" style={{ backgroundColor: c.hex }} />
                   <Text className="text-label-sm" style={{ color: c.hex }}>
@@ -454,6 +453,11 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
             <TouchableOpacity
               className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl px-md py-sm flex-row items-center justify-between"
               onPress={() => setShowMetricOptions((prev) => !prev)}
+              accessibilityRole="button"
+              accessibilityLabel={t("Smart metric: {label}", {
+                label: t(METRIC_LABELS[metricPreview.metricType]),
+              })}
+              accessibilityState={{ expanded: showMetricOptions }}
             >
               <View>
                 <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
@@ -480,6 +484,8 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                       className="px-md py-sm border-b border-outline-variant dark:border-d-outline-variant"
                       style={{ backgroundColor: active ? "#FFE6CF" : "transparent" }}
                       onPress={() => selectMetricOption(option)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: active }}
                     >
                       <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
                         {t(option.label)}
@@ -545,6 +551,8 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                         key={t}
                         onPress={() => toggleTime(t)}
                         className={`px-md py-xs rounded-full ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
                       >
                         <Text
                           className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
@@ -559,14 +567,16 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                 {reminderTimes.filter((t) => !TIME_PRESETS.includes(t)).length > 0 && (
                   <View className="flex-row flex-wrap gap-xs">
                     {reminderTimes
-                      .filter((t) => !TIME_PRESETS.includes(t))
-                      .map((t) => (
+                      .filter((time) => !TIME_PRESETS.includes(time))
+                      .map((time) => (
                         <TouchableOpacity
-                          key={t}
-                          onPress={() => toggleTime(t)}
+                          key={time}
+                          onPress={() => toggleTime(time)}
                           className="px-md py-xs rounded-full bg-primary flex-row items-center gap-xs"
+                          accessibilityRole="button"
+                          accessibilityLabel={t("Remove {label}", { label: time })}
                         >
-                          <Text className="text-on-primary text-label-lg">{t}</Text>
+                          <Text className="text-on-primary text-label-lg">{time}</Text>
                           <Text className="text-on-primary text-label-sm">x</Text>
                         </TouchableOpacity>
                       ))}
@@ -588,6 +598,8 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                     onPress={addCustomTime}
                     disabled={!isValidReminderTime(customTime)}
                     style={{ opacity: isValidReminderTime(customTime) ? 1 : 0.4 }}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !isValidReminderTime(customTime) }}
                   >
                     <Text className="text-on-primary text-label-lg">{t("Add")}</Text>
                   </TouchableOpacity>
@@ -604,6 +616,8 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
                         key={i}
                         onPress={() => toggleDay(i)}
                         className={`flex-1 py-xs rounded-full items-center ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
                       >
                         <Text
                           className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
@@ -655,14 +669,14 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center mt-sm"
             onPress={handleSubmit}
-            disabled={loading || !name.trim()}
+            disabled={!name.trim()}
             style={{ opacity: !name.trim() ? 0.5 : 1 }}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !name.trim() || loading }}
           >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-on-primary text-label-lg font-semibold">{t(submitLabel)}</Text>
-            )}
+            <Text className="text-on-primary text-label-lg font-semibold">
+              {loading ? t("Saving...") : t(submitLabel)}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

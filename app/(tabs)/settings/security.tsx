@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -26,7 +26,7 @@ export default function SecurityScreen() {
     }
     const pwError = validatePassword(password);
     if (pwError) {
-      setMessage({ text: pwError, type: "error" });
+      setMessage({ text: t(pwError), type: "error" });
       return;
     }
     setLoading(true);
@@ -44,7 +44,12 @@ export default function SecurityScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
@@ -78,16 +83,16 @@ export default function SecurityScreen() {
         )}
         <TouchableOpacity
           className="bg-primary rounded-full py-sm items-center mt-sm"
-          onPress={handleSave}
-          disabled={loading}
+          onPress={() => {
+            if (!loading) void handleSave();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={loading ? t("Updating...") : t("Update password")}
+          accessibilityState={{ disabled: loading }}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-on-primary text-label-lg font-semibold">
-              {t("Update password")}
-            </Text>
-          )}
+          <Text className="text-on-primary text-label-lg font-semibold">
+            {loading ? t("Updating...") : t("Update password")}
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

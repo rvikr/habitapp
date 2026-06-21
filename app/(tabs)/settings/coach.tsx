@@ -62,7 +62,12 @@ export default function CoachSettingsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <View className="flex-row items-center px-margin-mobile py-sm">
-        <TouchableOpacity onPress={() => router.back()} className="mr-md">
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t("Go back")}
+          onPress={() => router.back()}
+          className="mr-md"
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
         <Text className="text-headline-md text-on-background dark:text-d-on-background">
@@ -89,6 +94,9 @@ export default function CoachSettingsScreen() {
                   onPress={() => handleSelect(item.id)}
                   className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
                   style={{ borderWidth: 2, borderColor: active ? "#F26B1F" : "transparent" }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t(item.label)}
+                  accessibilityState={{ selected: active }}
                 >
                   <MaterialCommunityIcons
                     name={active ? "radiobox-marked" : "radiobox-blank"}

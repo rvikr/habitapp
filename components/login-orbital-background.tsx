@@ -3,7 +3,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 
 export default function LoginOrbitalBackground() {
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
       <View style={styles.outer} />
       <Svg
         width="100%"

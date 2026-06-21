@@ -32,6 +32,7 @@ import {
   HABIT_CATALOG_SECTIONS,
   HABIT_CATEGORIES,
 } from "../lib/data/habit-catalog.ts";
+import { dashboardDisplayName } from "../lib/data/display-name.ts";
 import { buildLifeBalanceWheelSegments } from "../lib/coach/life-balance.ts";
 import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
 import { buildWebAuthCallbackUrl } from "../lib/auth/auth-callback-url.ts";
@@ -47,7 +48,7 @@ import {
   isGoogleNativeDeveloperError,
 } from "../lib/auth/google-native.ts";
 import { isSupportedLanguage, languageLabel, translate } from "../lib/i18n/translations.ts";
-import { isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
+import { authErrorMessageKey, isMissingRefreshTokenError } from "../lib/supabase/auth-error.ts";
 import {
   isValidReminderTime,
   parseOptionalPositiveNumber,
@@ -143,6 +144,99 @@ function test(name, fn) {
     }
   });
 }
+
+function sourceFiles(paths) {
+  const files = [];
+  for (const path of paths) {
+    for (const entry of readdirSync(path, { withFileTypes: true })) {
+      const child = `${path}/${entry.name}`;
+      if (entry.isDirectory()) files.push(...sourceFiles([child]));
+      else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry.name)) files.push(child);
+    }
+  }
+  return files;
+}
+
+test("first-run QA readiness command covers external release gates", () => {
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.equal(
+    packageJson.scripts["qa:first-run:readiness"],
+    "node scripts/first-run/readiness.cjs",
+  );
+  assert.equal(
+    packageJson.scripts["qa:first-run:readiness:skip-native-install"],
+    "node scripts/first-run/readiness.cjs --skip-native-install",
+  );
+  assert.equal(
+    packageJson.scripts["qa:first-run:readiness:web"],
+    "node scripts/first-run/readiness.cjs --web-only --skip-native-install",
+  );
+  assert.equal(
+    packageJson.scripts["qa:first-run:live-web"],
+    "node scripts/first-run/live-web-sanity.cjs",
+  );
+  assert.equal(
+    packageJson.scripts["qa:first-run:proof-template"],
+    "node scripts/first-run/live-proof.cjs --write-template",
+  );
+  assert.equal(
+    packageJson.scripts["qa:first-run:proof-validate"],
+    "node scripts/first-run/live-proof.cjs --validate tmp/first-run-live-proof-current.json",
+  );
+
+  const readinessSource = readFileSync("scripts/first-run/readiness.cjs", "utf8");
+  for (const requiredCheck of [
+    "adb",
+    "eas-cli",
+    "EXPO_PUBLIC_SUPABASE_URL",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY",
+    "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID",
+    "lagan://auth/callback",
+    "health.lagan.app",
+    "POST_NOTIFICATIONS",
+  ]) {
+    assert.match(readinessSource, new RegExp(requiredCheck.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(readinessSource, /skipNativeInstall/);
+  assert.match(readinessSource, /--skip-native-install/);
+  assert.match(readinessSource, /webOnly/);
+  assert.match(readinessSource, /--web-only/);
+
+  const liveWebSource = readFileSync("scripts/first-run/live-web-sanity.cjs", "utf8");
+  assert.match(liveWebSource, /auth\/v1\/settings/);
+  assert.match(liveWebSource, /apikey/);
+  assert.match(liveWebSource, /EXPO_PUBLIC_SUPABASE_URL/);
+  assert.match(liveWebSource, /EXPO_PUBLIC_SUPABASE_ANON_KEY/);
+  assert.match(liveWebSource, /function formatError/);
+  assert.match(liveWebSource, /error\.code/);
+  assert.match(liveWebSource, /first-run-live-web-current\.json/);
+  assert.match(liveWebSource, /writeFileSync/);
+  assert.match(liveWebSource, /pendingManualGates/);
+  assert.match(liveWebSource, /authSettingsSummary/);
+  assert.match(liveWebSource, /signupDisabled/);
+  assert.match(liveWebSource, /emailAutoconfirm/);
+
+  const liveProofSource = readFileSync("scripts/first-run/live-proof.cjs", "utf8");
+  for (const requiredProofField of [
+    "signupConfirmation",
+    "passwordRecovery",
+    "googleSignIn",
+    "confirmedAt",
+    "resetCompletedAt",
+    "oauthCompletedAt",
+    "validationErrors",
+  ]) {
+    assert.match(liveProofSource, new RegExp(requiredProofField));
+  }
+
+  const readme = readFileSync("README.md", "utf8");
+  assert.match(readme, /npm run qa:first-run:readiness/);
+  assert.match(readme, /npm run qa:first-run:readiness:skip-native-install/);
+  assert.match(readme, /npm run qa:first-run:readiness:web/);
+  assert.match(readme, /npm run qa:first-run:live-web/);
+  assert.match(readme, /npm run qa:first-run:proof-template/);
+  assert.match(readme, /npm run qa:first-run:proof-validate/);
+});
 
 test("localDateKey uses local calendar fields", () => {
   assert.equal(localDateKey(new Date(2026, 0, 2, 23, 30)), "2026-01-02");
@@ -837,6 +931,34 @@ test("Sentry crash reporting honors the privacy opt-out", () => {
   assert.match(privacyScreen, /Crash reporting opt-out/);
 });
 
+test("analytics does not initialize external tracking during development", () => {
+  const analyticsSource = readFileSync("lib/services/analytics.ts", "utf8");
+  assert.match(analyticsSource, /if \(initialized \|\| !KEY \|\| optedOut \|\| __DEV__\) return;/);
+  assert.match(analyticsSource, /if \(__DEV__\) console\.log\("\[track\]"/);
+});
+
+test("app UI avoids React Native Web deprecated shadow and pointerEvents props", () => {
+  const files = sourceFiles(["app", "components"]);
+  const offenders = [];
+
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    if (/pointerEvents=/.test(source)) offenders.push(`${file}: pointerEvents prop`);
+    if (/pointer-events-/.test(source)) offenders.push(`${file}: pointer-events class`);
+    if (/shadow(Color|Offset|Opacity|Radius)\s*:/.test(source))
+      offenders.push(`${file}: shadow* style`);
+    if (/elevation\s*:/.test(source)) offenders.push(`${file}: elevation style`);
+  }
+
+  assert.deepEqual(offenders, []);
+});
+
+test("web celebration avoids native-driver confetti warnings", () => {
+  const source = readFileSync("components/celebration.tsx", "utf8");
+  assert.match(source, /Platform/);
+  assert.match(source, /Platform\.OS !== "web"[\s\S]*<ConfettiCannon/);
+});
+
 test("account deletion requires password confirmation and recent sign-in", () => {
   const actionSource = readFileSync("lib/data/actions.ts", "utf8");
   assert.match(
@@ -1162,11 +1284,86 @@ test("Supabase stale refresh token errors are recognized", () => {
   assert.equal(isMissingRefreshTokenError(new Error("Network request failed")), false);
 });
 
+test("first-run auth backend errors are mapped to localized user copy", () => {
+  const cases = [
+    [new Error("Invalid login credentials"), "Invalid email or password."],
+    [new Error("Email not confirmed"), "Confirm your email before signing in."],
+    [
+      new Error("User already registered"),
+      "An account with this email already exists. Try signing in instead.",
+    ],
+    [
+      { message: "For security purposes, you can only request this after 60 seconds" },
+      "Too many attempts. Wait a minute, then try again.",
+    ],
+  ];
+
+  for (const [error, key] of cases) {
+    assert.equal(authErrorMessageKey(error), key);
+    assert.notEqual(translate("hi", key), key);
+  }
+
+  const loginSource = readFileSync("app/login.tsx", "utf8");
+  assert.match(loginSource, /authErrorMessageKey/);
+  assert.doesNotMatch(loginSource, /setError\(e\.message\)/);
+  assert.doesNotMatch(loginSource, /setFeedback\(\{ text: error\.message, type: "error" \}\)/);
+});
+
 test("password validation rejects weak passwords", () => {
   assert.equal(validatePassword("Short1"), "Password must be at least 8 characters.");
   assert.equal(validatePassword("lowercaseonly1"), "Password must include an uppercase letter.");
   assert.equal(validatePassword("Valid123"), null);
   assert.equal(validatePassword("ValidPassword1"), null);
+});
+
+test("password validation errors are translated before display on auth screens", () => {
+  const messages = [
+    "Password must be at least 8 characters.",
+    "Password must include a lowercase letter.",
+    "Password must include an uppercase letter.",
+    "Password must include a number.",
+  ];
+
+  for (const message of messages) {
+    assert.notEqual(translate("hi", message), message);
+  }
+
+  const loginSource = readFileSync("app/login.tsx", "utf8");
+  assert.match(loginSource, /setError\(t\(pwError\)\)/);
+
+  const resetPasswordSource = readFileSync("app/reset-password.tsx", "utf8");
+  assert.match(
+    resetPasswordSource,
+    /setMessage\(\{\s*text:\s*t\(pwError\),\s*type:\s*"error"\s*\}\)/,
+  );
+
+  const settingsSecuritySource = readFileSync("app/(tabs)/settings/security.tsx", "utf8");
+  assert.match(
+    settingsSecuritySource,
+    /setMessage\(\{\s*text:\s*t\(pwError\),\s*type:\s*"error"\s*\}\)/,
+  );
+});
+
+test("auth recovery errors are localized before display", () => {
+  for (const message of [
+    "Auth session missing!",
+    "Missing authentication code.",
+    "Missing authentication callback URL.",
+  ]) {
+    assert.notEqual(translate("hi", message), message);
+  }
+
+  const resetPasswordSource = readFileSync("app/reset-password.tsx", "utf8");
+  assert.doesNotMatch(resetPasswordSource, /text:\s*error\.message/);
+  assert.match(resetPasswordSource, /text:\s*t\(error\.message\)/);
+
+  const callbackSource = readFileSync("app/auth/callback.tsx", "utf8");
+  assert.match(
+    callbackSource,
+    /setError\(e instanceof Error \? e\.message : "Could not complete authentication\."\)/,
+  );
+  assert.doesNotMatch(callbackSource, /\{error\}/);
+  assert.match(callbackSource, /\{error \? t\(error\) : null\}/);
 });
 
 test("signup and email confirmation copy gives a clear next step", () => {
@@ -1177,6 +1374,572 @@ test("signup and email confirmation copy gives a clear next step", () => {
   assert.match(AUTH_CALLBACK_CONFIRMED_BODY, /sign in/i);
   assert.equal(FIRST_LOGIN_WELCOME_TITLE, "Welcome to Lagan!");
   assert.match(FIRST_LOGIN_WELCOME_BODY, /all set/i);
+});
+
+test("forgot password modal pre-fills the latest typed email when opened", () => {
+  const source = readFileSync("app/login.tsx", "utf8");
+  const modalSource = source.slice(source.indexOf("function ForgotPasswordModal"));
+  assert.match(modalSource, /useEffect\(\(\) => \{/);
+  assert.match(
+    modalSource,
+    /if \(visible\) \{[\s\S]*setEmail\(initialEmail\);[\s\S]*setFeedback\(null\);[\s\S]*\}/,
+  );
+  assert.match(modalSource, /\}, \[visible, initialEmail\]\);/);
+});
+
+test("first-run auth touch targets expose web accessibility roles", () => {
+  for (const file of ["app/login.tsx", "app/reset-password.tsx", "app/auth/callback.tsx"]) {
+    const source = readFileSync(file, "utf8");
+    const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+    const roles = source.match(/accessibilityRole=/g) ?? [];
+    assert.equal(roles.length, touchTargets.length, `${file} has an unroled touch target`);
+  }
+
+  const loginSource = readFileSync("app/login.tsx", "utf8");
+  for (const label of [
+    "Change language",
+    "Sign in with Google",
+    "Hide password",
+    "Show password",
+    "Hide confirm password",
+    "Show confirm password",
+  ]) {
+    assert.match(loginSource, new RegExp(`t\\("${label}"\\)`));
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run auth buttons use text loading states instead of web-warning spinners", () => {
+  for (const file of ["app/login.tsx", "app/reset-password.tsx", "app/auth/callback.tsx"]) {
+    const source = readFileSync(file, "utf8");
+    assert.doesNotMatch(source, /ActivityIndicator/);
+    assert.doesNotMatch(source, /disabled=\{(?:loading|sending|googleLoading)/);
+  }
+
+  for (const label of [
+    "Signing in...",
+    "Creating account...",
+    "Continuing...",
+    "Sending...",
+    "Updating...",
+  ]) {
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("shared recovery and account controls expose accessible actions", () => {
+  for (const file of [
+    "components/error-boundary.tsx",
+    "components/top-app-bar.tsx",
+    "components/logout-button.tsx",
+    "components/persistent-toggle.tsx",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+    const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+    assert.equal(roles.length, touchTargets.length, `${file} has an unroled touch target`);
+  }
+
+  assert.match(
+    readFileSync("components/error-boundary.tsx", "utf8"),
+    /accessibilityLabel="Try again"/,
+  );
+  assert.match(
+    readFileSync("components/top-app-bar.tsx", "utf8"),
+    /accessibilityLabel=\{t\("Go back"\)\}/,
+  );
+  assert.match(
+    readFileSync("components/logout-button.tsx", "utf8"),
+    /accessibilityLabel=\{t\("Sign out"\)\}/,
+  );
+
+  const toggleSource = readFileSync("components/persistent-toggle.tsx", "utf8");
+  assert.match(toggleSource, /accessibilityRole="switch"/);
+  assert.match(toggleSource, /accessibilityState=\{\{ checked \}\}/);
+});
+
+test("settings screens expose accessible actions and text loading states", () => {
+  const settingsFiles = [
+    "app/(tabs)/settings/coach.tsx",
+    "app/(tabs)/settings/feedback.tsx",
+    "app/(tabs)/settings/index.tsx",
+    "app/(tabs)/settings/privacy.tsx",
+    "app/(tabs)/settings/profile.tsx",
+    "app/(tabs)/settings/reminders.tsx",
+    "app/(tabs)/settings/security.tsx",
+  ];
+
+  for (const file of settingsFiles) {
+    const source = readFileSync(file, "utf8");
+    const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+    const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+    assert.equal(roles.length, touchTargets.length, `${file} has an unroled touch target`);
+  }
+
+  for (const file of [
+    "app/(tabs)/settings/feedback.tsx",
+    "app/(tabs)/settings/privacy.tsx",
+    "app/(tabs)/settings/profile.tsx",
+    "app/(tabs)/settings/security.tsx",
+  ]) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /ActivityIndicator/);
+  }
+
+  for (const label of [
+    "Sending...",
+    "Exporting...",
+    "Requesting deletion...",
+    "Saving...",
+    "Update password",
+  ]) {
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("remaining secondary first-run surfaces expose accessible actions", () => {
+  const files = [
+    "app/(tabs)/leaderboard.tsx",
+    "app/(tabs)/progress.tsx",
+    "app/account-deletion.tsx",
+    "app/pro.tsx",
+    "components/badge-grid.tsx",
+    "components/share-card-modal.tsx",
+  ];
+
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+    const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+    assert.equal(roles.length, touchTargets.length, `${file} has an unroled touch target`);
+  }
+
+  for (const file of [
+    "app/(tabs)/leaderboard.tsx",
+    "app/pro.tsx",
+    "components/share-card-modal.tsx",
+  ]) {
+    assert.doesNotMatch(readFileSync(file, "utf8"), /ActivityIndicator/);
+  }
+
+  for (const label of [
+    "Edit leaderboard profile",
+    "Join the leaderboard",
+    "Share your rank",
+    "Saving...",
+    "Get the app",
+    "Share badge {name}",
+    "Close share card",
+    "Preparing...",
+    "Share Card",
+    "Share as Text",
+    "Buy {label}",
+    "Restore purchases",
+    "Terms of Use",
+    "Privacy Policy",
+  ]) {
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("late first-run surfaces localize alerts and use text busy states", () => {
+  const achievementsSource = readFileSync("app/(tabs)/achievements.tsx", "utf8");
+  assert.doesNotMatch(achievementsSource, /ActivityIndicator/);
+  for (const label of ["Generating...", "Generate now", "Generate last week's report"]) {
+    assert.match(
+      achievementsSource,
+      new RegExp(`t\\("${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`),
+    );
+    assert.notEqual(translate("hi", label), label);
+  }
+
+  for (const file of ["app/(tabs)/settings/privacy.tsx", "app/(tabs)/settings/reminders.tsx"]) {
+    const source = readFileSync(file, "utf8");
+    assert.doesNotMatch(source, /showAlert\(\s*"/, `${file} has raw alert copy`);
+  }
+
+  const privacySource = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
+  for (const label of [
+    "Go back",
+    "Privacy & Data",
+    "Analytics opt-out",
+    "Stops product analytics events on this device.",
+    "Crash reporting opt-out",
+    "Stops crash reports from being sent from this device.",
+    "View my data export",
+    "Privacy policy",
+    "Account deletion page",
+    "Request account deletion",
+    "Optional note",
+    "Confirm password",
+    "Request deletion",
+    "Data export",
+    "Close data export",
+    "Could not export data",
+    "Confirm it's you",
+    "Could not delete account",
+    "Password required",
+    "Delete account?",
+  ]) {
+    assert.match(privacySource, new RegExp(`t\\("${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.notEqual(translate("hi", label), label);
+  }
+
+  const remindersSource = readFileSync("app/(tabs)/settings/reminders.tsx", "utf8");
+  for (const label of [
+    "Go back",
+    "Reminders",
+    "Enable notifications",
+    "Allow notifications to receive habit reminders.",
+    "Allow",
+    "Notifications are disabled",
+    "No reminder time set",
+    "Could not update reminders",
+  ]) {
+    assert.match(
+      remindersSource,
+      new RegExp(`t\\("${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run Hindi copy avoids English fragments on onboarding-critical screens", () => {
+  for (const [label, forbiddenFragments] of [
+    ["Target must be a positive number.", ["positive number"]],
+    ["Amount in {unit}", ["amount"]],
+    ["8+ chars, mixed case + number", ["mixed case", "number"]],
+    [
+      "Use at least 8 characters with uppercase, lowercase, and a number.",
+      ["uppercase", "lowercase", "number"],
+    ],
+    ["New password (8+ chars, mixed case + number)", ["mixed case", "number"]],
+    ["Notifications blocked — enable in Settings.", ["blocked", "Settings"]],
+    ["Allow notifications for habit reminders.", ["Habit reminders", "notifications allow"]],
+    ["STEP {current} OF {total}", ["Step", "of"]],
+    ["Build routine", ["Routine"]],
+    ["Pick any goals that matter this week.", ["week", "goals"]],
+    ["Movement goals should feel doable from day one.", ["Movement goals", "doable"]],
+  ]) {
+    const translated = translate("hi", label);
+    for (const fragment of forbiddenFragments) {
+      assert.doesNotMatch(
+        translated,
+        new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+        `${label} leaks English fragment "${fragment}" into Hindi`,
+      );
+    }
+  }
+});
+
+test("first-run wizard touch targets expose web accessibility roles", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+  const roles = source.match(/accessibilityRole=/g) ?? [];
+  assert.equal(roles.length, touchTargets.length, "wizard has an unroled touch target");
+
+  for (const label of [
+    "Go back",
+    "Select {label}",
+    "Add {label}",
+    "Remove {label}",
+    "Create routine",
+    "Enable reminders",
+    "Complete",
+    "Skip for now",
+  ]) {
+    assert.match(source, new RegExp(`"${label.replace(/[{}]/g, "\\$&")}"`));
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run wizard primary actions use text loading states", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  assert.doesNotMatch(source, /ActivityIndicator/);
+  assert.doesNotMatch(source, /disabled=\{(?:creating|busy|completing)/);
+  for (const label of ["Creating routine...", "Enabling...", "Completing..."]) {
+    assert.match(source, new RegExp(`t\\("${label}"\\)`));
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run wizard next button validates each step before advancing", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  assert.match(source, /function handleNextStep\(\)/);
+  assert.match(source, /answers\.goals\.length === 0[\s\S]*showAlert\(t\("Choose a goal"\)/);
+  assert.match(source, /stepIndex === STEPS\.length - 1 \? buildRoutine\(\) : handleNextStep\(\)/);
+  assert.doesNotMatch(source, /stepIndex === STEPS\.length - 1 \? buildRoutine\(\) : setStepIndex/);
+});
+
+test("first-run manual habit creation touch targets expose web accessibility roles", () => {
+  for (const file of [
+    "app/habits/new.tsx",
+    "components/habit-form.tsx",
+    "components/habit-catalog-picker.tsx",
+    "components/habit-validation-modal.tsx",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+    const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+    assert.equal(roles.length, touchTargets.length, `${file} has an unroled touch target`);
+  }
+
+  const routeSource = readFileSync("app/habits/new.tsx", "utf8");
+  assert.match(routeSource, /"Go back"/);
+  assert.notEqual(translate("hi", "Go back"), "Go back");
+
+  const formSource = readFileSync("components/habit-form.tsx", "utf8");
+  const pickerSource = readFileSync("components/habit-catalog-picker.tsx", "utf8");
+  const manualCreationSource = `${formSource}\n${pickerSource}`;
+  for (const label of [
+    "Select {label}",
+    "Select color {label}",
+    "Remove {label}",
+    "Smart metric: {label}",
+  ]) {
+    assert.match(formSource, new RegExp(`"${label.replace(/[{}]/g, "\\$&")}"`));
+    assert.notEqual(translate("hi", label), label);
+  }
+
+  for (const [label, forbiddenFragments] of [
+    ["Use a valid 24-hour time, for example 08:30.", ["24-hour time"]],
+    ["Add at least one reminder time or turn reminders off.", ["reminder time", "reminders"]],
+    ["Use valid 24-hour reminder times.", ["24-hour reminder times"]],
+    ["Choose valid reminder days.", ["reminder days"]],
+    ["{litres} l will be saved as {millilitres} ml.", ["save"]],
+    ["Water volume is saved in ml.", ["save"]],
+    ["Store as {unit}", ["save"]],
+    ["One smart reminder per day{suffix}.", ["smart reminder"]],
+    ["Up to {count} smart reminders per day{suffix}.", ["smart reminders"]],
+    ["CUSTOM OVERRIDE TIMES (optional)", ["override"]],
+    ["Or build a custom habit.", ["custom habit"]],
+    ["Build custom habit", ["Custom habit"]],
+  ]) {
+    assert.match(manualCreationSource, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    const translated = translate("hi", label);
+    for (const fragment of forbiddenFragments) {
+      assert.doesNotMatch(
+        translated,
+        new RegExp(fragment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+        `${label} leaks English fragment "${fragment}" into Hindi`,
+      );
+    }
+  }
+
+  assert.match(pickerSource, /"Choose template: \{label\}"/);
+  assert.notEqual(translate("hi", "Choose template: {label}"), "Choose template: {label}");
+
+  const validationSource = readFileSync("components/habit-validation-modal.tsx", "utf8");
+  for (const label of [
+    "Policy concern",
+    "Health concern",
+    "Unrealistic target",
+    "We can't track this habit",
+    "Let's double-check this habit",
+    "This habit isn't something we can help you track.",
+    "This habit looks unusual. Are you sure you want to continue?",
+    "Suggested",
+    "Tap to use these values",
+    "Continue anyway",
+  ]) {
+    assert.match(validationSource, new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run manual habit form primary action uses text loading state", () => {
+  const source = readFileSync("components/habit-form.tsx", "utf8");
+  assert.doesNotMatch(source, /ActivityIndicator/);
+  assert.doesNotMatch(source, /disabled=\{loading \|\| !name\.trim\(\)\}/);
+  assert.match(source, /if \(loading\) return;/);
+  assert.match(source, /loading \? t\("Saving\.\.\."\) : t\(submitLabel\)/);
+});
+
+test("first-run dashboard touch targets expose web accessibility roles", () => {
+  for (const file of ["app/(tabs)/index.tsx", "components/notification-permission-card.tsx"]) {
+    const source = readFileSync(file, "utf8");
+    const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+    const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+    assert.equal(roles.length, touchTargets.length, `${file} has an unroled touch target`);
+  }
+
+  const source = readFileSync("app/(tabs)/index.tsx", "utf8");
+  for (const label of ["Add habit", "Dismiss welcome"]) {
+    assert.match(source, new RegExp(`t\\("${label}"\\)`));
+    assert.notEqual(translate("hi", label), label);
+  }
+
+  const notificationSource = readFileSync("components/notification-permission-card.tsx", "utf8");
+  for (const label of [
+    "Get habit reminders on iPhone",
+    "Tap Share → Add to Home Screen, then open Lagan from your home screen to enable notifications.",
+    "Notifications are off — turn them on to get habit reminders.",
+  ]) {
+    assert.match(
+      notificationSource,
+      new RegExp(`t\\(\\s*"${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run habit detail and log prompt touch targets expose web accessibility roles", () => {
+  for (const file of [
+    "app/habits/[id]/index.tsx",
+    "app/habits/[id]/edit.tsx",
+    "components/log-prompt.tsx",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+    const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+    assert.equal(roles.length, touchTargets.length, `${file} has an unroled touch target`);
+  }
+
+  const detailSource = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  for (const label of [
+    "Go back",
+    "Edit habit",
+    "Delete habit",
+    "day streak",
+    "total logs",
+    "today",
+    "THIS WEEK",
+    "Log {value}",
+    "Log custom amount",
+    "Mark as done today",
+    "Mark as undone",
+    "Mark {name} as done today",
+    "Mark {name} as undone",
+  ]) {
+    assert.match(detailSource, new RegExp(`t\\("${label.replace(/[{}]/g, "\\$&")}"`));
+    assert.notEqual(translate("hi", label), label);
+  }
+  assert.match(detailSource, /isQuantityHabit\(habit\)[\s\S]*t\("Log custom amount"\)/);
+  assert.match(detailSource, /t\(progress\.label\)/);
+  assert.match(detailSource, /t\(day\.label\)/);
+  for (const label of ["Done today", "Not logged yet"]) {
+    assert.notEqual(translate("hi", label), label);
+  }
+  for (const label of ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]) {
+    assert.notEqual(translate("hi", label), label);
+  }
+
+  const promptSource = readFileSync("components/log-prompt.tsx", "utf8");
+  for (const label of ["Close log prompt", "Dismiss log prompt", "Log {value}", "Mark all done"]) {
+    assert.match(promptSource, new RegExp(`t\\("${label.replace(/[{}]/g, "\\$&")}"`));
+    assert.notEqual(translate("hi", label), label);
+  }
+
+  const editSource = readFileSync("app/habits/[id]/edit.tsx", "utf8");
+  assert.match(editSource, /accessibilityLabel=\{t\("Go back"\)\}/);
+  assert.match(editSource, /if \(!habit\)[\s\S]*accessibilityLabel=\{t\("Go back"\)\}/);
+});
+
+test("first-run habit detail does not overlay a floating log button on bottom actions", () => {
+  const source = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  assert.doesNotMatch(source, /LogEntryFab/);
+  assert.match(source, /setShowLogPrompt\(true\)/);
+});
+
+test("first-run coach card action targets expose web accessibility roles", () => {
+  const source = readFileSync("components/coach-card.tsx", "utf8");
+  const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+  const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+  assert.equal(roles.length, touchTargets.length, "coach card has an unroled touch target");
+
+  for (const label of ["AI Coach", "Open habit"]) {
+    assert.match(source, new RegExp(`t\\("${label}"\\)`));
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run habit cards expose localized accessible action labels", () => {
+  const source = readFileSync("components/habit-card.tsx", "utf8");
+  const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
+  const roles = source.match(/<TouchableOpacity\b[\s\S]*?accessibilityRole=/g) ?? [];
+  assert.equal(roles.length, touchTargets.length, "habit card has an unroled touch target");
+
+  for (const label of ["Open {name} details", "Mark {name} done", "Mark {name} not done"]) {
+    assert.match(source, new RegExp(`t\\("${label.replace(/[{}]/g, "\\$&")}"`));
+    assert.notEqual(translate("hi", label), label);
+  }
+  assert.match(source, /toggleAccessibilityLabel\?: string/);
+  assert.match(source, /toggleAccessibilityLabel \?\?/);
+  assert.match(source, /progress \? t\(progress\.label\)/);
+  for (const label of ["Done today", "Not logged yet"]) {
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("first-run dashboard labels quantity habit card actions as logging progress", () => {
+  const source = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(source, /isQuantityHabit\(habit\)[\s\S]*t\("Log progress for \{name\}"/);
+  assert.match(source, /toggleAccessibilityLabel=\{/);
+  assert.notEqual(
+    translate("hi", "Log progress for {name}", { name: "Water" }),
+    "Log progress for Water",
+  );
+});
+
+test("first-run dashboard greets users before prompting for notifications", () => {
+  const source = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const greetingIndex = source.indexOf('t("Hey, {name}"');
+  const notificationIndex = source.indexOf("<NotificationPermissionCard />");
+
+  assert.notEqual(greetingIndex, -1);
+  assert.notEqual(notificationIndex, -1);
+  assert.ok(
+    greetingIndex < notificationIndex,
+    "notification permission prompt should not be the first dashboard content",
+  );
+});
+
+test("first-run dashboard uses a neutral greeting before the user sets a profile name", () => {
+  assert.equal(
+    dashboardDisplayName({
+      profileDisplayName: null,
+      fullName: null,
+      email: "first-user-signup-smoke@example.invalid",
+    }),
+    "there",
+  );
+  assert.equal(
+    dashboardDisplayName({
+      profileDisplayName: "Ravi",
+      fullName: "Ignored Name",
+      email: "ravi@example.com",
+    }),
+    "Ravi",
+  );
+  assert.equal(
+    dashboardDisplayName({
+      profileDisplayName: "",
+      fullName: "Ravi Kumar",
+      email: "ravi@example.com",
+    }),
+    "Ravi Kumar",
+  );
+});
+
+test("first-run habit cards render local visual surfaces without image decoding", () => {
+  const source = readFileSync("components/habit-card.tsx", "utf8");
+  assert.doesNotMatch(source, /ImageBackground/);
+  assert.doesNotMatch(source, /getHabitImageForHabit/);
+  assert.match(source, /getHabitVisualForHabit/);
+});
+
+test("first-run catalog thumbnails render local visual surfaces without image decoding", () => {
+  const source = readFileSync("components/habit-catalog-picker.tsx", "utf8");
+  assert.doesNotMatch(source, /\bImage\b/);
+  assert.doesNotMatch(source, /getHabitImage/);
+  assert.match(source, /getHabitVisual/);
+});
+
+test("first-run habit detail renders local visual surfaces without image decoding", () => {
+  const source = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  assert.doesNotMatch(source, /ImageBackground/);
+  assert.doesNotMatch(source, /getHabitImageForHabit/);
+  assert.match(source, /getHabitVisualForHabit/);
+  assert.match(source, /HabitDetailVisualSurface/);
 });
 
 test("first-run onboarding is required only for trustworthy empty habit lists", () => {
@@ -1206,6 +1969,49 @@ test("first-login welcome is hidden for existing users with habits", () => {
   assert.equal(shouldShowFirstLoginWelcome({ newUser: "1", habitCount: 0 }), true);
   assert.equal(shouldShowFirstLoginWelcome({ newUser: "1", habitCount: 2 }), false);
   assert.equal(shouldShowFirstLoginWelcome({ newUser: undefined, habitCount: 0 }), false);
+});
+
+test("tabs layout waits for a session before mounting protected tabs", () => {
+  const source = readFileSync("app/(tabs)/_layout.tsx", "utf8");
+  assert.match(source, /getCurrentSession/);
+  assert.match(source, /Redirect/);
+  assert.match(source, /if \(!sessionChecked\) return null;/);
+  assert.match(source, /if \(!hasSession\) return <Redirect href="\/login" \/>;/);
+});
+
+test("new habit screen waits for a session before mounting the habit form", () => {
+  const source = readFileSync("app/habits/new.tsx", "utf8");
+  assert.match(source, /getCurrentSession/);
+  assert.match(source, /Redirect/);
+  assert.match(source, /if \(!sessionChecked\) return null;/);
+  assert.match(source, /if \(!hasSession\) return <Redirect href="\/login" \/>;/);
+  assert.match(source, /<HabitForm /);
+});
+
+test("first-run wizard exit persists onboarding completion before returning home", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  const exitHandler = source.match(
+    /async function handleExitWizard\(\)[\s\S]*?router\.replace\("\/\?newUser=1"\);[\s\S]*?\n  \}/,
+  );
+
+  assert.ok(exitHandler, "expected a dedicated wizard exit handler");
+  assert.match(exitHandler[0], /completeCurrentUserOnboarding\(\)/);
+  assert.match(
+    source,
+    /stepIndex === 0 \? handleExitWizard\(\) : setStepIndex\(\(value\) => value - 1\)/,
+  );
+  assert.match(source, /onSkip=\{handleExitWizard\}/);
+});
+
+test("empty dashboard manual habit creation persists onboarding completion", () => {
+  const source = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const manualHandler = source.match(
+    /async function handleChooseManualHabit\(\)[\s\S]*?router\.push\("\/habits\/new"\);[\s\S]*?\n  \}/,
+  );
+
+  assert.ok(manualHandler, "expected a manual habit creation handler");
+  assert.match(manualHandler[0], /completeCurrentUserOnboarding\(\)/);
+  assert.match(source, /onPress=\{handleChooseManualHabit\}/);
 });
 
 test("i18n translates Hindi copy with interpolation and English fallback", () => {
@@ -1629,6 +2435,21 @@ test("cold shower habits resolve the curated image even for legacy custom rows",
     habit_type: "custom",
   });
   assert.notEqual(image, getHabitImageForHabit({ name: "Custom habit", icon: "star", unit: "" }));
+});
+
+test("first-run habit visuals do not depend on remote image hosts", () => {
+  const source = readFileSync("lib/data/habit-images.ts", "utf8");
+  assert.doesNotMatch(source, /https?:\/\//);
+
+  for (const habit of [
+    { habit_type: "water_intake", name: "Drink Water", icon: "water", unit: "ml" },
+    { habit_type: "custom", name: "Focus Session", icon: "timer", unit: "min" },
+    { habit_type: "walk", name: "Walk", icon: "walk", unit: "steps" },
+    { habit_type: "workout", name: "Workout", icon: "dumbbell", unit: "min" },
+  ]) {
+    const image = getHabitImageForHabit(habit);
+    assert.doesNotMatch(image, /^https?:\/\//, `${habit.name} uses a remote image URL`);
+  }
 });
 
 test("habit intelligence normalizes water litre goals to ml", () => {
@@ -2199,9 +3020,8 @@ test("AI smart reminder plans keep valid habit plans and drop invalid ones", asy
 });
 
 test("smart-reminders context sanitizer bounds progress before Gemini input", async () => {
-  const { sanitizeSmartReminderContexts } = await import(
-    "../supabase/functions/_shared/smart-reminder-input.ts"
-  );
+  const { sanitizeSmartReminderContexts } =
+    await import("../supabase/functions/_shared/smart-reminder-input.ts");
   const context = {
     habitId: "water-1",
     habitName: "Drink water",
@@ -2218,9 +3038,7 @@ test("smart-reminders context sanitizer bounds progress before Gemini input", as
       label: "250 / 2000 ml",
       nested: { ignored: "x".repeat(1000) },
     },
-    completions: [
-      { completedOn: "2026-05-08", createdAt: "2026-05-08T10:00:00.000Z", value: 250 },
-    ],
+    completions: [{ completedOn: "2026-05-08", createdAt: "2026-05-08T10:00:00.000Z", value: 250 }],
     manualTimes: ["10:00", "10:00", "not-a-time"],
     reminderDays: [1, 1, 2, 9],
     streak: 2,
@@ -2248,11 +3066,16 @@ test("smart-reminders context sanitizer bounds progress before Gemini input", as
 
 test("smart-reminders sanitizes contexts before quota and Gemini input", () => {
   const source = readFileSync("supabase/functions/smart-reminders/index.ts", "utf8");
-  const sanitizeIndex = source.indexOf("const contexts = sanitizeSmartReminderContexts(body.contexts)");
+  const sanitizeIndex = source.indexOf(
+    "const contexts = sanitizeSmartReminderContexts(body.contexts)",
+  );
   const quotaIndex = source.indexOf('enforceAiQuota(admin, user.id, "smart-reminders")');
   const geminiIndex = source.indexOf("generateContent(GEMINI_REMINDER_MODEL");
 
-  assert.match(source, /import \{ sanitizeSmartReminderContexts \} from "\.\.\/_shared\/smart-reminder-input\.ts"/);
+  assert.match(
+    source,
+    /import \{ sanitizeSmartReminderContexts \} from "\.\.\/_shared\/smart-reminder-input\.ts"/,
+  );
   assert.ok(sanitizeIndex >= 0, "expected context sanitization");
   assert.ok(quotaIndex > sanitizeIndex, "contexts must be sanitized before quota consumption");
   assert.ok(geminiIndex > sanitizeIndex, "contexts must be sanitized before Gemini input");
@@ -2624,9 +3447,7 @@ test("AI routine sanitizer rejects invalid names enums and oversized routines", 
 });
 
 test("habit-routine answer sanitizer accepts only bounded wizard answers", async () => {
-  const { sanitizeRoutineAnswers } = await import(
-    "../supabase/functions/_shared/routine-input.ts"
-  );
+  const { sanitizeRoutineAnswers } = await import("../supabase/functions/_shared/routine-input.ts");
   const valid = {
     goals: [" focus ", "energy"],
     lifestyle: "office",
@@ -2653,11 +3474,16 @@ test("habit-routine answer sanitizer accepts only bounded wizard answers", async
 
 test("habit-routine sanitizes answers before quota and Gemini input", () => {
   const source = readFileSync("supabase/functions/habit-routine/index.ts", "utf8");
-  const sanitizeIndex = source.indexOf("const sanitizedAnswers = sanitizeRoutineAnswers(body.answers)");
+  const sanitizeIndex = source.indexOf(
+    "const sanitizedAnswers = sanitizeRoutineAnswers(body.answers)",
+  );
   const quotaIndex = source.indexOf('enforceAiQuota(admin, user.id, "habit-routine")');
   const geminiIndex = source.indexOf("generateContent(GEMINI_ROUTINE_MODEL");
 
-  assert.match(source, /import \{ sanitizeRoutineAnswers \} from "\.\.\/_shared\/routine-input\.ts"/);
+  assert.match(
+    source,
+    /import \{ sanitizeRoutineAnswers \} from "\.\.\/_shared\/routine-input\.ts"/,
+  );
   assert.ok(sanitizeIndex >= 0, "expected answer sanitization");
   assert.ok(quotaIndex > sanitizeIndex, "answers must be sanitized before quota consumption");
   assert.ok(geminiIndex > sanitizeIndex, "answers must be sanitized before Gemini input");
@@ -2711,7 +3537,7 @@ test("coach detects target habits falling behind by time of day", () => {
 
 test("AI coach card only shows secondary Open when primary logs progress", () => {
   const cardSource = readFileSync("components/coach-card.tsx", "utf8");
-  const primaryLabelIndex = cardSource.indexOf("{coachActionLabel(signal, t)}");
+  const primaryLabelIndex = cardSource.indexOf("const actionLabel = coachActionLabel(signal, t);");
   const secondaryOpenIndex = cardSource.indexOf('{t("Open")}', primaryLabelIndex);
 
   assert.notEqual(primaryLabelIndex, -1);
@@ -2878,9 +3704,8 @@ test("server coach signal time context falls back to UTC for invalid subscriptio
 });
 
 test("web push endpoint validation allows only known HTTPS push providers", async () => {
-  const { isAllowedWebPushEndpoint } = await import(
-    "../supabase/functions/_shared/web-push-endpoint.ts"
-  );
+  const { isAllowedWebPushEndpoint } =
+    await import("../supabase/functions/_shared/web-push-endpoint.ts");
 
   assert.equal(isAllowedWebPushEndpoint("https://fcm.googleapis.com/fcm/send/abc"), true);
   assert.equal(
@@ -2904,7 +3729,10 @@ test("web push workers validate stored endpoints before sending notifications", 
   const coachSource = readFileSync("supabase/functions/coach-push/index.ts", "utf8");
 
   for (const source of [reminderSource, coachSource]) {
-    assert.match(source, /import \{ isAllowedWebPushEndpoint \} from "\.\.\/_shared\/web-push-endpoint\.ts"/);
+    assert.match(
+      source,
+      /import \{ isAllowedWebPushEndpoint \} from "\.\.\/_shared\/web-push-endpoint\.ts"/,
+    );
     const validationIndex = source.indexOf("isAllowedWebPushEndpoint(sub.endpoint)");
     const sendIndex = source.indexOf("webPush.sendNotification");
     assert.ok(validationIndex >= 0, "worker should validate each stored endpoint");

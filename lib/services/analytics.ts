@@ -19,7 +19,7 @@ let optedOut = false;
 
 export async function initAnalytics(): Promise<void> {
   optedOut = await readOptOut();
-  if (initialized || !KEY || optedOut) return;
+  if (initialized || !KEY || optedOut || __DEV__) return;
   try {
     const mod = await import("posthog-react-native");
     const { PostHog } = mod;

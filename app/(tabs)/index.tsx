@@ -25,7 +25,11 @@ import {
   shouldShowFirstLoginWelcome,
   shouldRequireFirstRunOnboarding,
 } from "@/lib/auth/auth-welcome";
-import { hasCompletedOnboarding, markOnboardingComplete } from "@/lib/auth/onboarding";
+import {
+  completeCurrentUserOnboarding,
+  hasCompletedOnboarding,
+  markOnboardingComplete,
+} from "@/lib/auth/onboarding";
 import { TrialEndedBanner, TrialSubscriptionBanner } from "@/components/pro-access-banner";
 import NotificationPermissionCard from "@/components/notification-permission-card";
 import CoachCard, { CoachHeaderButton } from "@/components/coach-card";
@@ -323,31 +327,34 @@ export default function DashboardScreen() {
     });
   }, []);
 
-  const persistStepCount = useCallback(async (habit: Habit, value: number, force = false) => {
-    const steps = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
-    if (steps <= 0) return;
+  const persistStepCount = useCallback(
+    async (habit: Habit, value: number, force = false) => {
+      const steps = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+      if (steps <= 0) return;
 
-    const now = Date.now();
-    if (!force && now - lastStepSaveAtRef.current < STEP_SYNC_INTERVAL_MS) return;
-    if (stepSavingRef.current) return;
+      const now = Date.now();
+      if (!force && now - lastStepSaveAtRef.current < STEP_SYNC_INTERVAL_MS) return;
+      if (stepSavingRef.current) return;
 
-    stepSavingRef.current = true;
-    const result = await setCompletionValue(habit.id, steps, "Synced from step counter");
-    stepSavingRef.current = false;
+      stepSavingRef.current = true;
+      const result = await setCompletionValue(habit.id, steps, "Synced from step counter");
+      stepSavingRef.current = false;
 
-    if (!result.ok) {
-      setStepTracking({
-        status: "error",
-        lastSyncedAt: lastStepSaveAtRef.current || null,
-        error: result.error,
-      });
-      return;
-    }
+      if (!result.ok) {
+        setStepTracking({
+          status: "error",
+          lastSyncedAt: lastStepSaveAtRef.current || null,
+          error: result.error,
+        });
+        return;
+      }
 
-    lastStepSaveAtRef.current = now;
-    setStepTracking({ status: "tracking", lastSyncedAt: now });
-    await load({ force: true });
-  }, [load]);
+      lastStepSaveAtRef.current = now;
+      setStepTracking({ status: "tracking", lastSyncedAt: now });
+      await load({ force: true });
+    },
+    [load],
+  );
 
   const syncStepHabit = useCallback(
     async (habit: Habit, shouldRequestPermission: boolean, forcePersist = true) => {
@@ -604,6 +611,11 @@ export default function DashboardScreen() {
     return { ok: true };
   }
 
+  async function handleChooseManualHabit() {
+    await completeCurrentUserOnboarding();
+    router.push("/habits/new");
+  }
+
   const completedCount = data
     ? [...data.completedToday].filter((id) => habits.some((h) => h.id === id)).length
     : 0;
@@ -641,6 +653,7 @@ export default function DashboardScreen() {
         </Text>
         <TouchableOpacity
           className="bg-primary rounded-full py-md px-xl items-center"
+          accessibilityRole="button"
           onPress={() => {
             setLoadFailed(false);
             load({ force: true });
@@ -664,6 +677,8 @@ export default function DashboardScreen() {
           <TouchableOpacity
             onPress={() => setShowWelcome(false)}
             className="mx-margin-mobile mt-md mb-xs bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+            accessibilityRole="button"
+            accessibilityLabel={t("Dismiss welcome")}
           >
             <MaterialCommunityIcons name="party-popper" size={22} color={primary} />
             <View className="flex-1">
@@ -703,11 +718,6 @@ export default function DashboardScreen() {
             />
           </View>
         ) : null}
-
-        {/* Reminder permission prompt — self-hides once notifications are granted */}
-        <View className="mt-md">
-          <NotificationPermissionCard />
-        </View>
 
         {/* Header */}
         <View className="flex-row items-center justify-between px-margin-mobile pt-md pb-sm">
@@ -757,12 +767,17 @@ export default function DashboardScreen() {
             />
             <TouchableOpacity
               className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center"
-              onPress={() => router.push("/habits/new")}
+              onPress={handleChooseManualHabit}
+              accessibilityRole="button"
+              accessibilityLabel={t("Add habit")}
             >
               <MaterialCommunityIcons name="plus" size={22} color={primary} />
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Reminder permission prompt — self-hides once notifications are granted */}
+        <NotificationPermissionCard />
 
         {/* AI Coach card — auto-shown when a signal needs attention */}
         {coachCardVisible && coachSignal && (
@@ -831,7 +846,6 @@ export default function DashboardScreen() {
               </ProgressRing>
               {/* Glowing indicator at the top of the ring (matches design) */}
               <View
-                pointerEvents="none"
                 style={{
                   position: "absolute",
                   top: -1,
@@ -839,11 +853,8 @@ export default function DashboardScreen() {
                   height: 10,
                   borderRadius: 5,
                   backgroundColor: primary,
-                  shadowColor: primary,
-                  shadowOpacity: 0.9,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 0 },
-                  elevation: 6,
+                  boxShadow: `0 0 6px ${primary}`,
+                  pointerEvents: "none",
                 }}
               />
             </View>
@@ -855,6 +866,7 @@ export default function DashboardScreen() {
           <TouchableOpacity
             onPress={() => router.push("/(tabs)/leaderboard")}
             className="mx-margin-mobile mb-sm bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+            accessibilityRole="button"
           >
             <MaterialCommunityIcons name="trophy-outline" size={22} color={primary} />
             <View className="flex-1">
@@ -924,6 +936,7 @@ export default function DashboardScreen() {
               <TouchableOpacity
                 className="bg-primary rounded-full py-sm items-center"
                 onPress={() => router.push("/habits/wizard")}
+                accessibilityRole="button"
               >
                 <Text className="text-on-primary text-label-lg font-semibold">
                   {t("Build my routine")}
@@ -931,7 +944,8 @@ export default function DashboardScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 className="bg-surface-lowest dark:bg-d-surface-lowest rounded-full py-sm items-center"
-                onPress={() => router.push("/habits/new")}
+                onPress={handleChooseManualHabit}
+                accessibilityRole="button"
               >
                 <Text className="text-primary text-label-lg font-semibold">
                   {t("Choose manually")}
@@ -952,6 +966,11 @@ export default function DashboardScreen() {
                       done={data?.completedToday.has(habit.id) ?? false}
                       progress={data?.todayProgress.get(habit.id)}
                       streak={data?.streaksMap.get(habit.id) ?? 0}
+                      toggleAccessibilityLabel={
+                        isQuantityHabit(habit) && !(data?.completedToday.has(habit.id) ?? false)
+                          ? t("Log progress for {name}", { name: habit.name })
+                          : undefined
+                      }
                       onToggle={() => handleToggle(habit)}
                       onPress={() => router.push(`/habits/${habit.id}`)}
                     />
@@ -1029,6 +1048,8 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
       disabled={disabled}
       className="mx-margin-mobile mb-sm bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
       style={{ opacity: disabled ? 0.72 : 1 }}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
     >
       <MaterialCommunityIcons name="walk" size={24} color={primary} />
       <View className="flex-1">
