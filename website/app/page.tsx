@@ -1,1861 +1,351 @@
 import type { Metadata } from "next";
-import { createClient } from "@supabase/supabase-js";
-import SiteNav from "@/components/landing/site-nav";
-import ScrollAnimations from "@/components/landing/scroll-animations";
+import Link from "next/link";
 
-// ─── Color tokens (Ember dark) ────────────────────────────────────────────────
-const C = {
-  bg: "#0B0B0E",
-  surface: "#16161C",
-  surfaceHi: "#1F1F27",
-  border: "#2C2C36",
-  text: "#FFFFFF",
-  textMute: "#B5B8C0",
-  textDim: "#7A7E88",
-  primary: "#F26B1F",
-  accent: "#FFC56B",
-  success: "#3EBB7F",
-} as const;
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
 
-function hexA(hex: string, a: number) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}
-
-const SG = 'var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif';
-const MR = 'var(--font-manrope), Manrope, system-ui, sans-serif';
-
-// ─── Metadata ─────────────────────────────────────────────────────────────────
 export const metadata: Metadata = {
-  title: "Lagan — AI Habit Tracker & Coach",
+  title: "Lagan - AI Habit Tracking App",
   description:
-    "An AI-enabled habit tracking app that helps you build routines, get personal coaching, set smart reminders, track streaks, and stay consistent.",
+    "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Lagan — AI Habit Tracker & Coach",
+    title: "Lagan - AI Habit Tracking App",
     description:
-      "Build routines with AI coaching, smart reminders, streak tracking, XP, and badges.",
+      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
     url: "/",
     images: ["/og-image.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lagan — AI Habit Tracker & Coach",
-    description: "Build routines with AI coaching, smart reminders, streak tracking, XP, and badges.",
+    title: "Lagan - AI Habit Tracking App",
+    description:
+      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
     images: ["/og-image.png"],
   },
 };
 
-export const revalidate = 3600;
-export const dynamic = "force-dynamic";
-
-// ─── Stats ────────────────────────────────────────────────────────────────────
-type PublicStats = {
-  user_count: number;
-  completions_count: number;
-  habits_count: number;
-};
-
-async function getPublicStats(): Promise<PublicStats> {
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    const { data } = await supabase.rpc("get_public_stats");
-    if (data) return data as PublicStats;
-  } catch {}
-  return { user_count: 0, completions_count: 0, habits_count: 0 };
-}
-
-function formatStat(n: number): string {
-  if (n >= 1_000_000)
-    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M+`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}k+`;
-  return n.toLocaleString();
-}
-
-// ─── Shared icons ─────────────────────────────────────────────────────────────
-function LogoMark({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-      <rect x="4" y="4" width="12" height="12" rx="3" fill="#F26B1F" />
-      <rect x="20" y="4" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.75" />
-      <rect x="4" y="20" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.5" />
-      <rect x="20" y="20" width="12" height="12" rx="3" fill="#F26B1F" opacity="0.8" />
-    </svg>
-  );
-}
-
-function AndroidIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-      <path d="M6 18c0 .55.45 1 1 1h1v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h2v3.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5V19h1c.55 0 1-.45 1-1V8H6v10zM3.5 8C2.67 8 2 8.67 2 9.5v7c0 .83.67 1.5 1.5 1.5S5 17.33 5 16.5v-7C5 8.67 4.33 8 3.5 8zm17 0c-.83 0-1.5.67-1.5 1.5v7c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5v-7c0-.83-.67-1.5-1.5-1.5zm-4.97-5.84l1.3-1.3c.2-.2.2-.51 0-.71-.2-.2-.51-.2-.71 0l-1.48 1.48C13.85 1.23 12.95 1 12 1c-.96 0-1.86.23-2.66.63L7.85.15c-.2-.2-.51-.2-.71 0-.2.2-.2.51 0 .71l1.31 1.31C6.97 3.26 6 5.01 6 7h12c0-1.99-.97-3.75-2.47-4.84zM10 5H9V4h1v1zm5 0h-1V4h1v1z" />
-    </svg>
-  );
-}
-
-function CheckIcon({ color, size = 11 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 12 12" fill="none">
-      <path
-        d="M2 6L5 9L10 3"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-// ─── Phone mockup screens ─────────────────────────────────────────────────────
-function HabitRow({
-  emoji,
-  label,
-  sub,
-  done,
-}: {
-  emoji: string;
-  label: string;
-  sub: string;
-  done: boolean;
-}) {
-  return (
-    <div
-      style={{
-        background: C.surfaceHi,
-        border: `1px solid ${C.border}`,
-        borderRadius: 12,
-        padding: "10px 13px",
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: 7,
-      }}
-    >
-      <span style={{ fontSize: 14 }}>{emoji}</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: C.text }}>{label}</div>
-        <div style={{ fontSize: 10, color: C.textMute }}>{sub}</div>
-      </div>
-      {done ? (
-        <div
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: 10,
-            background: C.primary,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <CheckIcon color="#fff" size={9} />
-        </div>
-      ) : (
-        <div
-          style={{
-            width: 20,
-            height: 20,
-            borderRadius: 10,
-            border: `2px solid ${C.border}`,
-            flexShrink: 0,
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function PhoneHome() {
-  return (
-    <div
-      style={{
-        width: 300,
-        height: 600,
-        background: C.bg,
-        overflow: "hidden",
-        fontFamily: MR,
-      }}
-    >
-      <div
-        style={{
-          height: 42,
-          background: C.surface,
-          display: "flex",
-          alignItems: "center",
-          padding: "0 18px",
-          justifyContent: "space-between",
-        }}
-      >
-        <span style={{ fontSize: 11, fontWeight: 600, color: C.textMute }}>9:41</span>
-        <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-          <div style={{ width: 3, height: 8, background: C.success, borderRadius: 1 }} />
-          <div style={{ width: 3, height: 6, background: C.textMute, borderRadius: 1 }} />
-          <div style={{ width: 3, height: 4, background: C.border, borderRadius: 1 }} />
-        </div>
-      </div>
-      <div
-        style={{
-          padding: "13px 15px 8px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: 16,
-              fontWeight: 700,
-              color: C.text,
-              fontFamily: SG,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Good morning
-          </div>
-          <div style={{ fontSize: 10, color: C.textMute, marginTop: 1 }}>
-            3 of 5 habits done
-          </div>
-        </div>
-        <div
-          style={{
-            background: hexA(C.primary, 0.15),
-            border: `1px solid ${hexA(C.primary, 0.3)}`,
-            borderRadius: 18,
-            padding: "4px 10px",
-            fontSize: 12,
-            fontWeight: 700,
-            color: C.primary,
-          }}
-        >
-          🔥 12
-        </div>
-      </div>
-      <div
-        style={{
-          margin: "0 13px 10px",
-          background: C.surface,
-          borderRadius: 13,
-          padding: "11px 13px",
-          border: `1px solid ${C.border}`,
-          display: "flex",
-          alignItems: "center",
-          gap: 13,
-        }}
-      >
-        <div style={{ position: "relative", width: 46, height: 46, flexShrink: 0 }}>
-          <svg width="46" height="46" viewBox="0 0 46 46">
-            <circle cx="23" cy="23" r="17" fill="none" stroke={C.border} strokeWidth="5" />
-            <circle
-              cx="23"
-              cy="23"
-              r="17"
-              fill="none"
-              stroke={C.primary}
-              strokeWidth="5"
-              strokeDasharray="106.8"
-              strokeDashoffset="42.7"
-              strokeLinecap="round"
-              transform="rotate(-90 23 23)"
-            />
-          </svg>
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 10,
-              fontWeight: 700,
-              color: C.primary,
-            }}
-          >
-            60%
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.text }}>
-            Today&apos;s progress
-          </div>
-          <div style={{ fontSize: 10, color: C.textMute, marginTop: 1 }}>
-            Keep going!
-          </div>
-        </div>
-      </div>
-      <div style={{ padding: "0 13px" }}>
-        <HabitRow emoji="💧" label="Drink Water" sub="2500ml" done={true} />
-        <HabitRow emoji="📖" label="Read 10 pages" sub="Atomic Habits" done={true} />
-        <HabitRow emoji="🧘" label="Meditation" sub="10 min" done={true} />
-        <HabitRow emoji="🏃" label="Evening walk" sub="30 min" done={false} />
-        <HabitRow emoji="😴" label="Sleep by 11pm" sub="Bedtime" done={false} />
-      </div>
-    </div>
-  );
-}
-
-function PhoneSignin() {
-  return (
-    <div
-      style={{
-        width: 300,
-        height: 600,
-        background: C.bg,
-        overflow: "hidden",
-        fontFamily: MR,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 28,
-      }}
-    >
-      <div style={{ marginBottom: 28, textAlign: "center" }}>
-        <div
-          style={{
-            width: 52,
-            height: 52,
-            borderRadius: 14,
-            background: hexA(C.primary, 0.15),
-            border: `1px solid ${hexA(C.primary, 0.3)}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 10px",
-          }}
-        >
-          <LogoMark size={28} />
-        </div>
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 700,
-            color: C.text,
-            fontFamily: SG,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Lagan
-        </div>
-        <div style={{ fontSize: 11, color: C.textMute, marginTop: 4 }}>
-          Daily devotion. Gently rewarded.
-        </div>
-      </div>
-      {(["Email address", "Password"] as const).map((label, i) => (
-        <div key={label} style={{ width: "100%", marginBottom: 12 }}>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              color: C.textMute,
-              marginBottom: 5,
-            }}
-          >
-            {label}
-          </div>
-          <div
-            style={{
-              width: "100%",
-              background: C.surface,
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              padding: "10px 13px",
-              fontSize: 12,
-              color: C.textDim,
-            }}
-          >
-            {i === 0 ? "you@example.com" : "••••••••"}
-          </div>
-        </div>
-      ))}
-      <button
-        style={{
-          width: "100%",
-          background: C.primary,
-          color: "#fff",
-          border: "none",
-          borderRadius: 12,
-          padding: "13px",
-          fontSize: 14,
-          fontWeight: 700,
-          marginTop: 8,
-          cursor: "pointer",
-          fontFamily: "inherit",
-          boxShadow: `0 6px 20px ${hexA(C.primary, 0.35)}`,
-        }}
-      >
-        Continue
-      </button>
-      <div
-        style={{
-          fontSize: 10,
-          color: C.textDim,
-          marginTop: 16,
-          textAlign: "center",
-        }}
-      >
-        New to Lagan?{" "}
-        <span style={{ color: C.primary }}>Create account</span>
-      </div>
-    </div>
-  );
-}
-
-function PhoneLeaderboard() {
-  const players = [
-    { init: "A", name: "Aisha M.", xp: 3820, streak: 34, rank: 1, you: false, hue: 142 },
-    { init: "R", name: "You", xp: 3610, streak: 22, rank: 2, you: true, hue: 22 },
-    { init: "J", name: "James T.", xp: 2940, streak: 18, rank: 3, you: false, hue: 200 },
-    { init: "S", name: "Sofia K.", xp: 1980, streak: 12, rank: 4, you: false, hue: 280 },
-    { init: "M", name: "Mike R.", xp: 1450, streak: 8, rank: 5, you: false, hue: 50 },
-  ];
-  return (
-    <div style={{ width: 300, height: 600, background: C.bg, overflow: "hidden", fontFamily: MR }}>
-      <div style={{ height: 42, background: C.surface, display: "flex", alignItems: "center", padding: "0 18px", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: C.textMute }}>9:41</span>
-        <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
-          <div style={{ width: 3, height: 8, background: C.success, borderRadius: 1 }} />
-          <div style={{ width: 3, height: 6, background: C.textMute, borderRadius: 1 }} />
-          <div style={{ width: 3, height: 4, background: C.border, borderRadius: 1 }} />
-        </div>
-      </div>
-      <div style={{ padding: "13px 15px 10px", borderBottom: `1px solid ${C.border}` }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: C.primary, letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: 2 }}>
-          LEADERBOARD
-        </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: C.text, fontFamily: SG, letterSpacing: "-0.02em" }}>
-          This Week
-        </div>
-      </div>
-      <div style={{ margin: "10px 13px", background: hexA(C.accent, 0.08), border: `1px solid ${hexA(C.accent, 0.25)}`, borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 13 }}>⚡</span>
-        <span style={{ fontSize: 10, color: C.accent, fontWeight: 600 }}>210 XP to reach #1 — you&apos;re close!</span>
-      </div>
-      <div style={{ padding: "0 13px" }}>
-        {players.map((p) => (
-          <div key={p.rank} style={{ background: p.you ? hexA(C.primary, 0.1) : C.surfaceHi, border: `1px solid ${p.you ? hexA(C.primary, 0.35) : C.border}`, borderRadius: 10, padding: "9px 11px", display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
-            <div style={{ width: 18, textAlign: "center", fontSize: 13, flexShrink: 0 }}>
-              {p.rank === 1 ? "🥇" : p.rank === 2 ? "🥈" : <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim }}>{p.rank}</span>}
-            </div>
-            <div style={{ width: 26, height: 26, borderRadius: 13, background: p.you ? C.primary : `hsl(${p.hue}, 50%, 40%)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
-              {p.init}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: p.you ? C.primary : C.text }}>{p.name}</div>
-              <div style={{ fontSize: 9, color: C.textMute }}>🔥 {p.streak} day streak</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: p.you ? C.primary : C.text }}>{p.xp.toLocaleString()}</div>
-              <div style={{ fontSize: 8, color: C.textDim }}>XP</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function PhoneCoach({ light = false }: { light?: boolean }) {
-  const bg = light ? "#FAF7F2" : C.bg;
-  const surf = light ? "#FFFFFF" : C.surface;
-  const bdr = light ? "#E6E0D5" : C.border;
-  const txt = light ? "#171311" : C.text;
-  const mute = light ? "#5A554D" : C.textMute;
-
-  return (
-    <div
-      style={{
-        width: 300,
-        height: 600,
-        background: bg,
-        overflow: "hidden",
-        fontFamily: MR,
-      }}
-    >
-      <div
-        style={{
-          height: 52,
-          background: surf,
-          borderBottom: `1px solid ${bdr}`,
-          display: "flex",
-          alignItems: "center",
-          padding: "0 15px",
-          gap: 10,
-        }}
-      >
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            background: hexA(C.primary, 0.15),
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 15,
-          }}
-        >
-          ✨
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: txt,
-              fontFamily: SG,
-            }}
-          >
-            AI Coach
-          </div>
-          <div style={{ fontSize: 10, color: mute }}>Powered by Lagan</div>
-        </div>
-      </div>
-      <div
-        style={{
-          padding: "14px 13px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 11,
-        }}
-      >
-        <div style={{ display: "flex", gap: 7, maxWidth: "85%" }}>
-          <div
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              background: hexA(C.primary, 0.15),
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 11,
-            }}
-          >
-            ✨
-          </div>
-          <div
-            style={{
-              background: surf,
-              border: `1px solid ${bdr}`,
-              borderRadius: "4px 12px 12px 12px",
-              padding: "9px 11px",
-              fontSize: 11,
-              color: txt,
-              lineHeight: 1.5,
-            }}
-          >
-            Great job on your 12-day streak! Your morning habits are really
-            solid. How are you feeling about your focus this week?
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <div
-            style={{
-              background: C.primary,
-              borderRadius: "12px 4px 12px 12px",
-              padding: "9px 11px",
-              fontSize: 11,
-              color: "#fff",
-              lineHeight: 1.5,
-              maxWidth: "80%",
-            }}
-          >
-            Pretty good! I missed the evening walk twice though.
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 7, maxWidth: "85%" }}>
-          <div
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 12,
-              background: hexA(C.primary, 0.15),
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 11,
-            }}
-          >
-            ✨
-          </div>
-          <div
-            style={{
-              background: surf,
-              border: `1px solid ${bdr}`,
-              borderRadius: "4px 12px 12px 12px",
-              padding: "9px 11px",
-              fontSize: 11,
-              color: txt,
-              lineHeight: 1.5,
-            }}
-          >
-            That&apos;s normal. Try pairing the walk with something you already
-            do — like right after dinner.
-          </div>
-        </div>
-      </div>
-      <div
-        style={{
-          padding: "0 13px",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 7,
-        }}
-      >
-        {["How's my streak?", "Suggest a habit", "Weekly review"].map(
-          (chip) => (
-            <div
-              key={chip}
-              style={{
-                background: hexA(C.primary, 0.1),
-                border: `1px solid ${hexA(C.primary, 0.25)}`,
-                borderRadius: 16,
-                padding: "5px 10px",
-                fontSize: 10,
-                fontWeight: 600,
-                color: C.primary,
-              }}
-            >
-              {chip}
-            </div>
-          )
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PhoneFrame({
-  children,
-  scale = 1,
-  className,
-}: {
-  children: React.ReactNode;
-  scale?: number;
-  className?: string;
-}) {
-  const W = 300,
-    H = 600;
-  return (
-    <div
-      className={className}
-      style={{
-        width: W * scale,
-        height: H * scale,
-        borderRadius: 36 * scale,
-        overflow: "hidden",
-        flexShrink: 0,
-        border: `2px solid ${C.border}`,
-        boxShadow: `0 24px 60px ${hexA("#000000", 0.5)}, 0 0 0 1px ${C.border}`,
-      }}
-    >
-      <div
-        style={{
-          transform: `scale(${scale})`,
-          transformOrigin: "top left",
-          width: W,
-          height: H,
-        }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── Hero ─────────────────────────────────────────────────────────────────────
-function SiteHero({ userCount }: { userCount: string }) {
-  return (
-    <section
-      className="landing-section"
-      style={{
-        minHeight: "100vh",
-        padding: "100px clamp(20px, 5vw, 80px) 80px",
-        display: "flex",
-        alignItems: "center",
-        position: "relative",
-        overflow: "hidden",
-        background: C.bg,
-      }}
-    >
-      <div
-        className="glow-pulse"
-        style={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          background: `radial-gradient(ellipse 65% 70% at 72% 52%, ${hexA(C.primary, 0.11)}, transparent 65%)`,
-        }}
-      />
-      <div
-        className="glow-drift"
-        style={{
-          position: "absolute",
-          top: "20%",
-          left: "25%",
-          width: 700,
-          height: 700,
-          pointerEvents: "none",
-          background: `radial-gradient(circle, ${hexA(C.accent, 0.05)}, transparent 65%)`,
-        }}
-      />
-
-      <div
-        className="hero-grid"
-        style={{
-          maxWidth: 1240,
-          width: "100%",
-          margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 40,
-          alignItems: "center",
-        }}
-      >
-        {/* Copy */}
-        <div className="hero-copy" style={{ maxWidth: 540 }}>
-          <div
-            className="hero-rise"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 28,
-              background: hexA(C.primary, 0.1),
-              border: `1px solid ${hexA(C.primary, 0.28)}`,
-              borderRadius: 999,
-              padding: "5px 14px",
-              animationDelay: "0.05s",
-            }}
-          >
-            <div
-              className="pulse-ring"
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                background: C.primary,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: C.primary,
-                letterSpacing: 0.3,
-              }}
-            >
-              NEW · AI habit coach is live
-            </span>
-          </div>
-
-          <h1
-            className="hero-rise"
-            style={{
-              fontFamily: SG,
-              fontSize: "clamp(46px, 6vw, 86px)",
-              fontWeight: 700,
-              letterSpacing: "-0.04em",
-              lineHeight: 1.0,
-              color: C.text,
-              margin: "0 0 22px",
-              animationDelay: "0.12s",
-            }}
-          >
-            Lagan, your
-            <br />
-            <span className="text-shimmer">AI habit tracker.</span>
-          </h1>
-
-          <p
-            className="hero-rise"
-            style={{
-              fontFamily: MR,
-              fontSize: 18,
-              fontWeight: 500,
-              color: C.textMute,
-              lineHeight: 1.65,
-              margin: "0 0 34px",
-              maxWidth: 440,
-              animationDelay: "0.2s",
-            }}
-          >
-            Build better routines with AI coaching, smart reminders, and weekly progress insights.
-            Track streaks, sleep, steps, and XP without turning habits into another chore.
-          </p>
-
-          <div
-            className="hero-cta hero-rise"
-            style={{
-              display: "flex",
-              gap: 12,
-              marginBottom: 36,
-              flexWrap: "wrap",
-              animationDelay: "0.28s",
-            }}
-          >
-            <a
-              href="/app"
-              className="btn-press"
-              style={{
-                background: C.primary,
-                color: "#fff",
-                borderRadius: 14,
-                padding: "14px 26px",
-                fontSize: 16,
-                fontWeight: 700,
-                fontFamily: "inherit",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-                textDecoration: "none",
-                boxShadow: `0 8px 28px ${hexA(C.primary, 0.42)}`,
-              }}
-            >
-              🌐 Use on iPhone
-            </a>
-            <a
-              href="https://play.google.com/store"
-              className="btn-press"
-              style={{
-                background: "transparent",
-                color: C.text,
-                border: `1px solid ${C.border}`,
-                borderRadius: 14,
-                padding: "14px 26px",
-                fontSize: 16,
-                fontWeight: 600,
-                fontFamily: "inherit",
-                cursor: "pointer",
-                textDecoration: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 9,
-              }}
-            >
-              <AndroidIcon />
-              Android
-            </a>
-          </div>
-
-          {/* Social proof */}
-          <div className="hero-social hero-rise" style={{ display: "flex", alignItems: "center", gap: 14, animationDelay: "0.36s" }}>
-            <div style={{ display: "flex" }}>
-              {["R", "S", "M", "J", "K"].map((l, i) => (
-                <div
-                  key={l}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    background: `hsl(${18 + i * 32}, 60%, 46%)`,
-                    border: `2px solid ${C.bg}`,
-                    marginLeft: i > 0 ? -8 : 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "#fff",
-                  }}
-                >
-                  {l}
-                </div>
-              ))}
-            </div>
-            <div>
-              <div
-                style={{ display: "flex", gap: 1, marginBottom: 2 }}
-                aria-label="5 stars"
-              >
-                {"★★★★★".split("").map((s, i) => (
-                  <span key={i} style={{ color: C.accent, fontSize: 11 }}>
-                    {s}
-                  </span>
-                ))}
-              </div>
-              <span
-                style={{ fontSize: 12, fontWeight: 600, color: C.textMute }}
-              >
-                Loved by {userCount} daily habit builders
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Phones */}
-        <div
-          className="hero-phones"
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "flex-start",
-            gap: 22,
-            position: "relative",
-          }}
-        >
-          <div
-            className="glow-pulse"
-            style={{
-              position: "absolute",
-              inset: -80,
-              borderRadius: "50%",
-              pointerEvents: "none",
-              background: `radial-gradient(circle, ${hexA(C.primary, 0.18)}, transparent 65%)`,
-            }}
-          />
-          <div className="hero-rise" style={{ position: "relative", zIndex: 1, animationDelay: "0.32s" }}>
-            <PhoneFrame className="float-slow">
-              <PhoneHome />
-            </PhoneFrame>
-          </div>
-          <div
-            className="hero-phone-secondary hero-rise"
-            style={{ position: "relative", zIndex: 1, marginTop: 80, animationDelay: "0.44s" }}
-          >
-            <PhoneFrame scale={0.82} className="float-slow-alt">
-              <PhoneCoach light />
-            </PhoneFrame>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── Stats strip ──────────────────────────────────────────────────────────────
-function StatsStrip({
-  userCount,
-  checkinsCount,
-}: {
-  userCount: string;
-  checkinsCount: string;
-}) {
-  const items = [
-    { value: userCount, label: "daily practicers" },
-    { value: "4.9★", label: "App Store rating" },
-    { value: checkinsCount, label: "habits checked in" },
-    { value: "7 day", label: "avg. streak at 30 days" },
-  ];
-  return (
-    <div
-      className="landing-section stats-strip"
-      style={{
-        borderTop: `1px solid ${C.border}`,
-        borderBottom: `1px solid ${C.border}`,
-        background: C.surface,
-        padding: "0 clamp(20px, 5vw, 80px)",
-      }}
-    >
-      <div
-        className="stats-grid stagger"
-        style={{
-          maxWidth: 1240,
-          margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-        }}
-      >
-        {items.map((s, i) => (
-          <div
-            key={s.label}
-            style={{
-              padding: "28px 24px",
-              borderRight:
-                i < items.length - 1
-                  ? `1px solid ${C.border}`
-                  : "none",
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                fontFamily: SG,
-                fontSize: 32,
-                fontWeight: 700,
-                letterSpacing: "-0.03em",
-                color: C.text,
-                lineHeight: 1,
-              }}
-            >
-              {s.value}
-            </div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.textMute }}>
-              {s.label}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Features ─────────────────────────────────────────────────────────────────
-const FEATURES = [
+const features = [
   {
-    icon: "✨",
-    tag: "AI Coach",
-    title: "Personal coaching from your habits",
-    desc: "Lagan reads your streaks, sleep, and check-ins to suggest next steps that fit your actual life.",
+    title: "AI habit suggestions",
+    description: "Get practical habit ideas based on the routines you want to build.",
+    icon: SparkIcon,
+    accent: "bg-[#DDF7EC] text-[#0F7A52]",
   },
   {
-    icon: "🧭",
-    tag: "AI Routines",
-    title: "Start with a routine built for your day",
-    desc: "Answer a few questions and Lagan shapes a starter routine; Pro can refine it with AI.",
+    title: "Daily habit tracking",
+    description: "Check off habits quickly and see what still needs attention today.",
+    icon: CheckIcon,
+    accent: "bg-[#E8F1FF] text-[#1D5FBF]",
   },
   {
-    icon: "🔔",
-    tag: "Smart Reminders",
-    title: "Nudges that know your momentum",
-    desc: "AI-powered reminders help you recover from missed days and keep the next action small.",
+    title: "Progress insights",
+    description: "Understand streaks, completion patterns, and where consistency is growing.",
+    icon: ChartIcon,
+    accent: "bg-[#F5EAFE] text-[#7646A8]",
   },
   {
-    icon: "🏆",
-    tag: "Streaks + XP",
-    title: "Track the work that compounds",
-    desc: "Log habits, see streaks, earn XP, unlock badges, and compare progress on the leaderboard.",
+    title: "Simple reminders",
+    description: "Set calm nudges that help you remember without adding noise.",
+    icon: BellIcon,
+    accent: "bg-[#FFF2D7] text-[#B56B00]",
+  },
+  {
+    title: "Motivation to stay consistent",
+    description: "Use small wins, streaks, and AI guidance to keep going after busy days.",
+    icon: FlameIcon,
+    accent: "bg-[#FFE6D8] text-[#C24A13]",
   },
 ];
 
-function SiteFeatures() {
-  return (
-    <section
-      id="features"
-      className="landing-section"
-      style={{
-        padding: "100px clamp(20px, 5vw, 80px)",
-        background: C.bg,
-      }}
-    >
-      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-        <div className="reveal-up" style={{ textAlign: "center", marginBottom: 56 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.primary,
-              letterSpacing: "0.3em",
-              textTransform: "uppercase",
-              marginBottom: 14,
-            }}
-          >
-            AI-enabled habit tracking
-          </div>
-          <h2
-            style={{
-              fontFamily: SG,
-              fontSize: "clamp(30px, 4vw, 54px)",
-              fontWeight: 700,
-              letterSpacing: "-0.03em",
-              color: C.text,
-              margin: 0,
-              lineHeight: 1.1,
-            }}
-          >
-            Coaching when you need it.
-            <br />
-            <span style={{ color: C.textMute }}>Simple tracking when you don&apos;t.</span>
-          </h2>
-        </div>
-
-        <div
-          className="features-grid stagger"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: 18,
-          }}
-        >
-          {FEATURES.map((f, i) => {
-            const hi = i === 0;
-            return (
-              <div
-                key={f.tag}
-                className="lift-card"
-                style={{
-                  background: hi
-                    ? `linear-gradient(155deg, ${hexA(C.primary, 0.14)}, ${C.surface})`
-                    : C.surface,
-                  border: `1px solid ${hi ? hexA(C.primary, 0.3) : C.border}`,
-                  borderRadius: 20,
-                  padding: "30px 26px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 20,
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 13,
-                    background: hexA(C.primary, 0.1),
-                    border: `1px solid ${hexA(C.primary, 0.18)}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 22,
-                  }}
-                >
-                  {f.icon}
-                </div>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      color: C.primary,
-                      letterSpacing: "0.22em",
-                      textTransform: "uppercase",
-                      marginBottom: 9,
-                    }}
-                  >
-                    {f.tag}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: SG,
-                      fontSize: 20,
-                      fontWeight: 600,
-                      color: C.text,
-                      letterSpacing: "-0.02em",
-                      lineHeight: 1.2,
-                      marginBottom: 10,
-                    }}
-                  >
-                    {f.title}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: C.textMute,
-                      lineHeight: 1.65,
-                      fontWeight: 500,
-                    }}
-                  >
-                    {f.desc}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── How it works ─────────────────────────────────────────────────────────────
-const HOW_STEPS = [
+const steps = [
   {
-    num: "01",
-    title: "Tell Lagan your goals",
-    desc: "Add habits manually or answer a few questions so Lagan can suggest a routine matched to your day.",
-    phone: <PhoneSignin />,
+    step: "01",
+    title: "Download Lagan",
+    description: "Install Lagan from Google Play and start in less than a minute.",
   },
   {
-    num: "02",
-    title: "Track, sync, and learn",
-    desc: "Check off habits, sync steps and sleep, and let your daily progress become useful context for coaching.",
-    phone: <PhoneHome />,
+    step: "02",
+    title: "Add your habits",
+    description: "Choose habits to track or use AI suggestions to shape a simple routine.",
   },
   {
-    num: "03",
-    title: "Get AI coaching as you go",
-    desc: "When momentum dips, the AI coach uses your logs to spot patterns and suggest the next small move.",
-    phone: <PhoneCoach />,
+    step: "03",
+    title: "Track progress and improve with AI",
+    description: "Log each day, review your progress, and use AI guidance to adjust.",
   },
 ];
 
-function SiteHowItWorks() {
+function LogoMark() {
   return (
-    <section
-      id="how-it-works"
-      className="landing-section"
-      style={{
-        padding: "100px clamp(20px, 5vw, 80px)",
-        background: C.surface,
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          background: `radial-gradient(ellipse 55% 80% at 50% 50%, ${hexA(C.primary, 0.04)}, transparent 70%)`,
-        }}
-      />
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div className="reveal-up" style={{ textAlign: "center", marginBottom: 66 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.primary,
-              letterSpacing: "0.3em",
-              textTransform: "uppercase",
-              marginBottom: 14,
-            }}
-          >
-            AI that stays practical
-          </div>
-          <h2
-            style={{
-              fontFamily: SG,
-              fontSize: "clamp(30px, 4vw, 52px)",
-              fontWeight: 700,
-              letterSpacing: "-0.03em",
-              color: C.text,
-              margin: 0,
-            }}
-          >
-            How it works
-          </h2>
-        </div>
-
-        <div
-          className="how-grid stagger"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 48,
-            position: "relative",
-            zIndex: 1,
-            alignItems: "start",
-          }}
-        >
-          {HOW_STEPS.map((step) => (
-            <div
-              key={step.num}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 28,
-              }}
-            >
-              <div style={{ textAlign: "center" }}>
-                <div
-                  style={{
-                    fontFamily: SG,
-                    fontSize: 80,
-                    fontWeight: 700,
-                    letterSpacing: "-0.04em",
-                    color: hexA(C.primary, 0.16),
-                    lineHeight: 1,
-                    marginBottom: 14,
-                  }}
-                >
-                  {step.num}
-                </div>
-                <div
-                  style={{
-                    fontFamily: SG,
-                    fontSize: 22,
-                    fontWeight: 600,
-                    color: C.text,
-                    letterSpacing: "-0.02em",
-                    marginBottom: 10,
-                  }}
-                >
-                  {step.title}
-                </div>
-                <div
-                  style={{
-                    fontSize: 14,
-                    color: C.textMute,
-                    lineHeight: 1.65,
-                    fontWeight: 500,
-                    maxWidth: 260,
-                    margin: "0 auto",
-                  }}
-                >
-                  {step.desc}
-                </div>
-              </div>
-              <PhoneFrame scale={0.78} className="float-slow">
-                {step.phone}
-              </PhoneFrame>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+    <span className="grid h-9 w-9 grid-cols-2 gap-1 rounded-lg bg-[#16161C] p-1 shadow-sm" aria-hidden="true">
+      <span className="rounded-[3px] bg-[#F26B1F]" />
+      <span className="rounded-[3px] bg-[#37B889]" />
+      <span className="rounded-[3px] bg-[#5CA8FF]" />
+      <span className="rounded-[3px] bg-[#FFC56B]" />
+    </span>
   );
 }
 
-// ─── Leaderboard spotlight ────────────────────────────────────────────────────
-function SiteLeaderboard() {
+function GooglePlayIcon() {
   return (
-    <section
-      id="leaderboard"
-      className="landing-section"
-      style={{
-        padding: "100px clamp(20px, 5vw, 80px)",
-        background: C.bg,
-      }}
-    >
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div
-          className="chill-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 80,
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              position: "relative",
-            }}
-          >
-            <div
-              className="glow-pulse"
-              style={{
-                position: "absolute",
-                inset: -60,
-                borderRadius: "50%",
-                pointerEvents: "none",
-                background: `radial-gradient(circle, ${hexA(C.primary, 0.13)}, transparent 70%)`,
-              }}
-            />
-            <div style={{ position: "relative", zIndex: 1 }}>
-              <PhoneFrame className="float-slow">
-                <PhoneLeaderboard />
-              </PhoneFrame>
-            </div>
-          </div>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4.5 3.5v17l9-8.5-9-8.5Z" fill="#34A853" />
+      <path d="m13.5 12 2.8-2.65L6.1 3.75 13.5 12Z" fill="#4285F4" />
+      <path d="m13.5 12-7.4 8.25 10.2-5.6L13.5 12Z" fill="#FBBC04" />
+      <path d="m16.3 9.35 2.75 1.5c.9.5.9 1.8 0 2.3l-2.75 1.5L13.5 12l2.8-2.65Z" fill="#EA4335" />
+    </svg>
+  );
+}
 
+function SparkIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="m12 3 1.8 5.1L19 10l-5.2 1.9L12 17l-1.8-5.1L5 10l5.2-1.9L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="m18 15 .8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 12.5 9.2 17 19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 19V5M5 19h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="m8 15 3.2-3.2 2.5 2.5L18.5 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M18 10.4V9a6 6 0 0 0-12 0v1.4c0 2.2-.8 3.5-1.6 4.5-.5.7 0 1.6.9 1.6h13.4c.9 0 1.4-.9.9-1.6-.8-1-1.6-2.3-1.6-4.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M10 19a2.2 2.2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FlameIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 21c3.6 0 6.5-2.6 6.5-6.1 0-2.9-1.6-4.8-4-7.2-.7 2.1-1.7 3.2-3 3.9.4-3-1-5.5-3.5-7.6.2 3.6-2.5 5.6-2.5 9.7C5.5 18 8.4 21 12 21Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function DownloadButton({ className = "" }: { className?: string }) {
+  return (
+    <a
+      href={PLAY_STORE_URL}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#F26B1F] px-5 py-3 text-base font-bold text-white shadow-[0_12px_28px_rgba(242,107,31,0.28)] transition hover:bg-[#D95C18] focus:outline-none focus:ring-4 focus:ring-[#F26B1F]/25 ${className}`}
+    >
+      <GooglePlayIcon />
+      Get it on Google Play
+    </a>
+  );
+}
+
+function PhoneMockup() {
+  const habits = [
+    { label: "Morning walk", meta: "20 min", done: true },
+    { label: "Read", meta: "10 pages", done: true },
+    { label: "Drink water", meta: "2.5 L", done: true },
+    { label: "Meditation", meta: "8 min", done: false },
+  ];
+
+  return (
+    <div className="mx-auto w-full max-w-[290px] rounded-[34px] border border-[#D8E0D8] bg-[#111318] p-3 shadow-[0_24px_60px_rgba(31,42,35,0.22)] lg:max-w-[300px]">
+      <div className="overflow-hidden rounded-[25px] bg-[#F8FAF7]">
+        <div className="flex h-10 items-center justify-between bg-white px-5 text-[11px] font-bold text-[#17201B]">
+          <span>9:41</span>
+          <span className="h-2 w-12 rounded-full bg-[#17201B]" />
+        </div>
+
+        <div className="space-y-4 p-5">
           <div>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                color: C.primary,
-                letterSpacing: "0.3em",
-                textTransform: "uppercase",
-                marginBottom: 20,
-              }}
-            >
-              MOMENTUM
-            </div>
-            <h2
-              style={{
-                fontFamily: SG,
-                fontSize: "clamp(30px, 3.5vw, 54px)",
-                fontWeight: 700,
-                letterSpacing: "-0.03em",
-                lineHeight: 1.1,
-                color: C.text,
-                margin: "0 0 20px",
-              }}
-            >
-              Every habit.
-              <br />
-              <span style={{ color: C.primary }}>Every streak. Visible.</span>
-            </h2>
-            <p
-              style={{
-                fontFamily: MR,
-                fontSize: 16,
-                color: C.textMute,
-                lineHeight: 1.7,
-                fontWeight: 500,
-                margin: "0 0 32px",
-                maxWidth: 400,
-              }}
-            >
-              AI helps you choose the next right action. XP, badges, and the
-              weekly leaderboard keep momentum visible once you start showing
-              up.
-            </p>
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: 14 }}
-            >
-              {[
-                "Complete a habit -> earn XP towards your rank",
-                "Hold a 7-day streak -> unlock a 2x XP multiplier",
-                "Use weekly progress -> adjust your next routine with AI",
-              ].map((point, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 11,
-                      flexShrink: 0,
-                      marginTop: 1,
-                      background: hexA(C.primary, 0.18),
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <CheckIcon color={C.primary} />
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 14,
-                      color: C.textMute,
-                      fontWeight: 500,
-                      lineHeight: 1.55,
-                    }}
-                  >
-                    {point}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0F7A52]">Today</p>
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-[#17201B]">3 of 4 habits done</h2>
           </div>
-        </div>
-      </div>
-    </section>
-  );
-}
 
-// ─── Testimonials ─────────────────────────────────────────────────────────────
-const TESTIMONIALS = [
-  {
-    text: "Lagan changed my mornings. The AI routine got me started small, then streaks and XP kept me honest for 90 days.",
-    name: "Sarah K.",
-    role: "Designer · 90-day streak",
-    init: "S",
-    hue: 22,
-  },
-  {
-    text: "Finally an app that doesn't feel like another obligation. The AI Coach called out my slump before I even noticed it myself.",
-    name: "Marcus T.",
-    role: "Engineer · 45-day streak",
-    init: "M",
-    hue: 220,
-  },
-  {
-    text: "I've tried every habit app. Lagan is the first one that feels personal without being noisy. The AI reminders are calm and useful.",
-    name: "Priya R.",
-    role: "Writer · 120-day streak",
-    init: "P",
-    hue: 145,
-  },
-];
-
-function SiteTestimonials() {
-  return (
-    <section
-      className="landing-section"
-      style={{
-        padding: "100px clamp(20px, 5vw, 80px)",
-        background: C.surface,
-      }}
-    >
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        <div className="reveal-up" style={{ textAlign: "center", marginBottom: 52 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: C.primary,
-              letterSpacing: "0.3em",
-              textTransform: "uppercase",
-              marginBottom: 14,
-            }}
-          >
-            Community
-          </div>
-          <h2
-            style={{
-              fontFamily: SG,
-              fontSize: "clamp(28px, 3.5vw, 48px)",
-              fontWeight: 700,
-              letterSpacing: "-0.03em",
-              color: C.text,
-              margin: 0,
-            }}
-          >
-            Practical AI for daily follow-through.
-          </h2>
-        </div>
-        <div
-          className="testi-grid stagger"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 20,
-          }}
-        >
-          {TESTIMONIALS.map((q, i) => {
-            const color = `hsl(${q.hue}, 58%, 50%)`;
-            return (
-              <div
-                key={i}
-                className="lift-card"
-                style={{
-                  background: C.surfaceHi,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 20,
-                  padding: "28px 26px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 20,
-                }}
-              >
-                <div style={{ display: "flex", gap: 2 }}>
-                  {"★★★★★".split("").map((s, j) => (
-                    <span key={j} style={{ color, fontSize: 13 }}>
-                      {s}
-                    </span>
-                  ))}
-                </div>
-                <p
-                  style={{
-                    fontSize: 14,
-                    color: C.text,
-                    lineHeight: 1.7,
-                    fontWeight: 500,
-                    margin: 0,
-                    fontStyle: "italic",
-                  }}
-                >
-                  &ldquo;{q.text}&rdquo;
-                </p>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: 12 }}
-                >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      background: color,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: "#fff",
-                      fontFamily: SG,
-                    }}
-                  >
-                    {q.init}
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: C.text,
-                      }}
-                    >
-                      {q.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: C.textMute,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {q.role}
-                    </div>
-                  </div>
-                </div>
+          <div className="rounded-lg border border-[#DDE8DE] bg-white p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-[#17201B]">Daily progress</p>
+                <p className="mt-1 text-xs text-[#617064]">Keep your streak moving</p>
               </div>
-            );
-          })}
+              <div className="grid h-14 w-14 place-items-center rounded-full bg-[#E8F7F1] text-sm font-bold text-[#0F7A52]">
+                75%
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {habits.map((habit) => (
+              <div key={habit.label} className="flex items-center gap-3 rounded-lg border border-[#E2EAE2] bg-white p-3">
+                <span className={`grid h-7 w-7 place-items-center rounded-full ${habit.done ? "bg-[#0F7A52]" : "bg-[#EDF2ED]"} text-white`}>
+                  {habit.done ? <CheckIcon /> : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold text-[#17201B]">{habit.label}</span>
+                  <span className="block text-xs text-[#617064]">{habit.meta}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-lg bg-[#EAF3FF] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#1D5FBF]">AI guide</p>
+            <p className="mt-2 text-sm font-semibold leading-5 text-[#17201B]">
+              You are strongest before lunch. Move meditation earlier tomorrow.
+            </p>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
-// ─── CTA ──────────────────────────────────────────────────────────────────────
-function SiteCTA() {
-  return (
-    <section
-      className="landing-section"
-      style={{
-        padding: "120px clamp(20px, 5vw, 80px)",
-        position: "relative",
-        overflow: "hidden",
-        background: C.bg,
-      }}
-    >
-      <div
-        className="glow-pulse"
-        style={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          background: `radial-gradient(ellipse 70% 80% at 50% 50%, ${hexA(C.primary, 0.13)}, transparent 70%)`,
-        }}
-      />
-      <div
-        style={{
-          maxWidth: 600,
-          margin: "0 auto",
-          textAlign: "center",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            marginBottom: 28,
-          }}
-        >
-          <LogoMark size={56} />
-        </div>
-        <h2
-          style={{
-            fontFamily: SG,
-            fontSize: "clamp(36px, 5vw, 68px)",
-            fontWeight: 700,
-            letterSpacing: "-0.04em",
-            lineHeight: 1.05,
-            color: C.text,
-            margin: "0 0 18px",
-          }}
-        >
-          Start with an AI routine
-          <br />
-          <span className="text-shimmer">today.</span>
-        </h2>
-        <p
-          style={{
-            fontFamily: MR,
-            fontSize: 17,
-            color: C.textMute,
-            lineHeight: 1.65,
-            fontWeight: 500,
-            margin: "0 auto 40px",
-            maxWidth: 360,
-          }}
-        >
-          Free to start. Track habits today, then let AI coaching help you adjust tomorrow.
-        </p>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 14,
-            flexWrap: "wrap",
-          }}
-        >
-          <a
-            href="/app"
-            className="btn-press"
-            style={{
-              background: C.primary,
-              color: "#fff",
-              borderRadius: 14,
-              padding: "16px 30px",
-              fontSize: 16,
-              fontWeight: 700,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              textDecoration: "none",
-              boxShadow: `0 10px 32px ${hexA(C.primary, 0.45)}`,
-            }}
-          >
-            🌐 Open web app
-          </a>
-          <a
-            href="https://play.google.com/store"
-            className="btn-press"
-            style={{
-              background: "transparent",
-              color: C.text,
-              border: `1px solid ${C.border}`,
-              borderRadius: 14,
-              padding: "16px 30px",
-              fontSize: 16,
-              fontWeight: 600,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              textDecoration: "none",
-            }}
-          >
-            <AndroidIcon />
-            Download for Android
-          </a>
-        </div>
-        <p
-          style={{
-            fontFamily: MR,
-            fontSize: 13,
-            color: C.textDim,
-            marginTop: 18,
-            lineHeight: 1.6,
-          }}
-        >
-          iPhone: open in Safari → Share → Add to Home Screen for the full app experience with reminders.
-        </p>
-      </div>
-    </section>
-  );
-}
-
-// ─── Footer ───────────────────────────────────────────────────────────────────
-function SiteFooter() {
-  return (
-    <footer
-      className="landing-footer"
-      style={{
-        padding: "36px clamp(20px, 5vw, 80px)",
-        background: C.bg,
-        borderTop: `1px solid ${C.border}`,
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        flexWrap: "wrap",
-        gap: 16,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <LogoMark size={22} />
-        <span
-          style={{
-            fontFamily: SG,
-            fontWeight: 700,
-            fontSize: 16,
-            color: C.text,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          Lagan
-        </span>
-      </div>
-      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-        {[
-          { label: "Open app", href: "/app" },
-          { label: "Privacy", href: "/privacy" },
-          { label: "Terms", href: "/terms" },
-          { label: "Account deletion", href: "/account-deletion" },
-          { label: "Sign in", href: "/login" },
-        ].map((item) => (
-          <a
-            key={item.label}
-            href={item.href}
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: C.textMute,
-              textDecoration: "none",
-            }}
-          >
-            {item.label}
-          </a>
-        ))}
-      </div>
-      <div
-        style={{ fontSize: 12, color: C.textDim, fontWeight: 500 }}
-      >
-        © 2026 Lagan · AI-enabled habit tracking.
-      </div>
-    </footer>
-  );
-}
-
-// ─── Main page ────────────────────────────────────────────────────────────────
-export default async function LandingPage() {
-  const stats = await getPublicStats();
-  const userCount =
-    stats.user_count > 0 ? formatStat(stats.user_count) : "10k+";
-  const checkinsCount =
-    stats.completions_count > 0
-      ? formatStat(stats.completions_count)
-      : "60M+";
-
-  const softwareJsonLd = {
+export default function LandingPage() {
+  const jsonLd = {
     "@context": "https://schema.org",
     "@type": ["MobileApplication", "SoftwareApplication"],
     name: "Lagan",
-    description:
-      "AI-enabled habit tracker for iOS, Android, and web. Build routines, get AI coaching, set smart reminders, track streaks, earn XP, and climb the leaderboard.",
     applicationCategory: "LifestyleApplication",
-    applicationSubCategory: "AI-enabled habit tracking",
-    operatingSystem: "iOS, Android, Web",
-    url: "https://lagan.health",
-    keywords: "AI habit tracker, AI habit coach, habit tracker, routine tracker, smart reminders, streak tracker",
-    featureList: [
-      "AI habit coaching",
-      "AI routine refinement",
-      "AI-powered smart reminders",
-      "Streak and XP tracking",
-      "Sleep and step tracking",
-      "Badges and leaderboard",
-    ],
+    operatingSystem: "Android",
+    description:
+      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    ...(stats.user_count > 0 && {
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: "4.9",
-        ratingCount: Math.max(stats.user_count, 1).toString(),
-      },
-    }),
+    url: PLAY_STORE_URL,
   };
 
   return (
-    <div
-      style={{
-        background: C.bg,
-        color: C.text,
-        // `clip` (not `hidden`) prevents horizontal overflow WITHOUT turning this
-        // wrapper into a scroll container — `overflow-x: hidden` forces
-        // `overflow-y` to compute to `auto`, which breaks touch scrolling on mobile.
-        overflowX: "clip",
-        fontFamily: MR,
-        WebkitFontSmoothing: "antialiased" as React.CSSProperties["WebkitFontSmoothing"],
-      }}
-    >
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
-      />
-      <ScrollAnimations />
-      <SiteNav />
-      <SiteHero userCount={userCount} />
-      <StatsStrip userCount={userCount} checkinsCount={checkinsCount} />
-      <SiteFeatures />
-      <SiteHowItWorks />
-      <SiteLeaderboard />
-      <SiteTestimonials />
-      <SiteCTA />
-      <SiteFooter />
-    </div>
+    <main className="min-h-screen overflow-x-clip bg-[#F7F5F0] text-[#17201B]">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+        <Link href="/" className="flex items-center gap-3 text-[#17201B] no-underline" aria-label="Lagan home">
+          <LogoMark />
+          <span className="text-lg font-extrabold tracking-tight">Lagan</span>
+        </Link>
+        <DownloadButton className="hidden sm:inline-flex" />
+      </header>
+
+      <section className="mx-auto grid max-w-6xl items-center gap-7 px-5 pb-8 pt-4 sm:px-8 md:grid-cols-[1fr_0.82fr] md:gap-12 md:pb-7 md:pt-6">
+        <div>
+          <p className="inline-flex rounded-full border border-[#CFE0D7] bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#0F7A52]">
+            AI-powered habit tracking
+          </p>
+          <h1 className="mt-5 max-w-3xl text-5xl font-extrabold leading-[0.98] tracking-tight text-[#17201B] sm:text-6xl lg:text-7xl">
+            Build better habits with AI
+          </h1>
+          <p className="mt-5 max-w-xl text-lg leading-8 text-[#536158]">
+            Lagan helps you track habits, stay consistent, and get AI-powered guidance that makes your next step clear.
+          </p>
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <DownloadButton className="w-full sm:w-auto" />
+            <p className="text-center text-sm font-medium text-[#66736B] sm:text-left">
+              Built for simple daily follow-through.
+            </p>
+          </div>
+        </div>
+
+        <div className="relative max-h-[130px] overflow-hidden md:max-h-none md:justify-self-end">
+          <PhoneMockup />
+        </div>
+      </section>
+
+      <section className="border-y border-[#E1DED5] bg-white/72 px-5 py-10 sm:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-2xl">
+            <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#1D5FBF]">Why Lagan</p>
+            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#17201B] sm:text-4xl">
+              The core tools to keep showing up
+            </h2>
+          </div>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {features.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <article key={feature.title} className="rounded-lg border border-[#E2E5DC] bg-white p-5 shadow-[0_8px_26px_rgba(28,40,34,0.06)]">
+                  <span className={`grid h-11 w-11 place-items-center rounded-lg ${feature.accent}`}>
+                    <Icon />
+                  </span>
+                  <h3 className="mt-4 text-lg font-extrabold tracking-tight text-[#17201B]">{feature.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-[#5D6A62]">{feature.description}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 py-14 sm:px-8 md:py-20">
+        <div className="mx-auto max-w-6xl">
+          <div className="grid gap-8 md:grid-cols-[0.72fr_1fr] md:items-start">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#0F7A52]">How it works</p>
+              <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#17201B] sm:text-4xl">
+                Start small, then improve with AI
+              </h2>
+            </div>
+
+            <div className="grid gap-4">
+              {steps.map((item) => (
+                <article key={item.step} className="grid gap-4 rounded-lg border border-[#E0DED6] bg-white p-5 shadow-[0_8px_26px_rgba(28,40,34,0.05)] sm:grid-cols-[72px_1fr] sm:items-start">
+                  <span className="text-3xl font-extrabold tracking-tight text-[#B5C8BC]">{item.step}</span>
+                  <span>
+                    <h3 className="text-xl font-extrabold tracking-tight text-[#17201B]">{item.title}</h3>
+                    <p className="mt-2 text-base leading-7 text-[#5D6A62]">{item.description}</p>
+                  </span>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 pb-12 sm:px-8 md:pb-20">
+        <div className="mx-auto max-w-6xl rounded-lg bg-[#17201B] px-5 py-10 text-center text-white sm:px-8 md:py-14">
+          <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#9FE6C4]">Download today</p>
+          <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-extrabold tracking-tight sm:text-5xl">
+            Make consistency easier with Lagan
+          </h2>
+          <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[#DCE8DF]">
+            Track daily habits, see progress clearly, and let AI guide your next small improvement.
+          </p>
+          <div className="mt-7 flex justify-center">
+            <DownloadButton />
+          </div>
+        </div>
+      </section>
+
+      <footer className="border-t border-[#E1DED5] px-5 py-7 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 text-sm text-[#66736B] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <LogoMark />
+            <span className="font-bold text-[#17201B]">Lagan</span>
+          </div>
+          <nav className="flex flex-wrap gap-5" aria-label="Footer">
+            <Link className="hover:text-[#17201B]" href="/privacy">
+              Privacy
+            </Link>
+            <Link className="hover:text-[#17201B]" href="/terms">
+              Terms
+            </Link>
+            <Link className="hover:text-[#17201B]" href="/account-deletion">
+              Account deletion
+            </Link>
+          </nav>
+        </div>
+      </footer>
+    </main>
   );
 }
