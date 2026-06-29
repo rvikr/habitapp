@@ -127,6 +127,12 @@ import {
   XP_PER_COMPLETION as WEBSITE_XP_PER_COMPLETION,
   XP_PER_LEVEL as WEBSITE_XP_PER_LEVEL,
 } from "../website/lib/xp.ts";
+import {
+  buildLoginRedirectPath,
+  isAuthAwarePath,
+  isLoginPath,
+  isProtectedPath,
+} from "../website/lib/auth-route-policy.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
 
 const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
@@ -1284,6 +1290,56 @@ test("Supabase stale refresh token errors are recognized", () => {
   assert.equal(isMissingRefreshTokenError(new Error("Network request failed")), false);
 });
 
+test("website auth route policy keeps public and proxied app paths out of auth middleware", () => {
+  for (const pathname of [
+    "/",
+    "/privacy",
+    "/terms",
+    "/account-deletion",
+    "/auth/callback",
+    "/api/og/card",
+    "/sitemap.xml",
+    "/robots.txt",
+    "/app",
+    "/app/",
+    "/app/dashboard",
+    "/app/login/",
+  ]) {
+    assert.equal(isAuthAwarePath(pathname), false, `${pathname} should bypass auth middleware`);
+    assert.equal(isProtectedPath(pathname), false, `${pathname} should not be protected`);
+  }
+});
+
+test("website auth route policy protects website app areas and login", () => {
+  for (const pathname of [
+    "/dashboard",
+    "/dashboard/today",
+    "/achievements",
+    "/achievements/share",
+    "/leaderboard",
+    "/leaderboard/weekly",
+    "/settings",
+    "/settings/profile",
+    "/admin",
+    "/admin/users",
+  ]) {
+    assert.equal(isAuthAwarePath(pathname), true, `${pathname} should run auth middleware`);
+    assert.equal(isProtectedPath(pathname), true, `${pathname} should be protected`);
+  }
+
+  assert.equal(isAuthAwarePath("/login"), true);
+  assert.equal(isLoginPath("/login"), true);
+  assert.equal(isProtectedPath("/login"), false);
+});
+
+test("website auth redirects preserve protected destination query strings", () => {
+  assert.equal(buildLoginRedirectPath("/dashboard", ""), "/login?next=%2Fdashboard");
+  assert.equal(
+    buildLoginRedirectPath("/achievements", "?tab=earned"),
+    "/login?next=%2Fachievements%3Ftab%3Dearned",
+  );
+});
+
 test("first-run auth backend errors are mapped to localized user copy", () => {
   const cases = [
     [new Error("Invalid login credentials"), "Invalid email or password."],
@@ -1864,7 +1920,7 @@ test("first-run habit cards expose localized accessible action labels", () => {
   }
   assert.match(source, /toggleAccessibilityLabel\?: string/);
   assert.match(source, /toggleAccessibilityLabel \?\?/);
-  assert.match(source, /progress \? t\(progress\.label\)/);
+  assert.match(source, /progress\s*\?\s*t\(progress\.label\)/);
   for (const label of ["Done today", "Not logged yet"]) {
     assert.notEqual(translate("hi", label), label);
   }
