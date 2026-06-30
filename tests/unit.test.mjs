@@ -114,6 +114,10 @@ import {
   withUnit,
 } from "../supabase/functions/progress-report/stats.ts";
 import * as subscriptionAccess from "../lib/subscription/access.ts";
+import {
+  isRevenueCatPurchaseCancelled,
+  selectProPaywallPackages,
+} from "../lib/subscription/revenuecat-shared.ts";
 import { clearCache, getCachedValue, readThroughCache } from "../lib/data/cache.ts";
 import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
 import { CHUNK_SIZE, LargeSecureStore, splitChunks } from "../lib/platform/large-secure-store.ts";
@@ -887,10 +891,14 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
   assert.equal(packageJson.dependencies["react-native-purchases"], "^10.1.2");
 
+  const subscriptionShared = readFileSync("lib/subscription/revenuecat-shared.ts", "utf8");
+  assert.match(subscriptionShared, /PRO_ENTITLEMENT_ID = "pro"/);
+  assert.match(subscriptionShared, /PRO_MONTHLY_PRODUCT_ID = "pro_monthly"/);
+  assert.match(subscriptionShared, /PRO_ANNUAL_PRODUCT_ID = "pro_annual"/);
+  assert.match(subscriptionShared, /selectProPaywallPackages/);
+  assert.match(subscriptionShared, /isRevenueCatPurchaseCancelled/);
+
   const subscriptionClient = readFileSync("lib/subscription/revenuecat.ts", "utf8");
-  assert.match(subscriptionClient, /PRO_ENTITLEMENT_ID = "pro"/);
-  assert.match(subscriptionClient, /PRO_MONTHLY_PRODUCT_ID = "pro_monthly"/);
-  assert.match(subscriptionClient, /PRO_ANNUAL_PRODUCT_ID = "pro_annual"/);
   assert.match(subscriptionClient, /EXPO_PUBLIC_REVENUECAT_IOS_API_KEY/);
   assert.match(subscriptionClient, /EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY/);
   assert.match(subscriptionClient, /sync-subscription/);
@@ -908,6 +916,52 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
   const supabaseConfig = readFileSync("supabase/config.toml", "utf8");
   assert.match(supabaseConfig, /\[functions\.revenuecat-webhook\]/);
   assert.match(supabaseConfig, /verify_jwt = false/);
+
+  const easConfig = JSON.parse(readFileSync("eas.json", "utf8"));
+  for (const profile of ["development", "preview", "production"]) {
+    assert.ok(easConfig.build[profile].env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY);
+    assert.ok(easConfig.build[profile].env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY);
+  }
+});
+
+test("RevenueCat paywall package selection prefers configured package slots", () => {
+  const monthlySlot = { product: { identifier: "google_monthly:base" } };
+  const annualSlot = { product: { identifier: "google_annual:base" } };
+  const fallbackMonthly = { product: { identifier: "pro_monthly" } };
+  const fallbackAnnual = { product: { identifier: "pro_annual" } };
+
+  assert.deepEqual(
+    selectProPaywallPackages({
+      monthly: monthlySlot,
+      annual: annualSlot,
+      availablePackages: [fallbackMonthly, fallbackAnnual],
+    }),
+    {
+      monthly: monthlySlot,
+      annual: annualSlot,
+      available: true,
+    },
+  );
+
+  assert.deepEqual(
+    selectProPaywallPackages({
+      monthly: null,
+      annual: null,
+      availablePackages: [fallbackMonthly, fallbackAnnual],
+    }),
+    {
+      monthly: fallbackMonthly,
+      annual: fallbackAnnual,
+      available: true,
+    },
+  );
+});
+
+test("RevenueCat purchase cancellation helper recognizes silent cancellation errors", () => {
+  assert.equal(isRevenueCatPurchaseCancelled({ userCancelled: true }), true);
+  assert.equal(isRevenueCatPurchaseCancelled({ code: "1" }), true);
+  assert.equal(isRevenueCatPurchaseCancelled({ userCancelled: false, code: "2" }), false);
+  assert.equal(isRevenueCatPurchaseCancelled(new Error("network")), false);
 });
 
 test("reminder schedule habit queries are explicitly scoped to the current user", () => {

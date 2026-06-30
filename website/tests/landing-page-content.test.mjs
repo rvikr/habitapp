@@ -26,6 +26,13 @@ test("homepage includes the required feature and how-it-works sections", () => {
   }
 });
 
+test("homepage offers iOS and website users a web app path", () => {
+  assert.match(pageSource, /Use on iOS/);
+  assert.match(pageSource, /Continue on website/);
+  assert.match(pageSource, /const WEB_APP_URL = "\/app";/);
+  assert.match(pageSource, /href=\{WEB_APP_URL\}/);
+});
+
 test("homepage does not depend on dynamic Supabase stats", () => {
   assert.doesNotMatch(pageSource, /@supabase\/supabase-js/);
   assert.doesNotMatch(pageSource, /createClient/);

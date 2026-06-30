@@ -3,18 +3,32 @@ import type { PurchasesPackage } from "react-native-purchases";
 import { getCurrentUser, isSupabaseConfigured, supabase } from "../supabase/client";
 import { reportError } from "../services/sentry";
 import { resolveProAccess, type ProAccess, type ProAccessProfile } from "./access";
+import {
+  PRO_ANNUAL_PRODUCT_ID,
+  PRO_ENTITLEMENT_ID,
+  PRO_MONTHLY_PRODUCT_ID,
+  selectProPaywallPackages,
+} from "./revenuecat-shared";
 
-export const PRO_ENTITLEMENT_ID = "pro";
-export const PRO_MONTHLY_PRODUCT_ID = "pro_monthly";
-export const PRO_ANNUAL_PRODUCT_ID = "pro_annual";
+export { PRO_ANNUAL_PRODUCT_ID, PRO_ENTITLEMENT_ID, PRO_MONTHLY_PRODUCT_ID };
 
 type RevenueCatModule = typeof import("react-native-purchases");
 
 let configuredUserId: string | null = null;
 
+function normalizeRevenueCatApiKey(value: string | undefined): string {
+  const key = value?.trim() ?? "";
+  if (!key || key.startsWith("$") || key.includes("your-public")) return "";
+  return key;
+}
+
 function revenueCatApiKey(): string {
-  if (Platform.OS === "ios") return process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY ?? "";
-  if (Platform.OS === "android") return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY ?? "";
+  if (Platform.OS === "ios") {
+    return normalizeRevenueCatApiKey(process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY);
+  }
+  if (Platform.OS === "android") {
+    return normalizeRevenueCatApiKey(process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY);
+  }
   return "";
 }
 
@@ -85,12 +99,7 @@ export async function getProPackages(): Promise<{
   await configureRevenueCat(user.id);
 
   const offerings = await module.default.getOfferings();
-  const packages = offerings.current?.availablePackages ?? [];
-  return {
-    monthly: packages.find((pack) => pack.product.identifier === PRO_MONTHLY_PRODUCT_ID) ?? null,
-    annual: packages.find((pack) => pack.product.identifier === PRO_ANNUAL_PRODUCT_ID) ?? null,
-    available: packages.length > 0,
-  };
+  return selectProPaywallPackages(offerings.current);
 }
 
 export async function purchaseProPackage(pack: PurchasesPackage): Promise<ProAccess> {

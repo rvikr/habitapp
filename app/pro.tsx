@@ -12,6 +12,7 @@ import {
   purchaseProPackage,
   restoreProPurchases,
 } from "@/lib/subscription/revenuecat";
+import { isRevenueCatPurchaseCancelled } from "@/lib/subscription/revenuecat-shared";
 import type { ProAccess } from "@/lib/subscription/access";
 
 type PaywallPackage = Awaited<ReturnType<typeof getProPackages>>["monthly"];
@@ -48,6 +49,7 @@ export default function ProScreen() {
       setAccess(nextAccess);
       if (nextAccess.hasPro) router.back();
     } catch (error) {
+      if (isRevenueCatPurchaseCancelled(error)) return;
       showAlert(
         t("Could not start subscription"),
         error instanceof Error ? error.message : t("Try again."),

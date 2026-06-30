@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
+const WEB_APP_URL = "/app";
 
 export const metadata: Metadata = {
   title: "Lagan - AI Habit Tracking App",
@@ -140,15 +141,53 @@ function FlameIcon() {
   );
 }
 
+function PhoneIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="7" y="3" width="10" height="18" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M10.5 18h3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function GlobeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M4.5 12h15M12 4c2 2.1 3 4.7 3 8s-1 5.9-3 8M12 4c-2 2.1-3 4.7-3 8s1 5.9 3 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function DownloadButton({ className = "" }: { className?: string }) {
   return (
     <a
       href={PLAY_STORE_URL}
-      className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#F26B1F] px-5 py-3 text-base font-bold text-white shadow-[0_12px_28px_rgba(242,107,31,0.28)] transition hover:bg-[#D95C18] focus:outline-none focus:ring-4 focus:ring-[#F26B1F]/25 ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#F26B1F] px-5 py-3 text-base font-bold text-white shadow-[0_12px_28px_rgba(242,107,31,0.28)] transition hover:bg-[#D95C18] focus:outline-none focus:ring-4 focus:ring-[#F26B1F]/25 ${className}`}
     >
       <GooglePlayIcon />
       Get it on Google Play
     </a>
+  );
+}
+
+function WebAppButton({
+  children,
+  icon,
+  className = "",
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={WEB_APP_URL}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#D8E0D8] bg-white px-4 py-3 text-sm font-bold text-[#17201B] shadow-[0_8px_22px_rgba(28,40,34,0.06)] transition hover:border-[#BFCFC4] hover:bg-[#FBFCFA] focus:outline-none focus:ring-4 focus:ring-[#1D5FBF]/15 ${className}`}
+    >
+      {icon}
+      {children}
+    </Link>
   );
 }
 
@@ -234,7 +273,12 @@ export default function LandingPage() {
           <LogoMark />
           <span className="text-lg font-extrabold tracking-tight">Lagan</span>
         </Link>
-        <DownloadButton className="hidden sm:inline-flex" />
+        <div className="hidden items-center gap-3 sm:flex">
+          <WebAppButton icon={<GlobeIcon />} className="min-h-12">
+            Continue on website
+          </WebAppButton>
+          <DownloadButton />
+        </div>
       </header>
 
       <section className="mx-auto grid max-w-6xl items-center gap-7 px-5 pb-8 pt-4 sm:px-8 md:grid-cols-[1fr_0.82fr] md:gap-12 md:pb-7 md:pt-6">
@@ -250,10 +294,16 @@ export default function LandingPage() {
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
             <DownloadButton className="w-full sm:w-auto" />
-            <p className="text-center text-sm font-medium text-[#66736B] sm:text-left">
-              Built for simple daily follow-through.
-            </p>
+            <WebAppButton icon={<PhoneIcon />} className="w-full sm:w-auto">
+              Use on iOS
+            </WebAppButton>
+            <WebAppButton icon={<GlobeIcon />} className="w-full sm:w-auto">
+              Continue on website
+            </WebAppButton>
           </div>
+          <p className="mt-3 text-center text-sm font-medium text-[#66736B] sm:text-left">
+            Android app on Google Play. iPhone and desktop users can continue in the web app.
+          </p>
         </div>
 
         <div className="relative max-h-[130px] overflow-hidden md:max-h-none md:justify-self-end">
@@ -321,8 +371,14 @@ export default function LandingPage() {
           <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[#DCE8DF]">
             Track daily habits, see progress clearly, and let AI guide your next small improvement.
           </p>
-          <div className="mt-7 flex justify-center">
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
             <DownloadButton />
+            <WebAppButton icon={<PhoneIcon />} className="border-white/15 bg-white/10 text-white hover:border-white/30 hover:bg-white/15 focus:ring-white/20">
+              Use on iOS
+            </WebAppButton>
+            <WebAppButton icon={<GlobeIcon />} className="border-white/15 bg-white/10 text-white hover:border-white/30 hover:bg-white/15 focus:ring-white/20">
+              Continue on website
+            </WebAppButton>
           </div>
         </div>
       </section>
