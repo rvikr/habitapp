@@ -14,7 +14,11 @@ export type CreatedHabit = {
   unit: string;
   target: number | null;
   habitType: HabitRecommendation["habitType"];
+  metricType: HabitRecommendation["metricType"];
+  defaultLogValue: number | null;
 };
+
+export type TutorialHabitAction = { kind: "log_progress"; value: number } | { kind: "complete" };
 
 /** Minimal shape of a single createRoutineHabits result we care about. */
 type CreateResultLike = { ok: boolean; id: string | null };
@@ -42,6 +46,8 @@ export function buildCreatedHabits(
       unit: rec.unit,
       target: rec.target,
       habitType: rec.habitType,
+      metricType: rec.metricType,
+      defaultLogValue: rec.defaultLogValue,
     });
   }
   return created;
@@ -54,4 +60,16 @@ export function buildCreatedHabits(
  */
 export function pickTutorialHabit(created: readonly CreatedHabit[]): CreatedHabit | null {
   return created.find((h) => h.habitType === "water_intake") ?? created[0] ?? null;
+}
+
+export function getTutorialHabitAction(habit: CreatedHabit): TutorialHabitAction {
+  const target = habit.target != null ? Number(habit.target) : null;
+  if (habit.metricType === "boolean" || target == null || target <= 0) {
+    return { kind: "complete" };
+  }
+
+  const defaultValue = Number(habit.defaultLogValue ?? 0);
+  const fallbackValue = target / 4;
+  const value = defaultValue > 0 ? defaultValue : fallbackValue;
+  return { kind: "log_progress", value: Math.min(value, target) };
 }

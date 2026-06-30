@@ -15,11 +15,12 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Icon from "@/components/icon";
 import { useCelebrate } from "@/components/celebration";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
-import { createRoutineHabits, toggleHabit } from "@/lib/data/actions";
+import { createRoutineHabits, logCompletion, toggleHabit } from "@/lib/data/actions";
 import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
 import { syncScheduledReminders } from "@/lib/data/reminder-sync";
 import {
   buildCreatedHabits,
+  getTutorialHabitAction,
   pickTutorialHabit,
   type CreatedHabit,
 } from "@/lib/coach/post-onboarding";
@@ -31,6 +32,7 @@ import {
   type HabitRecommendation,
   type RoutineWizardAnswers,
 } from "@/lib/coach/routine-builder";
+import { formatAmount } from "@/lib/coach/habit-intelligence";
 import { refineRoutineRecommendations } from "@/lib/coach/routine-ai";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
@@ -346,11 +348,23 @@ export default function HabitWizardScreen() {
       return;
     }
     setTutorialCompleting(true);
-    const result = await toggleHabit(habit.id, false, habit.target ?? null);
+    const action = getTutorialHabitAction(habit);
+    const result =
+      action.kind === "log_progress"
+        ? await logCompletion(habit.id, action.value)
+        : await toggleHabit(habit.id, false, habit.target ?? null);
     setTutorialCompleting(false);
     if (!result.ok) {
-      showAlert(t("Could not complete habit"), result.error ?? t("Try again."));
+      showAlert(
+        t(action.kind === "log_progress" ? "Could not log progress" : "Could not complete habit"),
+        result.error ?? t("Try again."),
+      );
       return; // stay on tutorial to retry or skip
+    }
+    if (action.kind === "log_progress") {
+      celebrate(t("Great start! First log saved for {name}.", { name: t(habit.name) }));
+      router.replace("/?newUser=1");
+      return;
     }
     celebrate(
       t("🎉 Great Start! 1 of {total} habits completed today.", { total: createdHabits.length }),
@@ -866,18 +880,32 @@ function TutorialScreen({
   onSkip: () => void;
 }) {
   const { t } = useLanguage();
+  const action = getTutorialHabitAction(habit);
+  const isLogProgress = action.kind === "log_progress";
+  const amount = isLogProgress ? formatAmount(action.value) : "";
+  const unit = habit.unit ?? "";
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile gap-lg pt-xl">
           <View className="gap-xs">
             <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">
-              {t("Let's complete your first habit together")}
+              {t(
+                isLogProgress
+                  ? "Let's log your first habit together"
+                  : "Let's complete your first habit together",
+              )}
             </Text>
             <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
-              {t("Tap below to mark {name} complete. That's your first win.", {
-                name: t(habit.name),
-              })}
+              {isLogProgress
+                ? t("Tap below to log {amount} {unit} for {name}. That's your first step.", {
+                    amount,
+                    unit,
+                    name: t(habit.name),
+                  })
+                : t("Tap below to mark {name} complete. That's your first win.", {
+                    name: t(habit.name),
+                  })}
             </Text>
           </View>
 
@@ -888,9 +916,17 @@ function TutorialScreen({
             <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold text-center">
               {t(habit.name)}
             </Text>
+            {isLogProgress && (
+              <Text className="text-label-sm text-primary">
+                {t("First log: +{amount} {unit}", { amount, unit })}
+              </Text>
+            )}
             {habit.target != null && (
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                {t("Goal: {target} {unit}", { target: habit.target, unit: habit.unit })}
+                {t(isLogProgress ? "Daily goal: {target} {unit}" : "Goal: {target} {unit}", {
+                  target: habit.target,
+                  unit: habit.unit,
+                })}
               </Text>
             )}
           </View>
@@ -899,11 +935,21 @@ function TutorialScreen({
             className={`rounded-full py-md items-center ${completing ? "bg-outline" : "bg-primary"}`}
             onPress={onComplete}
             accessibilityRole="button"
-            accessibilityLabel={completing ? t("Completing...") : t("Complete")}
+            accessibilityLabel={
+              completing
+                ? t(isLogProgress ? "Logging..." : "Completing...")
+                : isLogProgress
+                  ? t("Log {amount} {unit}", { amount, unit })
+                  : t("Complete")
+            }
             accessibilityState={{ disabled: completing }}
           >
             <Text className="text-on-primary text-label-lg font-semibold">
-              {completing ? t("Completing...") : t("Complete")}
+              {completing
+                ? t(isLogProgress ? "Logging..." : "Completing...")
+                : isLogProgress
+                  ? t("Log {amount} {unit}", { amount, unit })
+                  : t("Complete")}
             </Text>
           </TouchableOpacity>
 
