@@ -919,9 +919,26 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
 
   const easConfig = JSON.parse(readFileSync("eas.json", "utf8"));
   for (const profile of ["development", "preview", "production"]) {
-    assert.ok(easConfig.build[profile].env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY);
-    assert.ok(easConfig.build[profile].env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY);
+    assert.equal(easConfig.build[profile].environment, profile);
+    for (const key of [
+      "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY",
+      "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY",
+    ]) {
+      const value = easConfig.build[profile].env?.[key] ?? "";
+      assert.doesNotMatch(value, /^\$/);
+      assert.doesNotMatch(value, /your-public|REPLACE_WITH|placeholder/i);
+    }
   }
+});
+
+test("Pro purchase UI is Android-only for this release", () => {
+  const proScreen = readFileSync("app/pro.tsx", "utf8");
+  assert.match(proScreen, /const canPurchaseInApp = Platform\.OS === "android";/);
+  assert.match(proScreen, /\{!canPurchaseInApp \? \(/);
+  assert.match(proScreen, /\{loading && canPurchaseInApp &&/);
+  assert.match(proScreen, /\{canPurchaseInApp && \(/);
+  assert.doesNotMatch(proScreen, /Apple ID/);
+  assert.doesNotMatch(proScreen, /Manage or cancel: App Store/);
 });
 
 test("RevenueCat paywall package selection prefers configured package slots", () => {

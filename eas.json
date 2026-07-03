@@ -10,9 +10,7 @@
       "channel": "development",
       "environment": "development",
       "env": {
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "$EXPO_PUBLIC_REVENUECAT_IOS_API_KEY",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "$EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "preview": {
@@ -26,9 +24,7 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVoY3Fnb3lta21sandvdmVpc2JsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1NzIxODksImV4cCI6MjA5MzE0ODE4OX0.IutMM-lpX70UfBJ5aiH6-4QMv5qog10aDoZEtU1B2MU",
         "EXPO_PUBLIC_POSTHOG_KEY": "phc_sCctonAL2nCpwTFSSW98vYpX2QXHKEuTQDPinoEgcXNV",
         "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "348841667044-fgv58hlpmldealfo200la9uad1frg496.apps.googleusercontent.com",
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "$EXPO_PUBLIC_REVENUECAT_IOS_API_KEY",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "$EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "348841667044-fgv58hlpmldealfo200la9uad1frg496.apps.googleusercontent.com"
       },
       "ios": { "simulator": true }
     },
@@ -47,9 +43,7 @@
         "EXPO_PUBLIC_ACCOUNT_DELETION_URL": "https://lagan.health/account-deletion",
         "EXPO_PUBLIC_SUPPORT_EMAIL": "support@lagan.health",
         "EXPO_PUBLIC_SENTRY_DSN": "https://efb1a7c31216123735438f0a2e8571d0@o4511332581244928.ingest.de.sentry.io/4511332590157904",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "348841667044-fgv58hlpmldealfo200la9uad1frg496.apps.googleusercontent.com",
-        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "$EXPO_PUBLIC_REVENUECAT_IOS_API_KEY",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "$EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "348841667044-fgv58hlpmldealfo200la9uad1frg496.apps.googleusercontent.com"
       }
     }
   }

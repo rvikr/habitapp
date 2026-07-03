@@ -25,18 +25,21 @@ export default function ProScreen() {
   const [annual, setAnnual] = useState<PaywallPackage>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const canPurchaseInApp = Platform.OS === "android";
 
   const load = useCallback(async () => {
     setLoading(true);
     const [currentAccess, packages] = await Promise.all([
       getCurrentProAccess(),
-      getProPackages().catch(() => ({ monthly: null, annual: null, available: false })),
+      canPurchaseInApp
+        ? getProPackages().catch(() => ({ monthly: null, annual: null, available: false }))
+        : Promise.resolve({ monthly: null, annual: null, available: false }),
     ]);
     setAccess(currentAccess);
     setMonthly(packages.monthly);
     setAnnual(packages.annual);
     setLoading(false);
-  }, []);
+  }, [canPurchaseInApp]);
 
   useEffect(() => {
     load();
@@ -133,17 +136,17 @@ export default function ProScreen() {
             )}
           </View>
 
-          {Platform.OS === "web" ? (
+          {!canPurchaseInApp ? (
             <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
               <View className="flex-row items-center gap-sm">
                 <MaterialCommunityIcons name="cellphone" size={22} color="#F26B1F" />
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold flex-1">
-                  {t("Subscribe in the app")}
+                  {t("Subscribe on Android")}
                 </Text>
               </View>
               <Text className="text-body-sm text-on-surface-variant dark:text-d-on-surface-variant leading-5">
                 {t(
-                  "Pro subscriptions are available in the iOS and Android app. If you already subscribed, your Pro access is active here automatically.",
+                  "Pro subscriptions are available in the Android app for now. If you already subscribed, your Pro access is active here automatically.",
                 )}
               </Text>
             </View>
@@ -215,14 +218,14 @@ export default function ProScreen() {
             </View>
           )}
 
-          {loading && Platform.OS !== "web" && (
+          {loading && canPurchaseInApp && (
             <Text className="text-label-sm text-primary text-center">{t("Loading plans...")}</Text>
           )}
 
           <ProComparison />
 
           <View className="gap-xs">
-            {Platform.OS !== "web" && (
+            {canPurchaseInApp && (
               <TouchableOpacity
                 className="self-center py-xs"
                 onPress={() => {
@@ -237,22 +240,20 @@ export default function ProScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            {Platform.OS !== "web" && (
+            {canPurchaseInApp && (
               <>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
                   {t(
                     "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Payment is charged to your {store} account at confirmation of purchase.",
                     {
-                      store: Platform.OS === "ios" ? t("Apple ID") : t("Google Play"),
+                      store: t("Google Play"),
                     },
                   )}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
-                  {Platform.OS === "ios"
-                    ? t("Manage or cancel: App Store → your profile → Subscriptions.")
-                    : t(
-                        "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
-                      )}
+                  {t(
+                    "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
+                  )}
                 </Text>
               </>
             )}
