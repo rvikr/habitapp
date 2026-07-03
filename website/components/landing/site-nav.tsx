@@ -149,7 +149,7 @@ export default function SiteNav() {
           <span style={{ fontSize: 12 }}>🌐</span> Try web app
         </a>
         <Link
-          href="https://play.google.com/store"
+          href="/app"
           className="btn-press"
           style={{
             background: C.primary,
@@ -164,7 +164,7 @@ export default function SiteNav() {
             boxShadow: `0 4px 16px ${hexA(C.primary, 0.35)}`,
           }}
         >
-          Download
+          Open app
         </Link>
       </div>
     </nav>

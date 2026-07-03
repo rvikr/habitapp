@@ -1,26 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
+const SITE_URL = "https://lagan.health";
 const WEB_APP_URL = "/app";
+const BRAND_DESCRIPTION =
+  "Lagan Health is the home of Lagan AI Habit Tracker at lagan.health. Track daily habits, build routines, and get AI-powered guidance on web, iOS, and Android.";
 
 export const metadata: Metadata = {
-  title: "Lagan - AI Habit Tracking App",
-  description:
-    "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+  title: "Lagan Health - Lagan AI Habit Tracker",
+  description: BRAND_DESCRIPTION,
   alternates: { canonical: "/" },
+  keywords: [
+    "Lagan",
+    "Lagan Health",
+    "Lagan AI Habit Tracker",
+    "lagan.health",
+    "AI habit tracker",
+    "AI habit coach",
+    "daily routines",
+    "habit tracking app",
+  ],
   openGraph: {
-    title: "Lagan - AI Habit Tracking App",
-    description:
-      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+    title: "Lagan Health - Lagan AI Habit Tracker",
+    description: BRAND_DESCRIPTION,
     url: "/",
     images: ["/og-image.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lagan - AI Habit Tracking App",
-    description:
-      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+    title: "Lagan Health - Lagan AI Habit Tracker",
+    description: BRAND_DESCRIPTION,
     images: ["/og-image.png"],
   },
 };
@@ -61,8 +70,8 @@ const features = [
 const steps = [
   {
     step: "01",
-    title: "Download Lagan",
-    description: "Install Lagan from Google Play and start in less than a minute.",
+    title: "Open Lagan Health",
+    description: "Start from lagan.health and open the Lagan web app in less than a minute.",
   },
   {
     step: "02",
@@ -84,17 +93,6 @@ function LogoMark() {
       <span className="rounded-[3px] bg-[#5CA8FF]" />
       <span className="rounded-[3px] bg-[#FFC56B]" />
     </span>
-  );
-}
-
-function GooglePlayIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4.5 3.5v17l9-8.5-9-8.5Z" fill="#34A853" />
-      <path d="m13.5 12 2.8-2.65L6.1 3.75 13.5 12Z" fill="#4285F4" />
-      <path d="m13.5 12-7.4 8.25 10.2-5.6L13.5 12Z" fill="#FBBC04" />
-      <path d="m16.3 9.35 2.75 1.5c.9.5.9 1.8 0 2.3l-2.75 1.5L13.5 12l2.8-2.65Z" fill="#EA4335" />
-    </svg>
   );
 }
 
@@ -159,15 +157,15 @@ function GlobeIcon() {
   );
 }
 
-function DownloadButton({ className = "" }: { className?: string }) {
+function AppButton({ className = "" }: { className?: string }) {
   return (
-    <a
-      href={PLAY_STORE_URL}
+    <Link
+      href={WEB_APP_URL}
       className={`inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#F26B1F] px-5 py-3 text-base font-bold text-white shadow-[0_12px_28px_rgba(242,107,31,0.28)] transition hover:bg-[#D95C18] focus:outline-none focus:ring-4 focus:ring-[#F26B1F]/25 ${className}`}
     >
-      <GooglePlayIcon />
-      Get it on Google Play
-    </a>
+      <GlobeIcon />
+      Open Lagan web app
+    </Link>
   );
 }
 
@@ -255,13 +253,20 @@ export default function LandingPage() {
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": ["MobileApplication", "SoftwareApplication"],
-    name: "Lagan",
+    name: "Lagan AI Habit Tracker",
+    alternateName: ["Lagan", "Lagan Health", "lagan.health"],
     applicationCategory: "LifestyleApplication",
-    operatingSystem: "Android",
-    description:
-      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+    applicationSubCategory: "Habit tracker",
+    operatingSystem: "Web, iOS, Android",
+    description: BRAND_DESCRIPTION,
+    url: SITE_URL,
+    sameAs: [],
+    publisher: {
+      "@type": "Organization",
+      name: "Lagan Health",
+      url: SITE_URL,
+    },
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    url: PLAY_STORE_URL,
   };
 
   return (
@@ -274,26 +279,29 @@ export default function LandingPage() {
           <span className="text-lg font-extrabold tracking-tight">Lagan</span>
         </Link>
         <div className="hidden items-center gap-3 sm:flex">
+          <Link href="/about" className="text-sm font-bold text-[#536158] transition hover:text-[#17201B]">
+            About
+          </Link>
           <WebAppButton icon={<GlobeIcon />} className="min-h-12">
             Continue on website
           </WebAppButton>
-          <DownloadButton />
+          <AppButton />
         </div>
       </header>
 
       <section className="mx-auto grid max-w-6xl items-center gap-7 px-5 pb-8 pt-4 sm:px-8 md:grid-cols-[1fr_0.82fr] md:gap-12 md:pb-7 md:pt-6">
         <div>
           <p className="inline-flex rounded-full border border-[#CFE0D7] bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#0F7A52]">
-            AI-powered habit tracking
+            Lagan AI Habit Tracker
           </p>
           <h1 className="mt-5 max-w-3xl text-5xl font-extrabold leading-[0.98] tracking-tight text-[#17201B] sm:text-6xl lg:text-7xl">
-            Build better habits with AI
+            Build better habits with Lagan Health
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-[#536158]">
-            Lagan helps you track habits, stay consistent, and get AI-powered guidance that makes your next step clear.
+            Lagan AI Habit Tracker at lagan.health helps you track habits, stay consistent, and get AI-powered guidance that makes your next step clear.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <DownloadButton className="w-full sm:w-auto" />
+            <AppButton className="w-full sm:w-auto" />
             <WebAppButton icon={<PhoneIcon />} className="w-full sm:w-auto">
               Use on iOS
             </WebAppButton>
@@ -302,7 +310,7 @@ export default function LandingPage() {
             </WebAppButton>
           </div>
           <p className="mt-3 text-center text-sm font-medium text-[#66736B] sm:text-left">
-            Android app on Google Play. iPhone and desktop users can continue in the web app.
+            Start at lagan.health today. iPhone, Android, and desktop users can continue in the web app while public store listings are prepared.
           </p>
         </div>
 
@@ -316,7 +324,7 @@ export default function LandingPage() {
           <div className="max-w-2xl">
             <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#1D5FBF]">Why Lagan</p>
             <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#17201B] sm:text-4xl">
-              The core tools to keep showing up
+              The Lagan Health tools to keep showing up
             </h2>
           </div>
 
@@ -372,7 +380,7 @@ export default function LandingPage() {
             Track daily habits, see progress clearly, and let AI guide your next small improvement.
           </p>
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <DownloadButton />
+            <AppButton />
             <WebAppButton icon={<PhoneIcon />} className="border-white/15 bg-white/10 text-white hover:border-white/30 hover:bg-white/15 focus:ring-white/20">
               Use on iOS
             </WebAppButton>
@@ -390,6 +398,9 @@ export default function LandingPage() {
             <span className="font-bold text-[#17201B]">Lagan</span>
           </div>
           <nav className="flex flex-wrap gap-5" aria-label="Footer">
+            <Link className="hover:text-[#17201B]" href="/about">
+              About
+            </Link>
             <Link className="hover:text-[#17201B]" href="/privacy">
               Privacy
             </Link>

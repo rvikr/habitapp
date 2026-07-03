@@ -1,7 +1,7 @@
 {
-  "name": "Lagan — AI Habit Tracker & Coach",
+  "name": "Lagan Health - Lagan AI Habit Tracker",
   "short_name": "Lagan",
-  "description": "Lagan is an AI-enabled habit tracker for iOS, Android, and web. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
+  "description": "Lagan Health is the home of Lagan AI Habit Tracker at lagan.health. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
   "categories": ["productivity", "lifestyle", "health"],
   "start_url": "/",
   "display": "standalone",
