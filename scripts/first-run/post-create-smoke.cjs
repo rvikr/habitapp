@@ -136,7 +136,7 @@ async function setup(page, session) {
     await snap('after-complete');
   } else if (tutorialText.includes('Skip for now')) {
     await page.getByText('Skip for now').click();
-    await page.getByText(/TODAY'S HABITS|Build your first routine/).waitFor({ timeout: 30000 });
+    await page.getByText(/TODAY'S TIMELINE|Build your first routine/).waitFor({ timeout: 30000 });
     await snap('after-skip');
   }
   await browser.close();
@@ -144,7 +144,7 @@ async function setup(page, session) {
   fs.writeFileSync('tmp/first-run-smoke-post-create-current.json', JSON.stringify(result, null, 2));
   if (pageErrors.length) process.exit(2);
   const final = snapshots[snapshots.length - 1]?.text ?? '';
-  if (!/Hey,|TODAY'S HABITS|Welcome to Lagan|Build your first routine|Drink Water/.test(final)) {
+  if (!/Hey,|TODAY'S TIMELINE|Welcome to Lagan|Build your first routine|Drink Water/.test(final)) {
     console.error('Did not reach dashboard-like final state');
     process.exit(3);
   }

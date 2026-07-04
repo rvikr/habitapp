@@ -134,7 +134,7 @@ async function snapshot(page, label, snapshots) {
   await dashboardPage.getByRole('button', { name: 'Build my routine' }).waitFor({ timeout: 30000 });
   await dashboardPage.getByRole('button', { name: 'Choose manually' }).waitFor({ timeout: 30000 });
   const emptyText = await snapshot(dashboardPage, 'dashboard-empty', snapshots);
-  if (!emptyText.includes('Build your first routine') || !emptyText.includes("TODAY'S HABITS")) throw new Error('desktop empty dashboard did not render first-run choices');
+  if (!emptyText.includes('Build your first routine') || !emptyText.includes("TODAY'S TIMELINE")) throw new Error('desktop empty dashboard did not render first-run choices');
 
   await dashboardPage.getByRole('button', { name: 'Add habit' }).click();
   await dashboardPage.waitForURL(/habits\/new/, { timeout: 15000 });
