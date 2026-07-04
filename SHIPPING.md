@@ -189,7 +189,7 @@ Use this worksheet when completing **Policy > App content** in Play Console.
 The app currently has no purchase flow. If you add IAP later:
 
 - Lagan Pro uses RevenueCat (`react-native-purchases`) with entitlement `pro`
-  and product ids `pro_monthly` / `pro_annual`.
+  and Google Play product ids `rc_49_1m` (monthly) / `rc_499_12m` (annual).
 - Set `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`,
   `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, `REVENUECAT_SECRET_API_KEY`, and
   `REVENUECAT_WEBHOOK_AUTH_TOKEN` before release.

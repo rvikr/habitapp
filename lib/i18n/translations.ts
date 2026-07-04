@@ -328,6 +328,10 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Plans unavailable": "प्लान उपलब्ध नहीं हैं",
   "We couldn't load subscription plans. Check your connection and try again.":
     "सब्सक्रिप्शन प्लान लोड नहीं हो सके. अपना कनेक्शन जांचें और फिर कोशिश करें.",
+  "Sign in again to subscribe.": "सब्सक्राइब करने के लिए फिर से साइन इन करें.",
+  "Purchases aren't supported in this app build.": "इस ऐप बिल्ड में खरीदारी सपोर्ट नहीं है.",
+  "Subscription plans aren't set up for this app version yet. Please try again later.":
+    "इस ऐप वर्शन के लिए सब्सक्रिप्शन प्लान अभी सेट नहीं हुए हैं. कृपया बाद में फिर कोशिश करें.",
   "AI Coach is a Pro feature": "AI Coach एक Pro फीचर है",
   "Subscribe to Pro to unlock personalized AI coaching.":
     "पर्सनलाइज़्ड AI कोचिंग अनलॉक करने के लिए Pro सब्सक्राइब करें.",

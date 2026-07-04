@@ -927,8 +927,8 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
 
   const subscriptionShared = readFileSync("lib/subscription/revenuecat-shared.ts", "utf8");
   assert.match(subscriptionShared, /PRO_ENTITLEMENT_ID = "pro"/);
-  assert.match(subscriptionShared, /PRO_MONTHLY_PRODUCT_ID = "pro_monthly"/);
-  assert.match(subscriptionShared, /PRO_ANNUAL_PRODUCT_ID = "pro_annual"/);
+  assert.match(subscriptionShared, /PRO_MONTHLY_PRODUCT_ID = "rc_49_1m"/);
+  assert.match(subscriptionShared, /PRO_ANNUAL_PRODUCT_ID = "rc_499_12m"/);
   assert.match(subscriptionShared, /selectProPaywallPackages/);
   assert.match(subscriptionShared, /isRevenueCatPurchaseCancelled/);
 
@@ -978,8 +978,9 @@ test("Pro purchase UI is Android-only for this release", () => {
 test("RevenueCat paywall package selection prefers configured package slots", () => {
   const monthlySlot = { product: { identifier: "google_monthly:base" } };
   const annualSlot = { product: { identifier: "google_annual:base" } };
-  const fallbackMonthly = { product: { identifier: "pro_monthly" } };
-  const fallbackAnnual = { product: { identifier: "pro_annual" } };
+  // Google Play reports subscription identifiers as "productId:basePlanId".
+  const fallbackMonthly = { product: { identifier: "rc_49_1m:trial-7d" } };
+  const fallbackAnnual = { product: { identifier: "rc_499_12m" } };
 
   assert.deepEqual(
     selectProPaywallPackages({

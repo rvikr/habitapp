@@ -11,11 +11,22 @@ import {
   getProPackages,
   purchaseProPackage,
   restoreProPurchases,
+  type ProPackagesUnavailableReason,
 } from "@/lib/subscription/revenuecat";
-import { isRevenueCatPurchaseCancelled } from "@/lib/subscription/revenuecat-shared";
+import {
+  describeRevenueCatError,
+  isRevenueCatPurchaseCancelled,
+} from "@/lib/subscription/revenuecat-shared";
+import { reportError } from "@/lib/services/sentry";
 import type { ProAccess } from "@/lib/subscription/access";
 
 type PaywallPackage = Awaited<ReturnType<typeof getProPackages>>["monthly"];
+
+type PlanIssue = { kind: ProPackagesUnavailableReason } | { kind: "error"; detail: string };
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(describeRevenueCatError(error));
+}
 
 export default function ProScreen() {
   const router = useRouter();
@@ -25,19 +36,29 @@ export default function ProScreen() {
   const [annual, setAnnual] = useState<PaywallPackage>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [planIssue, setPlanIssue] = useState<PlanIssue | null>(null);
   const canPurchaseInApp = Platform.OS === "android";
 
   const load = useCallback(async () => {
     setLoading(true);
+    let failure: PlanIssue | null = null;
+    const empty = { monthly: null, annual: null, available: false } as const;
     const [currentAccess, packages] = await Promise.all([
       getCurrentProAccess(),
       canPurchaseInApp
-        ? getProPackages().catch(() => ({ monthly: null, annual: null, available: false }))
-        : Promise.resolve({ monthly: null, annual: null, available: false }),
+        ? getProPackages().catch((error: unknown) => {
+            reportError(toError(error), { context: "pro-paywall-offerings" });
+            failure = { kind: "error", detail: describeRevenueCatError(error) };
+            return empty;
+          })
+        : Promise.resolve(empty),
     ]);
     setAccess(currentAccess);
     setMonthly(packages.monthly);
     setAnnual(packages.annual);
+    setPlanIssue(
+      failure ?? ("reason" in packages && packages.reason ? { kind: packages.reason } : null),
+    );
     setLoading(false);
   }, [canPurchaseInApp]);
 
@@ -53,9 +74,10 @@ export default function ProScreen() {
       if (nextAccess.hasPro) router.back();
     } catch (error) {
       if (isRevenueCatPurchaseCancelled(error)) return;
+      reportError(toError(error), { context: "pro-paywall-purchase" });
       showAlert(
         t("Could not start subscription"),
-        error instanceof Error ? error.message : t("Try again."),
+        describeRevenueCatError(error) || t("Try again."),
       );
     } finally {
       setBusy(null);
@@ -74,13 +96,33 @@ export default function ProScreen() {
           : t("Try another store account if needed."),
       );
     } catch (error) {
+      reportError(toError(error), { context: "pro-paywall-restore" });
       showAlert(
         t("Could not restore purchases"),
-        error instanceof Error ? error.message : t("Try again."),
+        describeRevenueCatError(error) || t("Try again."),
       );
     } finally {
       setBusy(null);
     }
+  }
+
+  function showPlansUnavailable() {
+    const body =
+      planIssue?.kind === "signed-out"
+        ? t("Sign in again to subscribe.")
+        : planIssue?.kind === "unsupported"
+          ? t("Purchases aren't supported in this app build.")
+          : planIssue?.kind === "empty-offering"
+            ? t(
+                "Subscription plans aren't set up for this app version yet. Please try again later.",
+              )
+            : planIssue?.kind === "error"
+              ? `${t("We couldn't load subscription plans. Check your connection and try again.")}\n\n${planIssue.detail}`
+              : t("We couldn't load subscription plans. Check your connection and try again.");
+    showAlert(t("Plans unavailable"), body, [
+      { text: t("Cancel"), style: "cancel" },
+      { text: t("Retry"), onPress: () => void load() },
+    ]);
   }
 
   const expiry = access?.expiresAt
@@ -178,18 +220,7 @@ export default function ProScreen() {
                   accessibilityState={{ disabled: Boolean(busy) }}
                   onPress={() => {
                     if (busy) return;
-                    return item.pack
-                      ? buy(item.pack, item.label)
-                      : showAlert(
-                          t("Plans unavailable"),
-                          t(
-                            "We couldn't load subscription plans. Check your connection and try again.",
-                          ),
-                          [
-                            { text: t("Cancel"), style: "cancel" },
-                            { text: t("Retry"), onPress: () => void load() },
-                          ],
-                        );
+                    return item.pack ? buy(item.pack, item.label) : showPlansUnavailable();
                   }}
                 >
                   <View className="w-11 h-11 rounded-full bg-primary-fixed items-center justify-center">

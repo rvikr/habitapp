@@ -10,7 +10,8 @@
       "channel": "development",
       "environment": "development",
       "env": {
-        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_SHTWKRBPEQvAxbTmohWtozNXMNd"
       }
     },
     "preview": {

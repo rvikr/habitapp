@@ -247,8 +247,9 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
   `cron.schedule('coach-push', '*/15 * * * *', …)` job, and the `coach_push`
   feature flag enabled (see the header of
   [`supabase/functions/coach-push/index.ts`](supabase/functions/coach-push/index.ts)).
-- Pro subscriptions use RevenueCat entitlement `pro` with product ids
-  `pro_monthly` and `pro_annual`. Set `REVENUECAT_SECRET_API_KEY` and
+- Pro subscriptions use RevenueCat entitlement `pro` with Google Play product
+  ids `rc_49_1m` (monthly) and `rc_499_12m` (annual), attached to the _current_
+  offering's monthly/annual package slots. Set `REVENUECAT_SECRET_API_KEY` and
   `REVENUECAT_WEBHOOK_AUTH_TOKEN` as Supabase Edge Function secrets. Deploy
   `revenuecat-webhook` without JWT verification, or keep the included
   `supabase/config.toml` setting when deploying all functions.

@@ -87,19 +87,25 @@ export async function syncRevenueCatSubscription(userId?: string): Promise<ProAc
   return getCurrentProAccess();
 }
 
+export type ProPackagesUnavailableReason = "signed-out" | "unsupported" | "empty-offering";
+
 export async function getProPackages(): Promise<{
   monthly: PurchasesPackage | null;
   annual: PurchasesPackage | null;
   available: boolean;
+  reason?: ProPackagesUnavailableReason;
 }> {
   const user = await getCurrentUser();
-  if (!user) return { monthly: null, annual: null, available: false };
+  if (!user) return { monthly: null, annual: null, available: false, reason: "signed-out" };
   const module = await purchasesModule();
-  if (!module) return { monthly: null, annual: null, available: false };
+  if (!module) return { monthly: null, annual: null, available: false, reason: "unsupported" };
   await configureRevenueCat(user.id);
 
+  // getOfferings failures propagate so the paywall can log and surface them.
   const offerings = await module.default.getOfferings();
-  return selectProPaywallPackages(offerings.current);
+  const selected = selectProPaywallPackages(offerings.current);
+  if (!selected.monthly && !selected.annual) return { ...selected, reason: "empty-offering" };
+  return selected;
 }
 
 export async function purchaseProPackage(pack: PurchasesPackage): Promise<ProAccess> {
