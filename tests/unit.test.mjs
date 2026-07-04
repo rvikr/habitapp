@@ -94,7 +94,11 @@ import {
 import { resolveAiSmartReminderPlans } from "../lib/coach/smart-reminder-ai.ts";
 import { buildRoutineRecommendations } from "../lib/coach/routine-builder.ts";
 import { sanitizeHabitRecommendations } from "../lib/coach/routine-ai.ts";
-import { buildCreatedHabits, pickTutorialHabit } from "../lib/coach/post-onboarding.ts";
+import {
+  buildCreatedHabits,
+  getTutorialHabitAction,
+  pickTutorialHabit,
+} from "../lib/coach/post-onboarding.ts";
 import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../lib/coach/coach.ts";
 import {
   buildCoachSignals as buildCoachSignalsPort,
@@ -1763,6 +1767,7 @@ test("first-run wizard touch targets expose web accessibility roles", () => {
   const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
   const roles = source.match(/accessibilityRole=/g) ?? [];
   assert.equal(roles.length, touchTargets.length, "wizard has an unroled touch target");
+  const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   for (const label of [
     "Go back",
@@ -1772,9 +1777,20 @@ test("first-run wizard touch targets expose web accessibility roles", () => {
     "Create routine",
     "Enable reminders",
     "Complete",
+    "Log {amount} {unit}",
     "Skip for now",
   ]) {
-    assert.match(source, new RegExp(`"${label.replace(/[{}]/g, "\\$&")}"`));
+    assert.match(source, new RegExp(`"${escapeRegex(label)}"`));
+    assert.notEqual(translate("hi", label), label);
+  }
+
+  for (const label of [
+    "Let's log your first habit together",
+    "Tap below to log {amount} {unit} for {name}. That's your first step.",
+    "First log: +{amount} {unit}",
+    "Daily goal: {target} {unit}",
+  ]) {
+    assert.match(source, new RegExp(`"${escapeRegex(label)}"`));
     assert.notEqual(translate("hi", label), label);
   }
 });
@@ -1783,8 +1799,8 @@ test("first-run wizard primary actions use text loading states", () => {
   const source = readFileSync("app/habits/wizard.tsx", "utf8");
   assert.doesNotMatch(source, /ActivityIndicator/);
   assert.doesNotMatch(source, /disabled=\{(?:creating|busy|completing)/);
-  for (const label of ["Creating routine...", "Enabling...", "Completing..."]) {
-    assert.match(source, new RegExp(`t\\("${label}"\\)`));
+  for (const label of ["Creating routine...", "Enabling...", "Completing...", "Logging..."]) {
+    assert.match(source, new RegExp(`"${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
     assert.notEqual(translate("hi", label), label);
   }
 });
@@ -3411,6 +3427,15 @@ function recommendation(name, habitType) {
     unit: "ml",
     target: 2000,
     habitType,
+    metricType: habitType === "water_intake" ? "volume_ml" : "boolean",
+    visualType: habitType === "water_intake" ? "water_bottle" : "progress_ring",
+    reminderStrategy: "conditional_interval",
+    reminderIntervalMinutes: null,
+    defaultLogValue: habitType === "water_intake" ? 250 : null,
+    remindersEnabled: false,
+    reminderTimes: [],
+    reminderDays: [0, 1, 2, 3, 4, 5, 6],
+    mergeSimilar: true,
   };
 }
 
@@ -3433,6 +3458,8 @@ test("buildCreatedHabits zips selected recs with created ids and keeps merged, d
   // alignment preserved: the kept entries carry the right rec metadata
   assert.equal(created[0].name, "Drink Water");
   assert.equal(created[0].habitType, "water_intake");
+  assert.equal(created[0].metricType, "volume_ml");
+  assert.equal(created[0].defaultLogValue, 250);
   assert.equal(created[1].name, "Sleep");
 });
 
@@ -3450,6 +3477,53 @@ test("pickTutorialHabit prefers the water habit, else first, else null", () => {
   assert.equal(pickTutorialHabit([walk, water]).id, "w"); // water preferred even when not first
   assert.equal(pickTutorialHabit([walk]).id, "k"); // falls back to the first created habit
   assert.equal(pickTutorialHabit([]), null); // null only when nothing was created
+});
+
+test("getTutorialHabitAction logs a realistic first amount for quantity habits", () => {
+  assert.deepEqual(
+    getTutorialHabitAction({
+      id: "water",
+      name: "Drink Water",
+      icon: "water_drop",
+      color: "primary",
+      unit: "ml",
+      target: 1500,
+      habitType: "water_intake",
+      metricType: "volume_ml",
+      defaultLogValue: 250,
+    }),
+    { kind: "log_progress", value: 250 },
+  );
+
+  assert.deepEqual(
+    getTutorialHabitAction({
+      id: "read",
+      name: "Read",
+      icon: "book",
+      color: "secondary",
+      unit: "pages",
+      target: 20,
+      habitType: "read",
+      metricType: "pages",
+      defaultLogValue: 100,
+    }),
+    { kind: "log_progress", value: 20 },
+  );
+
+  assert.deepEqual(
+    getTutorialHabitAction({
+      id: "journal",
+      name: "Journal",
+      icon: "book",
+      color: "tertiary",
+      unit: "",
+      target: null,
+      habitType: "journal",
+      metricType: "boolean",
+      defaultLogValue: null,
+    }),
+    { kind: "complete" },
+  );
 });
 
 test("routine builder gives students focus revision reading and screen limit habits", () => {
