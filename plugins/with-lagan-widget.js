@@ -57,6 +57,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.View
 import android.widget.RemoteViews
 import org.json.JSONObject
 
@@ -92,6 +93,16 @@ class LaganWidgetProvider : AppWidgetProvider() {
       val views = RemoteViews(context.packageName, R.layout.lagan_widget).apply {
         setTextViewText(R.id.lagan_widget_title, snapshot.title)
         setTextViewText(R.id.lagan_widget_completion, snapshot.completionLabel)
+        setTextViewText(R.id.lagan_widget_next_habit, snapshot.nextHabitLabel)
+        setViewVisibility(
+          R.id.lagan_widget_next_habit,
+          if (snapshot.nextHabitLabel.isBlank()) View.GONE else View.VISIBLE,
+        )
+        setTextViewText(R.id.lagan_widget_coach, snapshot.coachLabel)
+        setViewVisibility(
+          R.id.lagan_widget_coach,
+          if (snapshot.coachLabel.isBlank()) View.GONE else View.VISIBLE,
+        )
         setTextViewText(R.id.lagan_widget_progress_text, "\${snapshot.progressPercent}%")
         setTextViewText(R.id.lagan_widget_streak, snapshot.streakLabel)
         setTextViewText(R.id.lagan_widget_level, snapshot.levelLabel)
@@ -113,6 +124,9 @@ class LaganWidgetProvider : AppWidgetProvider() {
         WidgetSnapshot(
           title = text(json, "title", "Today"),
           completionLabel = text(json, "completionLabel", "Open Lagan to start"),
+          // Blank means "hide the line" — do not fall back like text() does.
+          nextHabitLabel = json.optString("nextHabitLabel", ""),
+          coachLabel = json.optString("coachLabel", ""),
           progressPercent = json.optInt("progressPercent", 0).coerceIn(0, 100),
           streakLabel = text(json, "streakLabel", "Sign in to sync"),
           levelLabel = text(json, "levelLabel", "Lagan"),
@@ -146,6 +160,8 @@ class LaganWidgetProvider : AppWidgetProvider() {
 private data class WidgetSnapshot(
   val title: String,
   val completionLabel: String,
+  val nextHabitLabel: String,
+  val coachLabel: String,
   val progressPercent: Int,
   val streakLabel: String,
   val levelLabel: String,
@@ -155,6 +171,8 @@ private data class WidgetSnapshot(
     fun empty() = WidgetSnapshot(
       title = "Today",
       completionLabel = "Open Lagan to start",
+      nextHabitLabel = "",
+      coachLabel = "",
       progressPercent = 0,
       streakLabel = "Sign in to sync",
       levelLabel = "Lagan",
@@ -193,6 +211,31 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:textSize="18sp"
     android:textStyle="bold"
     android:maxLines="2" />
+
+  <TextView
+    android:id="@+id/lagan_widget_next_habit"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:text=""
+    android:textColor="#3A2418"
+    android:textSize="13sp"
+    android:textStyle="bold"
+    android:maxLines="1"
+    android:ellipsize="end"
+    android:visibility="gone" />
+
+  <TextView
+    android:id="@+id/lagan_widget_coach"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:text=""
+    android:textColor="#5B5049"
+    android:textSize="11sp"
+    android:maxLines="2"
+    android:ellipsize="end"
+    android:visibility="gone" />
 
   <LinearLayout
     android:layout_width="match_parent"
@@ -272,9 +315,9 @@ const WIDGET_BACKGROUND_XML = `<?xml version="1.0" encoding="utf-8"?>
 const WIDGET_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:minWidth="160dp"
-  android:minHeight="110dp"
+  android:minHeight="140dp"
   android:minResizeWidth="140dp"
-  android:minResizeHeight="100dp"
+  android:minResizeHeight="120dp"
   android:updatePeriodMillis="1800000"
   android:initialLayout="@layout/lagan_widget"
   android:resizeMode="horizontal|vertical"
@@ -335,4 +378,4 @@ const withLaganWidget = (config) => {
   return config;
 };
 
-module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "1.0.0");
+module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "1.1.0");

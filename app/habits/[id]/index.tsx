@@ -309,13 +309,34 @@ export default function HabitDetailScreen() {
                   <Icon name={habit.icon} size={28} color="#fff" />
                 </View>
                 {progress && (
-                  <HabitProgressVisual
-                    visualType={habit.visual_type}
-                    progress={progress.ratio}
-                    size="large"
-                    color={accentColor}
-                    trackColor="rgba(255,255,255,0.22)"
-                  />
+                  // Opaque backing matched to the surface (base + scrim) so the
+                  // background mark never bleeds through the transparent visual.
+                  <View
+                    style={{
+                      borderRadius: 28,
+                      padding: 8,
+                      overflow: "hidden",
+                      backgroundColor: visual.base,
+                    }}
+                  >
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: "rgba(0,0,0,0.42)",
+                      }}
+                    />
+                    <HabitProgressVisual
+                      visualType={habit.visual_type}
+                      progress={progress.ratio}
+                      size="large"
+                      color={accentColor}
+                      trackColor="rgba(255,255,255,0.22)"
+                    />
+                  </View>
                 )}
               </View>
               <Text className="text-headline-lg font-bold mb-xs" style={{ color: "#fff" }}>

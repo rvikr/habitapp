@@ -3,7 +3,9 @@
 // operation is persisted here and replayed once connectivity returns, so a
 // "done" tap in airplane mode is never lost. Replays run single-flight and in
 // FIFO order; absolute writes (complete/uncomplete/set_value) for a habit+day
-// supersede anything queued earlier for that same habit+day.
+// supersede anything queued earlier for that same habit+day. Monotonic raises
+// (set_value_max, from the step sync) supersede only earlier raises — queued
+// manual increments carry user intent the sync must not erase.
 
 import { getItem, removeItem, setItem } from "../platform/storage";
 import { supabase, getCurrentUser } from "../supabase/client";
@@ -17,7 +19,7 @@ const MAX_QUEUE_LENGTH = 200;
 
 export type PendingCompletionOp = {
   id: string;
-  kind: "complete" | "uncomplete" | "set_value" | "increment";
+  kind: "complete" | "uncomplete" | "set_value" | "set_value_max" | "increment";
   habitId: string;
   userId: string;
   completedOn: string;
@@ -47,10 +49,12 @@ export async function enqueueCompletionOp(
   op: Omit<PendingCompletionOp, "id" | "queuedAt">,
 ): Promise<void> {
   const queue = await readQueue();
-  const supersedes = op.kind !== "increment";
-  const next = supersedes
-    ? queue.filter((item) => !(item.habitId === op.habitId && item.completedOn === op.completedOn))
-    : queue;
+  const next = queue.filter((item) => {
+    if (item.habitId !== op.habitId || item.completedOn !== op.completedOn) return true;
+    if (op.kind === "increment") return true;
+    if (op.kind === "set_value_max") return item.kind !== "set_value_max";
+    return false;
+  });
   next.push({
     ...op,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -134,6 +138,17 @@ async function replayOp(op: PendingCompletionOp): Promise<{ message?: string } |
       p_habit_id: op.habitId,
       p_completed_on: op.completedOn,
       p_increment: op.value ?? 1,
+      p_note: op.note ?? null,
+    });
+    return error;
+  }
+
+  if (op.kind === "set_value_max") {
+    if (op.value == null) return null;
+    const { error } = await supabase.rpc("raise_habit_completion_value", {
+      p_habit_id: op.habitId,
+      p_completed_on: op.completedOn,
+      p_value: op.value,
       p_note: op.note ?? null,
     });
     return error;

@@ -12,7 +12,14 @@ import {
 
 export type HomeWidgetDashboardSnapshot = Pick<
   HomeWidgetSnapshotInput,
-  "completedCount" | "totalHabits" | "currentStreak" | "level" | "locale"
+  | "completedCount"
+  | "totalHabits"
+  | "currentStreak"
+  | "level"
+  | "locale"
+  | "nextHabitName"
+  | "coachMessage"
+  | "hasPro"
 >;
 
 const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
@@ -22,6 +29,8 @@ const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
   remainingCount: 0,
   progressPercent: 0,
   completionLabel: "Open Lagan to start",
+  nextHabitLabel: "",
+  coachLabel: "",
   streakLabel: "Sign in to sync",
   levelLabel: "Lagan",
   updatedLabel: "",

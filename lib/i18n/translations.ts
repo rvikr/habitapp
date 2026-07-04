@@ -325,6 +325,17 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Your Pro trial has ended": "आपका Pro ट्रायल खत्म हो गया है",
   "Your habits, streaks, and data are safe. AI Coach, smart reminders, and weekly reports are paused until you subscribe.":
     "आपकी आदतें, स्ट्रीक और डेटा सुरक्षित हैं. AI Coach, स्मार्ट रिमाइंडर और साप्ताहिक रिपोर्ट सब्सक्राइब करने तक रुके रहेंगे.",
+  "Plans unavailable": "प्लान उपलब्ध नहीं हैं",
+  "We couldn't load subscription plans. Check your connection and try again.":
+    "सब्सक्रिप्शन प्लान लोड नहीं हो सके. अपना कनेक्शन जांचें और फिर कोशिश करें.",
+  "AI Coach is a Pro feature": "AI Coach एक Pro फीचर है",
+  "Subscribe to Pro to unlock personalized AI coaching.":
+    "पर्सनलाइज़्ड AI कोचिंग अनलॉक करने के लिए Pro सब्सक्राइब करें.",
+  "Not now": "अभी नहीं",
+  "See Pro": "Pro देखें",
+  "All caught up": "सब पूरा हो गया",
+  "Your coach has no suggestions right now. Keep it up!":
+    "आपके कोच के पास अभी कोई सुझाव नहीं है. ऐसे ही करते रहें!",
   "Could not create habit": "आदत नहीं बन सकी",
   "New Habit": "नई आदत",
   "Create habit": "आदत बनाएं",

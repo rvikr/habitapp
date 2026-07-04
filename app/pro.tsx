@@ -181,8 +181,14 @@ export default function ProScreen() {
                     return item.pack
                       ? buy(item.pack, item.label)
                       : showAlert(
-                          t("Coming soon"),
-                          t("Subscriptions will be available shortly. Hang tight!"),
+                          t("Plans unavailable"),
+                          t(
+                            "We couldn't load subscription plans. Check your connection and try again.",
+                          ),
+                          [
+                            { text: t("Cancel"), style: "cancel" },
+                            { text: t("Retry"), onPress: () => void load() },
+                          ],
                         );
                   }}
                 >

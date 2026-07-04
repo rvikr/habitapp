@@ -500,7 +500,37 @@ test("home widget snapshot handles an empty routine", () => {
   assert.equal(snapshot.completionLabel, "No habits yet");
   assert.equal(snapshot.streakLabel, "No streak yet");
   assert.equal(snapshot.levelLabel, "Level 1");
+  assert.equal(snapshot.nextHabitLabel, "");
   assert.doesNotThrow(() => JSON.parse(stringifyHomeWidgetSnapshot(snapshot)));
+});
+
+test("home widget next-habit line shows for everyone; coach line is Pro-only", () => {
+  const base = {
+    completedCount: 1,
+    totalHabits: 3,
+    currentStreak: 2,
+    level: 2,
+    nextHabitName: "Daily walk",
+    coachMessage: "You're 2,000 steps short — a quick stroll gets you there.",
+    now: new Date(2026, 6, 4, 9, 5),
+    locale: "en-US",
+  };
+
+  const freeUser = buildHomeWidgetSnapshot({ ...base, hasPro: false });
+  assert.equal(freeUser.nextHabitLabel, "Next: Daily walk");
+  assert.equal(freeUser.coachLabel, "");
+
+  const proUser = buildHomeWidgetSnapshot({ ...base, hasPro: true });
+  assert.equal(proUser.nextHabitLabel, "Next: Daily walk");
+  assert.equal(proUser.coachLabel, "You're 2,000 steps short — a quick stroll gets you there.");
+
+  // All habits done: no next habit to point at, even if a stale name is passed.
+  const allDone = buildHomeWidgetSnapshot({ ...base, completedCount: 3, hasPro: true });
+  assert.equal(allDone.nextHabitLabel, "");
+
+  // Missing coach message never renders a blank Pro line.
+  const noMessage = buildHomeWidgetSnapshot({ ...base, coachMessage: null, hasPro: true });
+  assert.equal(noMessage.coachLabel, "");
 });
 
 test("leaderboard RPC is restricted to authenticated callers", () => {
@@ -1188,8 +1218,48 @@ test("home step sync refreshes dashboard metrics after persisting step completio
       /const persistStepCount = useCallback\([\s\S]*?setStepTracking\(\{ status: "tracking", lastSyncedAt: now \}\);[\s\S]*?\}, \[[^\]]*\]\);/,
     )?.[0] ?? "";
 
-  assert.match(persistBlock, /setCompletionValue\(habit\.id, steps, "Synced from step counter"\)/);
+  assert.match(
+    persistBlock,
+    /raiseCompletionValue\(habit\.id, steps, "Synced from step counter"\)/,
+  );
   assert.match(persistBlock, /load\(\{ force: true \}\)/);
+});
+
+test("step sync writes are raise-only so manual logs are never clobbered", () => {
+  const actions = readFileSync("lib/data/actions.ts", "utf8");
+  const raiseBlock =
+    actions.match(/export async function raiseCompletionValue[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(raiseBlock, /supabase\.rpc\("raise_habit_completion_value"/);
+  assert.match(raiseBlock, /kind: "set_value_max"/);
+  assert.doesNotMatch(
+    actions,
+    /from\("habit_completions"\)\s*\.upsert\(buildCompletionValuePayload/,
+  );
+
+  const migration = readFileSync(
+    "supabase/migrations/20260704120000_raise_completion_value_rpc.sql",
+    "utf8",
+  );
+  assert.match(migration, /on conflict \(habit_id, completed_on\) do update/);
+  assert.match(
+    migration,
+    /where coalesce\(public\.habit_completions\.value, 0\) < excluded\.value/,
+  );
+  assert.match(migration, /note\s*=\s*coalesce\(public\.habit_completions\.note, excluded\.note\)/);
+  assert.match(migration, /grant\s+execute[\s\S]*to authenticated/);
+
+  // A queued monotonic raise must not erase queued manual increments.
+  const queue = readFileSync("lib/data/completion-queue.ts", "utf8");
+  assert.match(queue, /if \(op\.kind === "set_value_max"\) return item\.kind !== "set_value_max";/);
+  const replayBlock = queue.match(/async function replayOp[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(replayBlock, /raise_habit_completion_value/);
+
+  // Local dashboard state mirrors the raise-only rule.
+  const homeScreen = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(
+    homeScreen,
+    /Math\.max\(current\.todayProgress\.get\(habit\.id\)\?\.current \?\? 0, value\)/,
+  );
 });
 
 test("sleep tracking is disabled by default", () => {
@@ -1305,6 +1375,19 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /LaganWidgetProvider/);
   assert.match(pluginSource, /android\.appwidget\.action\.APPWIDGET_UPDATE/);
   assert.match(pluginSource, /lagan_widget_info/);
+  // Next-habit and coach lines: rendered from the snapshot, hidden when blank.
+  assert.match(pluginSource, /lagan_widget_next_habit/);
+  assert.match(pluginSource, /lagan_widget_coach/);
+  assert.match(pluginSource, /json\.optString\("nextHabitLabel", ""\)/);
+  assert.match(pluginSource, /json\.optString\("coachLabel", ""\)/);
+  assert.match(
+    pluginSource,
+    /if \(snapshot\.nextHabitLabel\.isBlank\(\)\) View\.GONE else View\.VISIBLE/,
+  );
+  assert.match(
+    pluginSource,
+    /if \(snapshot\.coachLabel\.isBlank\(\)\) View\.GONE else View\.VISIBLE/,
+  );
 
   const moduleConfig = JSON.parse(
     readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
@@ -3752,6 +3835,27 @@ test("dashboard auto-shows the coach card but never for the encouragement fallba
   const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
   assert.match(dashboardSource, /coachSignal\.kind\s*!==\s*"encouragement"/);
   assert.match(dashboardSource, /dismissCoachCard\(coachSignal\)/);
+});
+
+test("coach bot button always responds: free users get the Pro upsell", () => {
+  const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const handlerBlock =
+    dashboardSource.match(/function handleCoachButtonPress\(\)[\s\S]*?\n  \}/)?.[0] ?? "";
+
+  // With a live signal the button still toggles the card.
+  assert.match(handlerBlock, /setCoachCardOverride\(coachCardVisible \? "hidden" : "shown"\)/);
+  // Free users are told the coach is a Pro feature with a route to /pro.
+  assert.match(handlerBlock, /AI Coach is a Pro feature/);
+  assert.match(handlerBlock, /router\.push\("\/pro"/);
+  // Pro users with nothing to act on get feedback instead of a dead tap.
+  assert.match(handlerBlock, /All caught up/);
+  assert.match(dashboardSource, /onPress=\{handleCoachButtonPress\}/);
+
+  // Deliberately opening the card resurfaces the Pro upsell pill.
+  assert.match(
+    dashboardSource,
+    /upsellDismissed=\{coachHintDismissed && coachCardOverride !== "shown"\}/,
+  );
 });
 
 test("coach card dismissal persists for the same signal on the same day", async () => {

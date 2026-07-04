@@ -3,6 +3,9 @@ export type HomeWidgetSnapshotInput = {
   totalHabits: number;
   currentStreak?: number | null;
   level?: number | null;
+  nextHabitName?: string | null;
+  coachMessage?: string | null;
+  hasPro?: boolean;
   now?: Date;
   locale?: string;
 };
@@ -14,6 +17,8 @@ export type HomeWidgetSnapshot = {
   remainingCount: number;
   progressPercent: number;
   completionLabel: string;
+  nextHabitLabel: string;
+  coachLabel: string;
   streakLabel: string;
   levelLabel: string;
   updatedLabel: string;
@@ -33,6 +38,23 @@ function completionLabel(completedCount: number, totalHabits: number): string {
 function streakLabel(currentStreak: number): string {
   if (currentStreak <= 0) return "No streak yet";
   return `${currentStreak} day${currentStreak === 1 ? "" : "s"} streak`;
+}
+
+// Empty labels mean the widget hides that line entirely.
+function nextHabitLabel(
+  nextHabitName: string | null | undefined,
+  totalHabits: number,
+  remainingCount: number,
+): string {
+  const name = nextHabitName?.trim() ?? "";
+  if (!name || totalHabits === 0 || remainingCount === 0) return "";
+  return `Next: ${name}`;
+}
+
+// The coach line is Pro-only by construction; free users get the next habit only.
+function coachLabel(coachMessage: string | null | undefined, hasPro: boolean): string {
+  if (!hasPro) return "";
+  return coachMessage?.trim() ?? "";
 }
 
 function updatedLabel(now: Date, locale: string): string {
@@ -61,6 +83,8 @@ export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWid
     remainingCount,
     progressPercent,
     completionLabel: completionLabel(completedCount, totalHabits),
+    nextHabitLabel: nextHabitLabel(input.nextHabitName, totalHabits, remainingCount),
+    coachLabel: coachLabel(input.coachMessage, input.hasPro ?? false),
     streakLabel: streakLabel(currentStreak),
     levelLabel: `Level ${level}`,
     updatedLabel: updatedLabel(now, locale),

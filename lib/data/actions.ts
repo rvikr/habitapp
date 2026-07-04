@@ -25,7 +25,6 @@ import {
   isGoogleNativeDeveloperError,
 } from "../auth/google-native";
 import { hasPasswordIdentity, hasRecentSignIn } from "../auth/identity";
-import { buildCompletionValuePayload } from "./completions";
 import { enqueueCompletionOp, flushPendingCompletions, isNetworkFailure } from "./completion-queue";
 import { clearDataCache } from "./cache";
 import { clearHomeWidgetSnapshot } from "../widgets/home-widget";
@@ -329,7 +328,9 @@ export async function logCompletion(
   return { ok: true };
 }
 
-export async function setCompletionValue(
+// Monotonic write for auto-tracked values (step sync): only ever raises
+// today's value, so it can never clobber a higher total from a manual log.
+export async function raiseCompletionValue(
   habitId: string,
   value: number,
   note?: string,
@@ -338,15 +339,16 @@ export async function setCompletionValue(
   if (!user) return notSignedIn();
   void flushPendingCompletions();
 
-  const { error } = await supabase
-    .from("habit_completions")
-    .upsert(buildCompletionValuePayload(habitId, user.id, localDateKey(), value, note), {
-      onConflict: "habit_id,completed_on",
-    });
+  const { error } = await supabase.rpc("raise_habit_completion_value", {
+    p_habit_id: habitId,
+    p_completed_on: localDateKey(),
+    p_value: value,
+    p_note: note?.trim() || null,
+  });
   if (error) {
     if (!isNetworkFailure(error)) return mutationResult(error);
     await enqueueCompletionOp({
-      kind: "set_value",
+      kind: "set_value_max",
       habitId,
       userId: user.id,
       completedOn: localDateKey(),

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Linking,
   Platform,
@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabitsForToday, getStats } from "@/lib/data/habits";
-import { logCompletion, setCompletionValue, toggleHabit } from "@/lib/data/actions";
+import { logCompletion, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
 import { flushPendingCompletions } from "@/lib/data/completion-queue";
 import type { StreaksMap } from "@/lib/data/habits";
 import { useCelebrate } from "@/components/celebration";
@@ -248,7 +248,7 @@ export default function DashboardScreen() {
         !coachCardDismissed &&
         coachSignal.kind !== "encouragement"));
 
-  const habits = data?.habits ?? [];
+  const habits = useMemo(() => data?.habits ?? [], [data]);
   const stepHabit = habits.find(isStepHabit) ?? null;
   const stepHabitSyncKey = stepHabit
     ? [
@@ -304,7 +304,7 @@ export default function DashboardScreen() {
         );
         const steps = lastStepValueRef.current;
         if (habit && steps > 0) {
-          void setCompletionValue(habit.id, steps, "Synced from step counter");
+          void raiseCompletionValue(habit.id, steps, "Synced from step counter");
         }
         stepSubscriptionRef.current?.remove();
         stepSubscriptionRef.current = null;
@@ -317,7 +317,10 @@ export default function DashboardScreen() {
   const updateLocalStepProgress = useCallback((habit: Habit, value: number) => {
     setData((current) => {
       if (!current || !current.habits.some((item) => item.id === habit.id)) return current;
-      const progress = progressForHabit(habit, { value });
+      // Mirror the server's raise-only semantics: a stale watcher tick must
+      // never visually lower a total that a manual log already raised.
+      const shownValue = Math.max(current.todayProgress.get(habit.id)?.current ?? 0, value);
+      const progress = progressForHabit(habit, { value: shownValue });
       const nextProgress = new Map(current.todayProgress);
       const nextCompleted = new Set(current.completedToday);
       nextProgress.set(habit.id, progress);
@@ -337,7 +340,7 @@ export default function DashboardScreen() {
       if (stepSavingRef.current) return;
 
       stepSavingRef.current = true;
-      const result = await setCompletionValue(habit.id, steps, "Synced from step counter");
+      const result = await raiseCompletionValue(habit.id, steps, "Synced from step counter");
       stepSavingRef.current = false;
 
       if (!result.ok) {
@@ -600,6 +603,28 @@ export default function DashboardScreen() {
     router.push(`/habits/${signal.habitId}`);
   }
 
+  // The bot button must never be a dead tap: with a live signal it toggles the
+  // card; otherwise free users get the Pro upsell and Pro users a friendly
+  // "nothing to do" note.
+  function handleCoachButtonPress() {
+    if (coachSignalActive && coachSignal) {
+      setCoachCardOverride(coachCardVisible ? "hidden" : "shown");
+      return;
+    }
+    if (!data?.proAccess.hasPro) {
+      showAlert(
+        t("AI Coach is a Pro feature"),
+        t("Subscribe to Pro to unlock personalized AI coaching."),
+        [
+          { text: t("Not now"), style: "cancel" },
+          { text: t("See Pro"), onPress: () => router.push("/pro" as never) },
+        ],
+      );
+      return;
+    }
+    showAlert(t("All caught up"), t("Your coach has no suggestions right now. Keep it up!"));
+  }
+
   async function handleSleepCoachLog(value: number, note: string) {
     if (!sleepLogHabit) return { ok: false, error: t("Habit not loaded.") };
     const result = await logCompletion(sleepLogHabit.id, value, note || "Logged from AI coach");
@@ -625,14 +650,23 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     if (!data) return;
+    // Prefer the coach's target as the next habit; otherwise the first habit
+    // still open today. The coach message line is Pro-only.
+    const nextHabit =
+      coachSignalActive && coachSignal
+        ? coachSignal.habitName
+        : (habits.find((h) => !data.completedToday.has(h.id))?.name ?? null);
     void syncHomeWidgetFromDashboard({
       completedCount,
       totalHabits: total,
       currentStreak: data.stats?.currentStreak ?? 0,
       level: data.stats?.level ?? 1,
+      nextHabitName: nextHabit,
+      coachMessage: coachSignalActive && coachSignal ? coachSignal.message : null,
+      hasPro: data.proAccess.hasPro,
       locale: language === "hi" ? "hi-IN" : "en-US",
     });
-  }, [completedCount, data, language, total]);
+  }, [coachSignal, coachSignalActive, completedCount, data, habits, language, total]);
 
   // First load failed and there is nothing cached to show — offer a retry
   // instead of a permanent skeleton (or, worse, a spurious onboarding bounce).
@@ -763,7 +797,7 @@ export default function DashboardScreen() {
               signal={coachSignal}
               active={coachSignalActive}
               cardVisible={coachCardVisible}
-              onPress={() => setCoachCardOverride(coachCardVisible ? "hidden" : "shown")}
+              onPress={handleCoachButtonPress}
             />
             <TouchableOpacity
               className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center"
@@ -801,7 +835,7 @@ export default function DashboardScreen() {
               setCoachCardOverride("hidden");
               router.push("/pro" as never);
             }}
-            upsellDismissed={coachHintDismissed}
+            upsellDismissed={coachHintDismissed && coachCardOverride !== "shown"}
             onUpsellDismiss={() => {
               coachUpgradeHintDismissedForSession = true;
               setCoachHintDismissed(true);
