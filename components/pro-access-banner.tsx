@@ -23,7 +23,7 @@ export function ProUpgradeBanner({
 }: ProUpgradeBannerProps) {
   const { t } = useLanguage();
   return (
-    <View className="bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md gap-sm">
+    <View className="bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md gap-sm">
       <View className="flex-row items-start gap-md">
         <View className="w-10 h-10 rounded-full bg-primary items-center justify-center">
           <MaterialCommunityIcons name="star-four-points" size={20} color="#fff" />

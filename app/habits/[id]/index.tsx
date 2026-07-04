@@ -1,111 +1,27 @@
 import { useState, useCallback } from "react";
-import type { ReactNode } from "react";
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
-import Svg, { Path } from "react-native-svg";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { getHabit, weekProgressFor, streakFor, getHabitCoachInsight } from "@/lib/data/habits";
+import { getHabit, streakFor, longestStreakFor, getHabitCoachInsight } from "@/lib/data/habits";
 import { toggleHabit, deleteHabit, logCompletion } from "@/lib/data/actions";
 import { useCelebrate } from "@/components/celebration";
 import CoachCard from "@/components/coach-card";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
-import Icon from "@/components/icon";
 import LogPrompt from "@/components/log-prompt";
-import HabitProgressVisual from "@/components/habit-progress-visual";
+import ProgressRing from "@/components/progress-ring";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
-import { localDateKey } from "@/lib/utils/date";
+import { localDateDaysAgo, localDateKey } from "@/lib/utils/date";
 import { formatAmount, isQuantityHabit, progressForHabit } from "@/lib/coach/habit-intelligence";
 import { useLanguage } from "@/components/language-provider";
-import { getHabitVisualForHabit, type HabitVisual } from "@/lib/data/habit-images";
+import { useTheme } from "@/components/theme-provider";
+import { getHabitVisualForHabit } from "@/lib/data/habit-images";
 
-const COLOR_FG: Record<string, string> = {
-  primary: "#F26B1F",
-  secondary: "#3EBB7F",
-  tertiary: "#E4A23A",
-  neutral: "#5A554D",
-};
-
-function HabitDetailVisualSurface({
-  visual,
-  children,
-}: {
-  visual: HabitVisual;
-  children: ReactNode;
-}) {
-  return (
-    <View
-      style={{
-        minHeight: 200,
-        padding: 20,
-        overflow: "hidden",
-        backgroundColor: visual.base,
-      }}
-    >
-      <View
-        style={{
-          position: "absolute",
-          width: 190,
-          height: 190,
-          borderRadius: 95,
-          top: -60,
-          left: -42,
-          backgroundColor: visual.accent,
-          opacity: 0.3,
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          width: 250,
-          height: 250,
-          borderRadius: 125,
-          right: -72,
-          bottom: -88,
-          backgroundColor: visual.glow,
-          opacity: 0.18,
-        }}
-      />
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox="0 0 600 400"
-        style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, opacity: 0.58 }}
-      >
-        <Path
-          d={visual.mark}
-          fill="none"
-          stroke={visual.accent}
-          strokeWidth="24"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <Path
-          d="M58 340 C188 284 316 380 542 300"
-          fill="none"
-          stroke={visual.glow}
-          strokeWidth="10"
-          opacity="0.35"
-          strokeLinecap="round"
-        />
-      </Svg>
-      <View
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.42)",
-        }}
-      />
-      {children}
-    </View>
-  );
-}
+const CARD_CLASS =
+  "bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant";
 
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -115,7 +31,9 @@ export default function HabitDetailScreen() {
     if (router.canGoBack()) router.back();
     else router.replace("/");
   };
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { colorScheme } = useTheme();
+  const dark = colorScheme === "dark";
   const [habit, setHabit] = useState<Habit | null>(null);
   const [completions, setCompletions] = useState<HabitCompletion[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -159,7 +77,7 @@ export default function HabitDetailScreen() {
   const progress = habit ? progressForHabit(habit, todayCompletion) : null;
   const doneToday = progress?.isDone ?? false;
   const streak = streakFor(completions);
-  const weekDays = habit ? weekProgressFor(habit.id, completions) : [];
+  const longestStreak = longestStreakFor(completions);
 
   async function handleToggle() {
     if (!habit || toggling) return;
@@ -251,8 +169,8 @@ export default function HabitDetailScreen() {
   if (!habit) return <HabitDetailSkeleton onBack={handleBack} />;
 
   const visual = getHabitVisualForHabit(habit);
-  const accentColor = "#FFC56B";
-  const fg = COLOR_FG[habit.color] ?? "#F26B1F";
+  const accent = visual.accent;
+  const locale = language === "hi" ? "hi-IN" : "en-US";
   const quantityPending = isQuantityHabit(habit) && !doneToday;
   const toggleAccessibilityLabel = doneToday
     ? t("Mark {name} as undone", { name: habit.name })
@@ -265,32 +183,54 @@ export default function HabitDetailScreen() {
       ? t("Log custom amount")
       : t("Mark as done today");
 
+  // Derived display stats — everything comes from the already-fetched logs.
+  const loggedValues = completions
+    .map((c) => (c.value == null ? null : Number(c.value)))
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  const avgPerLog =
+    loggedValues.length > 0
+      ? loggedValues.reduce((sum, v) => sum + v, 0) / loggedValues.length
+      : null;
+  const weekStartKey = localDateDaysAgo(6);
+  const weekLogCount = completions.filter((c) => c.completed_on >= weekStartKey).length;
+  const showAvgCard = isQuantityHabit(habit) && avgPerLog != null;
+  const historyItems = completions.slice(0, 14);
+  const yesterdayKey = localDateDaysAgo(1);
+
+  const historyDateLabel = (key: string) => {
+    if (key === today) return t("Today");
+    if (key === yesterdayKey) return t("Yesterday");
+    return new Date(`${key}T00:00:00`).toLocaleDateString(locale, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  };
+  const metDailyTarget = (c: HabitCompletion) =>
+    habit.target != null && Number(habit.target) > 0
+      ? (c.value ?? 0) >= Number(habit.target)
+      : true;
+
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
-      <View className="flex-row items-center justify-between px-margin-mobile py-sm">
+      <View className="flex-row items-center px-margin-mobile py-sm">
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel={t("Go back")}
           onPress={handleBack}
+          style={{ width: 40 }}
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
-        <View className="flex-row gap-sm">
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={t("Edit habit")}
-            onPress={() => router.push(`/habits/${habit.id}/edit`)}
-          >
-            <MaterialCommunityIcons name="pencil" size={22} color="#F26B1F" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={t("Delete habit")}
-            onPress={handleDelete}
-          >
-            <MaterialCommunityIcons name="delete" size={22} color="#FF5A5A" />
-          </TouchableOpacity>
-        </View>
+        <Text
+          className="flex-1 text-center text-on-background dark:text-d-on-background"
+          style={{ fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 18 }}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {habit.name}
+        </Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView
@@ -298,87 +238,114 @@ export default function HabitDetailScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <View className="mx-margin-mobile mb-lg" style={{ borderRadius: 20, overflow: "hidden" }}>
-          <HabitDetailVisualSurface visual={visual}>
-            <View style={{ zIndex: 1 }}>
-              <View className="flex-row items-center gap-md mb-md">
-                <View
-                  className="w-14 h-14 rounded-full items-center justify-center"
-                  style={{ backgroundColor: "rgba(255,255,255,0.18)" }}
-                >
-                  <Icon name={habit.icon} size={28} color="#fff" />
-                </View>
-                {progress && (
-                  // Opaque backing matched to the surface (base + scrim) so the
-                  // background mark never bleeds through the transparent visual.
-                  <View
-                    style={{
-                      borderRadius: 28,
-                      padding: 8,
-                      overflow: "hidden",
-                      backgroundColor: visual.base,
-                    }}
-                  >
-                    <View
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: "rgba(0,0,0,0.42)",
-                      }}
-                    />
-                    <HabitProgressVisual
-                      visualType={habit.visual_type}
-                      progress={progress.ratio}
-                      size="large"
-                      color={accentColor}
-                      trackColor="rgba(255,255,255,0.22)"
-                    />
-                  </View>
-                )}
-              </View>
-              <Text className="text-headline-lg font-bold mb-xs" style={{ color: "#fff" }}>
-                {habit.name}
-              </Text>
-              {habit.description && (
-                <Text className="text-body-md" style={{ color: "rgba(255,255,255,0.85)" }}>
-                  {habit.description}
-                </Text>
-              )}
-              {progress && (
-                <Text className="text-body-md font-semibold mt-sm" style={{ color: accentColor }}>
-                  {t(progress.label)}
-                </Text>
-              )}
-            </View>
-          </HabitDetailVisualSurface>
+        {/* Completion ring hero */}
+        <View className="items-center mb-lg" style={{ paddingTop: 16 }}>
+          <ProgressRing
+            progress={progress?.ratio ?? 0}
+            size={180}
+            strokeWidth={10}
+            color={accent}
+            trackColor={dark ? "#2C2C36" : "#E6E0D5"}
+          >
+            <Text
+              className="text-on-background dark:text-d-on-background"
+              style={{
+                fontSize: 44,
+                fontFamily: "SpaceGrotesk_700Bold",
+                fontVariant: ["tabular-nums"],
+              }}
+            >
+              {Math.round((progress?.ratio ?? 0) * 100)}%
+            </Text>
+            <Text
+              className="text-on-surface-variant dark:text-d-on-surface-variant"
+              style={{
+                fontSize: 10,
+                fontWeight: "700",
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                marginTop: 2,
+              }}
+            >
+              {t("COMPLETION")}
+            </Text>
+          </ProgressRing>
+          {progress && (
+            <Text
+              className="text-body-md font-semibold mt-md"
+              style={{ color: accent }}
+              numberOfLines={1}
+            >
+              {t(progress.label)}
+            </Text>
+          )}
+          {habit.description ? (
+            <Text
+              className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs px-margin-mobile text-center"
+              numberOfLines={2}
+            >
+              {habit.description}
+            </Text>
+          ) : null}
         </View>
 
         {/* Stats */}
-        <View className="flex-row mx-margin-mobile mb-lg gap-sm">
-          <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
-            <Text className="text-headline-md font-bold text-primary">{streak}</Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              {t("day streak")}
-            </Text>
+        <View className="mx-margin-mobile mb-lg gap-sm">
+          <View className={`${CARD_CLASS} p-lg flex-row items-start justify-between`}>
+            <View className="flex-1 pr-md">
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("Current Streak")}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 32,
+                  fontFamily: "SpaceGrotesk_700Bold",
+                  color: accent,
+                  marginTop: 4,
+                }}
+              >
+                {streak} <Text style={{ fontSize: 18 }}>{t("day streak")}</Text>
+              </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
+                {t("Longest streak: {count} days", { count: longestStreak })}
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="fire" size={28} color="#F26B1F" />
           </View>
-          <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
-            <Text className="text-headline-md font-bold text-secondary">{completions.length}</Text>
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              {t("total logs")}
-            </Text>
-          </View>
-          <View className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center">
-            <MaterialCommunityIcons
-              name={doneToday ? "check-circle" : "circle-outline"}
-              size={28}
-              color={doneToday ? "#3EBB7F" : "#8F8A82"}
-            />
-            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-              {progress?.ratio ? `${Math.round(progress.ratio * 100)}%` : t("today")}
-            </Text>
+
+          <View className="flex-row gap-sm">
+            <View className={`${CARD_CLASS} flex-1 p-lg`}>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("Total")}
+              </Text>
+              <Text
+                className="text-on-background dark:text-d-on-background"
+                style={{ fontSize: 26, fontFamily: "SpaceGrotesk_700Bold", marginTop: 4 }}
+              >
+                {completions.length}
+              </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
+                {t("total logs")}
+              </Text>
+            </View>
+            <View className={`${CARD_CLASS} flex-1 p-lg`}>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {showAvgCard ? t("Avg per log") : t("THIS WEEK")}
+              </Text>
+              <Text
+                className="text-on-background dark:text-d-on-background"
+                style={{ fontSize: 26, fontFamily: "SpaceGrotesk_700Bold", marginTop: 4 }}
+                numberOfLines={1}
+              >
+                {showAvgCard ? formatAmount(avgPerLog as number) : weekLogCount}
+              </Text>
+              <Text
+                className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs"
+                numberOfLines={1}
+              >
+                {showAvgCard ? (habit.unit ?? "") : t("completions")}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -394,30 +361,101 @@ export default function HabitDetailScreen() {
           />
         )}
 
-        {/* Weekly bars */}
-        <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
-          <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-md">
-            {t("THIS WEEK")}
+        {/* Recent history timeline */}
+        <View className="mx-margin-mobile mb-lg">
+          <Text
+            className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm"
+            style={{ letterSpacing: 1.2 }}
+          >
+            {t("Recent History")}
           </Text>
-          <View className="flex-row justify-between">
-            {weekDays.map((day) => (
-              <View key={day.key} className="items-center gap-xs">
-                <View
-                  className="w-8 h-8 rounded-full items-center justify-center"
-                  style={{ backgroundColor: day.done ? fg : day.future ? "#e1e3e4" : "#E6E0D5" }}
-                >
-                  {day.done && <MaterialCommunityIcons name="check" size={16} color="#fff" />}
-                </View>
-                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {t(day.label)}
-                </Text>
-              </View>
-            ))}
-          </View>
+          {historyItems.length === 0 ? (
+            <View className={`${CARD_CLASS} p-lg items-center`}>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("No logs yet")}
+              </Text>
+            </View>
+          ) : (
+            <View>
+              {historyItems.map((completion, index) => {
+                const met = metDailyTarget(completion);
+                const isLastItem = index === historyItems.length - 1;
+                return (
+                  <View key={completion.id} style={{ flexDirection: "row", alignItems: "stretch" }}>
+                    <View style={{ width: 20, alignItems: "center" }}>
+                      <View
+                        style={{
+                          width: 2,
+                          height: 26,
+                          backgroundColor:
+                            index === 0 ? "transparent" : dark ? "#2C2C36" : "#E6E0D5",
+                        }}
+                      />
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 4,
+                          backgroundColor: met ? accent : dark ? "#7A7E88" : "#8F8A82",
+                        }}
+                      />
+                      <View
+                        style={{
+                          width: 2,
+                          flex: 1,
+                          backgroundColor: isLastItem
+                            ? "transparent"
+                            : dark
+                              ? "#2C2C36"
+                              : "#E6E0D5",
+                        }}
+                      />
+                    </View>
+                    <View
+                      className={`${CARD_CLASS} flex-1 p-md flex-row items-center`}
+                      style={{ marginLeft: 12, marginBottom: isLastItem ? 0 : 10 }}
+                    >
+                      <View style={{ flex: 1, paddingRight: 12 }}>
+                        <Text
+                          className="text-on-surface dark:text-d-on-surface"
+                          style={{ fontSize: 13, fontWeight: "600" }}
+                        >
+                          {historyDateLabel(completion.completed_on)},{" "}
+                          {new Date(completion.created_at).toLocaleTimeString(locale, {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </Text>
+                        <Text
+                          className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
+                          style={{ marginTop: 2 }}
+                          numberOfLines={1}
+                        >
+                          {[
+                            completion.value != null
+                              ? `${formatAmount(Number(completion.value))} ${habit.unit ?? ""}`.trim()
+                              : null,
+                            completion.note || null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || t("Done today")}
+                        </Text>
+                      </View>
+                      <MaterialCommunityIcons
+                        name={met ? "check-circle" : "check"}
+                        size={20}
+                        color={met ? "#3EBB7F" : "#8F8A82"}
+                      />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {/* Today toggle */}
-        <View className="px-margin-mobile gap-sm">
+        <View className="px-margin-mobile gap-sm mb-lg">
           {habit.target != null && (
             <TouchableOpacity
               accessibilityRole="button"
@@ -425,10 +463,10 @@ export default function HabitDetailScreen() {
                 value: `+${formatAmount(habit.default_log_value ?? 1)} ${habit.unit ?? ""}`.trim(),
               })}
               accessibilityState={{ disabled: doneToday }}
-              className="rounded-full py-sm items-center bg-secondary"
+              className="rounded-full items-center justify-center bg-secondary"
+              style={{ minHeight: 48, opacity: doneToday ? 0.5 : 1 }}
               onPress={handleQuickLog}
               disabled={doneToday}
-              style={{ opacity: doneToday ? 0.5 : 1 }}
             >
               <Text className="text-on-primary text-label-lg font-semibold">
                 +{formatAmount(habit.default_log_value ?? 1)} {habit.unit ?? ""}
@@ -439,11 +477,38 @@ export default function HabitDetailScreen() {
             accessibilityRole="button"
             accessibilityLabel={toggleAccessibilityLabel}
             accessibilityState={{ disabled: toggling }}
-            className={`rounded-full py-sm items-center ${doneToday ? "bg-secondary" : "bg-primary"}`}
+            className={`rounded-full items-center justify-center ${doneToday ? "bg-secondary" : "bg-primary"}`}
+            style={{ minHeight: 48 }}
             onPress={handleToggle}
             disabled={toggling}
           >
             <Text className="text-on-primary text-label-lg font-semibold">{toggleLabel}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Manage habit */}
+        <View className="px-margin-mobile gap-sm">
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("Edit habit")}
+            className="rounded-full items-center justify-center flex-row gap-xs bg-primary-fixed"
+            style={{ minHeight: 48 }}
+            onPress={() => router.push(`/habits/${habit.id}/edit`)}
+          >
+            <MaterialCommunityIcons name="pencil" size={18} color="#3D1800" />
+            <Text className="text-label-lg font-semibold" style={{ color: "#3D1800" }}>
+              {t("Edit habit")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={t("Delete habit")}
+            className="rounded-full items-center justify-center flex-row gap-xs border border-outline dark:border-d-outline"
+            style={{ minHeight: 48 }}
+            onPress={handleDelete}
+          >
+            <MaterialCommunityIcons name="delete-outline" size={18} color="#FF5A5A" />
+            <Text className="text-error text-label-lg font-semibold">{t("Delete habit")}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -465,53 +530,40 @@ function HabitDetailSkeleton({ onBack }: { onBack: () => void }) {
 
   return (
     <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
-      <View className="flex-row items-center justify-between px-margin-mobile py-sm">
+      <View className="flex-row items-center px-margin-mobile py-sm">
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel={t("Go back")}
           onPress={onBack}
+          style={{ width: 40 }}
         >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#F26B1F" />
         </TouchableOpacity>
-        <View className="flex-row gap-sm">
-          <Skeleton className="w-6 h-6 rounded-full" />
-          <Skeleton className="w-6 h-6 rounded-full" />
+        <View className="flex-1 items-center">
+          <SkeletonText className="h-5" width={120} />
         </View>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 100 }}>
-        <View className="mx-margin-mobile mb-lg rounded-2xl p-lg bg-surface-container dark:bg-d-surface-container gap-md">
-          <View className="flex-row items-center gap-md">
-            <Skeleton className="w-14 h-14 rounded-full" />
-            <Skeleton className="rounded-full" style={{ width: 96, height: 96 }} />
-          </View>
-          <SkeletonText className="h-8" width="72%" />
-          <SkeletonText width="86%" />
-          <SkeletonText width="54%" />
+        <View className="items-center mb-lg" style={{ paddingTop: 16 }}>
+          <Skeleton className="rounded-full" style={{ width: 180, height: 180 }} />
+          <SkeletonText className="mt-md" width={140} />
         </View>
 
-        <View className="flex-row mx-margin-mobile mb-lg gap-sm">
+        <View className="mx-margin-mobile mb-lg gap-sm">
+          <Skeleton className="rounded-2xl" style={{ height: 104 }} />
+          <View className="flex-row gap-sm">
+            <Skeleton className="flex-1 rounded-2xl" style={{ height: 96 }} />
+            <Skeleton className="flex-1 rounded-2xl" style={{ height: 96 }} />
+          </View>
+        </View>
+
+        <View className="mx-margin-mobile gap-sm">
+          <SkeletonText width={110} />
           {[0, 1, 2].map((item) => (
-            <View
-              key={item}
-              className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-xl p-md items-center gap-xs"
-            >
-              <SkeletonText className="h-7" width={36} />
-              <SkeletonText className="h-3" width={64} />
-            </View>
+            <Skeleton key={item} className="rounded-2xl" style={{ height: 64, marginLeft: 32 }} />
           ))}
-        </View>
-
-        <View className="mx-margin-mobile mb-lg bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-md">
-          <SkeletonText width={96} />
-          <View className="flex-row justify-between">
-            {[0, 1, 2, 3, 4, 5, 6].map((item) => (
-              <View key={item} className="items-center gap-xs">
-                <Skeleton className="w-8 h-8 rounded-full" />
-                <SkeletonText className="h-3" width={24} />
-              </View>
-            ))}
-          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -2,7 +2,7 @@ import type { Habit, HabitCompletion, Milestone } from "../../types/db";
 import { supabase, isSupabaseConfigured, getCurrentSession } from "../supabase/client";
 import { DATA_CACHE_PREFIX, getCachedValue, readThroughCache, setCachedValue } from "./cache";
 import { addLocalDays, localDateKey, localDateDaysAgo } from "../utils/date";
-import { streakFromDates } from "../coach/streak";
+import { longestStreakFromDates, streakFromDates } from "../coach/streak";
 import { XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "../coach/xp";
 import { progressForHabit, type HabitProgress } from "../coach/habit-intelligence";
 import {
@@ -407,6 +407,12 @@ export function weekProgressFor(habitId: string, completions: HabitCompletion[])
 
 export function streakFor(completions: HabitCompletion[]) {
   return streakFromDates(completions.map((c) => c.completed_on));
+}
+
+// Longest streak within the completions the detail screen fetched (last 60
+// logs) — a display stat, not an all-time database aggregate.
+export function longestStreakFor(completions: HabitCompletion[]) {
+  return longestStreakFromDates(completions.map((c) => c.completed_on));
 }
 
 export type DayConsistency = {

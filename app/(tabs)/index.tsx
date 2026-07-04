@@ -34,7 +34,7 @@ import { TrialEndedBanner, TrialSubscriptionBanner } from "@/components/pro-acce
 import NotificationPermissionCard from "@/components/notification-permission-card";
 import CoachCard, { CoachHeaderButton } from "@/components/coach-card";
 import { dismissCoachCard, isCoachCardDismissed } from "@/lib/coach/coach-card-dismissal";
-import HabitCard from "@/components/habit-card";
+import TimelineHabitRow from "@/components/timeline-habit-row";
 import ProBadge from "@/components/pro-badge";
 import ProgressRing from "@/components/progress-ring";
 import LogPrompt from "@/components/log-prompt";
@@ -57,6 +57,7 @@ import {
 import { getItem, setItem } from "@/lib/platform/storage";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
 import { isStepHabit } from "@/lib/data/steps-shared";
+import { nowMarkerIndex, orderHabitsForTimeline } from "@/lib/utils/timeline";
 import { GET_APP_URL } from "@/lib/constants";
 import {
   getStepPermissionStatus,
@@ -648,6 +649,16 @@ export default function DashboardScreen() {
   const progress = total > 0 ? completedCount / total : 0;
   const isInitialLoading = data === null;
 
+  // Timeline ordering: habits with a reminder time first (sorted), the rest
+  // after. The "now" marker slots in after the last already-passed reminder;
+  // it reflects the time of the last render/focus rather than ticking live.
+  const timelineEntries = useMemo(() => orderHabitsForTimeline(habits), [habits]);
+  const nowDate = new Date();
+  const nowLabel = `${String(nowDate.getHours()).padStart(2, "0")}:${String(
+    nowDate.getMinutes(),
+  ).padStart(2, "0")}`;
+  const nowIndex = nowMarkerIndex(timelineEntries, nowLabel);
+
   useEffect(() => {
     if (!data) return;
     // Prefer the coach's target as the next habit; otherwise the first habit
@@ -710,7 +721,7 @@ export default function DashboardScreen() {
         {showWelcomeBanner && (
           <TouchableOpacity
             onPress={() => setShowWelcome(false)}
-            className="mx-margin-mobile mt-md mb-xs bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+            className="mx-margin-mobile mt-md mb-xs bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md"
             accessibilityRole="button"
             accessibilityLabel={t("Dismiss welcome")}
           >
@@ -758,7 +769,7 @@ export default function DashboardScreen() {
           <View className="flex-1 pr-sm">
             <Text
               className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
-              style={{ letterSpacing: 0.3, textTransform: "uppercase" }}
+              style={{ letterSpacing: 1.2, textTransform: "uppercase", fontWeight: "700" }}
             >
               {new Date().toLocaleDateString(language === "hi" ? "hi-IN" : "en-US", {
                 weekday: "long",
@@ -768,7 +779,7 @@ export default function DashboardScreen() {
             </Text>
             <Text
               className="text-headline-lg text-on-background dark:text-d-on-background"
-              style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.5 }}
+              style={{ fontFamily: "SpaceGrotesk_700Bold", letterSpacing: -0.5 }}
               numberOfLines={1}
               ellipsizeMode="tail"
             >
@@ -778,8 +789,8 @@ export default function DashboardScreen() {
               <View className="flex-row items-center gap-sm mt-xs flex-wrap">
                 {data?.stats?.level ? (
                   <View
-                    className="bg-primary-fixed flex-row items-center gap-1 px-sm rounded-full"
-                    style={{ paddingVertical: 3 }}
+                    className="flex-row items-center gap-1 px-sm rounded-full"
+                    style={{ paddingVertical: 3, borderWidth: 1, borderColor: primary }}
                   >
                     <MaterialCommunityIcons name="star" size={10} color={primary} />
                     <Text style={{ color: primary, fontSize: 11, fontWeight: "700" }}>
@@ -805,7 +816,7 @@ export default function DashboardScreen() {
               accessibilityRole="button"
               accessibilityLabel={t("Add habit")}
             >
-              <MaterialCommunityIcons name="plus" size={22} color={primary} />
+              <MaterialCommunityIcons name="plus" size={22} color="#3D1800" />
             </TouchableOpacity>
           </View>
         </View>
@@ -845,7 +856,7 @@ export default function DashboardScreen() {
 
         {/* Today's progress card */}
         {!isInitialLoading && total > 0 && (
-          <View className="mx-margin-mobile mb-md bg-surface-container dark:bg-d-surface-container rounded-2xl p-lg flex-row items-center justify-between">
+          <View className="mx-margin-mobile mb-md bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-lg flex-row items-center justify-between">
             <View className="flex-1 pr-md">
               <Text
                 className="text-headline-md text-on-background dark:text-d-on-background"
@@ -899,7 +910,7 @@ export default function DashboardScreen() {
         {data && !data.leaderboardOptedIn && (
           <TouchableOpacity
             onPress={() => router.push("/(tabs)/leaderboard")}
-            className="mx-margin-mobile mb-sm bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+            className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md"
             accessibilityRole="button"
           >
             <MaterialCommunityIcons name="trophy-outline" size={22} color={primary} />
@@ -944,18 +955,18 @@ export default function DashboardScreen() {
           onDismiss={() => setLogHabit(null)}
         />
 
-        {/* Habits list */}
+        {/* Habits timeline */}
         <View className="px-margin-mobile gap-sm">
           <Text
             className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs"
-            style={{ letterSpacing: 0.6 }}
+            style={{ letterSpacing: 1.2 }}
           >
-            {t("TODAY'S HABITS")}
+            {t("TODAY'S TIMELINE")}
           </Text>
           {isInitialLoading ? (
             <DashboardHabitSkeleton />
           ) : habits.length === 0 ? (
-            <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-lg gap-md">
+            <View className="bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-lg gap-md">
               <View className="items-center gap-sm">
                 <View className="w-14 h-14 rounded-full bg-primary-fixed items-center justify-center">
                   <MaterialCommunityIcons name="auto-fix" size={28} color={primary} />
@@ -987,32 +998,41 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            Array.from({ length: Math.ceil(habits.length / 2) }, (_, rowIdx) => {
-              const pair = habits.slice(rowIdx * 2, rowIdx * 2 + 2);
-              return (
-                <View key={rowIdx} className="flex-row gap-sm">
-                  {pair.map((habit) => (
-                    <HabitCard
-                      key={habit.id}
-                      variant="grid"
-                      style={{ flex: 1 }}
-                      habit={habit}
-                      done={data?.completedToday.has(habit.id) ?? false}
-                      progress={data?.todayProgress.get(habit.id)}
-                      streak={data?.streaksMap.get(habit.id) ?? 0}
-                      toggleAccessibilityLabel={
-                        isQuantityHabit(habit) && !(data?.completedToday.has(habit.id) ?? false)
-                          ? t("Log progress for {name}", { name: habit.name })
-                          : undefined
-                      }
-                      onToggle={() => handleToggle(habit)}
-                      onPress={() => router.push(`/habits/${habit.id}`)}
-                    />
-                  ))}
-                  {pair.length === 1 && <View style={{ flex: 1 }} />}
+            <View>
+              {timelineEntries.map(({ habit, time }, index) => (
+                <View key={habit.id}>
+                  {nowIndex === index && <TimelineNowMarker time={nowLabel} />}
+                  <TimelineHabitRow
+                    habit={habit}
+                    done={data?.completedToday.has(habit.id) ?? false}
+                    progress={data?.todayProgress.get(habit.id)}
+                    streak={data?.streaksMap.get(habit.id) ?? 0}
+                    timeLabel={time}
+                    isFirst={index === 0 && nowIndex !== 0}
+                    isLast={index === timelineEntries.length - 1}
+                    toggleAccessibilityLabel={
+                      isQuantityHabit(habit) && !(data?.completedToday.has(habit.id) ?? false)
+                        ? t("Log progress for {name}", { name: habit.name })
+                        : undefined
+                    }
+                    onToggle={() => handleToggle(habit)}
+                    onPress={() => router.push(`/habits/${habit.id}`)}
+                  />
                 </View>
-              );
-            })
+              ))}
+              {nowIndex === timelineEntries.length && <TimelineNowMarker time={nowLabel} />}
+              <TouchableOpacity
+                className="self-center flex-row items-center gap-xs rounded-full border border-outline-variant dark:border-d-outline-variant px-lg"
+                style={{ paddingVertical: 12, marginTop: 12 }}
+                accessibilityRole="button"
+                onPress={handleChooseManualHabit}
+              >
+                <MaterialCommunityIcons name="plus" size={16} color={primary} />
+                <Text className="text-on-surface dark:text-d-on-surface text-label-lg font-semibold">
+                  {t("Add habit")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -1028,14 +1048,73 @@ type StepTrackingCardProps = {
 
 function DashboardHabitSkeleton() {
   return (
-    <View className="gap-sm">
-      <View className="flex-row gap-sm">
-        <Skeleton className="flex-1 rounded-2xl" style={{ height: 130 }} />
-        <Skeleton className="flex-1 rounded-2xl" style={{ height: 130 }} />
+    <View>
+      {[0, 1, 2, 3].map((row) => (
+        <View key={row} className="flex-row items-center" style={{ marginBottom: 12 }}>
+          <View style={{ width: 44, alignItems: "center" }}>
+            <Skeleton className="rounded-xl" style={{ width: 40, height: 40 }} />
+          </View>
+          <Skeleton className="flex-1 rounded-2xl" style={{ height: 68, marginLeft: 12 }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+// The "now" dot + time pill sitting on the timeline rail between habit rows.
+function TimelineNowMarker({ time }: { time: string }) {
+  const { colorScheme } = useTheme();
+  const primary = "#F26B1F";
+  const railColor = colorScheme === "dark" ? "#2C2C36" : "#E6E0D5";
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+      <View
+        style={{ width: 44, alignSelf: "stretch", alignItems: "center", justifyContent: "center" }}
+      >
+        <View
+          style={{ position: "absolute", top: 0, bottom: 0, width: 2, backgroundColor: railColor }}
+        />
+        <View
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            backgroundColor: primary,
+            boxShadow: `0 0 6px ${primary}`,
+          }}
+        />
       </View>
-      <View className="flex-row gap-sm">
-        <Skeleton className="flex-1 rounded-2xl" style={{ height: 130 }} />
-        <Skeleton className="flex-1 rounded-2xl" style={{ height: 130 }} />
+      <View
+        style={{
+          marginLeft: 12,
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingVertical: 2,
+        }}
+      >
+        <View
+          style={{
+            borderWidth: 1,
+            borderColor: primary,
+            borderRadius: 6,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+          }}
+        >
+          <Text
+            style={{
+              color: primary,
+              fontSize: 10,
+              fontWeight: "700",
+              fontVariant: ["tabular-nums"],
+            }}
+          >
+            {time}
+          </Text>
+        </View>
+        <View style={{ flex: 1, height: 2, backgroundColor: primary, opacity: 0.3 }} />
       </View>
     </View>
   );
@@ -1080,7 +1159,7 @@ function StepTrackingCard({ state, primary, onEnable }: StepTrackingCardProps) {
     <TouchableOpacity
       onPress={webUnsupported ? () => Linking.openURL(GET_APP_URL) : onEnable}
       disabled={disabled}
-      className="mx-margin-mobile mb-sm bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+      className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md"
       style={{ opacity: disabled ? 0.72 : 1 }}
       accessibilityRole="button"
       accessibilityState={{ disabled }}

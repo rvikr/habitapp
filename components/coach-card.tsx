@@ -61,18 +61,28 @@ export default function CoachCard({
   return (
     <View
       className={
-        compact
-          ? "mx-margin-mobile mb-lg rounded-2xl p-md gap-sm"
-          : "mx-margin-mobile mb-sm rounded-2xl p-md gap-sm"
+        compact ? "mx-margin-mobile mb-lg p-md gap-sm" : "mx-margin-mobile mb-sm p-md gap-sm"
       }
-      style={{ backgroundColor: PRIMARY }}
+      style={{ backgroundColor: PRIMARY, borderRadius: 24, overflow: "hidden" }}
     >
+      {/* Decorative faded bot mark, bottom-right (matches the design) */}
+      <View
+        style={{
+          position: "absolute",
+          right: -14,
+          bottom: -14,
+          transform: [{ rotate: "-12deg" }],
+          pointerEvents: "none",
+        }}
+      >
+        <MaterialCommunityIcons name="robot-happy" size={84} color="rgba(255,255,255,0.12)" />
+      </View>
       <View className="flex-row items-start gap-sm">
         <View
-          className="w-8 h-8 rounded-full items-center justify-center"
-          style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+          className="w-10 h-10 items-center justify-center"
+          style={{ backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 12 }}
         >
-          <MaterialCommunityIcons name="robot-happy-outline" size={18} color="#fff" />
+          <MaterialCommunityIcons name="robot-happy-outline" size={20} color="#fff" />
         </View>
         <View className="flex-1">
           <Text
@@ -80,10 +90,10 @@ export default function CoachCard({
               fontSize: 11,
               fontWeight: "700",
               color: "rgba(255,255,255,0.75)",
-              letterSpacing: 0.5,
+              letterSpacing: 1.2,
             }}
           >
-            {t("AI COACH")}
+            {compact ? t("COACH INSIGHT") : t("AI COACH")}
           </Text>
           <Text style={{ fontSize: 14, color: "#fff", marginTop: 3, lineHeight: 20 }}>
             {signal.message}

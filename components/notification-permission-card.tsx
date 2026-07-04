@@ -37,13 +37,13 @@ export default function NotificationPermissionCard() {
 
   if (showIosInstallGuide) {
     return (
-      <View className="bg-primary-fixed rounded-xl p-md flex-row items-center gap-md mx-margin-mobile mb-md">
+      <View className="bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md mx-margin-mobile mb-md">
         <MaterialCommunityIcons name="cellphone-arrow-down" size={24} color="#F26B1F" />
         <View className="flex-1">
-          <Text className="text-body-md text-on-background font-semibold">
+          <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
             {t("Get habit reminders on iPhone")}
           </Text>
-          <Text className="text-label-sm text-on-surface-variant">
+          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
             {t(
               "Tap Share → Add to Home Screen, then open Lagan from your home screen to enable notifications.",
             )}
@@ -59,13 +59,13 @@ export default function NotificationPermissionCard() {
   const deniedOnNative = status === "denied" && Platform.OS !== "web";
 
   return (
-    <View className="bg-primary-fixed rounded-xl p-md flex-row items-center gap-md mx-margin-mobile mb-md">
+    <View className="bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md mx-margin-mobile mb-md">
       <MaterialCommunityIcons name="bell-alert" size={24} color="#F26B1F" />
       <View className="flex-1">
-        <Text className="text-body-md text-on-background font-semibold">
+        <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
           {t("Enable notifications")}
         </Text>
-        <Text className="text-label-sm text-on-surface-variant">
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
           {status === "denied"
             ? deniedOnNative
               ? t("Notifications are off — turn them on to get habit reminders.")

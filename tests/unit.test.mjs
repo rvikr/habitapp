@@ -54,7 +54,8 @@ import {
   parseOptionalPositiveNumber,
   validateFeedback,
 } from "../lib/auth/validation.ts";
-import { streakFromDates } from "../lib/coach/streak.ts";
+import { longestStreakFromDates, streakFromDates } from "../lib/coach/streak.ts";
+import { nowMarkerIndex, orderHabitsForTimeline, reminderTimeFor } from "../lib/utils/timeline.ts";
 import { buildCompletionValuePayload } from "../lib/data/completions.ts";
 import {
   healthConnectTodayRange,
@@ -2028,8 +2029,15 @@ test("first-run habit detail and log prompt touch targets expose web accessibili
     "Delete habit",
     "day streak",
     "total logs",
-    "today",
     "THIS WEEK",
+    "COMPLETION",
+    "Current Streak",
+    "Longest streak: {count} days",
+    "Total",
+    "Avg per log",
+    "Recent History",
+    "Yesterday",
+    "No logs yet",
     "Log {value}",
     "Log custom amount",
     "Mark as done today",
@@ -2042,7 +2050,7 @@ test("first-run habit detail and log prompt touch targets expose web accessibili
   }
   assert.match(detailSource, /isQuantityHabit\(habit\)[\s\S]*t\("Log custom amount"\)/);
   assert.match(detailSource, /t\(progress\.label\)/);
-  assert.match(detailSource, /t\(day\.label\)/);
+  assert.match(detailSource, /longestStreakFor\(completions\)/);
   for (const label of ["Done today", "Not logged yet"]) {
     assert.notEqual(translate("hi", label), label);
   }
@@ -2166,7 +2174,7 @@ test("first-run habit detail renders local visual surfaces without image decodin
   assert.doesNotMatch(source, /ImageBackground/);
   assert.doesNotMatch(source, /getHabitImageForHabit/);
   assert.match(source, /getHabitVisualForHabit/);
-  assert.match(source, /HabitDetailVisualSurface/);
+  assert.match(source, /ProgressRing/);
 });
 
 test("first-run onboarding is required only for trustworthy empty habit lists", () => {
@@ -2626,6 +2634,64 @@ test("streakFromDates is 0 when latest completion is older than today", () => {
   const today = new Date(2026, 4, 10);
   const dates = [localDateDaysAgo(1, today), localDateDaysAgo(2, today)];
   assert.equal(streakFromDates(dates, today), 0);
+});
+
+test("longestStreakFromDates finds the longest run anywhere in history", () => {
+  assert.equal(longestStreakFromDates([]), 0);
+  assert.equal(longestStreakFromDates(["2026-06-01"]), 1);
+  // A 3-day run in the past beats a 2-day run ending today.
+  assert.equal(
+    longestStreakFromDates(["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-10", "2026-06-11"]),
+    3,
+  );
+  // Duplicates collapse, unsorted input is fine.
+  assert.equal(longestStreakFromDates(["2026-06-02", "2026-06-01", "2026-06-02"]), 2);
+  // Runs spanning a month boundary count as consecutive.
+  assert.equal(longestStreakFromDates(["2026-06-30", "2026-07-01", "2026-07-02"]), 3);
+});
+
+test("reminderTimeFor accepts only zero-padded HH:MM reminder values", () => {
+  assert.equal(reminderTimeFor({ reminder_times: ["07:45"], reminder_time: null }), "07:45");
+  // First reminder of the day wins; legacy single column is the fallback.
+  assert.equal(
+    reminderTimeFor({ reminder_times: ["08:15", "20:00"], reminder_time: "06:00" }),
+    "08:15",
+  );
+  assert.equal(reminderTimeFor({ reminder_times: null, reminder_time: "21:30" }), "21:30");
+  // A legacy "HH:MM:SS" time-column value is normalized.
+  assert.equal(reminderTimeFor({ reminder_times: null, reminder_time: "07:45:00" }), "07:45");
+  assert.equal(reminderTimeFor({ reminder_times: null, reminder_time: null }), null);
+  assert.equal(reminderTimeFor({ reminder_times: [], reminder_time: "7:45" }), null);
+  assert.equal(reminderTimeFor({ reminder_times: ["25:00"], reminder_time: null }), null);
+});
+
+test("orderHabitsForTimeline sorts timed habits first and keeps untimed order", () => {
+  const habits = [
+    { id: "a", reminder_times: null, reminder_time: null },
+    { id: "b", reminder_times: ["21:00"], reminder_time: null },
+    { id: "c", reminder_times: ["07:30"], reminder_time: null },
+    { id: "d", reminder_times: null, reminder_time: null },
+  ];
+  const entries = orderHabitsForTimeline(habits);
+  assert.deepEqual(
+    entries.map((entry) => [entry.habit.id, entry.time]),
+    [
+      ["c", "07:30"],
+      ["b", "21:00"],
+      ["a", null],
+      ["d", null],
+    ],
+  );
+});
+
+test("nowMarkerIndex slots after the last passed reminder and hides without timed habits", () => {
+  const entries = [{ time: "07:30" }, { time: "21:00" }, { time: null }];
+  assert.equal(nowMarkerIndex(entries, "06:00"), 0);
+  assert.equal(nowMarkerIndex(entries, "08:18"), 1);
+  assert.equal(nowMarkerIndex(entries, "21:00"), 2);
+  assert.equal(nowMarkerIndex(entries, "23:59"), 2);
+  assert.equal(nowMarkerIndex([{ time: null }, { time: null }], "12:00"), null);
+  assert.equal(nowMarkerIndex([], "12:00"), null);
 });
 
 test("streakFromDates ignores duplicate days", () => {
