@@ -209,6 +209,7 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "COACH INSIGHT": "कोच इनसाइट",
   Yesterday: "कल",
   "No logs yet": "अभी कोई लॉग नहीं",
+  "No logs this week": "इस हफ्ते कोई लॉग नहीं",
   Total: "कुल",
   "Current Streak": "मौजूदा स्ट्रीक",
   Mon: "सोम",

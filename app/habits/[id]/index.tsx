@@ -14,7 +14,7 @@ import LogPrompt from "@/components/log-prompt";
 import ProgressRing from "@/components/progress-ring";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
-import { localDateDaysAgo, localDateKey } from "@/lib/utils/date";
+import { currentWeekStartKey, localDateDaysAgo, localDateKey } from "@/lib/utils/date";
 import { formatAmount, isQuantityHabit, progressForHabit } from "@/lib/coach/habit-intelligence";
 import { useLanguage } from "@/components/language-provider";
 import { useTheme } from "@/components/theme-provider";
@@ -191,10 +191,11 @@ export default function HabitDetailScreen() {
     loggedValues.length > 0
       ? loggedValues.reduce((sum, v) => sum + v, 0) / loggedValues.length
       : null;
-  const weekStartKey = localDateDaysAgo(6);
+  // Monday-based calendar week, so the THIS WEEK stat and the history list agree.
+  const weekStartKey = currentWeekStartKey();
   const weekLogCount = completions.filter((c) => c.completed_on >= weekStartKey).length;
   const showAvgCard = isQuantityHabit(habit) && avgPerLog != null;
-  const historyItems = completions.slice(0, 14);
+  const historyItems = completions.filter((c) => c.completed_on >= weekStartKey);
   const yesterdayKey = localDateDaysAgo(1);
 
   const historyDateLabel = (key: string) => {
@@ -361,6 +362,38 @@ export default function HabitDetailScreen() {
           />
         )}
 
+        {/* Today toggle — kept above history so logging never requires scrolling */}
+        <View className="px-margin-mobile gap-sm mb-lg">
+          {habit.target != null && (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={t("Log {value}", {
+                value: `+${formatAmount(habit.default_log_value ?? 1)} ${habit.unit ?? ""}`.trim(),
+              })}
+              accessibilityState={{ disabled: doneToday }}
+              className="rounded-full items-center justify-center bg-secondary"
+              style={{ minHeight: 48, opacity: doneToday ? 0.5 : 1 }}
+              onPress={handleQuickLog}
+              disabled={doneToday}
+            >
+              <Text className="text-on-primary text-label-lg font-semibold">
+                +{formatAmount(habit.default_log_value ?? 1)} {habit.unit ?? ""}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={toggleAccessibilityLabel}
+            accessibilityState={{ disabled: toggling }}
+            className={`rounded-full items-center justify-center ${doneToday ? "bg-secondary" : "bg-primary"}`}
+            style={{ minHeight: 48 }}
+            onPress={handleToggle}
+            disabled={toggling}
+          >
+            <Text className="text-on-primary text-label-lg font-semibold">{toggleLabel}</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Recent history timeline */}
         <View className="mx-margin-mobile mb-lg">
           <Text
@@ -372,7 +405,7 @@ export default function HabitDetailScreen() {
           {historyItems.length === 0 ? (
             <View className={`${CARD_CLASS} p-lg items-center`}>
               <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                {t("No logs yet")}
+                {t("No logs this week")}
               </Text>
             </View>
           ) : (
@@ -452,38 +485,6 @@ export default function HabitDetailScreen() {
               })}
             </View>
           )}
-        </View>
-
-        {/* Today toggle */}
-        <View className="px-margin-mobile gap-sm mb-lg">
-          {habit.target != null && (
-            <TouchableOpacity
-              accessibilityRole="button"
-              accessibilityLabel={t("Log {value}", {
-                value: `+${formatAmount(habit.default_log_value ?? 1)} ${habit.unit ?? ""}`.trim(),
-              })}
-              accessibilityState={{ disabled: doneToday }}
-              className="rounded-full items-center justify-center bg-secondary"
-              style={{ minHeight: 48, opacity: doneToday ? 0.5 : 1 }}
-              onPress={handleQuickLog}
-              disabled={doneToday}
-            >
-              <Text className="text-on-primary text-label-lg font-semibold">
-                +{formatAmount(habit.default_log_value ?? 1)} {habit.unit ?? ""}
-              </Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={toggleAccessibilityLabel}
-            accessibilityState={{ disabled: toggling }}
-            className={`rounded-full items-center justify-center ${doneToday ? "bg-secondary" : "bg-primary"}`}
-            style={{ minHeight: 48 }}
-            onPress={handleToggle}
-            disabled={toggling}
-          >
-            <Text className="text-on-primary text-label-lg font-semibold">{toggleLabel}</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Manage habit */}

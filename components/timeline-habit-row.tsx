@@ -69,8 +69,6 @@ export default function TimelineHabitRow({
 
   const visual = getHabitVisualForHabit(habit);
   const accent = visual.accent;
-  const railColor = dark ? "#2C2C36" : "#E6E0D5";
-  const surfaceColor = dark ? "#131316" : "#FFFFFF";
 
   const statusLabel = progress
     ? t(progress.label)
@@ -102,20 +100,17 @@ export default function TimelineHabitRow({
       {/* Rail: line segments + icon node, sitting on the shared vertical line */}
       <View style={{ width: RAIL_WIDTH, alignItems: "center" }}>
         <View
-          style={{
-            width: 2,
-            height: 8,
-            backgroundColor: isFirst ? "transparent" : railColor,
-          }}
+          className={isFirst ? "" : "bg-outline-variant dark:bg-d-outline-variant"}
+          style={{ width: 2, height: 8 }}
         />
         <View
+          className="bg-surface-lowest dark:bg-d-surface"
           style={{
             width: NODE_SIZE,
             height: NODE_SIZE,
             borderRadius: 12,
             borderWidth: 2,
             borderColor: accent,
-            backgroundColor: surfaceColor,
             alignItems: "center",
             justifyContent: "center",
           }}
@@ -123,24 +118,19 @@ export default function TimelineHabitRow({
           <Icon name={habit.icon} size={20} color={accent} />
         </View>
         <View
-          style={{
-            width: 2,
-            flex: 1,
-            backgroundColor: isLast ? "transparent" : railColor,
-          }}
+          className={isLast ? "" : "bg-outline-variant dark:bg-d-outline-variant"}
+          style={{ width: 2, flex: 1 }}
         />
       </View>
 
       <View
-        className="flex-1 rounded-2xl border"
+        className="flex-1 rounded-2xl border bg-surface-lowest dark:bg-d-surface border-outline-variant dark:border-d-outline-variant"
         style={{
           marginLeft: 12,
           marginBottom: isLast ? 0 : 12,
           padding: 16,
           flexDirection: "row",
           alignItems: "center",
-          backgroundColor: surfaceColor,
-          borderColor: railColor,
         }}
       >
         <View style={{ flex: 1, paddingRight: 12 }}>

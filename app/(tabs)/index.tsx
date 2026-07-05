@@ -1063,16 +1063,15 @@ function DashboardHabitSkeleton() {
 
 // The "now" dot + time pill sitting on the timeline rail between habit rows.
 function TimelineNowMarker({ time }: { time: string }) {
-  const { colorScheme } = useTheme();
   const primary = "#F26B1F";
-  const railColor = colorScheme === "dark" ? "#2C2C36" : "#E6E0D5";
   return (
     <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
       <View
         style={{ width: 44, alignSelf: "stretch", alignItems: "center", justifyContent: "center" }}
       >
         <View
-          style={{ position: "absolute", top: 0, bottom: 0, width: 2, backgroundColor: railColor }}
+          className="bg-outline-variant dark:bg-d-outline-variant"
+          style={{ position: "absolute", top: 0, bottom: 0, width: 2 }}
         />
         <View
           style={{

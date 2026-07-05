@@ -30,8 +30,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (saved === "light" || saved === "dark") {
         setColorScheme(saved);
         applyColorScheme(saved);
+      } else {
+        // No saved preference: sync NativeWind to the system scheme so
+        // className `dark:` variants and this context never disagree.
+        applyColorScheme(systemScheme);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function toggle() {

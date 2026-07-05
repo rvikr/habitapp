@@ -17,6 +17,14 @@ export function addLocalDays(date: Date, days: number): Date {
   return next;
 }
 
+// Monday of the current local calendar week — the app-wide week convention
+// (same (day + 6) % 7 math as weekProgressFor() and the progress tab).
+export function currentWeekStartKey(reference = new Date()): string {
+  const monday = new Date(reference);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return localDateKey(monday);
+}
+
 // Mirrors previousWeekStart() in supabase/functions/progress-report/index.ts:
 // weekly progress reports always cover the previous Monday-based (ISO) UTC week,
 // so both sides must compute the same week_start for staleness checks to hold.

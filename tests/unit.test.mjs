@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 
 import {
   addLocalDays,
+  currentWeekStartKey,
   localDateDaysAgo,
   localDateKey,
   previousUtcWeekStartKey,
@@ -259,6 +260,13 @@ test("localDateKey uses local calendar fields", () => {
 
 test("localDateDaysAgo crosses month boundaries", () => {
   assert.equal(localDateDaysAgo(1, new Date(2026, 0, 1, 8, 0)), "2025-12-31");
+});
+
+test("currentWeekStartKey returns the local Monday of the reference week", () => {
+  assert.equal(currentWeekStartKey(new Date(2026, 5, 29, 8, 0)), "2026-06-29"); // Monday → itself
+  assert.equal(currentWeekStartKey(new Date(2026, 6, 1, 8, 0)), "2026-06-29"); // Wednesday
+  assert.equal(currentWeekStartKey(new Date(2026, 6, 5, 23, 30)), "2026-06-29"); // Sunday → past Monday
+  assert.equal(currentWeekStartKey(new Date(2026, 6, 6, 0, 5)), "2026-07-06"); // next Monday flips the week
 });
 
 test("website date helpers preserve browser-local calendar days", () => {
@@ -2037,7 +2045,7 @@ test("first-run habit detail and log prompt touch targets expose web accessibili
     "Avg per log",
     "Recent History",
     "Yesterday",
-    "No logs yet",
+    "No logs this week",
     "Log {value}",
     "Log custom amount",
     "Mark as done today",
