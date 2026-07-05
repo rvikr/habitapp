@@ -32,9 +32,10 @@ npm run smoke:first-run                        # all of the above in sequence (n
 
 Selectors the smokes (and dashboard/detail structural tests in
 `tests/unit.test.mjs`) depend on — keep these labels/literals working:
-`Open {name} details`, `Log +250 ml` (aria-label), `Today's Focus`,
-`0 / 2000 ml` progress label, `TODAY'S TIMELINE`, `Add habit`,
-`Build my routine`, `Choose manually`.
+`Open {name} details`, `Log +250 ml` (aria-label), `Progress` and `Next`
+focus-card labels (`Today's Focus` survives only as the card's
+accessibilityLabel + a unit-test source literal), `0 / 2000 ml` progress
+label, `TODAY'S TIMELINE`, `Add habit`, `Build my routine`, `Choose manually`.
 
 ## Dark mode / custom-data captures
 

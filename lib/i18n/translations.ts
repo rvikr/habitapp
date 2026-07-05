@@ -20,6 +20,10 @@ const HI_TRANSLATIONS: Record<string, string> = {
   Sleep: "नींद",
   Ranks: "रैंक",
 
+  Progress: "प्रगति",
+  "All done": "सब पूरा",
+  "Today's Focus": "आज का फोकस",
+
   "Configuration error": "कॉन्फिगरेशन त्रुटि",
   "Supabase is not configured. Set\nEXPO_PUBLIC_SUPABASE_URL and\nEXPO_PUBLIC_SUPABASE_ANON_KEY in .env.local.":
     "Supabase कॉन्फिगर नहीं है. .env.local में\nEXPO_PUBLIC_SUPABASE_URL और\nEXPO_PUBLIC_SUPABASE_ANON_KEY सेट करें.",

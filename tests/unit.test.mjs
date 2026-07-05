@@ -1195,6 +1195,12 @@ test("home screen surfaces stats, level, and today's progress", () => {
   assert.match(dashboardScreen, /getStats/);
   assert.match(dashboardScreen, /Today's Focus/);
   assert.match(dashboardScreen, /data\.stats\.level/);
+  // Compact focus card: Done | Progress | Next columns, with the next habit
+  // taken from timeline order and tinted with its own accent.
+  assert.match(dashboardScreen, /t\("Done"\)/);
+  assert.match(dashboardScreen, /t\("Progress"\)/);
+  assert.match(dashboardScreen, /t\("Next"\)/);
+  assert.match(dashboardScreen, /getHabitVisualForHabit\(nextEntry\.habit\)\.accent/);
 });
 
 test("progress tab surfaces life balance and level progress", () => {

@@ -139,7 +139,7 @@ async function setup(page, session) {
   await page.goto('http://localhost:8083/', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.getByRole('button', { name: 'Open Drink Water details' }).waitFor({ timeout: 30000 });
   const dashboardText = await snap('dashboard');
-  if (!dashboardText.includes('Drink Water') || !dashboardText.includes("Today's Focus")) {
+  if (!dashboardText.includes('Drink Water') || !dashboardText.includes('Progress') || !dashboardText.includes('Next')) {
     throw new Error('dashboard did not hydrate before detail navigation');
   }
   await page.getByRole('button', { name: 'Open Drink Water details' }).click();

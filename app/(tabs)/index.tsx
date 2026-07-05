@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabitsForToday, getStats } from "@/lib/data/habits";
+import { getHabitVisualForHabit } from "@/lib/data/habit-images";
 import { logCompletion, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
 import { flushPendingCompletions } from "@/lib/data/completion-queue";
 import type { StreaksMap } from "@/lib/data/habits";
@@ -659,6 +660,13 @@ export default function DashboardScreen() {
   ).padStart(2, "0")}`;
   const nowIndex = nowMarkerIndex(timelineEntries, nowLabel);
 
+  // "Next" slot on the focus card: first habit still open today, in timeline
+  // order (a past-due reminder still counts as next until it's logged).
+  const nextEntry = data
+    ? (timelineEntries.find((entry) => !data.completedToday.has(entry.habit.id)) ?? null)
+    : null;
+  const nextAccent = nextEntry ? getHabitVisualForHabit(nextEntry.habit).accent : "#3EBB7F";
+
   useEffect(() => {
     if (!data) return;
     // Prefer the coach's target as the next habit; otherwise the first habit
@@ -854,54 +862,105 @@ export default function DashboardScreen() {
           />
         )}
 
-        {/* Today's progress card */}
+        {/* Today's progress card: Done | Progress | Next */}
         {!isInitialLoading && total > 0 && (
-          <View className="mx-margin-mobile mb-md bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-lg flex-row items-center justify-between">
-            <View className="flex-1 pr-md">
-              <Text
-                className="text-headline-md text-on-background dark:text-d-on-background"
-                style={{ fontFamily: "SpaceGrotesk_600SemiBold", letterSpacing: -0.3 }}
+          <View
+            accessibilityLabel={t("Today's Focus")}
+            className="mx-margin-mobile mb-md bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center"
+          >
+            <View className="flex-1 flex-row items-center gap-xs">
+              <View
+                className="rounded-xl items-center justify-center"
+                style={{ width: 36, height: 36, backgroundColor: "#3EBB7F1A" }}
               >
-                {t("Today's Focus")}
-              </Text>
-              <Text className="text-body-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
-                {completedCount === total
-                  ? t("All done! Great work 🎉")
-                  : t("{done} of {total} done", { done: completedCount, total })}
-              </Text>
+                <MaterialCommunityIcons name="check-circle-outline" size={20} color="#3EBB7F" />
+              </View>
+              <View className="flex-1">
+                <Text
+                  numberOfLines={1}
+                  className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
+                >
+                  {t("Done")}
+                </Text>
+                <Text
+                  style={{
+                    color: "#3EBB7F",
+                    fontSize: 16,
+                    fontFamily: "SpaceGrotesk_700Bold",
+                    fontVariant: ["tabular-nums"],
+                  }}
+                >
+                  {completedCount} / {total}
+                </Text>
+              </View>
             </View>
-            <View style={{ width: 88, height: 88, alignItems: "center", justifyContent: "center" }}>
+            <View className="w-px self-stretch my-xs mx-xs bg-outline-variant dark:bg-d-outline-variant" />
+            <View className="flex-1 flex-row items-center gap-xs">
               <ProgressRing
                 progress={progress}
-                size={88}
-                strokeWidth={8}
+                size={36}
+                strokeWidth={5}
                 color={primary}
                 trackColor={colorScheme === "dark" ? "#353540" : "#E6E0D5"}
-              >
+              />
+              <View className="flex-1">
+                <Text
+                  numberOfLines={1}
+                  className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
+                >
+                  {t("Progress")}
+                </Text>
                 <Text
                   className="text-primary"
                   style={{
-                    fontSize: 22,
+                    fontSize: 16,
                     fontFamily: "SpaceGrotesk_700Bold",
                     fontVariant: ["tabular-nums"],
                   }}
                 >
                   {Math.round(progress * 100)}%
                 </Text>
-              </ProgressRing>
-              {/* Glowing indicator at the top of the ring (matches design) */}
+              </View>
+            </View>
+            <View className="w-px self-stretch my-xs mx-xs bg-outline-variant dark:bg-d-outline-variant" />
+            <View className="flex-1 flex-row items-center gap-xs">
               <View
-                style={{
-                  position: "absolute",
-                  top: -1,
-                  width: 10,
-                  height: 10,
-                  borderRadius: 5,
-                  backgroundColor: primary,
-                  boxShadow: `0 0 6px ${primary}`,
-                  pointerEvents: "none",
-                }}
-              />
+                className="rounded-xl items-center justify-center"
+                style={{ width: 36, height: 36, backgroundColor: `${nextAccent}1A` }}
+              >
+                <MaterialCommunityIcons
+                  name={nextEntry ? "clock-outline" : "check-circle-outline"}
+                  size={20}
+                  color={nextAccent}
+                />
+              </View>
+              <View className="flex-1">
+                <Text
+                  numberOfLines={1}
+                  className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant"
+                >
+                  {t("Next")}
+                </Text>
+                <Text
+                  numberOfLines={1}
+                  style={{ color: nextAccent, fontSize: 16, fontFamily: "SpaceGrotesk_700Bold" }}
+                >
+                  {nextEntry ? nextEntry.habit.name : "🎉"}
+                </Text>
+                {nextEntry ? (
+                  nextEntry.time ? (
+                    <Text
+                      style={{ color: nextAccent, fontSize: 13, fontVariant: ["tabular-nums"] }}
+                    >
+                      {nextEntry.time}
+                    </Text>
+                  ) : null
+                ) : (
+                  <Text numberOfLines={1} style={{ color: nextAccent, fontSize: 13 }}>
+                    {t("All done")}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
         )}
