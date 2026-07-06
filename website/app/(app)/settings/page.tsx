@@ -39,10 +39,7 @@ export default async function SettingsPage() {
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1
-            className="font-extrabold text-on-background"
-            style={{ fontSize: "28px", letterSpacing: "-0.01em" }}
-          >
+          <h1 className="font-display text-[28px] font-bold tracking-tight text-on-background">
             Settings
           </h1>
           <p className="text-on-surface-variant text-base mt-1">

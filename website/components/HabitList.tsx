@@ -30,7 +30,7 @@ const ICON_OPTIONS = [
 const COLOR_OPTIONS = [
   { id: "primary", label: "Ember", className: "bg-primary" },
   { id: "secondary", label: "Sage", className: "bg-secondary" },
-  { id: "tertiary", label: "Amber", className: "bg-tertiary-fixed" },
+  { id: "tertiary", label: "Amber", className: "bg-tertiary" },
   { id: "neutral", label: "Neutral", className: "bg-surface-container-highest" },
 ];
 
@@ -265,7 +265,7 @@ function HabitRow({ habit, done }: { habit: Habit; done: boolean }) {
         <span
           className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full transition-all ${
             done
-              ? "bg-secondary text-white shadow-[0_4px_12px_rgba(0,106,103,0.3)]"
+              ? "bg-secondary text-white shadow-[0_4px_12px_rgba(62,187,127,0.3)]"
               : "border-2 border-outline-variant"
           }`}
           aria-hidden="true"

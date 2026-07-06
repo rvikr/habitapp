@@ -17,6 +17,8 @@ const config: Config = {
         "surface-container": "#16161C",
         "surface-container-high": "#1F1F27",
         "surface-container-highest": "#27272F",
+        "surface-high": "#1F1F27",
+        "surface-highest": "#27272F",
         "surface-dim": "#0B0B0E",
         "surface-variant": "#1F1F27",
         "surface-tint": "#F26B1F",
@@ -53,9 +55,20 @@ const config: Config = {
         "error-container": "#3D1A1A",
         "on-error": "#ffffff",
         "on-error-container": "#FF9999",
+        // Per-habit accent spectrum, mirrored from the app's habit visuals
+        // (lib/data/habit-images.ts) for mockups and feature illustrations.
+        "habit-walk": "#5DBB63",
+        "habit-run": "#4DB6AC",
+        "habit-water": "#4FB9E8",
+        "habit-read": "#C7A7FF",
+        "habit-meditate": "#8EC5FF",
+        "habit-sleep": "#A9B7FF",
+        "habit-journal": "#E7B980",
+        "habit-code": "#63D2B4",
       },
       fontFamily: {
-        sans: ["var(--font-plus-jakarta)", "Plus Jakarta Sans", "sans-serif"],
+        sans: ["var(--font-manrope)", "Manrope", "system-ui", "sans-serif"],
+        display: ["var(--font-space-grotesk)", "Space Grotesk", "sans-serif"],
       },
       borderRadius: {
         DEFAULT: "0.5rem",
@@ -85,21 +98,6 @@ const config: Config = {
         cta: "0 8px 28px rgba(242,107,31,0.38)",
         "cta-hover": "0 12px 40px rgba(242,107,31,0.5)",
         sidebar: "4px 0 20px rgba(0,0,0,0.3)",
-      },
-      keyframes: {
-        floatY: {
-          "0%, 100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-6px)" },
-        },
-        fadeInUp: {
-          from: { opacity: "0", transform: "translateY(16px)" },
-          to: { opacity: "1", transform: "translateY(0)" },
-        },
-      },
-      animation: {
-        floatY: "floatY 3s ease-in-out infinite",
-        "floatY-delay": "floatY 3s ease-in-out infinite 1.5s",
-        fadeInUp: "fadeInUp 0.4s ease forwards",
       },
     },
   },

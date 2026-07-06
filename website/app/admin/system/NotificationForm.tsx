@@ -4,9 +4,9 @@ import { useState, useTransition } from "react";
 import { sendGlobalNotification } from "./actions";
 
 const TYPES = [
-  { value: "info",    label: "Info",    color: "bg-blue-500"  },
-  { value: "warning", label: "Warning", color: "bg-amber-500" },
-  { value: "success", label: "Success", color: "bg-green-500" },
+  { value: "info",    label: "Info",    color: "bg-habit-water"  },
+  { value: "warning", label: "Warning", color: "bg-tertiary" },
+  { value: "success", label: "Success", color: "bg-secondary" },
 ];
 
 export function NotificationForm() {
@@ -29,7 +29,7 @@ export function NotificationForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Type</label>
+        <label className="text-xs font-bold text-on-surface uppercase tracking-wide">Type</label>
         <div className="flex gap-2">
           {TYPES.map((t) => (
             <button
@@ -39,7 +39,7 @@ export function NotificationForm() {
               className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-semibold border transition-all ${
                 type === t.value
                   ? "border-primary bg-primary/5 text-primary"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300"
+                  : "border-outline-variant text-on-surface-variant hover:border-outline"
               }`}
             >
               <span className={`w-2 h-2 rounded-full ${t.color}`} />
@@ -50,31 +50,31 @@ export function NotificationForm() {
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Title</label>
+        <label className="text-xs font-bold text-on-surface uppercase tracking-wide">Title</label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="e.g. New feature available!"
           maxLength={80}
-          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+          className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
         />
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">Message</label>
+        <label className="text-xs font-bold text-on-surface uppercase tracking-wide">Message</label>
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           placeholder="Write the notification body…"
           rows={3}
           maxLength={300}
-          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all resize-none"
+          className="w-full px-4 py-2.5 bg-surface-container-low border border-outline-variant rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all resize-none"
         />
-        <p className="text-xs text-slate-400 text-right">{body.length}/300</p>
+        <p className="text-xs text-on-surface-variant text-right">{body.length}/300</p>
       </div>
 
       {result && (
-        <p className={`text-xs font-medium px-3 py-2 rounded-xl ${result.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+        <p className={`text-xs font-medium px-3 py-2 rounded-xl ${result.ok ? "bg-secondary-container/40 text-on-secondary-container" : "bg-error-container/40 text-error"}`}>
           {result.msg}
         </p>
       )}

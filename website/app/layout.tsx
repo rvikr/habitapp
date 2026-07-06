@@ -1,16 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import localFont from "next/font/local";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
-
-const plusJakarta = localFont({
-  src: [
-    { path: "../public/fonts/PlusJakartaSans-Regular.woff2", weight: "400", style: "normal" },
-    { path: "../public/fonts/PlusJakartaSans-Bold.woff2", weight: "700", style: "normal" },
-  ],
-  variable: "--font-plus-jakarta",
-  display: "swap",
-});
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -117,7 +107,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" className={`${plusJakarta.variable} ${spaceGrotesk.variable} ${manrope.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${manrope.variable}`}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

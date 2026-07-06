@@ -39,7 +39,7 @@ const INSIGHT_CONFIGS: {
   {
     key: "peakTimeLabel",
     icon: "schedule",
-    color: "text-tertiary-container",
+    color: "text-tertiary",
     bg: "bg-tertiary-fixed/40",
     format: (v) => `Most active ${v}`,
   },
@@ -84,18 +84,9 @@ export default async function DashboardPage() {
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="font-extrabold text-on-background" style={{ fontSize: "28px", letterSpacing: "-0.01em" }}>
+            <h1 className="font-display text-[28px] font-bold tracking-tight text-on-background">
               {greeting()},{" "}
-              <span
-                style={{
-                  display: "inline-block",
-                  maxWidth: "55%",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  verticalAlign: "bottom",
-                }}
-              >
+              <span className="inline-block max-w-[55%] truncate align-bottom">
                 {displayName}
               </span>
               ! 👋
@@ -127,7 +118,7 @@ export default async function DashboardPage() {
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="font-extrabold text-2xl text-primary" style={{ letterSpacing: "-0.02em" }}>{pct}%</span>
+                <span className="font-display text-2xl font-bold tracking-tight text-primary">{pct}%</span>
                 <span className="text-xs text-on-surface-variant font-medium">done</span>
               </div>
             </div>
@@ -145,13 +136,13 @@ export default async function DashboardPage() {
           </div>
 
           {/* Weekly mastery */}
-          <div className="hover-raise bg-gradient-to-br from-primary to-primary-container rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_4px_24px_rgba(93,63,211,0.28)]">
+          <div className="hover-raise bg-gradient-to-br from-primary to-primary-container rounded-3xl p-5 text-white relative overflow-hidden shadow-cta">
             <div className="absolute -right-4 -bottom-4 opacity-20 pointer-events-none">
               <span className="material-symbols-outlined text-[90px]" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
             </div>
             <div className="relative z-10 space-y-1">
               <p className="text-white/70 text-xs font-bold uppercase tracking-wider">This Week</p>
-              <p className="font-extrabold text-3xl" style={{ letterSpacing: "-0.02em" }}>
+              <p className="font-display text-3xl font-bold tracking-tight">
                 {weekDays.filter((d) => (completionsByDate[d] ?? 0) > 0).length}/7
               </p>
               <p className="text-white/80 text-sm font-medium">Days active</p>
@@ -245,7 +236,7 @@ export default async function DashboardPage() {
         {/* Today&apos;s date */}
         <div className="hover-raise bg-gradient-to-br from-secondary/10 to-secondary-container/20 rounded-3xl p-5 border border-secondary-container/30 space-y-1">
           <p className="text-xs font-bold text-secondary uppercase tracking-widest">Today</p>
-          <p className="font-extrabold text-on-background text-2xl" style={{ letterSpacing: "-0.01em" }}>
+          <p className="font-display text-2xl font-bold tracking-tight text-on-background">
             {new Date().toLocaleDateString("en-US", { weekday: "long" })}
           </p>
           <p className="text-on-surface-variant text-sm">

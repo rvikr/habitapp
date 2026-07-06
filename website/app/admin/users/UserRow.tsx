@@ -77,8 +77,8 @@ export function UserRow({ user }: { user: AdminUser }) {
     : null;
 
   return (
-    <div className="border-b border-slate-100 last:border-0">
-      <div className="grid min-w-[920px] items-center gap-3 px-5 py-3.5 hover:bg-slate-50 transition-colors"
+    <div className="border-b border-outline-variant/60 last:border-0">
+      <div className="grid min-w-[920px] items-center gap-3 px-5 py-3.5 hover:bg-surface-container-high transition-colors"
         style={{ gridTemplateColumns: "36px 1fr 120px 90px 120px 1fr auto" }}>
 
         {/* Avatar */}
@@ -88,20 +88,20 @@ export function UserRow({ user }: { user: AdminUser }) {
 
         {/* Identity */}
         <div className="min-w-0">
-          <p className="font-bold text-sm text-slate-800 truncate">
-            {user.display_name || <span className="text-slate-400 font-normal italic">No name</span>}
+          <p className="font-bold text-sm text-on-surface truncate">
+            {user.display_name || <span className="text-on-surface-variant font-normal italic">No name</span>}
           </p>
-          <p className="text-xs text-slate-400 truncate">{user.email ?? "—"}</p>
+          <p className="text-xs text-on-surface-variant truncate">{user.email ?? "—"}</p>
         </div>
 
         {/* Joined */}
         <div>
-          <p className="text-xs text-slate-600 font-medium">{joined}</p>
-          <p className="text-xs text-slate-400">Last: {lastSeen}</p>
+          <p className="text-xs text-on-surface-variant font-medium">{joined}</p>
+          <p className="text-xs text-on-surface-variant">Last: {lastSeen}</p>
         </div>
 
         {/* Platform */}
-        <p className="text-xs text-slate-400 capitalize">{user.platform ?? "—"}</p>
+        <p className="text-xs text-on-surface-variant capitalize">{user.platform ?? "—"}</p>
 
         {/* Badges */}
         <div className="flex flex-col gap-1">
@@ -110,18 +110,18 @@ export function UserRow({ user }: { user: AdminUser }) {
               ? "bg-secondary/10 text-secondary"
               : accessLabel === "TRIAL"
                 ? "bg-primary/10 text-primary"
-                : "bg-slate-100 text-slate-400"
+                : "bg-surface-container-high text-on-surface-variant"
           }`}>{accessLabel}</span>
           {accessDateLabel && (
-            <span className="text-[10px] font-semibold text-slate-400">Until {accessDateLabel}</span>
+            <span className="text-[10px] font-semibold text-on-surface-variant">Until {accessDateLabel}</span>
           )}
           {user.revenuecat_status && (
-            <span className="text-[10px] font-semibold text-slate-400 truncate max-w-[110px]">
+            <span className="text-[10px] font-semibold text-on-surface-variant truncate max-w-[110px]">
               {user.revenuecat_status}{user.revenuecat_product_id ? ` · ${user.revenuecat_product_id}` : ""}
             </span>
           )}
           {!user.email_confirmed_at && (
-            <span className="text-[10px] font-extrabold bg-red-100 text-red-500 px-2 py-0.5 rounded-full w-fit">UNVERIFIED</span>
+            <span className="text-[10px] font-extrabold bg-error-container/60 text-error px-2 py-0.5 rounded-full w-fit">UNVERIFIED</span>
           )}
         </div>
 
@@ -131,7 +131,7 @@ export function UserRow({ user }: { user: AdminUser }) {
           disabled={isPending}
           className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
             isPro
-              ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              ? "bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest"
               : "bg-primary/10 text-primary hover:bg-primary/20"
           }`}
         >
@@ -144,7 +144,7 @@ export function UserRow({ user }: { user: AdminUser }) {
             onClick={sendReset}
             disabled={isPending || !user.email}
             title="Send password reset email"
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary transition-colors"
+            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">lock_reset</span>
           </button>
@@ -154,7 +154,7 @@ export function UserRow({ user }: { user: AdminUser }) {
               onClick={confirmVerify}
               disabled={isPending}
               title="Mark email as verified"
-              className="p-1.5 rounded-lg text-slate-400 hover:bg-green-50 hover:text-green-600 transition-colors"
+              className="p-1.5 rounded-lg text-on-surface-variant hover:bg-secondary-container/40 hover:text-secondary transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">mark_email_read</span>
             </button>
@@ -164,7 +164,7 @@ export function UserRow({ user }: { user: AdminUser }) {
             <button
               onClick={() => setDeletePhase("confirm")}
               title="Hard delete (GDPR)"
-              className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+              className="p-1.5 rounded-lg text-on-surface-variant hover:bg-error-container/40 hover:text-error transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">delete_forever</span>
             </button>
@@ -173,13 +173,13 @@ export function UserRow({ user }: { user: AdminUser }) {
               <button
                 onClick={handleDelete}
                 disabled={isPending}
-                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-error text-white hover:bg-error/80 transition-colors"
               >
                 {isPending ? "…" : "Delete"}
               </button>
               <button
                 onClick={() => setDeletePhase("idle")}
-                className="text-[11px] font-bold px-2 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                className="text-[11px] font-bold px-2 py-1.5 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-colors"
               >
                 Cancel
               </button>
@@ -190,7 +190,7 @@ export function UserRow({ user }: { user: AdminUser }) {
 
       {msg && (
         <div className="px-5 pb-3">
-          <p className="text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">{msg}</p>
+          <p className="text-xs text-on-surface-variant bg-surface-container-low px-3 py-1.5 rounded-lg">{msg}</p>
         </div>
       )}
     </div>

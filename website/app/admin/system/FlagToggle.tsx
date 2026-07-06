@@ -22,7 +22,7 @@ export function FlagToggle({ flagKey, enabled }: { flagKey: string; enabled: boo
       disabled={isPending}
       aria-label={isEnabled ? "Disable" : "Enable"}
       className={`w-12 h-6 rounded-full relative transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/30 flex-shrink-0 ${
-        isEnabled ? "bg-primary" : "bg-slate-200"
+        isEnabled ? "bg-primary" : "bg-surface-container-highest"
       } ${isPending ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <span

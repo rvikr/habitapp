@@ -87,10 +87,10 @@ export default async function UsersPage({
     <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl">
       {/* Header */}
       <div>
-        <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
+        <h1 className="font-extrabold text-on-background text-2xl" style={{ letterSpacing: "-0.01em" }}>
           User Management
         </h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <p className="text-on-surface-variant text-sm mt-1">
           Search, inspect, and manage all registered users.
         </p>
       </div>
@@ -98,14 +98,14 @@ export default async function UsersPage({
       {/* Search */}
       <form className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1 max-w-md">
-          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
             search
           </span>
           <input
             name="q"
             defaultValue={q}
             placeholder="Search by email or display name…"
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-all"
           />
         </div>
         <button
@@ -117,7 +117,7 @@ export default async function UsersPage({
         {q && (
           <a
             href="/admin/users"
-            className="px-4 py-2.5 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+            className="px-4 py-2.5 border border-outline-variant text-on-surface-variant text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
           >
             Clear
           </a>
@@ -125,24 +125,24 @@ export default async function UsersPage({
       </form>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
-          <span className="material-symbols-outlined text-red-500 text-xl flex-shrink-0">error</span>
+        <div className="bg-error-container/40 border border-error/30 rounded-2xl p-4 flex items-center gap-3">
+          <span className="material-symbols-outlined text-error text-xl flex-shrink-0">error</span>
           <div>
-            <p className="font-bold text-red-700 text-sm">Could not load users</p>
-            <p className="text-red-600 text-xs mt-0.5 font-mono">{error}</p>
+            <p className="font-bold text-on-error-container text-sm">Could not load users</p>
+            <p className="text-error text-xs mt-0.5 font-mono">{error}</p>
           </div>
         </div>
       )}
 
       {/* User table */}
-      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm border border-slate-200">
+      <div className="overflow-x-auto rounded-2xl bg-surface shadow-sm border border-outline-variant">
         {/* Column headers */}
         <div
-          className="grid min-w-[920px] gap-3 px-5 py-3 bg-slate-50 border-b border-slate-200"
+          className="grid min-w-[920px] gap-3 px-5 py-3 bg-surface-container-low border-b border-outline-variant"
           style={{ gridTemplateColumns: "36px 1fr 120px 90px 120px 1fr auto" }}
         >
           {["", "User", "Joined", "Platform", "Status", "Pro", "Actions"].map((h) => (
-            <span key={h} className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+            <span key={h} className="text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider">
               {h}
             </span>
           ))}
@@ -150,10 +150,10 @@ export default async function UsersPage({
 
         {users.length === 0 ? (
           <div className="py-16 text-center">
-            <span className="material-symbols-outlined text-5xl text-slate-200" style={{ fontVariationSettings: "'FILL' 1" }}>
+            <span className="material-symbols-outlined text-5xl text-on-surface" style={{ fontVariationSettings: "'FILL' 1" }}>
               group
             </span>
-            <p className="text-slate-400 text-sm mt-3">
+            <p className="text-on-surface-variant text-sm mt-3">
               {q ? `No users matching "${q}"` : "No users found"}
             </p>
           </div>
@@ -162,7 +162,7 @@ export default async function UsersPage({
         )}
       </div>
 
-      <p className="text-xs text-slate-400 text-center">
+      <p className="text-xs text-on-surface-variant text-center">
         {users.length > 0 && `Showing ${users.length} user${users.length !== 1 ? "s" : ""}${q ? ` matching "${q}"` : ""}`}
       </p>
     </div>

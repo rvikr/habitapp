@@ -141,7 +141,7 @@ export default function ShareButton({ shareText, shareUrl, cardUrl, label = "Sha
           onClick={() => setOpen(false)}
         >
           <div
-            className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            className="bg-surface-container-high border border-outline-variant rounded-3xl p-6 w-full max-w-sm shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -149,7 +149,7 @@ export default function ShareButton({ shareText, shareUrl, cardUrl, label = "Sha
               <h3 className="font-bold text-on-background text-lg">Share</h3>
               <button
                 onClick={() => setOpen(false)}
-                className="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-surface-high transition-colors"
+                className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant hover:bg-outline-variant transition-colors"
               >
                 <span className="material-symbols-outlined text-base leading-none">close</span>
               </button>
@@ -175,7 +175,7 @@ export default function ShareButton({ shareText, shareUrl, cardUrl, label = "Sha
                   <a
                     href={cardUrl}
                     download="lagan-card.png"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-[#0D0D0D] text-white hover:bg-black/80 transition-colors text-xs font-semibold"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-background border border-outline-variant text-white hover:bg-surface-container-low transition-colors text-xs font-semibold"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span className="material-symbols-outlined text-sm leading-none">download</span>
@@ -184,7 +184,7 @@ export default function ShareButton({ shareText, shareUrl, cardUrl, label = "Sha
                   <a
                     href={`${cardUrl}&ratio=portrait`}
                     download="lagan-card-story.png"
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container transition-colors text-xs font-semibold"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-outline-variant/60 text-on-surface-variant hover:bg-surface-container transition-colors text-xs font-semibold"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <span className="material-symbols-outlined text-sm leading-none">crop_portrait</span>
@@ -227,7 +227,7 @@ export default function ShareButton({ shareText, shareUrl, cardUrl, label = "Sha
             {/* Copy link */}
             <button
               onClick={handleCopy}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-surface-container hover:bg-surface-high transition-colors text-sm font-semibold text-on-background"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-surface-container hover:bg-surface-container-highest transition-colors text-sm font-semibold text-on-background"
             >
               <span className="material-symbols-outlined text-base leading-none">
                 {copied ? "check_circle" : "content_copy"}

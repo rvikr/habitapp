@@ -74,17 +74,17 @@ export default async function FeedbackPage({
   return (
     <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl">
       <div>
-        <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
+        <h1 className="font-extrabold text-on-background text-2xl" style={{ letterSpacing: "-0.01em" }}>
           User Feedback
         </h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <p className="text-on-surface-variant text-sm mt-1">
           Bug reports, ideas and ratings submitted from the in-app Settings → Send Feedback screen.
           {counts.all ? ` ${counts.all.toLocaleString()} total.` : ""}
         </p>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-600 font-mono">{error}</div>
+        <div className="bg-error-container/40 border border-error/30 rounded-2xl p-4 text-sm text-error font-mono">{error}</div>
       )}
 
       {/* Status filter chips */}
@@ -92,7 +92,7 @@ export default async function FeedbackPage({
         <Link
           href={hrefFor(null)}
           className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
-            activeStatus === null ? "bg-slate-900 text-white" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
+            activeStatus === null ? "bg-primary text-white" : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-high"
           }`}
         >
           All <span className="opacity-60">{counts.all ?? 0}</span>
@@ -102,7 +102,7 @@ export default async function FeedbackPage({
             key={s}
             href={hrefFor(s)}
             className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors ${
-              activeStatus === s ? "bg-slate-900 text-white" : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
+              activeStatus === s ? "bg-primary text-white" : "bg-surface text-on-surface-variant border border-outline-variant hover:bg-surface-container-high"
             }`}
           >
             {STATUS_LABELS[s]} <span className="opacity-60">{counts[s] ?? 0}</span>
@@ -111,19 +111,19 @@ export default async function FeedbackPage({
       </div>
 
       {/* Feedback list */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-surface rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
         {reports.length === 0 ? (
           <div className="py-16 text-center space-y-3">
-            <span className="material-symbols-outlined text-5xl text-slate-200" style={{ fontVariationSettings: "'FILL' 1" }}>
+            <span className="material-symbols-outlined text-5xl text-on-surface" style={{ fontVariationSettings: "'FILL' 1" }}>
               forum
             </span>
-            <p className="text-slate-400 text-sm">
+            <p className="text-on-surface-variant text-sm">
               {activeStatus ? `No ${STATUS_LABELS[activeStatus].toLowerCase()} feedback.` : "No feedback submitted yet."}
             </p>
-            <p className="text-xs text-slate-300">Feedback from the app will appear here.</p>
+            <p className="text-xs text-on-surface-variant">Feedback from the app will appear here.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-outline-variant/60">
             {reports.map((report) => (
               <FeedbackRow key={report.id} report={report} />
             ))}
@@ -134,14 +134,14 @@ export default async function FeedbackPage({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-on-surface-variant">
             Page {page} of {totalPages} · {total} {activeStatus ? STATUS_LABELS[activeStatus].toLowerCase() : ""} entries
           </p>
           <div className="flex gap-2">
             {page > 1 && (
               <Link
                 href={`/admin/feedback?${activeStatus ? `status=${activeStatus}&` : ""}page=${page - 1}`}
-                className="px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 border border-outline-variant text-on-surface-variant text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
               >
                 ← Previous
               </Link>

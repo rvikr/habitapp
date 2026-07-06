@@ -19,18 +19,18 @@ export interface FeedbackReport {
 }
 
 const CATEGORY_META: Record<FeedbackReport["category"], { icon: string; label: string; color: string; bg: string }> = {
-  bug:       { icon: "bug_report",  label: "Bug",       color: "text-red-600",     bg: "bg-red-50"     },
-  idea:      { icon: "lightbulb",   label: "Idea",      color: "text-amber-600",   bg: "bg-amber-50"   },
-  usability: { icon: "touch_app",   label: "Usability", color: "text-blue-600",    bg: "bg-blue-50"    },
-  other:     { icon: "chat_bubble", label: "Other",     color: "text-slate-500",   bg: "bg-slate-100"  },
+  bug:       { icon: "bug_report",  label: "Bug",       color: "text-error",     bg: "bg-error-container/40"     },
+  idea:      { icon: "lightbulb",   label: "Idea",      color: "text-tertiary",   bg: "bg-tertiary-fixed/60"   },
+  usability: { icon: "touch_app",   label: "Usability", color: "text-habit-water",    bg: "bg-habit-water/10"    },
+  other:     { icon: "chat_bubble", label: "Other",     color: "text-on-surface-variant",   bg: "bg-surface-container-high"  },
 };
 
 const STATUS_META: Record<FeedbackStatus, { label: string; color: string }> = {
   new:      { label: "New",      color: "bg-primary/15 text-primary"   },
-  reviewed: { label: "Reviewed", color: "bg-blue-100 text-blue-600"    },
-  planned:  { label: "Planned",  color: "bg-amber-100 text-amber-700"  },
-  resolved: { label: "Resolved", color: "bg-green-100 text-green-600"  },
-  closed:   { label: "Closed",   color: "bg-slate-100 text-slate-400"  },
+  reviewed: { label: "Reviewed", color: "bg-habit-water/15 text-habit-water"    },
+  planned:  { label: "Planned",  color: "bg-tertiary-fixed/60 text-on-tertiary-container"  },
+  resolved: { label: "Resolved", color: "bg-secondary-container/60 text-secondary"  },
+  closed:   { label: "Closed",   color: "bg-surface-container-high text-on-surface-variant"  },
 };
 
 const STATUS_OPTIONS: FeedbackStatus[] = ["new", "reviewed", "planned", "resolved", "closed"];
@@ -65,7 +65,7 @@ export default function FeedbackRow({ report }: { report: FeedbackReport }) {
   }
 
   return (
-    <div className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
+    <div className="px-5 py-4 hover:bg-surface-container-high/60 transition-colors">
       <div className="flex items-start gap-4">
         {/* Category icon */}
         <div className={`mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${cat.bg}`}>
@@ -83,14 +83,14 @@ export default function FeedbackRow({ report }: { report: FeedbackReport }) {
               {Array.from({ length: 5 }).map((_, i) => (
                 <span
                   key={i}
-                  className={`material-symbols-outlined text-[14px] ${i < report.rating ? "text-amber-400" : "text-slate-200"}`}
+                  className={`material-symbols-outlined text-[14px] ${i < report.rating ? "text-tertiary" : "text-on-surface"}`}
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >
                   star
                 </span>
               ))}
             </span>
-            <span className="ml-auto text-xs text-slate-400">
+            <span className="ml-auto text-xs text-on-surface-variant">
               {created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
               {" · "}
               {created.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
@@ -98,12 +98,12 @@ export default function FeedbackRow({ report }: { report: FeedbackReport }) {
           </div>
 
           {/* Message */}
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700">{report.message}</p>
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-on-surface">{report.message}</p>
 
           {/* Reporter + device metadata */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-on-surface-variant">
             {report.email ? (
-              <a href={`mailto:${report.email}`} className="flex items-center gap-1 font-medium text-slate-500 hover:text-primary">
+              <a href={`mailto:${report.email}`} className="flex items-center gap-1 font-medium text-on-surface-variant hover:text-primary">
                 <span className="material-symbols-outlined text-[14px]">mail</span>
                 {report.email}
               </a>
@@ -113,13 +113,13 @@ export default function FeedbackRow({ report }: { report: FeedbackReport }) {
                 Anonymous
               </span>
             )}
-            {meta.length > 0 && <span className="text-slate-300">·</span>}
+            {meta.length > 0 && <span className="text-on-surface-variant">·</span>}
             {meta.map((m, i) => (
               <span key={i} className="font-mono">{m}</span>
             ))}
           </div>
 
-          {err && <p className="text-xs font-medium text-red-500">{err}</p>}
+          {err && <p className="text-xs font-medium text-error">{err}</p>}
         </div>
 
         {/* Status control */}
@@ -134,7 +134,7 @@ export default function FeedbackRow({ report }: { report: FeedbackReport }) {
               className={`cursor-pointer appearance-none rounded-full border-0 py-1 pl-3 pr-7 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 ${STATUS_META[status].color}`}
             >
               {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s} className="bg-white text-slate-700">
+                <option key={s} value={s} className="bg-surface text-on-surface">
                   {STATUS_META[s].label}
                 </option>
               ))}

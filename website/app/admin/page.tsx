@@ -34,15 +34,15 @@ function StatCard({
   icon: string; label: string; value: string | number; sub?: string; color?: string;
 }) {
   return (
-    <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-3">
+    <div className="hover-raise bg-surface rounded-2xl p-5 shadow-sm border border-outline-variant space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">{label}</p>
+        <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{label}</p>
         <span className={`material-symbols-outlined text-xl ${color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
           {icon}
         </span>
       </div>
-      <p className="font-extrabold text-3xl text-slate-900" style={{ letterSpacing: "-0.02em" }}>{value}</p>
-      {sub && <p className="text-xs text-slate-400">{sub}</p>}
+      <p className="font-extrabold text-3xl text-on-background" style={{ letterSpacing: "-0.02em" }}>{value}</p>
+      {sub && <p className="text-xs text-on-surface-variant">{sub}</p>}
     </div>
   );
 }
@@ -93,25 +93,25 @@ export default async function AdminPage() {
     <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-8 max-w-6xl">
       {/* Header */}
       <div>
-        <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
+        <h1 className="font-extrabold text-on-background text-2xl" style={{ letterSpacing: "-0.01em" }}>
           Admin Overview
         </h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <p className="text-on-surface-variant text-sm mt-1">
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
         </p>
       </div>
 
       {/* Service role key warning */}
       {serviceRoleError && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex items-start gap-4">
-          <span className="material-symbols-outlined text-amber-500 text-2xl flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <div className="bg-tertiary-fixed/60 border border-tertiary/30 rounded-2xl p-5 flex items-start gap-4">
+          <span className="material-symbols-outlined text-tertiary text-2xl flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
             warning
           </span>
           <div>
-            <p className="font-bold text-amber-800 text-sm">Service role key not configured</p>
-            <p className="text-amber-700 text-xs mt-1 leading-relaxed">
-              Add <code className="bg-amber-100 px-1 rounded font-mono">SUPABASE_SERVICE_ROLE_KEY</code> to{" "}
-              <code className="bg-amber-100 px-1 rounded font-mono">website/.env.local</code> to unlock all admin features.{" "}
+            <p className="font-bold text-on-tertiary-container text-sm">Service role key not configured</p>
+            <p className="text-on-tertiary-container text-xs mt-1 leading-relaxed">
+              Add <code className="bg-tertiary-fixed/60 px-1 rounded font-mono">SUPABASE_SERVICE_ROLE_KEY</code> to{" "}
+              <code className="bg-tertiary-fixed/60 px-1 rounded font-mono">website/.env.local</code> to unlock all admin features.{" "}
               Get it from <strong>Supabase Dashboard → Settings → API → service_role</strong>.
             </p>
           </div>
@@ -120,14 +120,14 @@ export default async function AdminPage() {
 
       {/* Maintenance mode banner */}
       {maintenanceOn && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center gap-3">
-          <span className="material-symbols-outlined text-red-500 text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <div className="bg-error-container/40 border border-error/30 rounded-2xl p-4 flex items-center gap-3">
+          <span className="material-symbols-outlined text-error text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
             construction
           </span>
-          <p className="font-bold text-red-700 text-sm">
+          <p className="font-bold text-on-error-container text-sm">
             Maintenance mode is ON — users are seeing the &quot;Coming Back Soon&quot; screen.
           </p>
-          <Link href="/admin/system" className="ml-auto text-xs font-bold text-red-600 hover:underline">
+          <Link href="/admin/system" className="ml-auto text-xs font-bold text-error hover:underline">
             Manage →
           </Link>
         </div>
@@ -138,25 +138,25 @@ export default async function AdminPage() {
         <StatCard icon="group"               label="Total Users"         value={totalUsers.toLocaleString()}       sub="registered accounts"  color="text-primary"   />
         <StatCard icon="checklist"           label="Habits Created"      value={totalHabits.toLocaleString()}      sub="across all users"     color="text-secondary" />
         <StatCard icon="task_alt"            label="Total Check-ins"     value={totalCompletions.toLocaleString()} sub="habit completions"    color="text-tertiary"  />
-        <StatCard icon="person_check"        label="Active Today"        value={activeToday.toLocaleString()}      sub="completed ≥1 habit"   color="text-green-600" />
+        <StatCard icon="person_check"        label="Active Today"        value={activeToday.toLocaleString()}      sub="completed ≥1 habit"   color="text-secondary" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Quick actions */}
-        <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
-          <h2 className="font-bold text-slate-900 text-sm">Quick Actions</h2>
+        <div className="hover-raise bg-surface rounded-2xl p-5 shadow-sm border border-outline-variant space-y-4">
+          <h2 className="font-bold text-on-background text-sm">Quick Actions</h2>
           <div className="space-y-1">
             {QUICK_LINKS.map(({ href, icon, label, color }) => (
               <Link
                 key={href}
                 href={href}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-50 transition-colors group"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-container-high transition-colors group"
               >
                 <span className={`material-symbols-outlined text-[20px] ${color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
                   {icon}
                 </span>
-                <span className="text-sm font-semibold text-slate-700 group-hover:text-slate-900">{label}</span>
-                <span className="material-symbols-outlined text-slate-300 text-[16px] ml-auto group-hover:text-slate-500">
+                <span className="text-sm font-semibold text-on-surface group-hover:text-on-background">{label}</span>
+                <span className="material-symbols-outlined text-on-surface-variant text-[16px] ml-auto group-hover:text-on-surface-variant">
                   chevron_right
                 </span>
               </Link>
@@ -165,50 +165,50 @@ export default async function AdminPage() {
         </div>
 
         {/* System status */}
-        <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <div className="hover-raise bg-surface rounded-2xl p-5 shadow-sm border border-outline-variant space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-slate-900 text-sm">System Status</h2>
+            <h2 className="font-bold text-on-background text-sm">System Status</h2>
             <Link href="/admin/system" className="text-xs text-primary font-bold hover:opacity-70">
               Manage
             </Link>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">Maintenance mode</span>
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${maintenanceOn ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"}`}>
+              <span className="text-sm text-on-surface-variant">Maintenance mode</span>
+              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${maintenanceOn ? "bg-error-container/60 text-error" : "bg-secondary-container/60 text-secondary"}`}>
                 {maintenanceOn ? "ON" : "OFF"}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-600">Active features</span>
-              <span className="text-xs font-bold text-slate-500">{enabledFlags} of {flags.length - 1} enabled</span>
+              <span className="text-sm text-on-surface-variant">Active features</span>
+              <span className="text-xs font-bold text-on-surface-variant">{enabledFlags} of {flags.length - 1} enabled</span>
             </div>
-            <div className="h-px bg-slate-100" />
+            <div className="h-px bg-surface-container-high" />
             {flags.filter(f => f.key !== "maintenance_mode").slice(0, 4).map((f) => (
               <div key={f.key} className="flex items-center justify-between">
-                <span className="text-xs text-slate-500 truncate">{f.name}</span>
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${f.enabled ? "bg-green-400" : "bg-slate-300"}`} />
+                <span className="text-xs text-on-surface-variant truncate">{f.name}</span>
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${f.enabled ? "bg-secondary" : "bg-outline-variant"}`} />
               </div>
             ))}
           </div>
         </div>
 
         {/* Recent audit */}
-        <div className="hover-raise bg-white rounded-2xl p-5 shadow-sm border border-slate-200 space-y-4">
+        <div className="hover-raise bg-surface rounded-2xl p-5 shadow-sm border border-outline-variant space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-slate-900 text-sm">Recent Actions</h2>
+            <h2 className="font-bold text-on-background text-sm">Recent Actions</h2>
             <Link href="/admin/audit" className="text-xs text-primary font-bold hover:opacity-70">
               View all
             </Link>
           </div>
           {recentAudit.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-4">No actions logged yet</p>
+            <p className="text-xs text-on-surface-variant text-center py-4">No actions logged yet</p>
           ) : (
             <div className="space-y-2.5">
               {recentAudit.map((entry) => (
                 <div key={entry.id} className="space-y-0.5">
-                  <p className="text-xs font-semibold text-slate-700">{entry.action.replace(/_/g, " ")}</p>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs font-semibold text-on-surface">{entry.action.replace(/_/g, " ")}</p>
+                  <p className="text-xs text-on-surface-variant">
                     {new Date(entry.created_at).toLocaleString("en-US", {
                       month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
                     })}

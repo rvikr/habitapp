@@ -9,13 +9,13 @@ function FunnelBar({ label, value, total, color }: { label: string; value: numbe
   return (
     <div className="space-y-1.5">
       <div className="flex justify-between items-baseline">
-        <span className="text-sm font-semibold text-slate-700">{label}</span>
+        <span className="text-sm font-semibold text-on-surface">{label}</span>
         <div className="text-right">
-          <span className="font-extrabold text-slate-900">{value.toLocaleString()}</span>
-          <span className="text-xs text-slate-400 ml-1.5">{pct}%</span>
+          <span className="font-extrabold text-on-background">{value.toLocaleString()}</span>
+          <span className="text-xs text-on-surface-variant ml-1.5">{pct}%</span>
         </div>
       </div>
-      <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+      <div className="w-full h-3 bg-surface-container-high rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -24,13 +24,13 @@ function FunnelBar({ label, value, total, color }: { label: string; value: numbe
 
 function RetentionCard({ label, value, sub, icon }: { label: string; value: string; sub: string; icon: string }) {
   return (
-    <div className="hover-raise bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-2">
+    <div className="hover-raise bg-surface rounded-2xl p-5 border border-outline-variant shadow-sm space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</p>
+        <p className="text-xs font-bold text-on-surface-variant uppercase tracking-widest">{label}</p>
         <span className="material-symbols-outlined text-primary text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
       </div>
-      <p className="font-extrabold text-3xl text-slate-900" style={{ letterSpacing: "-0.02em" }}>{value}</p>
-      <p className="text-xs text-slate-400">{sub}</p>
+      <p className="font-extrabold text-3xl text-on-background" style={{ letterSpacing: "-0.02em" }}>{value}</p>
+      <p className="text-xs text-on-surface-variant">{sub}</p>
     </div>
   );
 }
@@ -119,19 +119,19 @@ export default async function AnalyticsPage() {
   return (
     <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-8 max-w-5xl">
       <div>
-        <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
+        <h1 className="font-extrabold text-on-background text-2xl" style={{ letterSpacing: "-0.01em" }}>
           Analytics
         </h1>
-        <p className="text-slate-500 text-sm mt-1">The pulse of Lagan — growth, engagement, and retention.</p>
+        <p className="text-on-surface-variant text-sm mt-1">The pulse of Lagan — growth, engagement, and retention.</p>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-600 font-mono">{error}</div>
+        <div className="bg-error-container/40 border border-error/30 rounded-2xl p-4 text-sm text-error font-mono">{error}</div>
       )}
 
       {/* Retention cards */}
       <section className="space-y-3">
-        <h2 className="font-bold text-slate-800 text-sm uppercase tracking-wide">Retention</h2>
+        <h2 className="font-bold text-on-surface text-sm uppercase tracking-wide">Retention</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <RetentionCard label="New Today"    value={newToday.toLocaleString()}   sub="signed up today"             icon="person_add"       />
           <RetentionCard label="Active Today" value={activeToday.toLocaleString()} sub="completed a habit today"    icon="task_alt"         />
@@ -142,17 +142,17 @@ export default async function AnalyticsPage() {
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         {/* Conversion funnel */}
-        <div className="hover-raise bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
+        <div className="hover-raise bg-surface rounded-2xl p-6 border border-outline-variant shadow-sm space-y-5">
           <div>
-            <h2 className="font-bold text-slate-900">Conversion Funnel</h2>
-            <p className="text-xs text-slate-400 mt-0.5">From sign-up to active habit completion.</p>
+            <h2 className="font-bold text-on-background">Conversion Funnel</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">From sign-up to active habit completion.</p>
           </div>
           <div className="space-y-4">
             <FunnelBar label="Signed Up"         value={totalUsers}          total={totalUsers} color="bg-primary"   />
             <FunnelBar label="Created a Habit"   value={usersWithHabits}     total={totalUsers} color="bg-secondary" />
             <FunnelBar label="Completed a Habit" value={usersWithCompletions} total={totalUsers} color="bg-tertiary"  />
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-on-surface-variant">
             {totalUsers > 0
               ? `${Math.round((usersWithCompletions / totalUsers) * 100)}% of users have completed at least one habit in the last 30 days.`
               : "No user data yet."}
@@ -160,10 +160,10 @@ export default async function AnalyticsPage() {
         </div>
 
         {/* 7-day activity chart */}
-        <div className="hover-raise bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="hover-raise bg-surface rounded-2xl p-6 border border-outline-variant shadow-sm space-y-4">
           <div>
-            <h2 className="font-bold text-slate-900">Daily Active Users</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Unique users who completed ≥1 habit per day.</p>
+            <h2 className="font-bold text-on-background">Daily Active Users</h2>
+            <p className="text-xs text-on-surface-variant mt-0.5">Unique users who completed ≥1 habit per day.</p>
           </div>
           <div className="flex items-end gap-2 h-32">
             {last7DaysByDate.map(({ date, label, count }) => {
@@ -171,14 +171,14 @@ export default async function AnalyticsPage() {
               const heightPct = (count / maxCount) * 100;
               return (
                 <div key={date} className="flex-1 flex flex-col items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-500">{count > 0 ? count : ""}</span>
+                  <span className="text-xs font-bold text-on-surface-variant">{count > 0 ? count : ""}</span>
                   <div className="w-full flex-1 flex items-end">
                     <div
                       className={`w-full rounded-lg transition-all duration-500 ${isToday ? "bg-primary/30 border-2 border-primary border-dashed" : "bg-primary"}`}
                       style={{ height: `${Math.max(heightPct, 6)}%` }}
                     />
                   </div>
-                  <span className={`text-xs font-semibold ${isToday ? "text-primary font-bold" : "text-slate-400"}`}>{label}</span>
+                  <span className={`text-xs font-semibold ${isToday ? "text-primary font-bold" : "text-on-surface-variant"}`}>{label}</span>
                 </div>
               );
             })}
@@ -189,19 +189,19 @@ export default async function AnalyticsPage() {
       {/* Popular habits */}
       <section className="space-y-4">
         <div>
-          <h2 className="font-bold text-slate-900">Most Popular Habits</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <h2 className="font-bold text-on-background">Most Popular Habits</h2>
+          <p className="text-xs text-on-surface-variant mt-0.5">
             The habits users track most — helpful for prioritising new features.
           </p>
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-2xl border border-outline-variant shadow-sm overflow-hidden">
           {popularHabits.length === 0 ? (
             <div className="py-12 text-center">
-              <span className="material-symbols-outlined text-5xl text-slate-200" style={{ fontVariationSettings: "'FILL' 1" }}>bar_chart</span>
-              <p className="text-slate-400 text-sm mt-3">No habit data yet.</p>
+              <span className="material-symbols-outlined text-5xl text-on-surface" style={{ fontVariationSettings: "'FILL' 1" }}>bar_chart</span>
+              <p className="text-on-surface-variant text-sm mt-3">No habit data yet.</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-outline-variant/60">
               {popularHabits.map(({ name, icon, count }, i) => {
                 const widthPct = (count / popularHabits[0].count) * 100;
                 return (
@@ -210,16 +210,16 @@ export default async function AnalyticsPage() {
                       className="absolute inset-y-0 left-0 bg-primary/5 transition-all duration-500"
                       style={{ width: `${widthPct}%` }}
                     />
-                    <span className="relative z-10 text-xs font-extrabold text-slate-300 w-5 text-center">{i + 1}</span>
+                    <span className="relative z-10 text-xs font-extrabold text-on-surface-variant w-5 text-center">{i + 1}</span>
                     <div className="relative z-10 w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
                       <span className="material-symbols-outlined text-primary text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>
                         {icon}
                       </span>
                     </div>
-                    <p className="relative z-10 flex-1 font-semibold text-sm text-slate-800">{name}</p>
-                    <p className="relative z-10 font-extrabold text-sm text-slate-700">
+                    <p className="relative z-10 flex-1 font-semibold text-sm text-on-surface">{name}</p>
+                    <p className="relative z-10 font-extrabold text-sm text-on-surface">
                       {count.toLocaleString()}
-                      <span className="text-xs font-normal text-slate-400 ml-1">users</span>
+                      <span className="text-xs font-normal text-on-surface-variant ml-1">users</span>
                     </p>
                   </div>
                 );
@@ -231,13 +231,13 @@ export default async function AnalyticsPage() {
 
       {/* Error tracking placeholder */}
       <section className="space-y-4">
-        <h2 className="font-bold text-slate-900">Error Tracking</h2>
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center space-y-3">
-          <span className="material-symbols-outlined text-5xl text-green-300" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <h2 className="font-bold text-on-background">Error Tracking</h2>
+        <div className="bg-surface rounded-2xl border border-outline-variant shadow-sm p-8 text-center space-y-3">
+          <span className="material-symbols-outlined text-5xl text-secondary-fixed" style={{ fontVariationSettings: "'FILL' 1" }}>
             check_circle
           </span>
-          <p className="font-semibold text-slate-500 text-sm">No recent crashes</p>
-          <p className="text-xs text-slate-400">
+          <p className="font-semibold text-on-surface-variant text-sm">No recent crashes</p>
+          <p className="text-xs text-on-surface-variant">
             Integrate Sentry or Crashlytics to surface crash reports here automatically.
           </p>
         </div>

@@ -167,7 +167,7 @@ export default async function LeaderboardPage({
   const podiumOrder = [top3[1], top3[0], top3[2]];
   const podiumStyles = [
     { height: "h-24", bg: "from-[#2C2C36] to-[#1F1F27]", label: "2nd", labelColor: "text-on-surface-variant", ring: "ring-outline-variant" },
-    { height: "h-32", bg: "from-[#3A2205] to-[#2A1A03]", label: "1st", labelColor: "text-[#FFC56B]", ring: "ring-[#FFC56B]/40" },
+    { height: "h-32", bg: "from-tertiary-fixed to-[#2A1A03]", label: "1st", labelColor: "text-on-tertiary-container", ring: "ring-on-tertiary-container/40" },
     { height: "h-16", bg: "from-[#2A1208] to-[#1F0D05]", label: "3rd", labelColor: "text-primary", ring: "ring-primary/40" },
   ];
 
@@ -179,10 +179,7 @@ export default async function LeaderboardPage({
 
         {/* Header */}
         <div>
-          <h1
-            className="font-extrabold text-on-background"
-            style={{ fontSize: "28px", letterSpacing: "-0.01em" }}
-          >
+          <h1 className="font-display text-[28px] font-bold tracking-tight text-on-background">
             Leaderboard
           </h1>
           <p className="text-on-surface-variant text-base mt-1">
@@ -262,7 +259,7 @@ export default async function LeaderboardPage({
                           </div>
                           {isCenter && (
                             <span
-                              className="absolute -top-2 -right-2 material-symbols-outlined text-[#FFC56B] text-xl drop-shadow"
+                              className="absolute -top-2 -right-2 material-symbols-outlined text-on-tertiary-container text-xl drop-shadow"
                               style={{ fontVariationSettings: "'FILL' 1" }}
                             >
                               emoji_events
@@ -310,7 +307,7 @@ export default async function LeaderboardPage({
               {board.map((entry, i) => {
                 const rank = i + 1;
                 const isTop3 = rank <= 3;
-                const medalColors = ["text-[#FFC56B]", "text-on-surface-variant", "text-primary"];
+                const medalColors = ["text-on-tertiary-container", "text-on-surface-variant", "text-primary"];
                 return (
                   <div
                     key={entry.user_id}
@@ -365,7 +362,7 @@ export default async function LeaderboardPage({
                     {/* Streak */}
                     <div className="flex items-center justify-center gap-1">
                       <span
-                        className="material-symbols-outlined text-tertiary-container text-base"
+                        className="material-symbols-outlined text-tertiary text-base"
                         style={{ fontVariationSettings: "'FILL' 1" }}
                       >
                         local_fire_department
@@ -413,13 +410,7 @@ export default async function LeaderboardPage({
       <aside className="app-stagger w-full flex-shrink-0 space-y-4 xl:w-72 xl:pt-[68px]">
 
         {/* Your rank card */}
-        <div
-          className="hover-raise rounded-3xl p-5 text-white relative overflow-hidden shadow-[0_8px_32px_rgba(242,107,31,0.15)]"
-          style={{
-            background: "linear-gradient(145deg, #2A1208 0%, #3D1A08 55%, #1A1207 100%)",
-            border: "1px solid rgba(242,107,31,0.25)",
-          }}
-        >
+        <div className="hover-raise relative overflow-hidden rounded-3xl border border-primary/25 bg-[linear-gradient(145deg,#2A1208_0%,#3D1A08_55%,#1A1207_100%)] p-5 text-white shadow-[0_8px_32px_rgba(242,107,31,0.15)]">
           <div className="absolute -right-4 -bottom-4 opacity-10 pointer-events-none">
             <span
               className="material-symbols-outlined text-[100px]"
@@ -433,10 +424,7 @@ export default async function LeaderboardPage({
               Your Ranking
             </p>
             <div className="flex items-baseline gap-2">
-              <span
-                className="font-extrabold text-4xl text-white"
-                style={{ letterSpacing: "-0.03em" }}
-              >
+              <span className="font-display text-4xl font-bold tracking-tight text-white">
                 {userRank ? `#${userRank}` : "—"}
               </span>
               <span className="text-white/55 font-medium">globally</span>
@@ -483,7 +471,7 @@ export default async function LeaderboardPage({
               <h3 className="font-bold text-on-background text-sm">Next Milestone</h3>
             </div>
             <div>
-              <p className="text-2xl font-extrabold text-primary" style={{ letterSpacing: "-0.02em" }}>
+              <p className="font-display text-2xl font-bold tracking-tight text-primary">
                 {xpToNext.toLocaleString()} XP
               </p>
               <p className="text-xs text-on-surface-variant mt-0.5">
@@ -499,7 +487,7 @@ export default async function LeaderboardPage({
           <div className="space-y-3">
             {[
               { icon: "bolt", label: "Total XP", val: `${userXP.toLocaleString()} XP`, color: "text-primary" },
-              { icon: "local_fire_department", label: "Current Streak", val: `${userStreak} days`, color: "text-tertiary-container" },
+              { icon: "local_fire_department", label: "Current Streak", val: `${userStreak} days`, color: "text-tertiary" },
               { icon: "workspace_premium", label: "Level", val: `Level ${userLevel}`, color: "text-secondary" },
             ].map(({ icon, label, val, color }) => (
               <div key={label} className="flex items-center gap-3">

@@ -16,21 +16,21 @@ interface AuditEntry {
 
 const ACTION_ICONS: Record<string, { icon: string; color: string }> = {
   grant_pro:                 { icon: "workspace_premium", color: "text-secondary"  },
-  revoke_pro:                { icon: "remove_circle",     color: "text-slate-400"   },
+  revoke_pro:                { icon: "remove_circle",     color: "text-on-surface-variant"   },
   reset_password:            { icon: "lock_reset",        color: "text-primary"     },
-  verify_email:              { icon: "mark_email_read",   color: "text-green-600"   },
-  hard_delete_user:          { icon: "delete_forever",    color: "text-red-500"     },
-  toggle_flag_on:            { icon: "toggle_on",         color: "text-green-600"   },
-  toggle_flag_off:           { icon: "toggle_off",        color: "text-slate-400"   },
+  verify_email:              { icon: "mark_email_read",   color: "text-secondary"   },
+  hard_delete_user:          { icon: "delete_forever",    color: "text-error"     },
+  toggle_flag_on:            { icon: "toggle_on",         color: "text-secondary"   },
+  toggle_flag_off:           { icon: "toggle_off",        color: "text-on-surface-variant"   },
   create_feature_flag:       { icon: "add_circle",        color: "text-primary"     },
   send_global_notification:  { icon: "send",              color: "text-secondary"   },
-  dismiss_notification:      { icon: "cancel",            color: "text-slate-400"   },
+  dismiss_notification:      { icon: "cancel",            color: "text-on-surface-variant"   },
   update_feedback_status:    { icon: "forum",             color: "text-secondary"   },
   create_suggested_habit:    { icon: "add_task",          color: "text-primary"     },
   update_suggested_habit:    { icon: "edit",              color: "text-primary"     },
-  delete_suggested_habit:    { icon: "delete",            color: "text-red-500"     },
-  enable_suggested_habit:    { icon: "visibility",        color: "text-green-600"   },
-  disable_suggested_habit:   { icon: "visibility_off",    color: "text-slate-400"   },
+  delete_suggested_habit:    { icon: "delete",            color: "text-error"     },
+  enable_suggested_habit:    { icon: "visibility",        color: "text-secondary"   },
+  disable_suggested_habit:   { icon: "visibility_off",    color: "text-on-surface-variant"   },
 };
 
 function humaniseAction(action: string) {
@@ -73,44 +73,44 @@ export default async function AuditPage({
   return (
     <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-6 max-w-5xl">
       <div>
-        <h1 className="font-extrabold text-slate-900 text-2xl" style={{ letterSpacing: "-0.01em" }}>
+        <h1 className="font-extrabold text-on-background text-2xl" style={{ letterSpacing: "-0.01em" }}>
           Audit Trail
         </h1>
-        <p className="text-slate-500 text-sm mt-1">
+        <p className="text-on-surface-variant text-sm mt-1">
           Immutable log of every action taken in the admin panel. {total > 0 && `${total.toLocaleString()} total entries.`}
         </p>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-600 font-mono">{error}</div>
+        <div className="bg-error-container/40 border border-error/30 rounded-2xl p-4 text-sm text-error font-mono">{error}</div>
       )}
 
       {/* Log table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-surface rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
         {/* Header */}
-        <div className="grid gap-4 px-5 py-3 bg-slate-50 border-b border-slate-200"
+        <div className="grid gap-4 px-5 py-3 bg-surface-container-low border-b border-outline-variant"
           style={{ gridTemplateColumns: "32px 1fr 160px 120px" }}>
           {["", "Action", "Resource", "Timestamp"].map((h) => (
-            <span key={h} className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">{h}</span>
+            <span key={h} className="text-[11px] font-extrabold text-on-surface-variant uppercase tracking-wider">{h}</span>
           ))}
         </div>
 
         {entries.length === 0 ? (
           <div className="py-16 text-center space-y-3">
-            <span className="material-symbols-outlined text-5xl text-slate-200" style={{ fontVariationSettings: "'FILL' 1" }}>
+            <span className="material-symbols-outlined text-5xl text-on-surface" style={{ fontVariationSettings: "'FILL' 1" }}>
               manage_history
             </span>
-            <p className="text-slate-400 text-sm">No admin actions logged yet.</p>
-            <p className="text-xs text-slate-300">Actions you take in the admin panel will appear here.</p>
+            <p className="text-on-surface-variant text-sm">No admin actions logged yet.</p>
+            <p className="text-xs text-on-surface-variant">Actions you take in the admin panel will appear here.</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-outline-variant/60">
             {entries.map((entry) => {
-              const meta = ACTION_ICONS[entry.action] ?? { icon: "admin_panel_settings", color: "text-slate-500" };
+              const meta = ACTION_ICONS[entry.action] ?? { icon: "admin_panel_settings", color: "text-on-surface-variant" };
               return (
                 <div
                   key={entry.id}
-                  className="grid gap-4 items-start px-5 py-3.5 hover:bg-slate-50 transition-colors"
+                  className="grid gap-4 items-start px-5 py-3.5 hover:bg-surface-container-high transition-colors"
                   style={{ gridTemplateColumns: "32px 1fr 160px 120px" }}
                 >
                   {/* Icon */}
@@ -121,10 +121,10 @@ export default async function AuditPage({
 
                   {/* Action details */}
                   <div className="min-w-0 space-y-0.5">
-                    <p className="font-semibold text-sm text-slate-800">{humaniseAction(entry.action)}</p>
-                    <p className="text-xs text-slate-400">{entry.admin_email}</p>
+                    <p className="font-semibold text-sm text-on-surface">{humaniseAction(entry.action)}</p>
+                    <p className="text-xs text-on-surface-variant">{entry.admin_email}</p>
                     {entry.details && Object.keys(entry.details).length > 0 && (
-                      <p className="text-xs text-slate-400 font-mono bg-slate-50 px-2 py-1 rounded-lg mt-1 truncate">
+                      <p className="text-xs text-on-surface-variant font-mono bg-surface-container-low px-2 py-1 rounded-lg mt-1 truncate">
                         {JSON.stringify(entry.details)}
                       </p>
                     )}
@@ -133,10 +133,10 @@ export default async function AuditPage({
                   {/* Resource */}
                   <div className="min-w-0">
                     {entry.resource_type && (
-                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">{entry.resource_type}</span>
+                      <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-wide">{entry.resource_type}</span>
                     )}
                     {entry.resource_id && (
-                      <p className="text-xs text-slate-400 font-mono truncate mt-0.5" title={entry.resource_id}>
+                      <p className="text-xs text-on-surface-variant font-mono truncate mt-0.5" title={entry.resource_id}>
                         {entry.resource_id.length > 24
                           ? `${entry.resource_id.slice(0, 8)}…${entry.resource_id.slice(-4)}`
                           : entry.resource_id}
@@ -146,10 +146,10 @@ export default async function AuditPage({
 
                   {/* Timestamp */}
                   <div>
-                    <p className="text-xs text-slate-600 font-medium">
+                    <p className="text-xs text-on-surface-variant font-medium">
                       {new Date(entry.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-on-surface-variant">
                       {new Date(entry.created_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
                     </p>
                   </div>
@@ -163,14 +163,14 @@ export default async function AuditPage({
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-on-surface-variant">
             Page {page} of {totalPages} · {total} entries
           </p>
           <div className="flex gap-2">
             {page > 1 && (
               <a
                 href={`/admin/audit?page=${page - 1}`}
-                className="px-4 py-2 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 border border-outline-variant text-on-surface-variant text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
               >
                 ← Previous
               </a>

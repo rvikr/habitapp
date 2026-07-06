@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 lg:flex">
+    <div className="min-h-screen bg-surface-container-low lg:flex">
       <AdminSidebar email={user.email ?? ""} />
       <main className="min-h-screen flex-1 pb-20 lg:ml-60 lg:pb-0">{children}</main>
     </div>

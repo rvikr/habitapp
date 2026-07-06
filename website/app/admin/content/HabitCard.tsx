@@ -44,14 +44,14 @@ export function HabitCard({ habit }: { habit: SuggestedHabit }) {
   }
 
   return (
-    <div className="flex min-w-[680px] items-center gap-4 px-5 py-3.5 border-b border-slate-100 last:border-0 hover:bg-slate-50 transition-colors">
+    <div className="flex min-w-[680px] items-center gap-4 px-5 py-3.5 border-b border-outline-variant/60 last:border-0 hover:bg-surface-container-high transition-colors">
       {/* Sort */}
-      <span className="text-xs font-bold text-slate-300 w-6 text-center flex-shrink-0">{habit.sort_order}</span>
+      <span className="text-xs font-bold text-on-surface-variant w-6 text-center flex-shrink-0">{habit.sort_order}</span>
 
       {/* Icon */}
-      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${enabled ? "bg-primary/10" : "bg-slate-100"}`}>
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${enabled ? "bg-primary/10" : "bg-surface-container-high"}`}>
         <span
-          className={`material-symbols-outlined text-[18px] ${enabled ? "text-primary" : "text-slate-400"}`}
+          className={`material-symbols-outlined text-[18px] ${enabled ? "text-primary" : "text-on-surface-variant"}`}
           style={{ fontVariationSettings: "'FILL' 1" }}
         >
           {habit.icon}
@@ -60,14 +60,14 @@ export function HabitCard({ habit }: { habit: SuggestedHabit }) {
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold text-sm ${enabled ? "text-slate-800" : "text-slate-400"}`}>{habit.name}</p>
+        <p className={`font-semibold text-sm ${enabled ? "text-on-surface" : "text-on-surface-variant"}`}>{habit.name}</p>
         {habit.description && (
-          <p className="text-xs text-slate-400 truncate mt-0.5">{habit.description}</p>
+          <p className="text-xs text-on-surface-variant truncate mt-0.5">{habit.description}</p>
         )}
       </div>
 
       {/* Status */}
-      <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${enabled ? "bg-green-100 text-green-600" : "bg-slate-100 text-slate-400"}`}>
+      <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${enabled ? "bg-secondary-container/60 text-secondary" : "bg-surface-container-high text-on-surface-variant"}`}>
         {enabled ? "Active" : "Hidden"}
       </span>
 
@@ -77,7 +77,7 @@ export function HabitCard({ habit }: { habit: SuggestedHabit }) {
           onClick={handleToggle}
           disabled={isPending}
           title={enabled ? "Hide from catalog" : "Show in catalog"}
-          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary transition-colors"
+          className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors"
         >
           <span className="material-symbols-outlined text-[18px]">
             {enabled ? "visibility_off" : "visibility"}
@@ -86,7 +86,7 @@ export function HabitCard({ habit }: { habit: SuggestedHabit }) {
         <button
           onClick={() => setEditing(true)}
           title="Edit"
-          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary transition-colors"
+          className="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors"
         >
           <span className="material-symbols-outlined text-[18px]">edit</span>
         </button>
@@ -95,7 +95,7 @@ export function HabitCard({ habit }: { habit: SuggestedHabit }) {
           <button
             onClick={() => setDeletePhase("confirm")}
             title="Delete"
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+            className="p-1.5 rounded-lg text-on-surface-variant hover:bg-error-container/40 hover:text-error transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">delete</span>
           </button>
@@ -104,13 +104,13 @@ export function HabitCard({ habit }: { habit: SuggestedHabit }) {
             <button
               onClick={handleDelete}
               disabled={isPending}
-              className="text-[11px] font-bold px-2 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+              className="text-[11px] font-bold px-2 py-1.5 rounded-lg bg-error text-white hover:bg-error/80 transition-colors"
             >
               {isPending ? "…" : "Delete"}
             </button>
             <button
               onClick={() => setDeletePhase("idle")}
-              className="text-[11px] font-bold px-2 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+              className="text-[11px] font-bold px-2 py-1.5 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container-high transition-colors"
             >
               Cancel
             </button>
@@ -118,7 +118,7 @@ export function HabitCard({ habit }: { habit: SuggestedHabit }) {
         )}
       </div>
 
-      {err && <p className="text-xs text-red-500 mt-1 w-full">{err}</p>}
+      {err && <p className="text-xs text-error mt-1 w-full">{err}</p>}
     </div>
   );
 }
@@ -138,33 +138,33 @@ function HabitEditForm({ habit, onDone }: { habit: SuggestedHabit; onDone: () =>
   }
 
   return (
-    <form onSubmit={handleSubmit} className="px-5 py-4 bg-primary/5 border-b border-slate-100">
+    <form onSubmit={handleSubmit} className="px-5 py-4 bg-primary/5 border-b border-outline-variant/60">
       <div className="grid grid-cols-2 gap-3">
         <input
           name="name"
           defaultValue={habit.name}
           placeholder="Name"
           required
-          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all"
+          className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all"
         />
         <input
           name="icon"
           defaultValue={habit.icon}
           placeholder="Material icon name (e.g. water_drop)"
-          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all"
+          className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all"
         />
         <input
           name="description"
           defaultValue={habit.description ?? ""}
           placeholder="Short description"
-          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all col-span-2"
+          className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all col-span-2"
         />
         <input
           name="sort_order"
           type="number"
           defaultValue={habit.sort_order}
           placeholder="Sort order"
-          className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all"
+          className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all"
         />
         <div className="flex gap-2 items-center">
           <button
@@ -177,13 +177,13 @@ function HabitEditForm({ habit, onDone }: { habit: SuggestedHabit; onDone: () =>
           <button
             type="button"
             onClick={onDone}
-            className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+            className="px-4 py-2 border border-outline-variant text-on-surface-variant text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors"
           >
             Cancel
           </button>
         </div>
       </div>
-      {err && <p className="text-xs text-red-500 mt-2">{err}</p>}
+      {err && <p className="text-xs text-error mt-2">{err}</p>}
     </form>
   );
 }
@@ -217,22 +217,22 @@ export function AddHabitForm() {
 
   return (
     <form onSubmit={handleSubmit} className="bg-primary/5 rounded-2xl p-5 border border-primary/15 space-y-3">
-      <h3 className="font-bold text-slate-800 text-sm">New Suggested Habit</h3>
+      <h3 className="font-bold text-on-surface text-sm">New Suggested Habit</h3>
       <div className="grid grid-cols-2 gap-3">
-        <input name="name" placeholder="Name *" required className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all" />
-        <input name="icon" placeholder="Material icon (e.g. water_drop)" className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all" />
-        <input name="description" placeholder="Short description" className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all col-span-2" />
-        <input name="sort_order" type="number" placeholder="Sort order (e.g. 11)" defaultValue="" className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:border-primary transition-all" />
+        <input name="name" placeholder="Name *" required className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all" />
+        <input name="icon" placeholder="Material icon (e.g. water_drop)" className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all" />
+        <input name="description" placeholder="Short description" className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all col-span-2" />
+        <input name="sort_order" type="number" placeholder="Sort order (e.g. 11)" defaultValue="" className="px-3 py-2 bg-surface border border-outline-variant rounded-xl text-sm text-on-surface focus:outline-none focus:border-primary transition-all" />
         <div className="flex gap-2 items-center">
           <button type="submit" disabled={isPending} className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors disabled:opacity-50">
             {isPending ? "Adding…" : "Add"}
           </button>
-          <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 border border-slate-200 text-slate-500 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors">
+          <button type="button" onClick={() => setOpen(false)} className="px-4 py-2 border border-outline-variant text-on-surface-variant text-sm font-semibold rounded-xl hover:bg-surface-container-high transition-colors">
             Cancel
           </button>
         </div>
       </div>
-      {err && <p className="text-xs text-red-500">{err}</p>}
+      {err && <p className="text-xs text-error">{err}</p>}
     </form>
   );
 }

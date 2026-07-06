@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import Footer from "@/components/ui/footer";
+import MarketingNav from "@/components/ui/marketing-nav";
+import PhoneMockup from "@/components/ui/phone-mockup";
+import { Pill } from "@/components/ui/pill";
+import ScrollAnimations from "@/components/ui/scroll-animations";
+import { Eyebrow, Section, SectionHeading } from "@/components/ui/section";
 
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
 const WEB_APP_URL = "/app";
@@ -30,31 +37,36 @@ const features = [
     title: "AI habit suggestions",
     description: "Get practical habit ideas based on the routines you want to build.",
     icon: SparkIcon,
-    accent: "bg-[#DDF7EC] text-[#0F7A52]",
+    accent: "text-tertiary",
+    chip: "bg-tertiary/10 border-tertiary/25",
   },
   {
     title: "Daily habit tracking",
     description: "Check off habits quickly and see what still needs attention today.",
     icon: CheckIcon,
-    accent: "bg-[#E8F1FF] text-[#1D5FBF]",
+    accent: "text-secondary",
+    chip: "bg-secondary/10 border-secondary/25",
   },
   {
     title: "Progress insights",
     description: "Understand streaks, completion patterns, and where consistency is growing.",
     icon: ChartIcon,
-    accent: "bg-[#F5EAFE] text-[#7646A8]",
+    accent: "text-habit-water",
+    chip: "bg-habit-water/10 border-habit-water/25",
   },
   {
     title: "Simple reminders",
     description: "Set calm nudges that help you remember without adding noise.",
     icon: BellIcon,
-    accent: "bg-[#FFF2D7] text-[#B56B00]",
+    accent: "text-habit-meditate",
+    chip: "bg-habit-meditate/10 border-habit-meditate/25",
   },
   {
     title: "Motivation to stay consistent",
     description: "Use small wins, streaks, and AI guidance to keep going after busy days.",
     icon: FlameIcon,
-    accent: "bg-[#FFE6D8] text-[#C24A13]",
+    accent: "text-primary",
+    chip: "bg-primary/10 border-primary/25",
   },
 ];
 
@@ -75,17 +87,6 @@ const steps = [
     description: "Log each day, review your progress, and use AI guidance to adjust.",
   },
 ];
-
-function LogoMark() {
-  return (
-    <span className="grid h-9 w-9 grid-cols-2 gap-1 rounded-lg bg-[#16161C] p-1 shadow-sm" aria-hidden="true">
-      <span className="rounded-[3px] bg-[#F26B1F]" />
-      <span className="rounded-[3px] bg-[#37B889]" />
-      <span className="rounded-[3px] bg-[#5CA8FF]" />
-      <span className="rounded-[3px] bg-[#FFC56B]" />
-    </span>
-  );
-}
 
 function GooglePlayIcon() {
   return (
@@ -159,95 +160,111 @@ function GlobeIcon() {
   );
 }
 
-function DownloadButton({ className = "" }: { className?: string }) {
-  return (
-    <a
-      href={PLAY_STORE_URL}
-      className={`inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-[#F26B1F] px-5 py-3 text-base font-bold text-white shadow-[0_12px_28px_rgba(242,107,31,0.28)] transition hover:bg-[#D95C18] focus:outline-none focus:ring-4 focus:ring-[#F26B1F]/25 ${className}`}
-    >
-      <GooglePlayIcon />
-      Get it on Google Play
-    </a>
-  );
-}
+/* ── Feature story visuals (pure divs/SVG, sized for the story rows) ── */
 
-function WebAppButton({
-  children,
-  icon,
-  className = "",
-}: {
-  children: React.ReactNode;
-  icon: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <Link
-      href={WEB_APP_URL}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#D8E0D8] bg-white px-4 py-3 text-sm font-bold text-[#17201B] shadow-[0_8px_22px_rgba(28,40,34,0.06)] transition hover:border-[#BFCFC4] hover:bg-[#FBFCFA] focus:outline-none focus:ring-4 focus:ring-[#1D5FBF]/15 ${className}`}
-    >
-      {icon}
-      {children}
-    </Link>
-  );
-}
-
-function PhoneMockup() {
-  const habits = [
-    { label: "Morning walk", meta: "20 min", done: true },
-    { label: "Read", meta: "10 pages", done: true },
-    { label: "Drink water", meta: "2.5 L", done: true },
-    { label: "Meditation", meta: "8 min", done: false },
+function SuggestionVisual() {
+  const suggestions = [
+    { label: "Evening stretch · 10 min", accent: "border-habit-meditate/40 text-habit-meditate" },
+    { label: "Read before bed · 10 pages", accent: "border-habit-read/40 text-habit-read" },
+    { label: "Morning walk · 20 min", accent: "border-habit-walk/40 text-habit-walk" },
   ];
-
   return (
-    <div className="mx-auto w-full max-w-[290px] rounded-[34px] border border-[#D8E0D8] bg-[#111318] p-3 shadow-[0_24px_60px_rgba(31,42,35,0.22)] lg:max-w-[300px]">
-      <div className="overflow-hidden rounded-[25px] bg-[#F8FAF7]">
-        <div className="flex h-10 items-center justify-between bg-white px-5 text-[11px] font-bold text-[#17201B]">
-          <span>9:41</span>
-          <span className="h-2 w-12 rounded-full bg-[#17201B]" />
-        </div>
-
-        <div className="space-y-4 p-5">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0F7A52]">Today</p>
-            <h2 className="mt-1 text-xl font-bold tracking-tight text-[#17201B]">3 of 4 habits done</h2>
+    <Card surface="low" className="p-5">
+      <p className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-tertiary">
+        Suggested for you
+      </p>
+      <div className="mt-4 space-y-2.5">
+        {suggestions.map((s) => (
+          <div
+            key={s.label}
+            className={`flex items-center justify-between rounded-xl border bg-surface px-4 py-3 ${s.accent}`}
+          >
+            <span className="text-sm font-semibold text-on-surface">{s.label}</span>
+            <span className="text-xs font-bold">+ Add</span>
           </div>
-
-          <div className="rounded-lg border border-[#DDE8DE] bg-white p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-[#17201B]">Daily progress</p>
-                <p className="mt-1 text-xs text-[#617064]">Keep your streak moving</p>
-              </div>
-              <div className="grid h-14 w-14 place-items-center rounded-full bg-[#E8F7F1] text-sm font-bold text-[#0F7A52]">
-                75%
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            {habits.map((habit) => (
-              <div key={habit.label} className="flex items-center gap-3 rounded-lg border border-[#E2EAE2] bg-white p-3">
-                <span className={`grid h-7 w-7 place-items-center rounded-full ${habit.done ? "bg-[#0F7A52]" : "bg-[#EDF2ED]"} text-white`}>
-                  {habit.done ? <CheckIcon /> : null}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-[#17201B]">{habit.label}</span>
-                  <span className="block text-xs text-[#617064]">{habit.meta}</span>
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <div className="rounded-lg bg-[#EAF3FF] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#1D5FBF]">AI guide</p>
-            <p className="mt-2 text-sm font-semibold leading-5 text-[#17201B]">
-              You are strongest before lunch. Move meditation earlier tomorrow.
-            </p>
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
+      <p className="mt-4 text-xs font-medium text-on-surface-variant">
+        Based on your goal: “wind down without my phone”
+      </p>
+    </Card>
+  );
+}
+
+function TrackingVisual() {
+  const rows = [
+    { label: "Drink water", meta: "6 of 8 glasses", done: true, accent: "text-habit-water" },
+    { label: "Read 10 pages", meta: "Done at 08:32", done: true, accent: "text-habit-read" },
+    { label: "Meditate", meta: "Later today · 21:00", done: false, accent: "text-habit-meditate" },
+  ];
+  return (
+    <Card surface="low" className="p-5">
+      <div className="space-y-2.5">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className="flex items-center gap-3 rounded-xl border border-outline-variant bg-surface px-4 py-3"
+          >
+            <span
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-current bg-surface-container-low ${row.accent}`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
+                {row.done ? <path d="M20 6 9 17l-5-5" /> : <circle cx="12" cy="12" r="8" />}
+              </svg>
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className={`block truncate text-sm font-bold ${row.done ? "text-on-surface" : "text-on-surface-variant"}`}>
+                {row.label}
+              </span>
+              <span className="block text-xs font-medium text-on-surface-variant/70">{row.meta}</span>
+            </span>
+            {row.done && (
+              <span className="text-xs font-bold text-secondary">Done</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function InsightsVisual() {
+  const bars = [
+    { day: "M", pct: 60 },
+    { day: "T", pct: 80 },
+    { day: "W", pct: 45 },
+    { day: "T", pct: 90 },
+    { day: "F", pct: 70 },
+    { day: "S", pct: 100 },
+    { day: "S", pct: 75, today: true },
+  ];
+  return (
+    <Card surface="low" className="p-5">
+      <div className="flex items-baseline justify-between">
+        <p className="font-display text-[11px] font-bold uppercase tracking-[0.18em] text-tertiary">
+          This week
+        </p>
+        <p className="font-display text-2xl font-bold text-on-background">74%</p>
+      </div>
+      <div className="mt-5 flex items-end gap-2.5">
+        {bars.map((bar, i) => (
+          <div key={i} className="flex flex-1 flex-col items-center gap-2">
+            <div className="flex h-24 w-full items-end rounded-md bg-surface-container">
+              <div
+                className={`w-full rounded-md ${bar.today ? "bg-primary" : "bg-secondary/70"}`}
+                style={{ height: `${bar.pct}%` }}
+              />
+            </div>
+            <span className={`text-[10px] font-bold ${bar.today ? "text-primary" : "text-on-surface-variant/70"}`}>
+              {bar.day}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-xs font-medium text-on-surface-variant">
+        12-day streak · strongest before lunch
+      </p>
+    </Card>
   );
 }
 
@@ -264,144 +281,205 @@ export default function LandingPage() {
     url: PLAY_STORE_URL,
   };
 
+  const storyVisuals = [SuggestionVisual, TrackingVisual, InsightsVisual];
+
   return (
-    <main className="min-h-screen overflow-x-clip bg-[#F7F5F0] text-[#17201B]">
+    <main className="min-h-screen overflow-x-clip bg-background text-on-surface">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <ScrollAnimations />
 
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
-        <Link href="/" className="flex items-center gap-3 text-[#17201B] no-underline" aria-label="Lagan home">
-          <LogoMark />
-          <span className="text-lg font-extrabold tracking-tight">Lagan</span>
-        </Link>
-        <div className="hidden items-center gap-3 sm:flex">
-          <WebAppButton icon={<GlobeIcon />} className="min-h-12">
-            Continue on website
-          </WebAppButton>
-          <DownloadButton />
-        </div>
-      </header>
+      <MarketingNav
+        links={[
+          { label: "Features", href: "#features" },
+          { label: "How it works", href: "#how-it-works" },
+        ]}
+        actions={
+          <>
+            <Button href="/login" variant="ghost" size="md">
+              Sign in
+            </Button>
+            <Button href={PLAY_STORE_URL} external variant="primary" size="md" className="hidden sm:inline-flex">
+              <GooglePlayIcon />
+              Get the app
+            </Button>
+          </>
+        }
+      />
 
-      <section className="mx-auto grid max-w-6xl items-center gap-7 px-5 pb-8 pt-4 sm:px-8 md:grid-cols-[1fr_0.82fr] md:gap-12 md:pb-7 md:pt-6">
-        <div>
-          <p className="inline-flex rounded-full border border-[#CFE0D7] bg-white px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-[#0F7A52]">
-            AI-powered habit tracking
-          </p>
-          <h1 className="mt-5 max-w-3xl text-5xl font-extrabold leading-[0.98] tracking-tight text-[#17201B] sm:text-6xl lg:text-7xl">
-            Build better habits with AI
-          </h1>
-          <p className="mt-5 max-w-xl text-lg leading-8 text-[#536158]">
-            Lagan helps you track habits, stay consistent, and get AI-powered guidance that makes your next step clear.
-          </p>
-          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <DownloadButton className="w-full sm:w-auto" />
-            <WebAppButton icon={<PhoneIcon />} className="w-full sm:w-auto">
-              Use on iOS
-            </WebAppButton>
-            <WebAppButton icon={<GlobeIcon />} className="w-full sm:w-auto">
-              Continue on website
-            </WebAppButton>
+      {/* ── Hero ─────────────────────────────────────────── */}
+      <section className="relative pt-[100px] sm:pt-[120px]">
+        <div className="bg-grid-faint pointer-events-none absolute inset-0" aria-hidden="true" />
+        <div className="bg-ember-glow glow-drift pointer-events-none absolute -top-40 left-[10%] h-[480px] w-[480px] rounded-full" aria-hidden="true" />
+
+        <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 pb-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8 lg:pb-24">
+          <div>
+            <div className="hero-rise" style={{ animationDelay: "0.05s" }}>
+              <Pill>AI-powered habit tracking</Pill>
+            </div>
+            <h1
+              aria-label="Build better habits with AI"
+              className="hero-rise mt-6 max-w-3xl font-display text-5xl font-bold leading-[1.02] tracking-tight text-on-background sm:text-6xl lg:text-7xl"
+              style={{ animationDelay: "0.15s" }}
+            >
+              <span aria-hidden="true">
+                Build better habits <span className="text-shimmer">with AI</span>
+              </span>
+            </h1>
+            <p
+              className="hero-rise mt-6 max-w-xl text-lg leading-8 text-on-surface-variant"
+              style={{ animationDelay: "0.25s" }}
+            >
+              Lagan turns your day into a simple timeline of habits — with an AI coach
+              that notices your patterns and makes the next step clear.
+            </p>
+            <div
+              className="hero-rise mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
+              style={{ animationDelay: "0.35s" }}
+            >
+              <Button href={PLAY_STORE_URL} external className="w-full sm:w-auto">
+                <GooglePlayIcon />
+                Get it on Google Play
+              </Button>
+              <Button href={WEB_APP_URL} variant="outline" className="w-full sm:w-auto">
+                <PhoneIcon />
+                Use on iOS
+              </Button>
+              <Button href={WEB_APP_URL} variant="outline" className="w-full sm:w-auto">
+                <GlobeIcon />
+                Continue on website
+              </Button>
+            </div>
+            <p
+              className="hero-rise mt-4 text-sm font-medium text-on-surface-variant/70"
+              style={{ animationDelay: "0.45s" }}
+            >
+              Android app on Google Play. iPhone and desktop users can continue in the web app.
+            </p>
           </div>
-          <p className="mt-3 text-center text-sm font-medium text-[#66736B] sm:text-left">
-            Android app on Google Play. iPhone and desktop users can continue in the web app.
-          </p>
-        </div>
 
-        <div className="relative max-h-[130px] overflow-hidden md:max-h-none md:justify-self-end">
-          <PhoneMockup />
+          <div className="hero-rise lg:justify-self-end" style={{ animationDelay: "0.3s" }}>
+            <PhoneMockup />
+          </div>
         </div>
       </section>
 
-      <section className="border-y border-[#E1DED5] bg-white/72 px-5 py-10 sm:px-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="max-w-2xl">
-            <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#1D5FBF]">Why Lagan</p>
-            <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#17201B] sm:text-4xl">
-              The core tools to keep showing up
-            </h2>
-          </div>
+      {/* ── Feature stories ──────────────────────────────── */}
+      <Section id="features" className="landing-section">
+        <div className="reveal-up max-w-2xl">
+          <Eyebrow>Why Lagan</Eyebrow>
+          <SectionHeading className="mt-3">The core tools to keep showing up</SectionHeading>
+        </div>
 
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {features.map((feature) => {
-              const Icon = feature.icon;
-              return (
-                <article key={feature.title} className="rounded-lg border border-[#E2E5DC] bg-white p-5 shadow-[0_8px_26px_rgba(28,40,34,0.06)]">
-                  <span className={`grid h-11 w-11 place-items-center rounded-lg ${feature.accent}`}>
+        <div className="mt-14 space-y-16 sm:space-y-20">
+          {features.slice(0, 3).map((feature, i) => {
+            const Icon = feature.icon;
+            const Visual = storyVisuals[i];
+            const reversed = i % 2 === 1;
+            return (
+              <div
+                key={feature.title}
+                className="stagger grid items-center gap-8 md:grid-cols-2 md:gap-14"
+              >
+                <div className={reversed ? "md:order-2" : ""}>
+                  <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${feature.chip} ${feature.accent}`}>
                     <Icon />
                   </span>
-                  <h3 className="mt-4 text-lg font-extrabold tracking-tight text-[#17201B]">{feature.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#5D6A62]">{feature.description}</p>
-                </article>
-              );
-            })}
+                  <h3 className="mt-5 font-display text-2xl font-bold tracking-tight text-on-background sm:text-3xl">
+                    {feature.title}
+                  </h3>
+                  <p className="mt-3 max-w-md text-base leading-7 text-on-surface-variant">
+                    {feature.description}
+                  </p>
+                </div>
+                <div className={reversed ? "md:order-1" : ""}>
+                  <Visual />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="stagger mt-16 grid gap-4 sm:grid-cols-2">
+          {features.slice(3).map((feature) => {
+            const Icon = feature.icon;
+            return (
+              <Card key={feature.title} hover className="p-6">
+                <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${feature.chip} ${feature.accent}`}>
+                  <Icon />
+                </span>
+                <h3 className="mt-4 font-display text-xl font-bold tracking-tight text-on-background">
+                  {feature.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-on-surface-variant">{feature.description}</p>
+              </Card>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ── How it works ─────────────────────────────────── */}
+      <Section id="how-it-works" className="landing-section">
+        <div className="grid gap-10 md:grid-cols-[0.72fr_1fr] md:items-start">
+          <div className="reveal-up md:sticky md:top-28">
+            <Eyebrow>How it works</Eyebrow>
+            <SectionHeading className="mt-3">Start small, then improve with AI</SectionHeading>
+          </div>
+
+          <div className="stagger relative">
+            <span
+              className="pointer-events-none absolute bottom-6 left-[27px] top-6 w-0.5 bg-outline-variant sm:left-[31px]"
+              aria-hidden="true"
+            />
+            {steps.map((item) => (
+              <article key={item.step} className="relative flex gap-6 pb-10 last:pb-0 sm:gap-8">
+                <span className="font-display relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-outline-variant bg-surface text-lg font-bold text-primary sm:h-16 sm:w-16 sm:text-xl">
+                  {item.step}
+                </span>
+                <span className="pt-1.5 sm:pt-3">
+                  <h3 className="font-display text-xl font-bold tracking-tight text-on-background">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 max-w-lg text-base leading-7 text-on-surface-variant">
+                    {item.description}
+                  </p>
+                </span>
+              </article>
+            ))}
           </div>
         </div>
-      </section>
+      </Section>
 
-      <section className="px-5 py-14 sm:px-8 md:py-20">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid gap-8 md:grid-cols-[0.72fr_1fr] md:items-start">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#0F7A52]">How it works</p>
-              <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#17201B] sm:text-4xl">
-                Start small, then improve with AI
-              </h2>
+      {/* ── Final CTA ────────────────────────────────────── */}
+      <Section className="landing-section pt-0 sm:pt-0">
+        <Card surface="low" className="relative overflow-hidden px-5 py-12 text-center sm:px-8 md:py-16">
+          <div className="bg-ember-glow glow-pulse pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full" aria-hidden="true" />
+          <div className="relative">
+            <Eyebrow className="text-tertiary">Download today</Eyebrow>
+            <h2 className="mx-auto mt-3 max-w-2xl font-display text-3xl font-bold tracking-tight text-on-background sm:text-5xl">
+              Make consistency easier with Lagan
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-on-surface-variant">
+              Track daily habits, see progress clearly, and let AI guide your next small improvement.
+            </p>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <Button href={PLAY_STORE_URL} external>
+                <GooglePlayIcon />
+                Get it on Google Play
+              </Button>
+              <Button href={WEB_APP_URL} variant="outline">
+                <PhoneIcon />
+                Use on iOS
+              </Button>
+              <Button href={WEB_APP_URL} variant="outline">
+                <GlobeIcon />
+                Continue on website
+              </Button>
             </div>
-
-            <div className="grid gap-4">
-              {steps.map((item) => (
-                <article key={item.step} className="grid gap-4 rounded-lg border border-[#E0DED6] bg-white p-5 shadow-[0_8px_26px_rgba(28,40,34,0.05)] sm:grid-cols-[72px_1fr] sm:items-start">
-                  <span className="text-3xl font-extrabold tracking-tight text-[#B5C8BC]">{item.step}</span>
-                  <span>
-                    <h3 className="text-xl font-extrabold tracking-tight text-[#17201B]">{item.title}</h3>
-                    <p className="mt-2 text-base leading-7 text-[#5D6A62]">{item.description}</p>
-                  </span>
-                </article>
-              ))}
-            </div>
           </div>
-        </div>
-      </section>
+        </Card>
+      </Section>
 
-      <section className="px-5 pb-12 sm:px-8 md:pb-20">
-        <div className="mx-auto max-w-6xl rounded-lg bg-[#17201B] px-5 py-10 text-center text-white sm:px-8 md:py-14">
-          <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#9FE6C4]">Download today</p>
-          <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-extrabold tracking-tight sm:text-5xl">
-            Make consistency easier with Lagan
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[#DCE8DF]">
-            Track daily habits, see progress clearly, and let AI guide your next small improvement.
-          </p>
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <DownloadButton />
-            <WebAppButton icon={<PhoneIcon />} className="border-white/15 bg-white/10 text-white hover:border-white/30 hover:bg-white/15 focus:ring-white/20">
-              Use on iOS
-            </WebAppButton>
-            <WebAppButton icon={<GlobeIcon />} className="border-white/15 bg-white/10 text-white hover:border-white/30 hover:bg-white/15 focus:ring-white/20">
-              Continue on website
-            </WebAppButton>
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t border-[#E1DED5] px-5 py-7 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 text-sm text-[#66736B] sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <LogoMark />
-            <span className="font-bold text-[#17201B]">Lagan</span>
-          </div>
-          <nav className="flex flex-wrap gap-5" aria-label="Footer">
-            <Link className="hover:text-[#17201B]" href="/privacy">
-              Privacy
-            </Link>
-            <Link className="hover:text-[#17201B]" href="/terms">
-              Terms
-            </Link>
-            <Link className="hover:text-[#17201B]" href="/account-deletion">
-              Account deletion
-            </Link>
-          </nav>
-        </div>
-      </footer>
+      <Footer />
     </main>
   );
 }

@@ -5,25 +5,27 @@ import path from "path";
 
 type Tone = "yellow" | "orange" | "purple" | "teal" | "indigo" | "red";
 
+// Ember & Midnight brand gradients — aligned with the achievements TONE_MAP
+// (purple → read accent, indigo → meditate accent, teal → secondary green).
 const TONE_GRADIENT: Record<Tone, [string, string]> = {
-  yellow: ["#f59e0b", "#fcd34d"],
-  orange: ["#ea580c", "#fb923c"],
-  purple: ["#7c3aed", "#a78bfa"],
-  teal:   ["#0d9488", "#2dd4bf"],
-  indigo: ["#4338ca", "#818cf8"],
-  red:    ["#dc2626", "#f87171"],
+  yellow: ["#E5A84A", "#FFC56B"],
+  orange: ["#F26B1F", "#FFC56B"],
+  purple: ["#9A7BD8", "#C7A7FF"],
+  teal:   ["#3EBB7F", "#8BE0B8"],
+  indigo: ["#5E8FD8", "#8EC5FF"],
+  red:    ["#FF5A5A", "#FF9999"],
 };
 
 function rankAccent(pct: number): [string, string] {
-  if (pct <= 1)  return TONE_GRADIENT.purple;
-  if (pct <= 5)  return ["#d97706", "#fcd34d"];
+  if (pct <= 1)  return TONE_GRADIENT.orange;
+  if (pct <= 5)  return TONE_GRADIENT.yellow;
   if (pct <= 10) return TONE_GRADIENT.teal;
   return TONE_GRADIENT.indigo;
 }
 
 const fontsDir = path.join(process.cwd(), "public", "fonts");
-const fontBold    = fs.readFileSync(path.join(fontsDir, "PlusJakartaSans-Bold.ttf"));
-const fontRegular = fs.readFileSync(path.join(fontsDir, "PlusJakartaSans-Regular.ttf"));
+const fontDisplay = fs.readFileSync(path.join(fontsDir, "SpaceGrotesk-Bold.ttf"));
+const fontBody    = fs.readFileSync(path.join(fontsDir, "Manrope-Regular.ttf"));
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -61,6 +63,9 @@ export async function GET(request: Request) {
     accent   = TONE_GRADIENT[tone] ?? TONE_GRADIENT.indigo;
   }
 
+  const markTile = ratio === "portrait" ? 16 : 14;
+  const markGap = 3;
+
   return new ImageResponse(
     (
       <div
@@ -68,7 +73,8 @@ export async function GET(request: Request) {
           display: "flex",
           width: "100%",
           height: "100%",
-          backgroundColor: "#0D0D0D",
+          backgroundColor: "#0B0B0E",
+          backgroundImage: `radial-gradient(circle at 0% 0%, ${accent[0]}26, transparent 55%)`,
           position: "relative",
           flexDirection: "column",
         }}
@@ -103,7 +109,7 @@ export async function GET(request: Request) {
               color: "#FFFFFF",
               lineHeight: 1.1,
               letterSpacing: -2,
-              fontFamily: "Plus Jakarta Sans",
+              fontFamily: "Space Grotesk",
               maxWidth: ratio === "portrait" ? 800 : 900,
             }}
           >
@@ -113,11 +119,49 @@ export async function GET(request: Request) {
             style={{
               fontSize: subtitleSz,
               fontWeight: 400,
-              color: "rgba(255,255,255,0.45)",
-              fontFamily: "Plus Jakarta Sans",
+              color: "rgba(255,255,255,0.5)",
+              fontFamily: "Manrope",
             }}
           >
             {subtitle}
+          </div>
+        </div>
+
+        {/* Brand mark */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 36,
+            left: padX,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              width: markTile * 2 + markGap,
+              height: markTile * 2 + markGap,
+              gap: markGap,
+            }}
+          >
+            <div style={{ width: markTile, height: markTile, borderRadius: 4, backgroundColor: "#F26B1F" }} />
+            <div style={{ width: markTile, height: markTile, borderRadius: 4, backgroundColor: "#FFC56B", opacity: 0.75 }} />
+            <div style={{ width: markTile, height: markTile, borderRadius: 4, backgroundColor: "#FFC56B", opacity: 0.5 }} />
+            <div style={{ width: markTile, height: markTile, borderRadius: 4, backgroundColor: "#F26B1F", opacity: 0.8 }} />
+          </div>
+          <div
+            style={{
+              fontSize: attrSz + 6,
+              color: "rgba(255,255,255,0.85)",
+              fontWeight: 700,
+              fontFamily: "Space Grotesk",
+              letterSpacing: -0.5,
+            }}
+          >
+            Lagan
           </div>
         </div>
 
@@ -128,9 +172,9 @@ export async function GET(request: Request) {
             bottom: 40,
             right: 60,
             fontSize: attrSz,
-            color: "rgba(255,255,255,0.25)",
+            color: "rgba(255,255,255,0.3)",
             fontWeight: 400,
-            fontFamily: "Plus Jakarta Sans",
+            fontFamily: "Manrope",
           }}
         >
           lagan.health
@@ -141,8 +185,8 @@ export async function GET(request: Request) {
       width,
       height,
       fonts: [
-        { name: "Plus Jakarta Sans", data: fontBold,    weight: 700, style: "normal" },
-        { name: "Plus Jakarta Sans", data: fontRegular, weight: 400, style: "normal" },
+        { name: "Space Grotesk", data: fontDisplay, weight: 700, style: "normal" },
+        { name: "Manrope",       data: fontBody,    weight: 400, style: "normal" },
       ],
       headers: {
         "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",

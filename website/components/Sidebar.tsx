@@ -3,38 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-
-const C = {
-  bg: "#0B0B0E",
-  surface: "#16161C",
-  surfaceHi: "#1F1F27",
-  border: "#2C2C36",
-  text: "#FFFFFF",
-  textMute: "#B5B8C0",
-  textDim: "#7A7E88",
-  primary: "#F26B1F",
-} as const;
-
-const SG = 'var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif';
-const MR = 'var(--font-manrope), Manrope, system-ui, sans-serif';
-
-function hexA(hex: string, a: number) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}
-
-function LogoMark() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 36 36" fill="none">
-      <rect x="4" y="4" width="12" height="12" rx="3" fill="#F26B1F" />
-      <rect x="20" y="4" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.75" />
-      <rect x="4" y="20" width="12" height="12" rx="3" fill="#FFC56B" opacity="0.5" />
-      <rect x="20" y="20" width="12" height="12" rx="3" fill="#F26B1F" opacity="0.8" />
-    </svg>
-  );
-}
+import { LogoLockup } from "@/components/ui/logo";
 
 const NAV = [
   { href: "/dashboard",    icon: "calendar_today", label: "Today"        },
@@ -42,6 +11,18 @@ const NAV = [
   { href: "/leaderboard",  icon: "leaderboard",    label: "Leaderboard"  },
   { href: "/settings",     icon: "settings",       label: "Settings"     },
 ];
+
+function NavIcon({ icon, active }: { icon: string; active: boolean }) {
+  return (
+    <span
+      className={`material-symbols-outlined text-xl ${
+        active ? "[font-variation-settings:'FILL'_1]" : "[font-variation-settings:'FILL'_0]"
+      }`}
+    >
+      {icon}
+    </span>
+  );
+}
 
 export default function Sidebar({
   displayName,
@@ -67,171 +48,58 @@ export default function Sidebar({
   return (
     <>
       {/* ── Mobile top bar ─────────────────────────────── */}
-      <header
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 40,
-          height: 56,
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          background: hexA(C.surface, 0.95),
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderBottom: `1px solid ${C.border}`,
-          fontFamily: MR,
-        }}
-        className="flex lg:hidden"
-      >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <LogoMark />
-          <span style={{ fontFamily: SG, fontWeight: 700, fontSize: 16, color: C.text, letterSpacing: "-0.02em" }}>
-            Lagan
-          </span>
-        </Link>
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-outline-variant bg-surface/95 px-4 backdrop-blur-xl lg:hidden">
+        <LogoLockup />
         <button
           onClick={signOut}
-          style={{
-            width: 36,
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: "50%",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: C.textMute,
-          }}
+          className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:text-error"
           aria-label="Sign out"
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 20 }}>logout</span>
+          <span className="material-symbols-outlined text-xl">logout</span>
         </button>
       </header>
 
       {/* ── Mobile bottom nav ──────────────────────────── */}
-      <nav
-        style={{
-          position: "fixed",
-          inset: "auto 0 0 0",
-          zIndex: 40,
-          gridTemplateColumns: `repeat(${NAV.length}, 1fr)`,
-          borderTop: `1px solid ${C.border}`,
-          background: hexA(C.surface, 0.95),
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          padding: "6px 8px",
-          fontFamily: MR,
-        }}
-        className="grid lg:hidden"
-      >
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 gap-0 border-t border-outline-variant bg-surface/95 px-2 py-1.5 backdrop-blur-xl lg:hidden">
         {NAV.map(({ href, icon, label }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-                padding: "6px 4px",
-                borderRadius: 12,
-                fontSize: 11,
-                fontWeight: 700,
-                textDecoration: "none",
-                color: active ? C.primary : C.textMute,
-                background: active ? hexA(C.primary, 0.1) : "transparent",
-                transition: "color 0.15s",
-              }}
+              className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-[11px] font-bold transition-colors ${
+                active ? "bg-primary/10 text-primary" : "text-on-surface-variant"
+              }`}
             >
-              <span
-                className="material-symbols-outlined"
-                style={{
-                  fontSize: 20,
-                  fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0",
-                }}
-              >
-                {icon}
-              </span>
-              <span style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {label}
-              </span>
+              <NavIcon icon={icon} active={active} />
+              <span className="max-w-full truncate">{label}</span>
             </Link>
           );
         })}
       </nav>
 
       {/* ── Desktop sidebar ───────────────────────────── */}
-      <aside
-        style={{
-          position: "fixed",
-          left: 0,
-          top: 0,
-          minHeight: "100vh",
-          width: 240,
-          flexDirection: "column",
-          background: C.surface,
-          borderRight: `1px solid ${C.border}`,
-          fontFamily: MR,
-        }}
-        className="hidden lg:flex"
-      >
+      <aside className="fixed left-0 top-0 hidden min-h-screen w-60 flex-col border-r border-outline-variant bg-surface lg:flex">
         {/* Logo */}
-        <div style={{ padding: "24px 20px 16px" }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-            <LogoMark />
-            <span style={{ fontFamily: SG, fontWeight: 700, fontSize: 17, color: C.text, letterSpacing: "-0.02em" }}>
-              Lagan
-            </span>
-          </Link>
+        <div className="px-5 pb-4 pt-6">
+          <LogoLockup />
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: "8px 12px", display: "flex", flexDirection: "column", gap: 2 }}>
+        <nav className="flex flex-1 flex-col gap-0.5 px-3 py-2">
           {NAV.map(({ href, icon, label }) => {
             const active = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}
                 href={href}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 16px",
-                  borderRadius: 12,
-                  fontSize: 14,
-                  fontWeight: active ? 700 : 600,
-                  textDecoration: "none",
-                  color: active ? C.primary : C.textMute,
-                  background: active ? hexA(C.primary, 0.1) : "transparent",
-                  transition: "color 0.15s, background 0.15s",
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) {
-                    (e.currentTarget as HTMLAnchorElement).style.background = hexA(C.primary, 0.05);
-                    (e.currentTarget as HTMLAnchorElement).style.color = C.text;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) {
-                    (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
-                    (e.currentTarget as HTMLAnchorElement).style.color = C.textMute;
-                  }
-                }}
+                className={`flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm transition-colors ${
+                  active
+                    ? "bg-primary/10 font-bold text-primary"
+                    : "font-semibold text-on-surface-variant hover:bg-primary/5 hover:text-on-background"
+                }`}
               >
-                <span
-                  className="material-symbols-outlined"
-                  style={{
-                    fontSize: 20,
-                    fontVariationSettings: active ? "'FILL' 1" : "'FILL' 0",
-                  }}
-                >
-                  {icon}
-                </span>
+                <NavIcon icon={icon} active={active} />
                 {label}
               </Link>
             );
@@ -240,24 +108,13 @@ export default function Sidebar({
 
         {/* Admin link */}
         {isAdmin && (
-          <div style={{ padding: "8px 12px" }}>
-            <div style={{ height: 1, background: C.border, marginBottom: 8 }} />
+          <div className="px-3 py-2">
+            <div className="mb-2 h-px bg-outline-variant" />
             <Link
               href="/admin"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "10px 16px",
-                borderRadius: 12,
-                fontSize: 14,
-                fontWeight: 600,
-                textDecoration: "none",
-                color: C.textMute,
-                transition: "color 0.15s",
-              }}
+              className="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-semibold text-on-surface-variant transition-colors hover:bg-primary/5 hover:text-on-background"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: 20, fontVariationSettings: "'FILL' 1" }}>
+              <span className="material-symbols-outlined text-xl [font-variation-settings:'FILL'_1]">
                 admin_panel_settings
               </span>
               Admin Panel
@@ -266,59 +123,21 @@ export default function Sidebar({
         )}
 
         {/* Profile + sign out */}
-        <div style={{ padding: 16, borderTop: `1px solid ${C.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 8px", borderRadius: 12, marginBottom: 4 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: hexA(C.primary, 0.15),
-                border: `1px solid ${hexA(C.primary, 0.3)}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                color: C.primary,
-                fontSize: 14,
-                flexShrink: 0,
-              }}
-            >
+        <div className="border-t border-outline-variant p-4">
+          <div className="mb-1 flex items-center gap-3 rounded-xl p-2">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/15 text-sm font-bold text-primary">
               {initial}
             </div>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <p style={{ fontWeight: 700, fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {displayName}
-              </p>
-              {email && (
-                <p style={{ fontSize: 11, color: C.textDim, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {email}
-                </p>
-              )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-bold text-on-background">{displayName}</p>
+              {email && <p className="truncate text-[11px] text-outline">{email}</p>}
             </div>
           </div>
           <button
             onClick={signOut}
-            style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "10px 16px",
-              borderRadius: 12,
-              fontSize: 13,
-              fontWeight: 600,
-              color: C.textMute,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: MR,
-              transition: "color 0.15s",
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#FF5A5A"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textMute; }}
+            className="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-on-surface-variant transition-colors hover:text-error"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>logout</span>
+            <span className="material-symbols-outlined text-lg">logout</span>
             Sign out
           </button>
         </div>

@@ -3,29 +3,9 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fieldInputRaised } from "@/components/ui/field";
 
-const C = {
-  bg: "#0B0B0E",
-  surface: "#16161C",
-  surfaceHi: "#1F1F27",
-  border: "#2C2C36",
-  text: "#FFFFFF",
-  textMute: "#B5B8C0",
-  textDim: "#7A7E88",
-  primary: "#F26B1F",
-  error: "#FF5A5A",
-  success: "#3EBB7F",
-} as const;
-
-const SG = 'var(--font-space-grotesk), "Space Grotesk", system-ui, sans-serif';
-const MR = 'var(--font-manrope), Manrope, system-ui, sans-serif';
-
-function hexA(hex: string, a: number) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${a})`;
-}
+const labelClass = "block text-[13px] font-bold text-on-surface-variant";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -80,38 +60,14 @@ export default function LoginForm() {
     });
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "12px 16px",
-    background: C.surfaceHi,
-    border: `1px solid ${C.border}`,
-    borderRadius: 12,
-    color: C.text,
-    fontSize: 14,
-    fontWeight: 500,
-    fontFamily: MR,
-    outline: "none",
-    boxSizing: "border-box",
-    transition: "border-color 0.15s",
-  };
-
   return (
-    <div style={{ width: "100%", fontFamily: MR }}>
+    <div className="w-full font-sans">
       {/* Heading */}
-      <div style={{ marginBottom: 32 }}>
-        <h1
-          style={{
-            fontFamily: SG,
-            fontWeight: 800,
-            fontSize: 30,
-            letterSpacing: "-0.02em",
-            color: C.text,
-            marginBottom: 6,
-          }}
-        >
+      <div className="mb-8">
+        <h1 className="mb-1.5 font-display text-3xl font-extrabold tracking-tight text-on-background">
           {mode === "signin" ? "Welcome back." : "Create account."}
         </h1>
-        <p style={{ fontSize: 15, color: C.textMute }}>
+        <p className="text-[15px] text-on-surface-variant">
           {mode === "signin"
             ? "Let's continue growing."
             : "Start your journey today."}
@@ -120,45 +76,20 @@ export default function LoginForm() {
 
       {/* Error / success */}
       {error && (
-        <div
-          style={{
-            background: hexA(C.error, 0.12),
-            border: `1px solid ${hexA(C.error, 0.3)}`,
-            color: C.error,
-            padding: "12px 16px",
-            borderRadius: 12,
-            fontSize: 13,
-            fontWeight: 600,
-            marginBottom: 20,
-          }}
-        >
+        <div className="mb-5 rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-[13px] font-semibold text-error">
           {error}
         </div>
       )}
       {message && (
-        <div
-          style={{
-            background: hexA(C.success, 0.12),
-            border: `1px solid ${hexA(C.success, 0.3)}`,
-            color: C.success,
-            padding: "12px 16px",
-            borderRadius: 12,
-            fontSize: 13,
-            fontWeight: 600,
-            marginBottom: 20,
-          }}
-        >
+        <div className="mb-5 rounded-xl border border-secondary/30 bg-secondary/10 px-4 py-3 text-[13px] font-semibold text-secondary">
           {message}
         </div>
       )}
 
       {/* Form */}
-      <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <form onSubmit={handleEmailAuth} className="flex flex-col gap-5">
         <div>
-          <label
-            style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.textMute, marginBottom: 8 }}
-            htmlFor="email"
-          >
+          <label className={`${labelClass} mb-2`} htmlFor="email">
             Email Address
           </label>
           <input
@@ -168,21 +99,19 @@ export default function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
-            style={{ ...inputStyle }}
-            onFocus={(e) => (e.target.style.borderColor = C.primary)}
-            onBlur={(e) => (e.target.style.borderColor = C.border)}
+            className={fieldInputRaised}
           />
         </div>
 
         <div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: C.textMute }} htmlFor="password">
+          <div className="mb-2 flex items-center justify-between">
+            <label className={labelClass} htmlFor="password">
               Password
             </label>
             {mode === "signin" && (
               <button
                 type="button"
-                style={{ fontSize: 13, fontWeight: 700, color: C.primary, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                className="text-[13px] font-bold text-primary transition-colors hover:text-primary-container"
               >
                 Forgot password?
               </button>
@@ -195,30 +124,14 @@ export default function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
-            style={{ ...inputStyle }}
-            onFocus={(e) => (e.target.style.borderColor = C.primary)}
-            onBlur={(e) => (e.target.style.borderColor = C.border)}
+            className={fieldInputRaised}
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          style={{
-            width: "100%",
-            background: C.primary,
-            color: "#fff",
-            border: "none",
-            borderRadius: 12,
-            padding: "14px",
-            fontSize: 15,
-            fontWeight: 700,
-            fontFamily: SG,
-            cursor: loading ? "not-allowed" : "pointer",
-            opacity: loading ? 0.6 : 1,
-            boxShadow: `0 4px 20px ${hexA(C.primary, 0.35)}`,
-            transition: "opacity 0.2s",
-          }}
+          className="w-full rounded-xl bg-primary py-3.5 font-display text-[15px] font-bold text-white shadow-cta transition hover:bg-[#D95C18] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading
             ? "Please wait…"
@@ -229,44 +142,19 @@ export default function LoginForm() {
       </form>
 
       {/* Divider */}
-      <div style={{ display: "flex", alignItems: "center", gap: 16, margin: "24px 0" }}>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim, textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+      <div className="my-6 flex items-center gap-4">
+        <div className="h-px flex-1 bg-outline-variant" />
+        <span className="whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.1em] text-outline">
           Or continue with
         </span>
-        <div style={{ flex: 1, height: 1, background: C.border }} />
+        <div className="h-px flex-1 bg-outline-variant" />
       </div>
 
       {/* Google */}
       <button
         onClick={handleGoogle}
         disabled={loading}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 12,
-          background: C.surfaceHi,
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          padding: "13px",
-          fontSize: 14,
-          fontWeight: 700,
-          color: C.text,
-          fontFamily: MR,
-          cursor: loading ? "not-allowed" : "pointer",
-          opacity: loading ? 0.6 : 1,
-          transition: "border-color 0.15s, background 0.15s",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.borderColor = hexA(C.primary, 0.5);
-          (e.currentTarget as HTMLButtonElement).style.background = hexA(C.primary, 0.06);
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.borderColor = C.border;
-          (e.currentTarget as HTMLButtonElement).style.background = C.surfaceHi;
-        }}
+        className="flex w-full items-center justify-center gap-3 rounded-xl border border-outline-variant bg-surface-container-high px-4 py-3 text-sm font-bold text-on-background transition hover:border-primary/50 hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <svg width="18" height="18" viewBox="0 0 24 24">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -278,7 +166,7 @@ export default function LoginForm() {
       </button>
 
       {/* Toggle mode */}
-      <p style={{ textAlign: "center", fontSize: 14, color: C.textMute, marginTop: 24 }}>
+      <p className="mt-6 text-center text-sm text-on-surface-variant">
         {mode === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
         <button
           onClick={() => {
@@ -286,7 +174,7 @@ export default function LoginForm() {
             setError("");
             setMessage("");
           }}
-          style={{ color: C.primary, fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: MR, fontSize: 14 }}
+          className="text-sm font-bold text-primary transition-colors hover:text-primary-container"
         >
           {mode === "signin" ? "Sign up for free" : "Sign in"}
         </button>

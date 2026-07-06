@@ -19,12 +19,12 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 const TONE_MAP: Record<Badge["tone"], { bg: string; ic: string; tag: string }> = {
-  yellow: { bg: "bg-tertiary-fixed",    ic: "text-on-tertiary-container", tag: "bg-tertiary-fixed text-on-tertiary-container" },
-  orange: { bg: "bg-primary-fixed",     ic: "text-primary",               tag: "bg-primary-fixed text-primary" },
-  purple: { bg: "bg-primary-fixed",     ic: "text-primary",               tag: "bg-primary-fixed text-primary" },
-  teal:   { bg: "bg-secondary-container", ic: "text-secondary",           tag: "bg-secondary-container text-on-secondary-container" },
-  indigo: { bg: "bg-primary-fixed",     ic: "text-primary",               tag: "bg-primary-fixed text-primary" },
-  red:    { bg: "bg-error-container",   ic: "text-error",                 tag: "bg-error-container text-on-error-container" },
+  yellow: { bg: "bg-tertiary-fixed",      ic: "text-on-tertiary-container", tag: "bg-tertiary-fixed text-on-tertiary-container" },
+  orange: { bg: "bg-primary-fixed",       ic: "text-primary",               tag: "bg-primary-fixed text-primary" },
+  purple: { bg: "bg-habit-read/15",       ic: "text-habit-read",            tag: "bg-habit-read/15 text-habit-read" },
+  teal:   { bg: "bg-secondary-container", ic: "text-secondary",             tag: "bg-secondary-container text-on-secondary-container" },
+  indigo: { bg: "bg-habit-meditate/15",   ic: "text-habit-meditate",        tag: "bg-habit-meditate/15 text-habit-meditate" },
+  red:    { bg: "bg-error-container",     ic: "text-error",                 tag: "bg-error-container text-on-error-container" },
 };
 
 function BadgeCard({ badge }: { badge: Badge }) {
@@ -97,7 +97,7 @@ export default async function AchievementsPage() {
     <div className="app-stagger max-w-5xl space-y-8 p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <div>
-        <h1 className="font-extrabold text-on-background" style={{ fontSize: "28px", letterSpacing: "-0.01em" }}>
+        <h1 className="font-display text-[28px] font-bold tracking-tight text-on-background">
           Your Achievements
         </h1>
         <p className="text-on-surface-variant text-base mt-1">
@@ -106,7 +106,7 @@ export default async function AchievementsPage() {
       </div>
 
       {/* Level hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary to-primary-container p-5 text-white shadow-[0_8px_40px_rgba(93,63,211,0.3)] sm:p-8">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary to-primary-container p-5 text-white shadow-[0_8px_40px_rgba(242,107,31,0.35)] sm:p-8">
         <div className="absolute -right-8 -top-8 opacity-15 pointer-events-none">
           <span className="material-symbols-outlined text-[200px]" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
         </div>
@@ -118,7 +118,7 @@ export default async function AchievementsPage() {
               </div>
               <div>
                 <p className="text-white/70 text-sm font-bold uppercase tracking-wider">Current Level</p>
-                <h2 className="font-extrabold text-white text-3xl" style={{ letterSpacing: "-0.02em" }}>
+                <h2 className="font-display text-3xl font-bold tracking-tight text-white">
                   Level {level}
                 </h2>
               </div>
@@ -140,13 +140,13 @@ export default async function AchievementsPage() {
 
           <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto lg:gap-5">
             {[
-              { icon: "local_fire_department", val: stats?.streak ?? 0,              lbl: "Day Streak",    color: "text-tertiary-fixed"      },
-              { icon: "military_tech",          val: earned.length,                   lbl: "Badges Earned", color: "text-secondary-container"  },
+              { icon: "local_fire_department", val: stats?.streak ?? 0,              lbl: "Day Streak",    color: "text-on-tertiary-fixed"   },
+              { icon: "military_tech",          val: earned.length,                   lbl: "Badges Earned", color: "text-secondary-fixed"      },
               { icon: "check_circle",           val: stats?.totalCompletions ?? 0,    lbl: "Habits Done",   color: "text-secondary-fixed"      },
             ].map(({ icon, val, lbl, color }) => (
               <div key={lbl} className="rounded-2xl border border-white/15 bg-surface/15 px-4 py-4 text-center backdrop-blur-sm sm:px-6 sm:py-5">
                 <span className={`material-symbols-outlined ${color} text-3xl`} style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
-                <p className="font-extrabold text-white text-3xl mt-2" style={{ letterSpacing: "-0.02em" }}>{val}</p>
+                <p className="mt-2 font-display text-3xl font-bold tracking-tight text-white">{val}</p>
                 <p className="text-white/65 text-sm mt-0.5">{lbl}</p>
               </div>
             ))}
