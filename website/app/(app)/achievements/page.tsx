@@ -7,13 +7,13 @@ import { addDateKeyDays, dateKeyInTimeZone } from "@/lib/date";
 import { getRequestTimeZone } from "@/lib/request-timezone";
 import { XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "@/lib/xp";
 import type { Badge } from "@/types/db";
-
-const APP_URL = "https://lagan.health";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Achievements",
+  robots: { index: false, follow: false },
   openGraph: {
-    images: [`${APP_URL}/api/og/card?type=badge&id=diamond&tone=purple`],
+    images: [`${SITE_URL}/api/og/card?type=badge&id=diamond&tone=purple`],
   },
 };
 export const dynamic = "force-dynamic";
@@ -63,7 +63,7 @@ function BadgeCard({ badge }: { badge: Badge }) {
           </span>
           <ShareButton
             shareText={shareText}
-            shareUrl={`${APP_URL}/achievements`}
+            shareUrl={`${SITE_URL}/achievements`}
             cardUrl={cardUrl}
             label="Share"
           />

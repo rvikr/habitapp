@@ -5,6 +5,7 @@ import { LegalSection, LegalShell } from "@/components/ui/legal-page";
 export const metadata: Metadata = {
   title: "Terms & Conditions",
   description: "Terms and conditions for using the Lagan habit-tracking app and website.",
+  alternates: { canonical: "/terms" },
 };
 
 const SECTIONS = [

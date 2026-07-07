@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Manrope } from "next/font/google";
+import { GOOGLE_SITE_VERIFICATION, SITE_URL, SOCIAL_PROFILE_URLS } from "@/lib/site";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -16,16 +17,14 @@ const manrope = Manrope({
   display: "swap",
 });
 
-const SITE_URL = "https://lagan.health";
-
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Lagan — AI Habit Tracker for iOS, Android & Web",
+    default: "Lagan — AI Habit Tracker & Coach",
     template: "%s — Lagan",
   },
   description:
-    "Lagan is an AI-enabled habit tracker for iOS, Android, and web. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
+    "Lagan is an AI habit tracker for the web and Android. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
   applicationName: "Lagan",
   keywords: [
     "AI habit tracker",
@@ -48,7 +47,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Lagan" }],
   creator: "Lagan",
   publisher: "Lagan",
-  alternates: { canonical: "/" },
+  ...(GOOGLE_SITE_VERIFICATION ? { verification: { google: GOOGLE_SITE_VERIFICATION } } : {}),
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/favicon.png",
@@ -59,7 +58,7 @@ export const metadata: Metadata = {
     siteName: "Lagan",
     title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and web.",
+      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges — free on the web, with an Android beta on Google Play.",
     url: SITE_URL,
     locale: "en_US",
     images: [
@@ -75,7 +74,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and web.",
+      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges — free on the web, with an Android beta on Google Play.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -102,8 +101,16 @@ export default function RootLayout({
     "@type": "Organization",
     name: "Lagan",
     url: SITE_URL,
-    logo: `${SITE_URL}/og-image.png`,
-    sameAs: [],
+    logo: `${SITE_URL}/icon-512.png`,
+    sameAs: SOCIAL_PROFILE_URLS,
+  };
+
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Lagan",
+    alternateName: ["Lagan Habit Tracker", "Lagan App"],
+    url: SITE_URL,
   };
 
   return (
@@ -118,6 +125,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
         />
       </head>
       <body className="font-sans antialiased">{children}</body>

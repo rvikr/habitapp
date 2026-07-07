@@ -7,13 +7,13 @@ import ShareButton from "@/components/share-button";
 import { getRankShareMessage } from "@/lib/share-messages";
 import { XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "@/lib/xp";
 import { redirect } from "next/navigation";
-
-const APP_URL = "https://lagan.health";
+import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Leaderboard — Lagan",
+  title: "Leaderboard",
+  robots: { index: false, follow: false },
   openGraph: {
-    images: [`${APP_URL}/api/og/card?type=rank&rank=1&streak=30&pct=1`],
+    images: [`${SITE_URL}/api/og/card?type=rank&rank=1&streak=30&pct=1`],
   },
 };
 export const dynamic = "force-dynamic";
@@ -437,7 +437,7 @@ export default async function LeaderboardPage({
             {userRank && rankMsg && (
               <ShareButton
                 shareText={rankShareText}
-                shareUrl={`${APP_URL}/leaderboard`}
+                shareUrl={`${SITE_URL}/leaderboard`}
                 cardUrl={rankCardUrl ?? undefined}
                 label="Share rank"
                 className="text-white/80 hover:text-white"

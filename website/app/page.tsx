@@ -7,27 +7,25 @@ import PhoneMockup from "@/components/ui/phone-mockup";
 import { Pill } from "@/components/ui/pill";
 import ScrollAnimations from "@/components/ui/scroll-animations";
 import { Eyebrow, Section, SectionHeading } from "@/components/ui/section";
+import { SITE_URL, WEB_APP_URL } from "@/lib/site";
 
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
-const WEB_APP_URL = "/app";
+const DESCRIPTION =
+  "Lagan is an AI habit tracker. Build daily routines, track streaks, and get AI coaching — free in the web app, with the Android app in beta on Google Play.";
 
 export const metadata: Metadata = {
-  title: "Lagan - AI Habit Tracking App",
-  description:
-    "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+  title: { absolute: "Lagan — AI Habit Tracker & Coach for Android and Web" },
+  description: DESCRIPTION,
   alternates: { canonical: "/" },
   openGraph: {
-    title: "Lagan - AI Habit Tracking App",
-    description:
-      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+    title: "Lagan — AI Habit Tracker & Coach",
+    description: DESCRIPTION,
     url: "/",
     images: ["/og-image.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Lagan - AI Habit Tracking App",
-    description:
-      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+    title: "Lagan — AI Habit Tracker & Coach",
+    description: DESCRIPTION,
     images: ["/og-image.png"],
   },
 };
@@ -73,8 +71,9 @@ const features = [
 const steps = [
   {
     step: "01",
-    title: "Download Lagan",
-    description: "Install Lagan from Google Play and start in less than a minute.",
+    title: "Open Lagan",
+    description:
+      "Start free in the web app — no install needed. Android users can join the beta on Google Play.",
   },
   {
     step: "02",
@@ -85,6 +84,34 @@ const steps = [
     step: "03",
     title: "Track progress and improve with AI",
     description: "Log each day, review your progress, and use AI guidance to adjust.",
+  },
+];
+
+const faqs = [
+  {
+    question: "What is Lagan?",
+    answer:
+      "Lagan is an AI-powered habit tracker. You build daily routines on a simple timeline, check habits off as you go, and an AI coach reads your patterns to suggest the next small improvement.",
+  },
+  {
+    question: "Is Lagan free?",
+    answer:
+      "Yes. Lagan is free to use in the web app and the Android beta. Advanced AI features may become part of Lagan Pro later.",
+  },
+  {
+    question: "Which platforms does Lagan support?",
+    answer:
+      "Lagan works in any modern browser — on desktop and iPhone — at lagan.health/app. The Android app is in beta on Google Play, and a native iOS app is planned.",
+  },
+  {
+    question: "Is Lagan on Google Play?",
+    answer:
+      "The Lagan Android app is currently in beta testing on Google Play. Until the public listing is live, you can use the full web app for free.",
+  },
+  {
+    question: "How does the AI coaching in Lagan work?",
+    answer:
+      "Lagan's AI looks at your habits, streaks, and completion patterns, then suggests realistic next steps — when to schedule a habit, what to try after a missed day, and which routine to build next.",
   },
 ];
 
@@ -269,38 +296,49 @@ function InsightsVisual() {
 }
 
 export default function LandingPage() {
-  const jsonLd = {
+  const appJsonLd = {
     "@context": "https://schema.org",
     "@type": ["MobileApplication", "SoftwareApplication"],
     name: "Lagan",
     applicationCategory: "LifestyleApplication",
-    operatingSystem: "Android",
-    description:
-      "Track habits, stay consistent, and get AI-powered guidance with Lagan. Download on Google Play.",
+    operatingSystem: "Android, Web",
+    description: DESCRIPTION,
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-    url: PLAY_STORE_URL,
+    url: SITE_URL,
+  };
+
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.question,
+      acceptedAnswer: { "@type": "Answer", text: faq.answer },
+    })),
   };
 
   const storyVisuals = [SuggestionVisual, TrackingVisual, InsightsVisual];
 
   return (
     <main className="min-h-screen overflow-x-clip bg-background text-on-surface">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(appJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <ScrollAnimations />
 
       <MarketingNav
         links={[
           { label: "Features", href: "#features" },
           { label: "How it works", href: "#how-it-works" },
+          { label: "FAQ", href: "#faq" },
         ]}
         actions={
           <>
             <Button href="/login" variant="ghost" size="md">
               Sign in
             </Button>
-            <Button href={PLAY_STORE_URL} external variant="primary" size="md" className="hidden sm:inline-flex">
-              <GooglePlayIcon />
-              Get the app
+            <Button href={WEB_APP_URL} variant="primary" size="md" className="hidden sm:inline-flex">
+              <GlobeIcon />
+              Open the app
             </Button>
           </>
         }
@@ -317,43 +355,44 @@ export default function LandingPage() {
               <Pill>AI-powered habit tracking</Pill>
             </div>
             <h1
-              aria-label="Build better habits with AI"
+              aria-label="Lagan — build better habits with AI"
               className="hero-rise mt-6 max-w-3xl font-display text-5xl font-bold leading-[1.02] tracking-tight text-on-background sm:text-6xl lg:text-7xl"
               style={{ animationDelay: "0.15s" }}
             >
               <span aria-hidden="true">
-                Build better habits <span className="text-shimmer">with AI</span>
+                Lagan — build better habits <span className="text-shimmer">with AI</span>
               </span>
             </h1>
             <p
               className="hero-rise mt-6 max-w-xl text-lg leading-8 text-on-surface-variant"
               style={{ animationDelay: "0.25s" }}
             >
-              Lagan turns your day into a simple timeline of habits — with an AI coach
-              that notices your patterns and makes the next step clear.
+              Lagan is an AI habit tracker that turns your day into a simple timeline of
+              habits — with a coach that notices your patterns and makes the next step clear.
             </p>
             <div
               className="hero-rise mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
               style={{ animationDelay: "0.35s" }}
             >
-              <Button href={PLAY_STORE_URL} external className="w-full sm:w-auto">
-                <GooglePlayIcon />
-                Get it on Google Play
+              <Button href={WEB_APP_URL} className="w-full sm:w-auto">
+                <GlobeIcon />
+                Use the web app
               </Button>
               <Button href={WEB_APP_URL} variant="outline" className="w-full sm:w-auto">
                 <PhoneIcon />
                 Use on iOS
               </Button>
-              <Button href={WEB_APP_URL} variant="outline" className="w-full sm:w-auto">
-                <GlobeIcon />
-                Continue on website
-              </Button>
+              <span className="inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-outline-variant px-5 py-3 text-base font-bold text-on-surface-variant sm:w-auto">
+                <GooglePlayIcon />
+                Android beta — coming to Google Play
+              </span>
             </div>
             <p
               className="hero-rise mt-4 text-sm font-medium text-on-surface-variant/70"
               style={{ animationDelay: "0.45s" }}
             >
-              Android app on Google Play. iPhone and desktop users can continue in the web app.
+              The Android app is in beta on Google Play. iPhone and desktop users can use
+              the full web app today.
             </p>
           </div>
 
@@ -449,12 +488,30 @@ export default function LandingPage() {
         </div>
       </Section>
 
+      {/* ── FAQ ──────────────────────────────────────────── */}
+      <Section id="faq" className="landing-section">
+        <div className="reveal-up max-w-2xl">
+          <Eyebrow>FAQ</Eyebrow>
+          <SectionHeading className="mt-3">Common questions about Lagan</SectionHeading>
+        </div>
+        <div className="stagger mt-12 grid gap-4 md:grid-cols-2">
+          {faqs.map((faq) => (
+            <Card key={faq.question} className="p-6">
+              <h3 className="font-display text-lg font-bold tracking-tight text-on-background">
+                {faq.question}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-on-surface-variant">{faq.answer}</p>
+            </Card>
+          ))}
+        </div>
+      </Section>
+
       {/* ── Final CTA ────────────────────────────────────── */}
       <Section className="landing-section pt-0 sm:pt-0">
         <Card surface="low" className="relative overflow-hidden px-5 py-12 text-center sm:px-8 md:py-16">
           <div className="bg-ember-glow glow-pulse pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full" aria-hidden="true" />
           <div className="relative">
-            <Eyebrow className="text-tertiary">Download today</Eyebrow>
+            <Eyebrow className="text-tertiary">Start today</Eyebrow>
             <h2 className="mx-auto mt-3 max-w-2xl font-display text-3xl font-bold tracking-tight text-on-background sm:text-5xl">
               Make consistency easier with Lagan
             </h2>
@@ -462,18 +519,18 @@ export default function LandingPage() {
               Track daily habits, see progress clearly, and let AI guide your next small improvement.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button href={PLAY_STORE_URL} external>
-                <GooglePlayIcon />
-                Get it on Google Play
+              <Button href={WEB_APP_URL}>
+                <GlobeIcon />
+                Use the web app
               </Button>
               <Button href={WEB_APP_URL} variant="outline">
                 <PhoneIcon />
                 Use on iOS
               </Button>
-              <Button href={WEB_APP_URL} variant="outline">
-                <GlobeIcon />
-                Continue on website
-              </Button>
+              <span className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-outline-variant px-5 py-3 text-base font-bold text-on-surface-variant">
+                <GooglePlayIcon />
+                Android beta — coming to Google Play
+              </span>
             </div>
           </div>
         </Card>

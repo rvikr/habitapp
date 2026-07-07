@@ -5,7 +5,10 @@ import { addDateKeyDays, dateKeyInTimeZone, dayIndexForDateKey } from "@/lib/dat
 import { getRequestTimeZone } from "@/lib/request-timezone";
 import HabitList from "@/components/HabitList";
 
-export const metadata: Metadata = { title: "Dashboard" };
+export const metadata: Metadata = {
+  title: "Dashboard",
+  robots: { index: false, follow: false },
+};
 export const dynamic = "force-dynamic";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

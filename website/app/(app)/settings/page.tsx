@@ -6,7 +6,10 @@ import { hasPasswordIdentity } from "@/lib/identity";
 import { levelForXp, xpForCompletions } from "@/lib/xp";
 import SettingsForm from "./SettingsForm";
 
-export const metadata: Metadata = { title: "Settings — Lagan" };
+export const metadata: Metadata = {
+  title: "Settings",
+  robots: { index: false, follow: false },
+};
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {

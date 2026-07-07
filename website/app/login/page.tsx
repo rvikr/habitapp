@@ -1,6 +1,12 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import LoginForm from "./LoginForm";
 import { LogoLockup } from "@/components/ui/logo";
+
+export const metadata: Metadata = {
+  title: "Sign in",
+  robots: { index: false, follow: false },
+};
 
 export const dynamic = "force-dynamic";
 

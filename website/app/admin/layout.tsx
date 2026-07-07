@@ -4,7 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 
-export const metadata: Metadata = { title: { default: "Admin", template: "%s — Admin · Lagan" } };
+export const metadata: Metadata = {
+  title: { default: "Admin", template: "%s — Admin · Lagan" },
+  robots: { index: false, follow: false },
+};
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "")
   .split(",")

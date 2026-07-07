@@ -6,6 +6,7 @@ import { LegalSection, LegalShell } from "@/components/ui/legal-page";
 export const metadata: Metadata = {
   title: "Account deletion",
   description: "Request deletion of your Lagan account and app data.",
+  alternates: { canonical: "/account-deletion" },
 };
 
 const deletionEmail = process.env.NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL;

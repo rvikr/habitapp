@@ -5,6 +5,7 @@ import { LegalSection, LegalShell } from "@/components/ui/legal-page";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "How Lagan collects, uses, shares, and protects personal data.",
+  alternates: { canonical: "/privacy" },
 };
 
 const SECTIONS = [
