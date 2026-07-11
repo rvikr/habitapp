@@ -227,9 +227,10 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
 - Migrations: [`supabase/migrations/`](supabase/migrations/) — apply in order. With the
   Supabase CLI: `supabase db push`.
 - Admin tables: [`supabase/admin_schema.sql`](supabase/admin_schema.sql).
-- Leaderboard RPC: [`supabase/get_leaderboard.sql`](supabase/get_leaderboard.sql).
+- Leaderboard API: service-only SQL functions in [`supabase/migrations/`](supabase/migrations/)
+  are exposed through the authenticated `leaderboard` Edge Function.
 - Edge Functions: [`supabase/functions/`](supabase/functions/) — `coach-message`,
-  `delete-account`, `habit-routine`, `smart-reminders`, `sync-subscription`, and
+  `delete-account`, `habit-routine`, `leaderboard`, `smart-reminders`, `sync-subscription`, and
   `revenuecat-webhook`. Deploy with
   `supabase functions deploy <name> --project-ref <ref>`.
 - Pro subscriptions use RevenueCat entitlement `pro` with product ids

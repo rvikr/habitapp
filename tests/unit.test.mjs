@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import { addLocalDays, localDateDaysAgo, localDateKey } from "../lib/utils/date.ts";
 import {
@@ -102,6 +102,15 @@ const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
 
 let testChain = Promise.resolve();
 
+function readMigration(name) {
+  const file = readdirSync("supabase/migrations")
+    .filter((entry) => entry.endsWith(`_${name}.sql`))
+    .sort()
+    .at(-1);
+  assert.ok(file, `missing migration ${name}`);
+  return readFileSync(`supabase/migrations/${file}`, "utf8");
+}
+
 function test(name, fn) {
   testChain = testChain.then(async () => {
     try {
@@ -187,17 +196,17 @@ test("streakFromDates counts an unbroken run across the new year", () => {
 
 test("XP constants are canonical across app, website, and SQL", () => {
   assert.equal(XP_PER_COMPLETION, 10);
-  assert.equal(XP_PER_LEVEL, 100);
+  assert.equal(XP_PER_LEVEL, 500);
   assert.equal(WEBSITE_XP_PER_COMPLETION, XP_PER_COMPLETION);
   assert.equal(WEBSITE_XP_PER_LEVEL, XP_PER_LEVEL);
-  assert.equal(xpForCompletions(11), 110);
+  assert.equal(xpForCompletions(51), 510);
   assert.equal(levelForXp(0), 1);
-  assert.equal(levelForXp(100), 2);
-  assert.equal(xpInLevel(110), 10);
+  assert.equal(levelForXp(500), 2);
+  assert.equal(xpInLevel(510), 10);
 
-  const sql = readFileSync("supabase/migrations/0008_release_readiness.sql", "utf8");
-  assert.match(sql, /count\(\*\)::bigint \* 10 as xp/);
-  assert.match(sql, /\/ 100 \+ 1 as level/);
+  const sql = readMigration("0023_smart_partial_checkin_credit");
+  assert.match(sql, /\(coalesce\(ct\.total_completions, 0\)::bigint \* 10\) as total_xp/);
+  assert.match(sql, /\/ 500\) \+ 1\)::integer as level/);
 });
 
 test("home widget snapshot clamps progress and formats launcher copy", () => {
@@ -293,23 +302,93 @@ test("home widget snapshot falls back to opening the app when everything is done
   assert.equal(snapshot.checkInUrl, null);
 });
 
-test("leaderboard RPC is restricted to authenticated callers", () => {
-  const sql = readFileSync("supabase/migrations/0012_restrict_leaderboard_rpc.sql", "utf8");
-  assert.match(sql, /revoke execute on function public\.get_leaderboard\(text\) from public/i);
-  assert.match(sql, /revoke execute on function public\.get_leaderboard\(text\) from anon/i);
-  assert.match(sql, /grant execute on function public\.get_leaderboard\(text\) to authenticated/i);
-  assert.match(sql, /if auth\.uid\(\) is null then/i);
-  assert.match(sql, /raise exception 'authenticated user required'/i);
+test("leaderboard SQL API is service-only and public views are invoker locked", () => {
+  const serviceSql = readMigration("0021_leaderboard_service_api");
+  assert.match(serviceSql, /create or replace function public\.get_leaderboard_entries/i);
+  assert.match(serviceSql, /create or replace function public\.get_leaderboard_position/i);
+  assert.match(serviceSql, /security invoker/i);
+  assert.match(
+    serviceSql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from public/i,
+  );
+  assert.match(
+    serviceSql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from anon/i,
+  );
+  assert.match(
+    serviceSql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from authenticated/i,
+  );
+  assert.match(
+    serviceSql,
+    /grant execute on function public\.get_leaderboard_entries\(text, integer, uuid\) to service_role/i,
+  );
+  assert.match(
+    serviceSql,
+    /grant execute on function public\.get_leaderboard_position\(uuid, text\) to service_role/i,
+  );
+
+  const lockDownSql = readMigration("0022_lock_down_leaderboard_views");
+  assert.match(
+    lockDownSql,
+    /alter view public\.public_profiles\s+set \(security_invoker = true\)/i,
+  );
+  assert.match(lockDownSql, /alter view public\.leaderboard\s+set \(security_invoker = true\)/i);
+  assert.match(
+    lockDownSql,
+    /revoke all privileges on table public\.public_profiles from public, anon, authenticated/i,
+  );
+  assert.match(
+    lockDownSql,
+    /revoke all privileges on table public\.leaderboard from public, anon, authenticated/i,
+  );
+  assert.match(
+    lockDownSql,
+    /revoke execute on function public\.get_leaderboard\(text\) from public, anon, authenticated/i,
+  );
+  assert.match(lockDownSql, /drop function if exists public\.get_leaderboard\(text\)/i);
 });
 
 test("leaderboard credit counts only completed target rows", () => {
-  const sql = readFileSync("supabase/migrations/0021_smart_partial_checkin_credit.sql", "utf8");
+  const sql = readFileSync(
+    "supabase/migrations/20260604180000_0023_smart_partial_checkin_credit.sql",
+    "utf8",
+  );
   assert.match(sql, /join public\.habits h on h\.id = hc\.habit_id/i);
   assert.match(sql, /h\.target is null/i);
   assert.match(sql, /coalesce\(hc\.value,\s*1\) >= h\.target/i);
   assert.match(sql, /create or replace view public\.leaderboard/i);
-  assert.match(sql, /create or replace function public\.get_leaderboard/i);
-  assert.match(sql, /grant execute on function public\.get_leaderboard\(text\) to authenticated/i);
+  assert.match(sql, /alter view public\.leaderboard\s+set \(security_invoker = true\)/i);
+  assert.match(sql, /drop function if exists public\.get_leaderboard\(text\)/i);
+  assert.match(sql, /create or replace function public\.get_leaderboard_entries/i);
+  assert.match(sql, /create or replace function public\.get_leaderboard_position/i);
+  assert.match(
+    sql,
+    /revoke all privileges on table public\.leaderboard from public, anon, authenticated/i,
+  );
+  assert.match(
+    sql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\) from authenticated/i,
+  );
+  assert.match(
+    sql,
+    /grant execute on function public\.get_leaderboard_position\(uuid, text\) to service_role/i,
+  );
+});
+
+test("clients use the leaderboard Edge Function instead of direct leaderboard SQL", () => {
+  const appLeaderboard = readFileSync("lib/data/leaderboard.ts", "utf8");
+  const reminders = readFileSync("lib/data/reminders.ts", "utf8");
+  const websiteLeaderboard = readFileSync("website/app/(app)/leaderboard/page.tsx", "utf8");
+
+  for (const source of [appLeaderboard, reminders, websiteLeaderboard]) {
+    assert.doesNotMatch(source, /\.from\("leaderboard"\)/);
+    assert.doesNotMatch(source, /\.rpc\("get_leaderboard"/);
+  }
+
+  assert.match(appLeaderboard, /functions\.invoke[^{\n]*\(\s*"leaderboard"/);
+  assert.match(websiteLeaderboard, /functions\.invoke[^{\n]*\(\s*"leaderboard"/);
+  assert.match(reminders, /getMyLeaderboardPosition/);
 });
 
 test("AI quota RPC is service-only and records quota events", () => {

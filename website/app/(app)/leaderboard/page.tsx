@@ -24,26 +24,45 @@ interface LeaderboardEntry {
   rank: number;
   user_id: string;
   display_name: string;
+  avatar_style: string | null;
+  avatar_seed: string | null;
+  total_completions: number;
+  total_xp: number;
+  level: number;
+  total_habits: number;
+  last_completion_date: string | null;
   xp: number;
   streak: number;
   is_current_user: boolean;
 }
 
+type LeaderboardFunctionResponse = {
+  entries?: LeaderboardEntry[];
+  error?: string;
+};
+
 async function getLeaderboard(
   period: Period
 ): Promise<{ entries: LeaderboardEntry[]; debugError?: string }> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_leaderboard", { period });
+  const { data, error } = await supabase.functions.invoke<LeaderboardFunctionResponse>(
+    "leaderboard",
+    {
+      body: {
+        period,
+        limit: 50,
+        includeEntries: true,
+        includePosition: false,
+      },
+    },
+  );
   if (error) {
-    const { data: d2, error: e2 } = await supabase.rpc("get_leaderboard");
-    if (!e2 && Array.isArray(d2) && d2.length > 0)
-      return { entries: d2 as LeaderboardEntry[] };
     return {
       entries: [],
-      debugError: `RPC error: ${error.message}${e2 ? ` | ${e2.message}` : ""}`,
+      debugError: `Leaderboard function error: ${error.message}`,
     };
   }
-  return { entries: Array.isArray(data) ? (data as LeaderboardEntry[]) : [] };
+  return { entries: Array.isArray(data?.entries) ? data.entries : [] };
 }
 
 const TABS: { label: string; period: Period }[] = [

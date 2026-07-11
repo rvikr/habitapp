@@ -21,6 +21,7 @@ import {
 } from "../coach/smart-reminders";
 import { resolveAiSmartReminderPlans } from "../coach/smart-reminder-ai";
 import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
+import { getMyLeaderboardPosition } from "./leaderboard";
 
 export type ReminderContext = {
   streak: number;
@@ -86,8 +87,7 @@ export async function getReminderSchedule(
   const [
     { data: smartHabits, error: smartHabitError },
     { data: completions },
-    { count: totalOnLeaderboard },
-    { data: myEntry },
+    leaderboardPosition,
     { data: profile },
   ] = await Promise.all([
     supabase
@@ -103,8 +103,7 @@ export async function getReminderSchedule(
       .select("habit_id, completed_on, created_at, value")
       .eq("user_id", user.id)
       .gte("completed_on", cutoff),
-    supabase.from("leaderboard").select("user_id", { count: "exact", head: true }),
-    supabase.from("leaderboard").select("total_xp").eq("user_id", user.id).maybeSingle(),
+    getMyLeaderboardPosition(),
     supabase
       .from("profiles")
       .select(
@@ -124,15 +123,7 @@ export async function getReminderSchedule(
     habits = legacyHabits as Record<string, unknown>[] | null;
   }
 
-  // Count users below me on the leaderboard to compute percentile.
-  let percentileAhead: number | null = null;
-  if (myEntry && totalOnLeaderboard && totalOnLeaderboard > 1) {
-    const { count: belowMe } = await supabase
-      .from("leaderboard")
-      .select("user_id", { count: "exact", head: true })
-      .lt("total_xp", (myEntry as { total_xp: number }).total_xp);
-    percentileAhead = Math.round(((belowMe ?? 0) / totalOnLeaderboard) * 100);
-  }
+  const percentileAhead = leaderboardPosition?.percentileAhead ?? null;
 
   // Group completions by habit for fast per-habit access.
   type Completion = {
