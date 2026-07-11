@@ -50,6 +50,7 @@ import { validateHabitLocally, type HabitValidationResult } from "../habits/vali
 import { validateHabitRemote } from "../habits/validate-remote";
 import {
   createHabitFailure,
+  queuedMergedHabitResult,
   runRoutineCreateSequence,
   type HabitCreateResult,
 } from "../habits/routine-create";
@@ -59,8 +60,13 @@ import { validateCompletionPeriod, validateCompletionValue } from "./completion-
 import {
   enqueueHabitMutation,
   flushPendingHabitMutations,
-  resolveHabitReconciliationFailures,
+  isRetryableHabitMutationError,
+  listPendingHabitMutations,
+  rejectQueuedHabitMutation,
+  replaceQueuedHabitMutationPayload,
+  settleQueuedHabitMutation,
 } from "./habit-mutation-queue";
+import { runHabitMutationWriteExclusive } from "./habit-mutation-write-coordinator";
 
 type ActionResult = { ok: boolean; error?: string; queued?: boolean };
 type CompletionHabit = Pick<Habit, "name" | "unit" | "target"> & {
@@ -193,17 +199,44 @@ function validateCompletionIncrement(value: number, habit?: CompletionHabit) {
   return validateCompletionValue(value, { metricType, target: habit.target });
 }
 
-async function queueHabitPatch(
-  kind: "update" | "archive",
-  habitId: string,
-  userId: string,
-  payload: Record<string, unknown>,
-  error: { message?: string } | null | undefined,
+async function settleConfirmedQueuedMutation(
+  operationId: string,
+  options?: { resolveLegacyFailures?: boolean },
+): Promise<void> {
+  try {
+    await settleQueuedHabitMutation(operationId, options);
+  } catch (error) {
+    // The journal already contains the exact payload accepted by the server.
+    // Leaving it replayable is idempotent and safer than reporting a false
+    // failed save after the remote write committed.
+    reportError(error instanceof Error ? error : new Error(String(error)), {
+      context: "habit-mutation-success-settlement",
+    });
+  }
+}
+
+async function rejectStagedHabitMutation(
+  operationId: string,
+  error: { message?: string; code?: string } | null | undefined,
 ): Promise<ActionResult> {
-  if (!isNetworkFailure(error)) return mutationResult(error);
-  await enqueueHabitMutation({ kind, habitId, userId, payload });
-  clearDataCache();
-  return { ok: true, queued: true };
+  try {
+    await rejectQueuedHabitMutation(operationId, {
+      reason: error?.code === "PGRST116" ? "not_found" : "rejected",
+      code: error?.code,
+    });
+  } catch (storageError) {
+    reportError(storageError instanceof Error ? storageError : new Error(String(storageError)), {
+      context: "habit-mutation-rejection-settlement",
+    });
+  }
+  return mutationResult(error);
+}
+
+function habitJournalFailure(error: unknown): ActionResult {
+  reportError(error instanceof Error ? error : new Error(String(error)), {
+    context: "habit-mutation-journal",
+  });
+  return { ok: false, error: "Could not safely save this change. Try again." };
 }
 
 function networkError(): Error {
@@ -242,6 +275,27 @@ function legacyHabitPayload(
     reminder_times: data.reminderTimes,
     reminder_days: data.reminderDays,
   };
+}
+
+const LEGACY_HABIT_PATCH_FIELDS = [
+  "name",
+  "description",
+  "icon",
+  "color",
+  "unit",
+  "target",
+  "reminders_enabled",
+  "reminder_times",
+  "reminder_days",
+  "archived_at",
+] as const;
+
+function legacyCompatibleHabitPatch(payload: Record<string, unknown>): Record<string, unknown> {
+  const legacy: Record<string, unknown> = {};
+  for (const field of LEGACY_HABIT_PATCH_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(payload, field)) legacy[field] = payload[field];
+  }
+  return legacy;
 }
 
 function smartHabitPayload(
@@ -673,16 +727,33 @@ export async function updateHabitReminders(
     reminder_times: data.times,
     reminder_days: data.days,
   };
-  const { error } = await supabase
-    .from("habits")
-    .update(payload)
-    .eq("id", habitId)
-    .eq("user_id", user.id);
-  if (error) {
-    const queued = await queueHabitPatch("update", habitId, user.id, payload, error);
-    if (!queued.ok || !queued.queued) return queued;
-    if (!data.enabled) await cancelHabitReminders(habitId).catch(() => undefined);
-    return queued;
+  const writeResult = await runHabitMutationWriteExclusive(async (): Promise<ActionResult> => {
+    const staged = await enqueueHabitMutation({
+      kind: "update",
+      habitId,
+      userId: user.id,
+      payload,
+    });
+    const { error } = await supabase
+      .from("habits")
+      .update(staged.payload)
+      .eq("id", habitId)
+      .eq("user_id", user.id)
+      .select("id")
+      .single();
+    if (error) {
+      if (isRetryableHabitMutationError(error)) return { ok: true, queued: true };
+      return rejectStagedHabitMutation(staged.id, error);
+    }
+
+    await settleConfirmedQueuedMutation(staged.id);
+    return { ok: true };
+  }).catch(habitJournalFailure);
+  if (!writeResult.ok || writeResult.queued) {
+    if (writeResult.queued && !data.enabled) {
+      await cancelHabitReminders(habitId).catch(() => undefined);
+    }
+    return writeResult;
   }
 
   clearDataCache();
@@ -772,14 +843,89 @@ async function createHabitForUserUnsafe(
     unit: intelligence.unit,
     target: intelligence.target,
   };
-  let match: { habit: Habit; score: number } | undefined;
-  if (data.mergeSimilar !== false) {
-    match = inputRules.existingHabits
+
+  const insertNewHabit = async (): Promise<HabitCreateResult> => {
+    const { data: row, error } = await supabase
+      .from("habits")
+      .insert(smartHabitPayload(data, intelligence, userId))
+      .select("*")
+      .single();
+    if (error) {
+      if (!isMissingSmartHabitColumn(error)) return createHabitFailure(error);
+      const { data: legacyRow, error: legacyError } = await supabase
+        .from("habits")
+        .insert(legacyHabitPayload(data, intelligence, userId))
+        .select("*")
+        .single();
+      if (legacyError) return createHabitFailure(legacyError);
+      if (!legacyRow?.id) return createHabitFailure("The saved habit could not be loaded.");
+      clearDataCache();
+      if (data.remindersEnabled) scheduleReminderSync();
+      track("habit_created", {
+        color: data.color,
+        has_target: intelligence.target != null,
+        habit_type: intelligence.habitType,
+        schema: "legacy",
+      });
+      return {
+        ok: true,
+        id: legacyRow.id as string,
+        habit: legacyRow as Habit,
+        migrated: false,
+      };
+    }
+
+    if (!row?.id) return createHabitFailure("The saved habit could not be loaded.");
+    clearDataCache();
+    if (data.remindersEnabled) scheduleReminderSync();
+    track("habit_created", {
+      color: data.color,
+      has_target: intelligence.target != null,
+      habit_type: intelligence.habitType,
+    });
+    return { ok: true, id: row.id as string, habit: row as Habit };
+  };
+
+  return runHabitMutationWriteExclusive(async (): Promise<HabitCreateResult> => {
+    const [{ data: activeRows, error: activeRowsError }, pending] = await Promise.all([
+      supabase.from("habits").select("*").eq("user_id", userId).is("archived_at", null),
+      listPendingHabitMutations(userId),
+    ]);
+    if (activeRowsError) return createHabitFailure(activeRowsError);
+
+    const pendingByHabit = new Map(pending.map((operation) => [operation.habitId, operation]));
+    const effectiveHabits = ((activeRows ?? []) as Habit[])
+      .map((habit) => {
+        const queued = pendingByHabit.get(habit.id);
+        return {
+          ...habit,
+          ...(queued?.payload ?? {}),
+          id: habit.id,
+          user_id: habit.user_id,
+        } as Habit;
+      })
+      .filter((habit) => !habit.archived_at);
+
+    if (data.mergeSimilar === false) {
+      const authoritativeRules = validateHabitInput({
+        name: data.name,
+        metricType: intelligence.metricType,
+        target: intelligence.target,
+        existingHabits: effectiveHabits,
+        currentHabitId: null,
+      });
+      if (!authoritativeRules.ok) {
+        return createHabitFailure(authoritativeRules.errors[0], "validation");
+      }
+      return insertNewHabit();
+    }
+
+    const match = effectiveHabits
       .map((habit) => ({ habit, score: scoreHabitSimilarity(candidate, habit) }))
       .sort((a, b) => b.score - a.score)[0];
-  }
 
-  if (match && match.score >= DUPLICATE_SIMILARITY_THRESHOLD) {
+    if (!match || match.score < DUPLICATE_SIMILARITY_THRESHOLD) return insertNewHabit();
+
     const merged = mergeHabitSettings(candidate, match.habit);
     const reminders = mergeHabitReminders(
       {
@@ -793,86 +939,72 @@ async function createHabitForUserUnsafe(
         days: data.reminderDays,
       },
     );
-    const mergePayload = {
-      reminders_enabled: reminders.enabled,
-      reminder_times: reminders.times,
-      reminder_days: reminders.days,
-      ...merged,
-    };
+    const staged = await enqueueHabitMutation({
+      kind: "update",
+      habitId: match.habit.id,
+      userId,
+      payload: {
+        reminders_enabled: reminders.enabled,
+        reminder_times: reminders.times,
+        reminder_days: reminders.days,
+        ...merged,
+      },
+    });
+    if (staged.kind === "archive") return insertNewHabit();
+    const queuedMergeSuccess = (operation: typeof staged): HabitCreateResult =>
+      queuedMergedHabitResult({
+        ...match.habit,
+        ...operation.payload,
+        id: match.habit.id,
+        user_id: match.habit.user_id,
+      } as Habit);
+
     const { data: updatedRow, error } = await supabase
       .from("habits")
-      .update(mergePayload)
-      .eq("id", match.habit.id)
+      .update(staged.payload)
+      .eq("id", staged.habitId)
       .eq("user_id", userId)
       .select("*")
       .single();
+    let accepted = staged;
     let savedRow = updatedRow as Habit | null;
     if (error) {
-      if (!isMissingSmartHabitColumn(error)) return createHabitFailure(error);
+      if (isRetryableHabitMutationError(error)) return queuedMergeSuccess(staged);
+      if (!isMissingSmartHabitColumn(error)) {
+        await rejectQueuedHabitMutation(staged.id, { code: error.code });
+        return createHabitFailure(error);
+      }
+      const legacyStaged = await replaceQueuedHabitMutationPayload(
+        staged.id,
+        legacyCompatibleHabitPatch(staged.payload),
+      );
+      if (!legacyStaged) {
+        return queuedMergeSuccess(staged);
+      }
+      accepted = legacyStaged;
       const { data: legacyRow, error: legacyError } = await supabase
         .from("habits")
-        .update({
-          name: merged.name,
-          description: merged.description,
-          unit: merged.unit,
-          target: merged.target,
-          reminders_enabled: reminders.enabled,
-          reminder_times: reminders.times,
-          reminder_days: reminders.days,
-        })
-        .eq("id", match.habit.id)
+        .update(legacyStaged.payload)
+        .eq("id", legacyStaged.habitId)
         .eq("user_id", userId)
         .select("*")
         .single();
-      if (legacyError) return createHabitFailure(legacyError);
+      if (legacyError) {
+        if (isRetryableHabitMutationError(legacyError)) {
+          return queuedMergeSuccess(legacyStaged);
+        }
+        await rejectQueuedHabitMutation(legacyStaged.id, { code: legacyError.code });
+        return createHabitFailure(legacyError);
+      }
       savedRow = legacyRow as Habit | null;
     }
     if (!savedRow?.id) return createHabitFailure("The saved habit could not be loaded.");
+    await settleConfirmedQueuedMutation(accepted.id);
     clearDataCache();
     scheduleReminderSync();
     track("habit_merged", { habit_type: merged.habit_type, score: match.score });
     return { ok: true, id: savedRow.id, habit: savedRow, merged: true };
-  }
-
-  const { data: row, error } = await supabase
-    .from("habits")
-    .insert(smartHabitPayload(data, intelligence, userId))
-    .select("*")
-    .single();
-  if (error) {
-    if (!isMissingSmartHabitColumn(error)) return createHabitFailure(error);
-    const { data: legacyRow, error: legacyError } = await supabase
-      .from("habits")
-      .insert(legacyHabitPayload(data, intelligence, userId))
-      .select("*")
-      .single();
-    if (legacyError) return createHabitFailure(legacyError);
-    if (!legacyRow?.id) return createHabitFailure("The saved habit could not be loaded.");
-    clearDataCache();
-    if (data.remindersEnabled) scheduleReminderSync();
-    track("habit_created", {
-      color: data.color,
-      has_target: intelligence.target != null,
-      habit_type: intelligence.habitType,
-      schema: "legacy",
-    });
-    return {
-      ok: true,
-      id: legacyRow.id as string,
-      habit: legacyRow as Habit,
-      migrated: false,
-    };
-  }
-
-  if (!row?.id) return createHabitFailure("The saved habit could not be loaded.");
-  clearDataCache();
-  if (data.remindersEnabled) scheduleReminderSync();
-  track("habit_created", {
-    color: data.color,
-    has_target: intelligence.target != null,
-    habit_type: intelligence.habitType,
-  });
-  return { ok: true, id: row.id as string, habit: row as Habit };
+  }).catch((error) => createHabitFailure(error));
 }
 
 export async function updateHabitFull(
@@ -908,34 +1040,55 @@ export async function updateHabitFull(
   }
 
   const smartPayload = smartHabitPayload(data, intelligence);
-  const { error } = await supabase
-    .from("habits")
-    .update(smartPayload)
-    .eq("id", habitId)
-    .eq("user_id", user.id);
-  if (error) {
-    if (isNetworkFailure(error)) {
-      const queued = await queueHabitPatch("update", habitId, user.id, smartPayload, error);
-      if (!queued.ok || !queued.queued) return queued;
-      if (!data.remindersEnabled) await cancelHabitReminders(habitId).catch(() => undefined);
-      return queued;
-    }
-    if (!isMissingSmartHabitColumn(error)) return mutationResult(error);
-    const legacyPayload = legacyHabitPayload(data, intelligence);
-    const { error: legacyError } = await supabase
+  const writeResult = await runHabitMutationWriteExclusive(async (): Promise<ActionResult> => {
+    const staged = await enqueueHabitMutation({
+      kind: "update",
+      habitId,
+      userId: user.id,
+      payload: smartPayload,
+    });
+    const { error } = await supabase
       .from("habits")
-      .update(legacyPayload)
+      .update(staged.payload)
       .eq("id", habitId)
-      .eq("user_id", user.id);
-    if (legacyError) {
-      const queued = await queueHabitPatch("update", habitId, user.id, legacyPayload, legacyError);
-      if (!queued.ok || !queued.queued) return queued;
-      if (!data.remindersEnabled) await cancelHabitReminders(habitId).catch(() => undefined);
-      return queued;
+      .eq("user_id", user.id)
+      .select("id")
+      .single();
+    let accepted = staged;
+    if (error) {
+      if (isRetryableHabitMutationError(error)) return { ok: true, queued: true };
+      if (!isMissingSmartHabitColumn(error)) {
+        return rejectStagedHabitMutation(staged.id, error);
+      }
+      const legacyStaged = await replaceQueuedHabitMutationPayload(
+        staged.id,
+        legacyCompatibleHabitPatch(staged.payload),
+      );
+      if (!legacyStaged) return { ok: true, queued: true };
+      accepted = legacyStaged;
+      const { error: legacyError } = await supabase
+        .from("habits")
+        .update(legacyStaged.payload)
+        .eq("id", habitId)
+        .eq("user_id", user.id)
+        .select("id")
+        .single();
+      if (legacyError) {
+        if (isRetryableHabitMutationError(legacyError)) return { ok: true, queued: true };
+        return rejectStagedHabitMutation(legacyStaged.id, legacyError);
+      }
     }
+
+    await settleConfirmedQueuedMutation(accepted.id, { resolveLegacyFailures: true });
+    return { ok: true };
+  }).catch(habitJournalFailure);
+  if (!writeResult.ok || writeResult.queued) {
+    if (writeResult.queued && !data.remindersEnabled) {
+      await cancelHabitReminders(habitId).catch(() => undefined);
+    }
+    return writeResult;
   }
 
-  await resolveHabitReconciliationFailures(habitId).catch(() => undefined);
   clearDataCache();
   if (data.remindersEnabled) scheduleReminderSync();
   else {
@@ -957,19 +1110,33 @@ export async function deleteHabit(habitId: string): Promise<ActionResult> {
   if (!user) return notSignedIn();
   await flushPendingHabitMutations();
   const payload = { archived_at: new Date().toISOString(), reminders_enabled: false };
-  const { error } = await supabase
-    .from("habits")
-    .update(payload)
-    .eq("id", habitId)
-    .eq("user_id", user.id);
-  if (error) {
-    const queued = await queueHabitPatch("archive", habitId, user.id, payload, error);
-    if (!queued.ok || !queued.queued) return queued;
-    await cancelHabitReminders(habitId).catch(() => undefined);
-    return queued;
+  const writeResult = await runHabitMutationWriteExclusive(async (): Promise<ActionResult> => {
+    const staged = await enqueueHabitMutation({
+      kind: "archive",
+      habitId,
+      userId: user.id,
+      payload,
+    });
+    const { error } = await supabase
+      .from("habits")
+      .update(staged.payload)
+      .eq("id", habitId)
+      .eq("user_id", user.id)
+      .select("id")
+      .single();
+    if (error) {
+      if (isRetryableHabitMutationError(error)) return { ok: true, queued: true };
+      return rejectStagedHabitMutation(staged.id, error);
+    }
+
+    await settleConfirmedQueuedMutation(staged.id);
+    return { ok: true };
+  }).catch(habitJournalFailure);
+  if (!writeResult.ok || writeResult.queued) {
+    if (writeResult.queued) await cancelHabitReminders(habitId).catch(() => undefined);
+    return writeResult;
   }
 
-  await resolveHabitReconciliationFailures(habitId).catch(() => undefined);
   clearDataCache();
   // Cancel the deleted habit's scheduled ids, then rebuild so any bundle it
   // shared with remaining habits is re-scheduled without it.

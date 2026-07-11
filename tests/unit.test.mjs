@@ -454,6 +454,7 @@ test("website canonical suggestions require a positive default and keep legacy f
     name: "Read",
     target: 100,
     default_log_value: 25,
+    metric_type: "pages",
     unit: "pages",
   };
 
@@ -474,7 +475,7 @@ test("website canonical suggestions require a positive default and keep legacy f
       { ...canonicalHabit, target: 1000, default_log_value: 249.89999999999998 },
       0,
     ),
-    249.9,
+    249,
   );
   assert.equal(defaultLogValueForTarget(100), 25);
   assert.equal(defaultLogValueForTarget(5), 1.25);
@@ -489,6 +490,7 @@ test("website check-in labels distinguish canonical partial logs from legacy com
     name: "Read",
     target: 100,
     default_log_value: 25,
+    metric_type: "pages",
     unit: "pages",
   };
 
@@ -501,7 +503,7 @@ test("website check-in labels distinguish canonical partial logs from legacy com
   assert.equal(habitCheckInActionLabel(habit, 100, true), "Mark Read incomplete");
   assert.equal(
     habitCheckInActionLabel({ ...habit, default_log_value: 24.899999999999998 }, 0, false),
-    "Log 24.9 pages for Read",
+    "Log 24 pages for Read",
   );
 });
 
@@ -518,10 +520,10 @@ test("website check-ins are clamped, owner-scoped, and exact-once", () => {
   assert.match(helper, /export function suggestedIncrement/);
   assert.match(actions, /operationId: string/);
   assert.match(actions, /isValidUuid\(operationId\)/);
-  assert.match(actions, /select\("target, default_log_value"\)/);
+  assert.match(actions, /select\("target, default_log_value, metric_type"\)/);
   assert.match(actions, /eq\("user_id", user\.id\)/);
   assert.match(actions, /select\("value"\)/);
-  assert.match(actions, /suggestedIncrement\(habit[\s\S]*?\)\s*\?\?\s*legacyFillIncrement\(/);
+  assert.match(actions, /resolveWebCheckInIncrement\(habit, currentValue\)/);
   assert.match(actions, /rpc\("log_habit_completion_once"/);
   assert.match(actions, /p_operation_id: operationId/);
   assert.match(habitList, /crypto\.randomUUID\(\)/);
@@ -546,7 +548,7 @@ test("website dashboard lets signed-in users add habits", () => {
   assert.doesNotMatch(habitList, /Open the mobile app to add your first habit/);
   assert.match(actions, /export async function createHabit/);
   assert.match(actions, /\.from\("habits"\)[\s\S]*\.insert\(/);
-  assert.match(actions, /default_log_value:\s*defaultLogValueForTarget\(target\.value\)/);
+  assert.match(actions, /default_log_value:[\s\S]*?defaultWebLogValue\(target\.value, "minutes"\)/);
 });
 
 test("Expo SDK patch dependencies match Expo install expectations", () => {
@@ -762,6 +764,10 @@ test("home widget exposes a safe check-in deep link and an exact-once route", as
   const { widgetCheckInForValidatedState } = await import("../lib/widgets/widget-check-in.ts");
   const activeHabit = {
     id: "widget-habit",
+    name: "Focus",
+    icon: "timer",
+    unit: "min",
+    metric_type: "minutes",
     target: 100,
     default_log_value: 25,
     archived_at: null,
@@ -3419,6 +3425,281 @@ test("habit archive remains terminal when compacted with an existing update", as
   });
 });
 
+test("confirmed habit supersession is scoped and preserves a concurrent replacement", async () => {
+  let raw = null;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      raw = value;
+    },
+    async removeItem() {
+      raw = null;
+    },
+  });
+  const operation = (id, userId, habitId, payload = { reminders_enabled: true }) => ({
+    id,
+    kind: "update",
+    habitId,
+    userId,
+    payload,
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+
+  await store.enqueue(operation("failed-target", "user-1", "habit-1"));
+  await store.settleRejected("failed-target", {
+    reason: "rejected",
+    failedAt: "2026-07-11T10:01:00.000Z",
+  });
+  await store.enqueue(
+    operation("old-target", "user-1", "habit-1", {
+      name: "Read offline",
+      reminders_enabled: false,
+    }),
+  );
+  await store.enqueue(operation("old-target", "user-1", "habit-2"));
+  await store.enqueue(operation("old-target", "user-2", "habit-1"));
+
+  const boundary = await store.captureSupersessionBoundary("user-1", "habit-1");
+  assert.deepEqual(
+    (await store.read()).map(({ id }) => id),
+    ["old-target", "old-target", "old-target"],
+    "capturing the boundary must not mutate the journal before server success",
+  );
+
+  await store.enqueue(operation("new-target", "user-1", "habit-1", { reminders_enabled: false }));
+  await store.settleSuperseded(
+    boundary,
+    { name: "Read online", reminders_enabled: true },
+    { resolveFailures: true },
+  );
+
+  assert.deepEqual(
+    (await store.read()).map(({ userId, habitId, id, payload }) => [userId, habitId, id, payload]),
+    [
+      ["user-1", "habit-2", "old-target", { reminders_enabled: true }],
+      ["user-2", "habit-1", "old-target", { reminders_enabled: true }],
+      ["user-1", "habit-1", "new-target", { reminders_enabled: false }],
+    ],
+  );
+  assert.deepEqual(await store.readFailures("user-1", "habit-1"), []);
+
+  const replacementBoundary = await store.captureSupersessionBoundary("user-1", "habit-1");
+  await store.settleSuperseded(replacementBoundary, { reminders_enabled: false });
+  assert.deepEqual(
+    (await store.read()).map(({ userId, habitId, id }) => [userId, habitId, id]),
+    [
+      ["user-1", "habit-2", "old-target"],
+      ["user-2", "habit-1", "old-target"],
+    ],
+  );
+});
+
+test("a confirmed reminder write keeps non-overlapping queued habit fields", async () => {
+  let raw = null;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      raw = value;
+    },
+    async removeItem() {
+      raw = null;
+    },
+  });
+  await store.enqueue({
+    id: "failed",
+    kind: "update",
+    habitId: "habit-1",
+    userId: "user-1",
+    payload: { name: "Earlier name" },
+    queuedAt: "2026-07-11T09:00:00.000Z",
+  });
+  await store.settleRejected("failed", {
+    reason: "rejected",
+    failedAt: "2026-07-11T09:05:00.000Z",
+  });
+  await store.enqueue({
+    id: "pending-full-edit",
+    kind: "update",
+    habitId: "habit-1",
+    userId: "user-1",
+    payload: {
+      name: "Offline name",
+      reminders_enabled: false,
+      reminder_times: ["08:00"],
+    },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+  const boundary = await store.captureSupersessionBoundary("user-1", "habit-1");
+
+  await store.settleSuperseded(boundary, {
+    reminders_enabled: true,
+    reminder_times: ["09:00"],
+  });
+
+  assert.deepEqual(await store.read(), [
+    {
+      id: "pending-full-edit",
+      kind: "update",
+      habitId: "habit-1",
+      userId: "user-1",
+      payload: { name: "Offline name" },
+      queuedAt: "2026-07-11T10:00:00.000Z",
+    },
+  ]);
+  assert.equal(
+    (await store.readFailures("user-1", "habit-1"))[0]?.operationId,
+    "failed",
+    "a reminder-only success must not dismiss an unrelated full-edit failure",
+  );
+});
+
+test("habit supersession keeps the journal intact when settlement storage fails", async () => {
+  let raw = null;
+  let rejectWrites = false;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      if (rejectWrites) throw new Error("storage unavailable");
+      raw = value;
+    },
+    async removeItem() {
+      if (rejectWrites) throw new Error("storage unavailable");
+      raw = null;
+    },
+  });
+  await store.enqueue({
+    id: "pending",
+    kind: "update",
+    habitId: "habit-1",
+    userId: "user-1",
+    payload: { reminders_enabled: true },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+  const boundary = await store.captureSupersessionBoundary("user-1", "habit-1");
+
+  rejectWrites = true;
+  await assert.rejects(
+    store.settleSuperseded(boundary, { reminders_enabled: false }),
+    /storage unavailable/,
+  );
+  rejectWrites = false;
+
+  assert.deepEqual(
+    (await store.read()).map(({ id }) => id),
+    ["pending"],
+  );
+});
+
+test("duplicate merges wait for an in-flight habit replay before writing", async () => {
+  let coordinatorModule = null;
+  try {
+    coordinatorModule = await import("../lib/data/habit-mutation-write-coordinator.ts");
+  } catch {
+    // The assertion below keeps the first TDD failure focused on the missing
+    // coordinator instead of aborting the whole test module during import.
+  }
+  assert.equal(
+    typeof coordinatorModule?.createHabitMutationWriteCoordinator,
+    "function",
+    "habit replay and direct merges need one shared network-write coordinator",
+  );
+
+  const runExclusive = coordinatorModule.createHabitMutationWriteCoordinator();
+  const { reconcileHabitMutationQueue } = await import("../lib/data/habit-mutation-queue-store.ts");
+  let raw = null;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      raw = value;
+    },
+    async removeItem() {
+      raw = null;
+    },
+  });
+  await store.enqueue({
+    id: "offline-edit",
+    kind: "update",
+    habitId: "habit-1",
+    userId: "user-1",
+    payload: { name: "Offline name" },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+
+  let markReplayStarted;
+  const replayStarted = new Promise((resolve) => {
+    markReplayStarted = resolve;
+  });
+  let releaseReplay;
+  const replayReleased = new Promise((resolve) => {
+    releaseReplay = resolve;
+  });
+  const serverState = { name: "Stored name" };
+  const commitOrder = [];
+
+  const flush = runExclusive(() =>
+    reconcileHabitMutationQueue({
+      store,
+      userId: "user-1",
+      async send(operation) {
+        markReplayStarted();
+        await replayReleased;
+        Object.assign(serverState, operation.payload);
+        commitOrder.push("replay");
+        return { ok: true };
+      },
+    }),
+  );
+  await replayStarted;
+
+  let mergeStarted = false;
+  const merge = runExclusive(async () => {
+    mergeStarted = true;
+    const boundary = await store.captureSupersessionBoundary("user-1", "habit-1");
+    Object.assign(serverState, { name: "Merged name" });
+    commitOrder.push("merge");
+    await store.settleSuperseded(boundary, { name: "Merged name" });
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(mergeStarted, false, "merge must wait while an older replay can still commit");
+
+  releaseReplay();
+  await Promise.all([flush, merge]);
+
+  assert.deepEqual(commitOrder, ["replay", "merge"]);
+  assert.deepEqual(serverState, { name: "Merged name" });
+  assert.deepEqual(await store.read(), []);
+});
+
+test("habit replay and duplicate merge use the same write coordinator", () => {
+  const queueSource = readFileSync("lib/data/habit-mutation-queue.ts", "utf8");
+  assert.match(
+    queueSource,
+    /runHabitMutationWriteExclusive\(runFlush\)/,
+    "the coordinator must cover the replay read, send, and settlement transaction",
+  );
+
+  const actionsSource = readFileSync("lib/data/actions.ts", "utf8");
+  const mergeStart = actionsSource.indexOf(
+    "return runHabitMutationWriteExclusive(async (): Promise<HabitCreateResult> => {",
+  );
+  const mergeEnd = actionsSource.indexOf("export async function updateHabitFull", mergeStart);
+  const mergeSource = actionsSource.slice(mergeStart, mergeEnd);
+  assert.match(
+    mergeSource,
+    /runHabitMutationWriteExclusive[\s\S]*listPendingHabitMutations[\s\S]*scoreHabitSimilarity[\s\S]*enqueueHabitMutation[\s\S]*\.update\(staged\.payload\)[\s\S]*settleConfirmedQueuedMutation/,
+    "the coordinator must cover effective ranking, durable staging, server write, and settlement",
+  );
+});
+
 test("habit mutation journal migrates legacy queues and persists acknowledged failures", async () => {
   const queueModule = await import("../lib/data/habit-mutation-queue-store.ts");
   assert.equal(typeof queueModule.reconcileHabitMutationQueue, "function");
@@ -3757,21 +4038,22 @@ test("habit reconciliation failures are visible and dismissible on sync paths", 
   assert.match(readFileSync("app/(tabs)/settings/reminders.tsx", "utf8"), /reviewableHabitIds/);
 });
 
-test("habit actions queue only retryable absolute patches and preserve completion ownership", () => {
+test("habit actions stage exact absolute patches before direct writes", () => {
   const actions = readFileSync("lib/data/actions.ts", "utf8");
   assert.match(actions, /enqueueHabitMutation/);
   assert.match(actions, /flushPendingHabitMutations/);
-  assert.match(actions, /queueHabitPatch\("update"/);
-  assert.match(actions, /queueHabitPatch\("archive"/);
+  assert.match(actions, /settleConfirmedQueuedMutation/);
+  assert.match(actions, /isRetryableHabitMutationError/);
   assert.match(actions, /kind: "increment_once"/);
   assert.equal(
-    (
-      actions.match(
-        /await resolveHabitReconciliationFailures\(habitId\)\.catch\(\(\) => undefined\)/g,
-      ) ?? []
-    ).length,
-    2,
-    "a confirmed full save or archive should best-effort clear the prior warning",
+    (actions.match(/await enqueueHabitMutation\(\{/g) ?? []).length,
+    4,
+    "merge, save, reminder, and archive writes must durably stage before sending",
+  );
+  assert.equal(
+    (actions.match(/await settleConfirmedQueuedMutation\(/g) ?? []).length,
+    4,
+    "only confirmed merge, save, reminder, and archive writes may settle staged operations",
   );
   assert.equal(
     (actions.match(/await flushPendingHabitMutations\(\)/g) ?? []).length,
@@ -3855,6 +4137,46 @@ test("streakFromDates is 0 when latest completion is older than today", () => {
   const today = new Date(2026, 4, 10);
   const dates = [localDateDaysAgo(1, today), localDateDaysAgo(2, today)];
   assert.equal(streakFromDates(dates, today), 0);
+});
+
+test("habit streak integration applies reminder days and the documented display grace", async () => {
+  const streakModule = await import("../lib/coach/streak.ts");
+  assert.equal(typeof streakModule.habitStreakFromDates, "function");
+
+  const scheduledDates = ["2026-06-05", "2026-06-03", "2026-06-01"];
+  assert.equal(
+    streakModule.habitStreakFromDates(
+      scheduledDates,
+      [1, 3, 5],
+      new Date(2026, 5, 7, 12, 0), // Sunday is not scheduled.
+    ),
+    3,
+  );
+
+  const dailyDates = ["2026-05-30", "2026-05-29"];
+  assert.equal(
+    streakModule.habitStreakFromDates(dailyDates, [0, 1, 2, 3, 4, 5, 6], new Date(2026, 4, 31, 8)),
+    2,
+  );
+  assert.equal(
+    streakModule.habitStreakFromDates(dailyDates, [0, 1, 2, 3, 4, 5, 6], new Date(2026, 4, 31, 12)),
+    0,
+  );
+
+  const habitsSource = readFileSync("lib/data/habits.ts", "utf8");
+  const remindersSource = readFileSync("lib/data/reminders.ts", "utf8");
+  assert.match(
+    habitsSource,
+    /habitStreakFromDates\(completedDatesForHabit\(habit, completionRows\), habit\.reminder_days\)/,
+  );
+  assert.match(
+    habitsSource,
+    /habitStreakFromDates\([\s\S]*?completedDatesForHabit\(habit, completions\),[\s\S]*?habit\.reminder_days,[\s\S]*?from/,
+  );
+  assert.match(
+    remindersSource,
+    /habitStreakFromDates\(\[\.\.\.completedDates\], habit\.reminder_days, now\)/,
+  );
 });
 
 test("scheduled streak skips unscheduled days and breaks on a missed scheduled day", () => {

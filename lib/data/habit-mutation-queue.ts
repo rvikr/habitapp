@@ -7,17 +7,65 @@ import { cancelHabitReminders, scheduleReminderSync } from "./reminder-sync";
 import {
   reconcileHabitMutationQueue,
   type HabitMutationReconciliationFailure,
+  type HabitMutationSupersessionBoundary,
   type PendingHabitMutation,
 } from "./habit-mutation-queue-store";
+import { runHabitMutationWriteExclusive } from "./habit-mutation-write-coordinator";
 
 type PendingHabitMutationInput = Omit<PendingHabitMutation, "id" | "queuedAt">;
 
-export async function enqueueHabitMutation(operation: PendingHabitMutationInput): Promise<void> {
-  await habitMutationQueueStore.enqueue({
+export async function enqueueHabitMutation(
+  operation: PendingHabitMutationInput,
+): Promise<PendingHabitMutation> {
+  return habitMutationQueueStore.enqueue({
     ...operation,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     queuedAt: new Date().toISOString(),
   });
+}
+
+export async function listPendingHabitMutations(userId: string): Promise<PendingHabitMutation[]> {
+  return (await habitMutationQueueStore.read()).filter((operation) => operation.userId === userId);
+}
+
+export function replaceQueuedHabitMutationPayload(
+  operationId: string,
+  payload: Record<string, unknown>,
+): Promise<PendingHabitMutation | null> {
+  return habitMutationQueueStore.replacePayload(operationId, payload);
+}
+
+export function settleQueuedHabitMutation(
+  operationId: string,
+  options?: { resolveLegacyFailures?: boolean },
+): Promise<PendingHabitMutation | null> {
+  return habitMutationQueueStore.settleSucceeded(operationId, options);
+}
+
+export function rejectQueuedHabitMutation(
+  operationId: string,
+  input: { reason?: "rejected" | "not_found"; code?: string | null },
+): Promise<HabitMutationReconciliationFailure | null> {
+  return habitMutationQueueStore.settleRejected(operationId, {
+    reason: input.reason ?? "rejected",
+    code: input.code,
+    failedAt: new Date().toISOString(),
+  });
+}
+
+export function captureHabitMutationSupersession(
+  userId: string,
+  habitId: string,
+): Promise<HabitMutationSupersessionBoundary> {
+  return habitMutationQueueStore.captureSupersessionBoundary(userId, habitId);
+}
+
+export async function settleHabitMutationSupersession(
+  boundary: HabitMutationSupersessionBoundary,
+  confirmedPayload: Record<string, unknown>,
+  options?: { resolveFailures?: boolean },
+): Promise<void> {
+  await habitMutationQueueStore.settleSuperseded(boundary, confirmedPayload, options);
 }
 
 let flushPromise: Promise<void> | null = null;
@@ -32,13 +80,13 @@ const RETRYABLE_DATABASE_CODES = new Set([
   "55P03",
 ]);
 
-function isRetryableHabitMutationError(error: { message?: string; code?: string }): boolean {
+export function isRetryableHabitMutationError(error: { message?: string; code?: string }): boolean {
   return isNetworkFailure(error) || (!!error.code && RETRYABLE_DATABASE_CODES.has(error.code));
 }
 
 export function flushPendingHabitMutations(): Promise<void> {
   if (!flushPromise) {
-    flushPromise = runFlush().finally(() => {
+    flushPromise = runHabitMutationWriteExclusive(runFlush).finally(() => {
       flushPromise = null;
     });
   }

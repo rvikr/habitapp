@@ -12,7 +12,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/unit.test.mjs && node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/activation-presentation.test.mjs tests/activation-analytics.test.mjs tests/activation-analytics-lifecycle.test.mjs tests/analytics-smoke-helper.test.mjs tests/screenshot-helper.test.mjs",
+    "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/unit.test.mjs && node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/activation-presentation.test.mjs tests/activation-analytics.test.mjs tests/activation-analytics-lifecycle.test.mjs tests/analytics-smoke-helper.test.mjs tests/consolidation-validation.test.mjs tests/habit-mutation-coordinator.test.mjs tests/habit-mutation-failure-scope.test.mjs tests/metric-validation-parity.test.mjs tests/screenshot-helper.test.mjs",
     "smoke:first-run": "node scripts/first-run/all-smokes.cjs",
     "smoke:offline-reload": "node scripts/first-run/offline-reload-smoke.cjs",
     "smoke:treatment-quick-start": "node scripts/first-run/treatment-quick-start-smoke.cjs",

@@ -15,7 +15,7 @@ const TARGET_MAX_BY_METRIC: Record<MetricType, number> = {
 };
 
 const CUMULATIVE_METRICS = new Set<MetricType>(["steps", "volume_ml"]);
-const DECIMAL_LOG_METRICS = new Set<MetricType>(["distance_km", "hours"]);
+const DECIMAL_METRICS = new Set<MetricType>(["distance_km", "hours"]);
 
 type ExistingHabit = Pick<Habit, "id" | "name" | "archived_at">;
 
@@ -79,6 +79,8 @@ export function validateHabitInput(
 
   if (input.target == null || !Number.isFinite(input.target) || input.target <= 0) {
     errors.push("Target must be a positive number.");
+  } else if (!DECIMAL_METRICS.has(input.metricType) && !Number.isInteger(input.target)) {
+    errors.push("Target must be a whole number.");
   } else if (input.target > TARGET_MAX_BY_METRIC[input.metricType]) {
     errors.push("Target is above the allowed maximum.");
   }
@@ -155,7 +157,7 @@ export function validateLogValueForHabit(
   if (!Number.isFinite(value) || value <= 0) {
     return { ok: false, error: "Value must be a positive number." };
   }
-  if (!DECIMAL_LOG_METRICS.has(habit.metricType) && !Number.isInteger(value)) {
+  if (!DECIMAL_METRICS.has(habit.metricType) && !Number.isInteger(value)) {
     return { ok: false, error: "Value must be a whole number." };
   }
   if (value > TARGET_MAX_BY_METRIC[habit.metricType]) {
@@ -165,4 +167,8 @@ export function validateLogValueForHabit(
     return { ok: false, error: "Value cannot exceed the habit target." };
   }
   return { ok: true, value };
+}
+
+export function metricAllowsDecimalValues(metricType: MetricType): boolean {
+  return DECIMAL_METRICS.has(metricType);
 }

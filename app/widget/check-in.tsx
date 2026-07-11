@@ -37,6 +37,8 @@ export default function WidgetCheckInScreen() {
         Crypto.randomUUID(),
         checkIn.amount,
         "Logged from widget",
+        undefined,
+        validated.habit ?? undefined,
       );
     };
 

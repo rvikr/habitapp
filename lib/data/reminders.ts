@@ -1,6 +1,6 @@
 import { supabase, isSupabaseConfigured, getCurrentUser } from "../supabase/client";
 import { localDateDaysAgo, localDateKey } from "../utils/date";
-import { streakFromDates } from "../coach/streak";
+import { habitStreakFromDates } from "../coach/streak";
 import {
   completedDatesForHabit,
   progressForHabit,
@@ -198,7 +198,7 @@ export async function getReminderSchedule(
     const hc = byHabit.get(h.id as string) ?? [];
     const completedDates = new Set(completedDatesForHabit(habit, hc));
     const creditedHistory = hc.filter((completion) => completedDates.has(completion.completed_on));
-    const streak = streakFromDates([...completedDates]);
+    const streak = habitStreakFromDates([...completedDates], habit.reminder_days, now);
     const typicalHour = typicalHourFromTimestamps(
       creditedHistory.map((completion) => completion.created_at),
     );

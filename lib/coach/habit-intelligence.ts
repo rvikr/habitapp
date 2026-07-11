@@ -1,4 +1,5 @@
 import type { Habit, HabitCompletion } from "../../types/db";
+import { metricAllowsDecimalValues, validateLogValueForHabit } from "../habits/input-rules.ts";
 
 export type HabitType =
   | "water_intake"
@@ -424,7 +425,38 @@ export function suggestedCheckInForHabit(
   const remainingBefore = Math.max(progress.target - progress.current, 0);
   if (remainingBefore <= 0) return null;
 
-  const value = Math.min(defaultValue, remainingBefore);
+  const requestedValue = Math.min(defaultValue, remainingBefore);
+  const metricType =
+    habit.metric_type ??
+    inferHabitIntelligence({
+      name: habit.name,
+      icon: habit.icon,
+      unit: habit.unit,
+      target: habit.target,
+      habitType: habit.habit_type,
+      metricType: habit.metric_type,
+      visualType: habit.visual_type,
+      reminderStrategy: habit.reminder_strategy,
+      reminderIntervalMinutes: habit.reminder_interval_minutes,
+      defaultLogValue: habit.default_log_value,
+    }).metricType;
+  const requested = validateLogValueForHabit(requestedValue, {
+    metricType,
+    target: progress.target,
+  });
+  let value: number;
+  if (requested.ok) {
+    value = requested.value;
+  } else {
+    if (metricAllowsDecimalValues(metricType) || remainingBefore < 1) return null;
+    const wholeNumberFallback = Math.max(1, Math.floor(requestedValue));
+    const fallback = validateLogValueForHabit(wholeNumberFallback, {
+      metricType,
+      target: progress.target,
+    });
+    if (!fallback.ok || fallback.value > remainingBefore) return null;
+    value = fallback.value;
+  }
   const remainingAfter = Math.max(remainingBefore - value, 0);
   const unit = habit.unit ?? null;
   return {

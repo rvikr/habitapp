@@ -584,6 +584,8 @@ export default function DashboardScreen() {
           Crypto.randomUUID(),
           suggestion.value,
           "Logged from check-in",
+          undefined,
+          habit,
         );
         if (!result.ok) {
           setData((current) => {

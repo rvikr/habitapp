@@ -9,6 +9,7 @@ export type HabitCreateSuccess = {
   habit: Habit;
   merged?: true;
   migrated?: false;
+  queued?: true;
 };
 
 export type HabitCreateFailure = {
@@ -90,6 +91,16 @@ export function createHabitFailure(
     id: null,
     error: errorMessage(error),
     failureKind: classifyHabitCreateError(error, fallbackKind),
+  };
+}
+
+export function queuedMergedHabitResult(habit: Habit): HabitCreateSuccess {
+  return {
+    ok: true,
+    id: habit.id,
+    habit,
+    merged: true,
+    queued: true,
   };
 }
 

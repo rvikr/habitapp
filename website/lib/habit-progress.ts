@@ -1,4 +1,5 @@
 import type { Habit, HabitCompletion } from "@/types/db";
+import { normalizeWebSuggestedLogValue } from "./habit-validation.ts";
 
 export type CompletionProgress = Pick<
   HabitCompletion,
@@ -6,8 +7,11 @@ export type CompletionProgress = Pick<
 >;
 
 type CompletionHabit = Pick<Habit, "id" | "target">;
-type CheckInHabit = Pick<Habit, "target" | "default_log_value">;
-type CheckInLabelHabit = Pick<Habit, "name" | "target" | "default_log_value" | "unit">;
+type CheckInHabit = Pick<Habit, "target" | "default_log_value" | "metric_type">;
+type CheckInLabelHabit = Pick<
+  Habit,
+  "name" | "target" | "default_log_value" | "metric_type" | "unit"
+>;
 
 function normalizedAmount(value: number): number {
   return Number(value.toFixed(6));
@@ -45,9 +49,16 @@ export function suggestedIncrement(habit: CheckInHabit, currentValue: number): n
   if (remaining <= 0) return null;
 
   const defaultValue = Number(habit.default_log_value ?? 0);
-  return Number.isFinite(defaultValue) && defaultValue > 0
-    ? normalizedAmount(Math.min(defaultValue, remaining))
-    : null;
+  if (!Number.isFinite(defaultValue) || defaultValue <= 0) return null;
+
+  const metricType = habit.metric_type ?? "minutes";
+  return (
+    normalizeWebSuggestedLogValue(
+      normalizedAmount(Math.min(defaultValue, remaining)),
+      { metricType, target },
+      remaining,
+    )?.value ?? null
+  );
 }
 
 /**
@@ -60,6 +71,26 @@ export function legacyFillIncrement(habit: CheckInHabit, currentValue: number): 
 
   const remaining = Math.max(target - Math.max(Number(currentValue) || 0, 0), 0);
   return remaining > 0 ? normalizedAmount(remaining) : null;
+}
+
+export function resolveWebCheckInIncrement(
+  habit: CheckInHabit,
+  currentValue: number,
+): number | null {
+  const target = Number(habit.target ?? 0);
+  const remaining = target > 0 ? Math.max(target - Math.max(Number(currentValue) || 0, 0), 0) : 1;
+  const requested =
+    suggestedIncrement(habit, currentValue) ?? legacyFillIncrement(habit, currentValue);
+  if (requested == null) return null;
+
+  const metricType = habit.metric_type ?? (target > 0 ? "minutes" : "boolean");
+  return (
+    normalizeWebSuggestedLogValue(
+      requested,
+      { metricType, target: target > 0 ? target : null },
+      remaining,
+    )?.value ?? null
+  );
 }
 
 export function defaultLogValueForTarget(target: number | null): number | null {

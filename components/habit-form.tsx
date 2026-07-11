@@ -225,7 +225,7 @@ export default function HabitForm({
     const habitRules = validateHabitInput({
       name,
       metricType: intelligence.metricType,
-      target: parsedTarget.value,
+      target: intelligence.target,
       currentHabitId: initial?.id ?? null,
     });
     if (!habitRules.ok) {
@@ -258,7 +258,7 @@ export default function HabitForm({
       icon,
       color,
       unit: unit.trim(),
-      target: habitRules.data.target,
+      target: habitRules.data.target == null ? null : parsedTarget.value,
       remindersEnabled: scheduleRules.data.remindersEnabled,
       reminderTimes: scheduleRules.data.reminderTimes,
       reminderDays: scheduleRules.data.reminderDays,

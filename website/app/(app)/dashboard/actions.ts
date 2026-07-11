@@ -3,12 +3,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { revalidatePath } from "next/cache";
-import { isValidDateKey } from "@/lib/date";
+import { dateKeyInTimeZone } from "@/lib/date";
+import { resolveWebCheckInIncrement } from "@/lib/habit-progress";
 import {
-  defaultLogValueForTarget,
-  legacyFillIncrement,
-  suggestedIncrement,
-} from "@/lib/habit-progress";
+  defaultWebLogValue,
+  validateWebCompletionPeriod,
+  validateWebHabitTarget,
+  validateWebLogValue,
+} from "@/lib/habit-validation";
+import { getRequestTimeZone } from "@/lib/request-timezone";
+import type { MetricType } from "@/types/db";
 
 type ActionResult = { ok: true } | { ok: false; error?: string };
 type TargetResult = { ok: true; value: number | null } | { ok: false; error: string };
@@ -57,11 +61,7 @@ function iconValue(formData: FormData): string {
 function targetValue(formData: FormData): TargetResult {
   const value = textValue(formData, "target", 24);
   if (!value) return { ok: true, value: null };
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return { ok: false, error: "Target must be a positive number." };
-  }
-  return { ok: true, value: parsed };
+  return validateWebHabitTarget(Number(value), "minutes");
 }
 
 export async function createHabit(formData: FormData): Promise<ActionResult> {
@@ -91,7 +91,8 @@ export async function createHabit(formData: FormData): Promise<ActionResult> {
     visual_type: "progress_ring",
     reminder_strategy: "manual",
     reminder_interval_minutes: null,
-    default_log_value: defaultLogValueForTarget(target.value),
+    default_log_value:
+      target.value == null ? null : defaultWebLogValue(target.value, "minutes"),
   });
   if (error) return mutationResult(error);
 
@@ -105,8 +106,15 @@ export async function toggleHabit(
   completedOn: string,
   operationId: string,
 ): Promise<ActionResult> {
-  if (!isValidDateKey(completedOn)) return { ok: false, error: "Invalid completion date." };
   if (!isValidUuid(operationId)) return { ok: false, error: "Invalid check-in operation." };
+
+  const timeZone = await getRequestTimeZone();
+  const completionPeriod = validateWebCompletionPeriod(completedOn, {
+    todayKey: dateKeyInTimeZone(new Date(), timeZone),
+    operation: currentlyDone ? "undo" : "log",
+    existingCompletion: currentlyDone,
+  });
+  if (!completionPeriod.ok) return completionPeriod;
 
   const supabase = await createClient();
   const user = await getCurrentUser(supabase);
@@ -125,7 +133,7 @@ export async function toggleHabit(
       await Promise.all([
         supabase
           .from("habits")
-          .select("target, default_log_value")
+          .select("target, default_log_value, metric_type")
           .eq("id", habitId)
           .eq("user_id", user.id)
           .maybeSingle(),
@@ -142,18 +150,22 @@ export async function toggleHabit(
     if (!habit) return { ok: false, error: "Habit not found." };
 
     const currentValue = Number(completion?.value ?? 0);
-    const increment =
-      suggestedIncrement(habit, currentValue) ?? legacyFillIncrement(habit, currentValue);
-    if (increment != null) {
-      const { error } = await supabase.rpc("log_habit_completion_once", {
-        p_operation_id: operationId,
-        p_habit_id: habitId,
-        p_completed_on: completedOn,
-        p_increment: increment,
-        p_note: "Logged from web check-in",
-      });
-      if (error) return mutationResult(error);
-    }
+    const increment = resolveWebCheckInIncrement(habit, currentValue);
+    if (increment == null) return { ok: false, error: "Edit this habit's target before logging." };
+    const metricType = (habit.metric_type ?? (habit.target ? "minutes" : "boolean")) as MetricType;
+    const validatedIncrement = validateWebLogValue(increment, {
+      metricType,
+      target: habit.target == null ? null : Number(habit.target),
+    });
+    if (!validatedIncrement.ok) return validatedIncrement;
+    const { error } = await supabase.rpc("log_habit_completion_once", {
+      p_operation_id: operationId,
+      p_habit_id: habitId,
+      p_completed_on: completedOn,
+      p_increment: validatedIncrement.value,
+      p_note: "Logged from web check-in",
+    });
+    if (error) return mutationResult(error);
   }
 
   revalidatePath("/dashboard");

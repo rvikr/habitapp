@@ -2,7 +2,7 @@ import type { Habit, HabitCompletion, Milestone } from "../../types/db";
 import { supabase, isSupabaseConfigured, getCurrentSession } from "../supabase/client";
 import { DATA_CACHE_PREFIX, getCachedValue, readThroughCache, setCachedValue } from "./cache";
 import { addLocalDays, localDateKey, localDateDaysAgo } from "../utils/date";
-import { longestStreakFromDates, streakFromDates } from "../coach/streak";
+import { habitStreakFromDates, longestStreakFromDates } from "../coach/streak";
 import { XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "../coach/xp";
 import {
   completedDatesForHabit,
@@ -149,7 +149,7 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
   const streaksMap: StreaksMap = new Map(
     habitsList.map((habit) => [
       habit.id,
-      streakFromDates(completedDatesForHabit(habit, completionRows)),
+      habitStreakFromDates(completedDatesForHabit(habit, completionRows), habit.reminder_days),
     ]),
   );
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
@@ -441,8 +441,12 @@ export function weekProgressFor(habit: Habit, completions: HabitCompletion[]) {
   return days;
 }
 
-export function streakFor(habit: Habit, completions: HabitCompletion[]) {
-  return streakFromDates(completedDatesForHabit(habit, completions));
+export function streakFor(habit: Habit, completions: HabitCompletion[], from = new Date()) {
+  return habitStreakFromDates(
+    completedDatesForHabit(habit, completions),
+    habit.reminder_days,
+    from,
+  );
 }
 
 // Longest streak within the completions the detail screen fetched (last 60
