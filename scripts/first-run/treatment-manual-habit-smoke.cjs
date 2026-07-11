@@ -204,7 +204,7 @@ function localDateKey(date = new Date()) {
         return route.fulfill({
           status: 201,
           headers,
-          body: JSON.stringify({ id: authoritativeHabit.id }),
+          body: JSON.stringify(authoritativeHabit),
         });
       }
       if (request.method() === "GET" || request.method() === "HEAD") {

@@ -8,6 +8,7 @@ const smokes = [
   ["email confirmation callback", "scripts/first-run/callback-smoke.cjs"],
   ["wizard routine builder", "scripts/first-run/full-smoke.cjs"],
   ["treatment quick start", "scripts/first-run/treatment-quick-start-smoke.cjs"],
+  ["routine partial saves and merges", "scripts/first-run/routine-resilience-smoke.cjs"],
   ["post-create tutorial", "scripts/first-run/post-create-smoke.cjs"],
   ["manual habit creation", "scripts/first-run/manual-habit-smoke.cjs"],
   ["treatment manual habit creation", "scripts/first-run/treatment-manual-habit-smoke.cjs"],

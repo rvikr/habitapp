@@ -8,7 +8,6 @@ import HabitForm from "@/components/habit-form";
 import FirstLogFlow from "@/components/first-log-flow";
 import { useActivation } from "@/components/activation-provider";
 import { createHabit } from "@/lib/data/actions";
-import { getHabit } from "@/lib/data/habits";
 import { resolveManualCreatedHabit, type CreatedHabit } from "@/lib/coach/post-onboarding";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentSession } from "@/lib/supabase/client";
@@ -73,16 +72,8 @@ export default function NewHabitScreen() {
         return { ok: true };
       }
 
-      let savedHabit = null;
-      try {
-        const saved = await getHabit(result.id, { force: true });
-        savedHabit = saved.habit;
-      } catch {
-        // The submitted values below are a safe fallback for an unavailable
-        // post-create read; create/merge itself already succeeded.
-      }
       setCreatedHabit(
-        resolveManualCreatedHabit(savedHabit, {
+        resolveManualCreatedHabit(result.habit, {
           id: result.id,
           name: data.name,
           icon: data.icon,

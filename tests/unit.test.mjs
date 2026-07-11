@@ -3978,6 +3978,121 @@ test("treatment create outcomes distinguish auth, zero, mixed, and complete save
   });
 });
 
+async function loadRoutineCreateContract() {
+  const module = await import("../lib/habits/routine-create.ts").catch(() => null);
+  assert.ok(module, "expected the routine create sequence contract");
+  return module;
+}
+
+function routineSuccess(id) {
+  return { ok: true, id, habit: { id } };
+}
+
+test("routine creation retains positional successes around a thrown network failure", async () => {
+  const { runRoutineCreateSequence } = await loadRoutineCreateContract();
+  const calls = [];
+  const outcome = await runRoutineCreateSequence(["first", "offline", "third"], async (item) => {
+    calls.push(item);
+    if (item === "offline") throw new TypeError("Failed to fetch");
+    return routineSuccess(item);
+  });
+
+  assert.deepEqual(calls, ["first", "offline", "third"]);
+  assert.equal(outcome.authLost, false);
+  assert.equal(outcome.results.length, 3);
+  assert.equal(outcome.results[0].id, "first");
+  assert.equal(outcome.results[1].ok, false);
+  assert.equal(outcome.results[1].failureKind, "network");
+  assert.equal(outcome.results[2].id, "third");
+});
+
+test("routine creation stops after auth loss while retaining earlier results", async () => {
+  const { runRoutineCreateSequence } = await loadRoutineCreateContract();
+  const calls = [];
+  const authError = Object.assign(new Error("JWT expired"), {
+    code: "PGRST301",
+    status: 401,
+  });
+  const outcome = await runRoutineCreateSequence(["first", "auth", "never"], async (item) => {
+    calls.push(item);
+    if (item === "auth") throw authError;
+    return routineSuccess(item);
+  });
+
+  assert.deepEqual(calls, ["first", "auth"]);
+  assert.equal(outcome.authLost, true);
+  assert.equal(outcome.results.length, 2);
+  assert.equal(outcome.results[0].id, "first");
+  assert.equal(outcome.results[1].failureKind, "auth");
+});
+
+test("routine validation exceptions are categorized without erasing later successes", async () => {
+  const { createHabitFailure, runRoutineCreateSequence } = await loadRoutineCreateContract();
+  const outcome = await runRoutineCreateSequence(["invalid", "valid"], async (item) => {
+    if (item === "invalid") {
+      return createHabitFailure(new Error("validator unavailable"), "validation");
+    }
+    return routineSuccess(item);
+  });
+
+  assert.equal(outcome.authLost, false);
+  assert.equal(outcome.results[0].failureKind, "validation");
+  assert.equal(outcome.results[1].id, "valid");
+});
+
+test("zero-success routine failures preserve network validation and save categories", async () => {
+  const { createHabitFailure, routineZeroSuccessCategory } = await loadRoutineCreateContract();
+  assert.equal(
+    routineZeroSuccessCategory([createHabitFailure(new Error("Failed to fetch"))]),
+    "network",
+  );
+  assert.equal(
+    routineZeroSuccessCategory([
+      createHabitFailure(new Error("validator unavailable"), "validation"),
+    ]),
+    "validation",
+  );
+  assert.equal(
+    routineZeroSuccessCategory([createHabitFailure(new Error("constraint rejected"))]),
+    "save_failed",
+  );
+  assert.equal(
+    routineZeroSuccessCategory([
+      createHabitFailure(new Error("validator unavailable"), "validation"),
+      createHabitFailure(new Error("Network request failed")),
+    ]),
+    "network",
+  );
+});
+
+test("habit mutations return authoritative rows through the resilient routine sequence", () => {
+  const source = readFileSync("lib/data/actions.ts", "utf8");
+  const routineBlock =
+    source.match(/export async function createRoutineHabits[\s\S]*?(?=\nasync function)/)?.[0] ??
+    "";
+  const createBlock =
+    source.match(/async function createHabitForUser[\s\S]*?(?=\nexport async function)/)?.[0] ?? "";
+
+  assert.match(source, /runRoutineCreateSequence/);
+  assert.match(routineBlock, /authLost/);
+  assert.match(createBlock, /\.select\("\*"\)\s*\.single\(\)/);
+  assert.match(createBlock, /habit:/);
+  assert.match(createBlock, /createHabitFailure/);
+});
+
+test("wizard blocks auth loss with accurate retained-success analytics", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  const signedOutIndex = source.indexOf("if (signedOut)");
+  const successfulCountIndex = source.indexOf("const successfulCount");
+  assert.ok(successfulCountIndex >= 0 && successfulCountIndex < signedOutIndex);
+  const signedOutBlock = source.slice(
+    signedOutIndex,
+    source.indexOf("const failures", signedOutIndex),
+  );
+  assert.match(signedOutBlock, /created:\s*successfulCount/);
+  assert.match(signedOutBlock, /failed:\s*selected\.length - successfulCount/);
+});
+
 function recommendation(name, habitType) {
   return {
     id: name,
@@ -4032,6 +4147,41 @@ test("buildCreatedHabits drops ok results without an id and handles empty input"
     buildCreatedHabits([recommendation("Walk", "walk")], [{ ok: true, id: null }]),
     [],
   );
+});
+
+test("buildCreatedHabits uses authoritative merged metadata for confirmation and first log", () => {
+  const selected = [recommendation("Drink Water", "water_intake")];
+  const authoritative = {
+    id: "existing-water",
+    name: "Hydration",
+    icon: "cup-water",
+    color: "secondary",
+    unit: "l",
+    target: 3,
+    habit_type: "water_intake",
+    metric_type: "volume_ml",
+    visual_type: "water_bottle",
+    reminder_strategy: "interval",
+    reminder_interval_minutes: 90,
+    default_log_value: 300,
+  };
+
+  const [created] = buildCreatedHabits(selected, [
+    { ok: true, id: authoritative.id, merged: true, habit: authoritative },
+  ]);
+
+  assert.deepEqual(created, {
+    id: "existing-water",
+    name: "Hydration",
+    icon: "cup-water",
+    color: "secondary",
+    unit: "ml",
+    target: 3000,
+    habitType: "water_intake",
+    metricType: "volume_ml",
+    defaultLogValue: 300,
+  });
+  assert.deepEqual(getTutorialHabitAction(created), { kind: "log_progress", value: 300 });
 });
 
 async function loadFirstLogFlowContract() {
@@ -4371,7 +4521,8 @@ test("manual habit creation freezes activation mode and treatment enters the sha
   assert.match(source, /if \(activation\.ready && manualModeRef\.current === null\)/);
   assert.match(source, /const isTreatment = manualModeRef\.current === "treatment"/);
   assert.match(source, /variant=\{isTreatment \? "treatment" : "standard"\}/);
-  assert.match(source, /getHabit\(result\.id, \{ force: true \}\)/);
+  assert.doesNotMatch(source, /getHabit\(/);
+  assert.match(source, /resolveManualCreatedHabit\(result\.habit/);
   assert.match(source, /resolveManualCreatedHabit/);
   assert.match(source, /<FirstLogFlow/);
   assert.match(source, /if \(!isTreatment\) \{[\s\S]*?router\.replace\("\/"\)/);

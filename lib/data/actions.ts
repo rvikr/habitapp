@@ -48,6 +48,11 @@ import {
 import type { Habit } from "../../types/db";
 import { validateHabitLocally, type HabitValidationResult } from "../habits/validate";
 import { validateHabitRemote } from "../habits/validate-remote";
+import {
+  createHabitFailure,
+  runRoutineCreateSequence,
+  type HabitCreateResult,
+} from "../habits/routine-create";
 import { recordPositiveCompletion } from "../services/activation-completion";
 
 type ActionResult = { ok: boolean; error?: string; queued?: boolean };
@@ -528,11 +533,9 @@ export async function updateHabitReminders(
   return { ok: true };
 }
 
-type CreateHabitResult = Awaited<ReturnType<typeof createHabitForUser>>;
-
 export async function createHabit(data: HabitMutationData) {
   const user = await getUser();
-  if (!user) return { ok: false, id: null, error: "You need to sign in again." };
+  if (!user) return createHabitFailure("You need to sign in again.", "auth");
   return createHabitForUser(user.id, data);
 }
 
@@ -543,15 +546,28 @@ export async function createHabit(data: HabitMutationData) {
 // creates removes that race and avoids redundant per-habit network round-trips.
 export async function createRoutineHabits(list: HabitMutationData[]) {
   const user = await getUser();
-  if (!user) return { signedOut: true as const, results: [] as CreateHabitResult[] };
-  const results: CreateHabitResult[] = [];
-  for (const data of list) {
-    results.push(await createHabitForUser(user.id, data));
-  }
-  return { signedOut: false as const, results };
+  if (!user) return { signedOut: true as const, results: [] as HabitCreateResult[] };
+  const { authLost, results } = await runRoutineCreateSequence(list, (data) =>
+    createHabitForUser(user.id, data),
+  );
+  return { signedOut: authLost, results };
 }
 
-async function createHabitForUser(userId: string, data: HabitMutationData) {
+async function createHabitForUser(
+  userId: string,
+  data: HabitMutationData,
+): Promise<HabitCreateResult> {
+  try {
+    return await createHabitForUserUnsafe(userId, data);
+  } catch (error) {
+    return createHabitFailure(error);
+  }
+}
+
+async function createHabitForUserUnsafe(
+  userId: string,
+  data: HabitMutationData,
+): Promise<HabitCreateResult> {
   const intelligence = inferHabitIntelligence({
     name: data.name,
     icon: data.icon,
@@ -565,12 +581,17 @@ async function createHabitForUser(userId: string, data: HabitMutationData) {
     defaultLogValue: data.defaultLogValue,
   });
 
-  const validation = await runHabitValidation(intelligence, data);
+  let validation: HabitValidationResult;
+  try {
+    validation = await runHabitValidation(intelligence, data);
+  } catch (error) {
+    return createHabitFailure(error, "validation");
+  }
   if (validation.status === "block") {
-    return { ok: false, id: null, validation };
+    return { ok: false, id: null, validation, failureKind: "validation" };
   }
   if (validation.status === "warn" && !data.acknowledgeWarning) {
-    return { ok: false, id: null, validation };
+    return { ok: false, id: null, validation, failureKind: "validation" };
   }
 
   const candidate = {
@@ -591,7 +612,7 @@ async function createHabitForUser(userId: string, data: HabitMutationData) {
       .select("*")
       .eq("user_id", userId)
       .is("archived_at", null);
-    if (readError) return { ok: false, id: null, error: readError.message };
+    if (readError) return createHabitFailure(readError);
     match = ((existingHabits ?? []) as Habit[])
       .map((habit) => ({ habit, score: scoreHabitSimilarity(candidate, habit) }))
       .sort((a, b) => b.score - a.score)[0];
@@ -617,14 +638,17 @@ async function createHabitForUser(userId: string, data: HabitMutationData) {
       reminder_days: reminders.days,
       ...merged,
     };
-    const { error } = await supabase
+    const { data: updatedRow, error } = await supabase
       .from("habits")
       .update(mergePayload)
       .eq("id", match.habit.id)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select("*")
+      .single();
+    let savedRow = updatedRow as Habit | null;
     if (error) {
-      if (!isMissingSmartHabitColumn(error)) return { ok: false, id: null, error: error.message };
-      const { error: legacyError } = await supabase
+      if (!isMissingSmartHabitColumn(error)) return createHabitFailure(error);
+      const { data: legacyRow, error: legacyError } = await supabase
         .from("habits")
         .update({
           name: merged.name,
@@ -636,28 +660,33 @@ async function createHabitForUser(userId: string, data: HabitMutationData) {
           reminder_days: reminders.days,
         })
         .eq("id", match.habit.id)
-        .eq("user_id", userId);
-      if (legacyError) return { ok: false, id: null, error: legacyError.message };
+        .eq("user_id", userId)
+        .select("*")
+        .single();
+      if (legacyError) return createHabitFailure(legacyError);
+      savedRow = legacyRow as Habit | null;
     }
+    if (!savedRow?.id) return createHabitFailure("The saved habit could not be loaded.");
     clearDataCache();
     scheduleReminderSync();
     track("habit_merged", { habit_type: merged.habit_type, score: match.score });
-    return { ok: true, id: match.habit.id, merged: true };
+    return { ok: true, id: savedRow.id, habit: savedRow, merged: true };
   }
 
   const { data: row, error } = await supabase
     .from("habits")
     .insert(smartHabitPayload(data, intelligence, userId))
-    .select("id")
+    .select("*")
     .single();
   if (error) {
-    if (!isMissingSmartHabitColumn(error)) return { ok: false, id: null, error: error.message };
+    if (!isMissingSmartHabitColumn(error)) return createHabitFailure(error);
     const { data: legacyRow, error: legacyError } = await supabase
       .from("habits")
       .insert(legacyHabitPayload(data, intelligence, userId))
-      .select("id")
+      .select("*")
       .single();
-    if (legacyError) return { ok: false, id: null, error: legacyError.message };
+    if (legacyError) return createHabitFailure(legacyError);
+    if (!legacyRow?.id) return createHabitFailure("The saved habit could not be loaded.");
     clearDataCache();
     if (data.remindersEnabled) scheduleReminderSync();
     track("habit_created", {
@@ -666,9 +695,15 @@ async function createHabitForUser(userId: string, data: HabitMutationData) {
       habit_type: intelligence.habitType,
       schema: "legacy",
     });
-    return { ok: true, id: legacyRow?.id as string, migrated: false };
+    return {
+      ok: true,
+      id: legacyRow.id as string,
+      habit: legacyRow as Habit,
+      migrated: false,
+    };
   }
 
+  if (!row?.id) return createHabitFailure("The saved habit could not be loaded.");
   clearDataCache();
   if (data.remindersEnabled) scheduleReminderSync();
   track("habit_created", {
@@ -676,7 +711,7 @@ async function createHabitForUser(userId: string, data: HabitMutationData) {
     has_target: intelligence.target != null,
     habit_type: intelligence.habitType,
   });
-  return { ok: true, id: row?.id as string };
+  return { ok: true, id: row.id as string, habit: row as Habit };
 }
 
 export async function updateHabitFull(

@@ -33,6 +33,7 @@ import type {
 } from "@/lib/activation/analytics";
 import { trackActivationEvent } from "@/lib/services/analytics";
 import { isNetworkFailure } from "@/lib/data/completion-queue";
+import { routineZeroSuccessCategory } from "@/lib/habits/routine-create";
 import {
   applyQuickStartConstraint,
   buildTreatmentRecommendations,
@@ -516,13 +517,16 @@ export default function HabitWizardScreen() {
         return;
       }
       const { signedOut, results } = batch;
+      const successfulCount = results.filter((result) => result.ok && result.id).length;
+      const zeroSuccessFailure = routineZeroSuccessCategory(results);
 
-      // The auth check now happens once for the whole batch, so "sign in again"
-      // can only mean a genuine signed-out state — show it once, not per habit.
+      // Initial or mid-batch auth loss is terminal even when earlier items saved.
+      // Retain earlier successes in analytics, but never start first-log without auth.
       if (signedOut) {
         trackRoutineFailure("auth_lost", {
           requested: selected.length,
-          failed: selected.length,
+          created: successfulCount,
+          failed: selected.length - successfulCount,
         });
         showAlert(t("Some habits were not created"), t("You need to sign in again."));
         return;
@@ -536,20 +540,12 @@ export default function HabitWizardScreen() {
           return `${selected[i].name}: ${validationMessage ?? result.error ?? t("Could not create habit.")}`;
         })
         .filter((msg): msg is string => msg !== null);
-      const successfulCount = results.filter((result) => result.ok && result.id).length;
-      const validationFailed = results.some(
-        (result) => !result.ok && "validation" in result && Boolean(result.validation),
-      );
-
       if (!isTreatment && failures.length > 0) {
-        trackRoutineFailure(
-          successfulCount > 0 ? "partial_save" : validationFailed ? "validation" : "save_failed",
-          {
-            requested: selected.length,
-            created: successfulCount,
-            failed: selected.length - successfulCount,
-          },
-        );
+        trackRoutineFailure(successfulCount > 0 ? "partial_save" : zeroSuccessFailure, {
+          requested: selected.length,
+          created: successfulCount,
+          failed: selected.length - successfulCount,
+        });
         showAlert(t("Some habits were not created"), failures.join("\n"));
         return;
       }
@@ -557,7 +553,7 @@ export default function HabitWizardScreen() {
       if (isTreatment) {
         const outcome = classifyTreatmentCreateOutcome(false, results, selected.length);
         if (outcome.status === "none_created") {
-          trackRoutineFailure(validationFailed ? "validation" : "save_failed", {
+          trackRoutineFailure(zeroSuccessFailure, {
             requested: selected.length,
             failed: selected.length,
           });

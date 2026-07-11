@@ -22,7 +22,7 @@ export type CreatedHabit = {
 
 export type TutorialHabitAction = { kind: "log_progress"; value: number } | { kind: "complete" };
 
-export type ManualCreatedHabitFallback = {
+export type CreatedHabitFallback = {
   id: string;
   name: string;
   icon: string;
@@ -37,20 +37,24 @@ export type ManualCreatedHabitFallback = {
   defaultLogValue?: number | null;
 };
 
-type SavedManualHabit = Pick<
-  Habit,
-  | "id"
-  | "name"
-  | "icon"
-  | "color"
-  | "unit"
-  | "target"
-  | "habit_type"
-  | "metric_type"
-  | "visual_type"
-  | "reminder_strategy"
-  | "reminder_interval_minutes"
-  | "default_log_value"
+export type ManualCreatedHabitFallback = CreatedHabitFallback;
+
+export type SavedHabitForFirstLog = Partial<
+  Pick<
+    Habit,
+    | "id"
+    | "name"
+    | "icon"
+    | "color"
+    | "unit"
+    | "target"
+    | "habit_type"
+    | "metric_type"
+    | "visual_type"
+    | "reminder_strategy"
+    | "reminder_interval_minutes"
+    | "default_log_value"
+  >
 >;
 
 function capFirstLogAtTarget(value: number | null, target: number | null): number | null {
@@ -60,37 +64,43 @@ function capFirstLogAtTarget(value: number | null, target: number | null): numbe
 }
 
 /**
- * Convert the row returned after a manual create/merge into the shared first-log
+ * Convert the row returned after a create/merge into the shared first-log
  * shape. The saved row wins because a merge can change both the id and habit
  * settings. Legacy rows can be missing smart metadata, so those fields are
  * inferred. A submitted fallback keeps the first-log flow usable if the
  * authoritative read is unavailable.
  */
-export function resolveManualCreatedHabit(
-  saved: SavedManualHabit | null,
-  fallback: ManualCreatedHabitFallback,
+export function resolveCreatedHabit(
+  saved: SavedHabitForFirstLog | null,
+  fallback: CreatedHabitFallback,
 ): CreatedHabit {
+  const hasSaved = <K extends keyof SavedHabitForFirstLog>(key: K) =>
+    saved != null && Object.prototype.hasOwnProperty.call(saved, key);
   const name = saved?.name ?? fallback.name;
   const icon = saved?.icon ?? fallback.icon;
-  const inputTarget = saved ? saved.target : fallback.target;
+  const inputTarget = hasSaved("target") ? saved?.target : fallback.target;
   const intelligence = inferHabitIntelligence({
     name,
     icon,
-    unit: saved ? saved.unit : fallback.unit,
+    unit: hasSaved("unit") ? saved?.unit : fallback.unit,
     target: inputTarget,
-    habitType: saved ? saved.habit_type : fallback.habitType,
-    metricType: saved ? saved.metric_type : fallback.metricType,
-    visualType: saved ? saved.visual_type : fallback.visualType,
-    reminderStrategy: saved ? saved.reminder_strategy : fallback.reminderStrategy,
-    reminderIntervalMinutes: saved
-      ? saved.reminder_interval_minutes
+    habitType: hasSaved("habit_type") ? saved?.habit_type : fallback.habitType,
+    metricType: hasSaved("metric_type") ? saved?.metric_type : fallback.metricType,
+    visualType: hasSaved("visual_type") ? saved?.visual_type : fallback.visualType,
+    reminderStrategy: hasSaved("reminder_strategy")
+      ? saved?.reminder_strategy
+      : fallback.reminderStrategy,
+    reminderIntervalMinutes: hasSaved("reminder_interval_minutes")
+      ? saved?.reminder_interval_minutes
       : fallback.reminderIntervalMinutes,
-    defaultLogValue: saved ? saved.default_log_value : fallback.defaultLogValue,
+    defaultLogValue: hasSaved("default_log_value")
+      ? saved?.default_log_value
+      : fallback.defaultLogValue,
   });
-  const defaultLogValue = saved
-    ? (saved.default_log_value ?? intelligence.defaultLogValue)
+  const defaultLogValue = hasSaved("default_log_value")
+    ? (saved?.default_log_value ?? intelligence.defaultLogValue)
     : (fallback.defaultLogValue ?? intelligence.defaultLogValue);
-  const target = saved && saved.target == null ? null : intelligence.target;
+  const target = hasSaved("target") && saved?.target == null ? null : intelligence.target;
 
   return {
     id: saved?.id ?? fallback.id,
@@ -105,8 +115,19 @@ export function resolveManualCreatedHabit(
   };
 }
 
+export function resolveManualCreatedHabit(
+  saved: SavedHabitForFirstLog | null,
+  fallback: ManualCreatedHabitFallback,
+): CreatedHabit {
+  return resolveCreatedHabit(saved, fallback);
+}
+
 /** Minimal shape of a single createRoutineHabits result we care about. */
-type CreateResultLike = { ok: boolean; id: string | null };
+type CreateResultLike = {
+  ok: boolean;
+  id: string | null;
+  habit?: SavedHabitForFirstLog | null;
+};
 
 /**
  * Zip the selected recommendations with the positionally-aligned create
@@ -123,17 +144,19 @@ export function buildCreatedHabits(
     const result = results[i];
     if (!result || !result.ok || !result.id) continue;
     const rec = selected[i];
-    created.push({
-      id: result.id,
-      name: rec.name,
-      icon: rec.icon,
-      color: rec.color,
-      unit: rec.unit,
-      target: rec.target,
-      habitType: rec.habitType,
-      metricType: rec.metricType,
-      defaultLogValue: rec.defaultLogValue,
-    });
+    created.push(
+      resolveCreatedHabit(result.habit ?? null, {
+        id: result.id,
+        name: rec.name,
+        icon: rec.icon,
+        color: rec.color,
+        unit: rec.unit,
+        target: rec.target,
+        habitType: rec.habitType,
+        metricType: rec.metricType,
+        defaultLogValue: rec.defaultLogValue,
+      }),
+    );
   }
   return created;
 }
