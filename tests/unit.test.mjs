@@ -1964,9 +1964,10 @@ test("treatment quick-start copy has Hindi translations", () => {
 });
 
 test("first-run wizard touch targets expose web accessibility roles", () => {
-  const source = readFileSync("app/habits/wizard.tsx", "utf8");
-  const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
-  const roles = source.match(/accessibilityRole=/g) ?? [];
+  const wizardSource = readFileSync("app/habits/wizard.tsx", "utf8");
+  const source = `${wizardSource}\n${readFileSync("components/first-log-flow.tsx", "utf8")}`;
+  const touchTargets = wizardSource.match(/<TouchableOpacity\b/g) ?? [];
+  const roles = wizardSource.match(/accessibilityRole=/g) ?? [];
   assert.equal(roles.length, touchTargets.length, "wizard has an unroled touch target");
   const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -1981,7 +1982,7 @@ test("first-run wizard touch targets expose web accessibility roles", () => {
     "Log {amount} {unit}",
     "Skip for now",
   ]) {
-    assert.match(source, new RegExp(`"${escapeRegex(label)}"`));
+    assert.match(source, new RegExp(`"${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
     assert.notEqual(translate("hi", label), label);
   }
 
@@ -1997,7 +1998,10 @@ test("first-run wizard touch targets expose web accessibility roles", () => {
 });
 
 test("first-run wizard primary actions use text loading states", () => {
-  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  const source = [
+    readFileSync("app/habits/wizard.tsx", "utf8"),
+    readFileSync("components/first-log-flow.tsx", "utf8"),
+  ].join("\n");
   assert.doesNotMatch(source, /ActivityIndicator/);
   assert.match(source, /disabled=\{creating\}/);
   assert.doesNotMatch(source, /disabled=\{(?:busy|completing)/);
@@ -2354,7 +2358,7 @@ test("new habit screen waits for a session before mounting the habit form", () =
   assert.match(source, /Redirect/);
   assert.match(source, /if \(!sessionChecked\) return null;/);
   assert.match(source, /if \(!hasSession\) return <Redirect href="\/login" \/>;/);
-  assert.match(source, /<HabitForm /);
+  assert.match(source, /<HabitForm\b/);
 });
 
 test("first-run wizard exit persists onboarding completion before returning home", () => {
@@ -2369,7 +2373,10 @@ test("first-run wizard exit persists onboarding completion before returning home
     source,
     /stepIndex === 0 \? handleExitWizard\(\) : setStepIndex\(\(value\) => value - 1\)/,
   );
-  assert.match(source, /onSkip=\{handleExitWizard\}/);
+  assert.match(
+    source,
+    /<FirstLogFlow[\s\S]*onFinished=\{\(\) => router\.replace\("\/\?newUser=1"\)\}/,
+  );
 });
 
 test("empty dashboard manual habit creation persists onboarding completion", () => {
@@ -4024,6 +4031,406 @@ test("buildCreatedHabits drops ok results without an id and handles empty input"
     buildCreatedHabits([recommendation("Walk", "walk")], [{ ok: true, id: null }]),
     [],
   );
+});
+
+async function loadFirstLogFlowContract() {
+  const module = await import("../lib/coach/first-log-flow.ts").catch(() => null);
+  assert.ok(module, "expected the shared first-log flow contract module");
+  return module;
+}
+
+test("first-log flow orders tutorial, celebration, notification, and done", async () => {
+  const { firstLogFlowReducer, initialFirstLogFlowState } = await loadFirstLogFlowContract();
+  const started = firstLogFlowReducer(initialFirstLogFlowState, { type: "action_started" });
+  assert.deepEqual(started, { phase: "tutorial", actionInFlight: true, error: null });
+
+  const celebrated = firstLogFlowReducer(started, { type: "action_succeeded" });
+  assert.deepEqual(celebrated, {
+    phase: "celebration",
+    actionInFlight: false,
+    error: null,
+  });
+
+  const notification = firstLogFlowReducer(celebrated, {
+    type: "celebration_continued",
+    offerNotifications: true,
+  });
+  assert.equal(notification.phase, "notification");
+  assert.equal(firstLogFlowReducer(notification, { type: "notification_resolved" }).phase, "done");
+});
+
+test("first-log failures stay retryable and skip or back never returns to tutorial", async () => {
+  const { firstLogFlowReducer, initialFirstLogFlowState } = await loadFirstLogFlowContract();
+  const failed = firstLogFlowReducer(
+    firstLogFlowReducer(initialFirstLogFlowState, { type: "action_started" }),
+    { type: "action_failed", error: "offline" },
+  );
+  assert.deepEqual(failed, {
+    phase: "tutorial",
+    actionInFlight: false,
+    error: "offline",
+  });
+  assert.equal(
+    firstLogFlowReducer(failed, { type: "action_started" }).actionInFlight,
+    true,
+    "a failed first action can be retried",
+  );
+  assert.equal(firstLogFlowReducer(initialFirstLogFlowState, { type: "skipped" }).phase, "done");
+
+  const celebration = {
+    phase: "celebration",
+    actionInFlight: false,
+    error: null,
+  };
+  assert.equal(firstLogFlowReducer(celebration, { type: "back_pressed" }).phase, "done");
+  assert.equal(
+    firstLogFlowReducer(celebration, {
+      type: "celebration_continued",
+      offerNotifications: false,
+    }).phase,
+    "done",
+  );
+});
+
+test("first-log action guard rejects rapid duplicate activation synchronously", async () => {
+  const { createFirstLogActionGuard } = await loadFirstLogFlowContract();
+  const guard = createFirstLogActionGuard();
+  assert.equal(guard.isInFlight(), false);
+  assert.equal(guard.tryStart(), true);
+  assert.equal(guard.isInFlight(), true);
+  assert.equal(guard.tryStart(), false);
+  guard.finish();
+  assert.equal(guard.isInFlight(), false);
+  assert.equal(guard.tryStart(), true);
+});
+
+test("first-step presentation preserves quantity and boolean tutorial actions", async () => {
+  const { buildFirstStepPresentation } = await loadFirstLogFlowContract();
+  assert.deepEqual(
+    buildFirstStepPresentation({
+      id: "water",
+      name: "Drink Water",
+      icon: "water_drop",
+      color: "secondary",
+      unit: "ml",
+      target: 1500,
+      habitType: "water_intake",
+      metricType: "volume_ml",
+      defaultLogValue: 250,
+    }),
+    {
+      kind: "quantity",
+      habitName: "Drink Water",
+      amount: 250,
+      unit: "ml",
+      action: { kind: "log_progress", value: 250 },
+    },
+  );
+  assert.deepEqual(
+    buildFirstStepPresentation({
+      id: "journal",
+      name: "Journal",
+      icon: "edit_note",
+      color: "primary",
+      unit: "",
+      target: null,
+      habitType: "journal",
+      metricType: "boolean",
+      defaultLogValue: null,
+    }),
+    {
+      kind: "boolean",
+      habitName: "Journal",
+      action: { kind: "complete" },
+    },
+  );
+});
+
+test("notification offer is user-scoped, durable before display, and fail-safe", async () => {
+  const {
+    firstLogNotificationOfferKey,
+    prepareFirstLogNotificationOffer,
+    shouldOfferFirstLogNotification,
+  } = await loadFirstLogFlowContract();
+  assert.notEqual(firstLogNotificationOfferKey("user-a"), firstLogNotificationOfferKey("user-b"));
+  assert.equal(shouldOfferFirstLogNotification("undetermined", false), true);
+  assert.equal(shouldOfferFirstLogNotification("undetermined", true), false);
+  assert.equal(shouldOfferFirstLogNotification("granted", false), false);
+  assert.equal(shouldOfferFirstLogNotification("denied", false), false);
+
+  const values = new Map();
+  const dependencies = {
+    getPermissionStatus: async () => "undetermined",
+    getItem: async (key) => values.get(key) ?? null,
+    setItem: async (key, value) => values.set(key, value),
+  };
+  assert.equal(await prepareFirstLogNotificationOffer("", dependencies), false);
+  assert.equal(values.size, 0, "an unknown user must not write a shared marker");
+  assert.equal(await prepareFirstLogNotificationOffer("user-a", dependencies), true);
+  assert.equal(values.get(firstLogNotificationOfferKey("user-a")), "1");
+  assert.equal(await prepareFirstLogNotificationOffer("user-a", dependencies), false);
+  assert.equal(await prepareFirstLogNotificationOffer("user-b", dependencies), true);
+
+  assert.equal(
+    await prepareFirstLogNotificationOffer("user-c", {
+      ...dependencies,
+      getPermissionStatus: async () => {
+        throw new Error("permission unavailable");
+      },
+    }),
+    false,
+  );
+  assert.equal(
+    await prepareFirstLogNotificationOffer("user-d", {
+      ...dependencies,
+      setItem: async () => {
+        throw new Error("storage unavailable");
+      },
+    }),
+    false,
+  );
+});
+
+test("shared first-log component owns guarded tutorial, celebration, and notification screens", () => {
+  const path = "components/first-log-flow.tsx";
+  assert.equal(existsSync(path), true, "expected a reusable FirstLogFlow component");
+  const source = readFileSync(path, "utf8");
+  assert.match(source, /export default function FirstLogFlow|export function FirstLogFlow/);
+  assert.match(source, /createFirstLogActionGuard/);
+  assert.match(source, /prepareFirstLogNotificationOffer/);
+  assert.match(source, /logCompletion/);
+  assert.match(source, /toggleHabit/);
+  assert.match(source, /BackHandler\.addEventListener/);
+  assert.match(source, /t\("First Step"\)/);
+  assert.match(source, /phase === "tutorial"/);
+  assert.match(source, /phase === "celebration"/);
+  assert.match(source, /phase === "notification"/);
+  assert.match(source, /disabled=\{state\.actionInFlight\}/);
+  assert.match(
+    source,
+    /BackHandler\.addEventListener[\s\S]*?actionGuardRef\.current\.isInFlight\(\)/,
+  );
+  assert.match(source, /function handleSkip\(\)[\s\S]*?actionGuardRef\.current\.isInFlight\(\)/);
+  assert.match(source, /accessibilityRole="summary"/);
+  assert.match(source, /accessibilityLiveRegion="polite"/);
+  assert.doesNotMatch(source, /useCelebrate|celebrate\(/);
+});
+
+test("first-step celebration copy is localized in Hindi", () => {
+  for (const label of [
+    "You logged {amount} {unit} for {name}.",
+    "You completed {name}.",
+    "Let's complete your first habit together",
+    "Tap below to mark {name} complete. That's your first win.",
+    "Could not complete habit",
+    "Stay on track with reminders",
+    "Allow notifications so we can nudge you at your reminder times. If several habits share a time, we'll bundle them into one reminder.",
+  ]) {
+    assert.notEqual(translate("hi", label), label);
+  }
+});
+
+test("wizard confirmation enters the shared first-log flow before any notification offer", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  assert.match(source, /import FirstLogFlow from "@\/components\/first-log-flow"/);
+  assert.match(source, /type PostCreatePhase = "confirm" \| "first_log" \| null/);
+  assert.match(source, /onContinue=\{\(\) => setPostPhase\("first_log"\)\}/);
+  assert.match(source, /<FirstLogFlow/);
+  assert.match(source, /userId=\{firstLogUserId\}/);
+  assert.doesNotMatch(source, /function NotificationPrimerScreen/);
+  assert.doesNotMatch(source, /function TutorialScreen/);
+  assert.doesNotMatch(source, /useCelebrate|celebrate\(/);
+  assert.doesNotMatch(source, /setNeedsNotifPrimer|getPermissionStatus\(\)/);
+});
+
+test("manual post-create conversion prefers the authoritative habit and safely falls back", async () => {
+  const module = await import("../lib/coach/post-onboarding.ts");
+  assert.equal(
+    typeof module.resolveManualCreatedHabit,
+    "function",
+    "expected a manual post-create conversion helper",
+  );
+
+  const fallback = {
+    id: "created-id",
+    name: "Draft reading",
+    icon: "menu_book",
+    color: "primary",
+    unit: "pages",
+    target: 10,
+    habitType: "read",
+    metricType: "pages",
+    visualType: "reading_book",
+    reminderStrategy: "manual",
+    reminderIntervalMinutes: null,
+    defaultLogValue: 25,
+  };
+  const saved = {
+    id: "merged-id",
+    name: "Authoritative reading",
+    icon: "edit_note",
+    color: "secondary",
+    unit: "pages",
+    target: 12,
+    habit_type: "read",
+    metric_type: "pages",
+    visual_type: "reading_book",
+    reminder_strategy: "manual",
+    reminder_interval_minutes: null,
+    default_log_value: 4,
+  };
+
+  assert.deepEqual(module.resolveManualCreatedHabit(saved, fallback), {
+    id: "merged-id",
+    name: "Authoritative reading",
+    icon: "edit_note",
+    color: "secondary",
+    unit: "pages",
+    target: 12,
+    habitType: "read",
+    metricType: "pages",
+    defaultLogValue: 4,
+  });
+
+  const legacySaved = {
+    ...saved,
+    id: "legacy-id",
+    name: "Drink Water",
+    icon: "water_drop",
+    color: "tertiary",
+    unit: "ml",
+    target: 1200,
+    habit_type: null,
+    metric_type: null,
+    visual_type: null,
+    reminder_strategy: null,
+    reminder_interval_minutes: null,
+    default_log_value: null,
+  };
+  const legacy = module.resolveManualCreatedHabit(legacySaved, fallback);
+  assert.equal(legacy.habitType, "water_intake");
+  assert.equal(legacy.metricType, "volume_ml");
+  assert.equal(legacy.defaultLogValue, 250);
+
+  const safeFallback = module.resolveManualCreatedHabit(null, fallback);
+  assert.equal(safeFallback.id, "created-id");
+  assert.equal(safeFallback.defaultLogValue, 10, "first log must never exceed the target");
+
+  const normalizedFallback = module.resolveManualCreatedHabit(null, {
+    ...fallback,
+    name: "Drink Water",
+    icon: "water_drop",
+    unit: "l",
+    target: 2,
+    habitType: "water_intake",
+    metricType: "volume_ml",
+    defaultLogValue: 3000,
+  });
+  assert.equal(normalizedFallback.unit, "ml");
+  assert.equal(normalizedFallback.target, 2000);
+  assert.equal(normalizedFallback.defaultLogValue, 2000);
+
+  const normalizedSaved = module.resolveManualCreatedHabit(
+    {
+      ...legacySaved,
+      habit_type: "water_intake",
+      metric_type: "volume_ml",
+      unit: "l",
+      target: 2,
+      default_log_value: 250,
+    },
+    fallback,
+  );
+  assert.equal(normalizedSaved.unit, "ml");
+  assert.equal(normalizedSaved.target, 2000);
+  assert.equal(normalizedSaved.defaultLogValue, 250);
+});
+
+test("treatment habit form helpers clamp first logs and expand hidden invalid fields", async () => {
+  const module = await import("../lib/habits/form-variant.ts");
+  assert.equal(typeof module.clampDefaultLogValueToTarget, "function");
+  assert.equal(typeof module.shouldExpandHabitFormAdvanced, "function");
+
+  assert.equal(module.clampDefaultLogValueToTarget(25, 10), 10);
+  assert.equal(module.clampDefaultLogValueToTarget(4, 10), 4);
+  assert.equal(module.clampDefaultLogValueToTarget(null, 10), null);
+  assert.equal(module.clampDefaultLogValueToTarget(4, null), 4);
+
+  for (const issue of ["target", "reminders", "validation"]) {
+    assert.equal(module.shouldExpandHabitFormAdvanced("treatment", issue), true);
+    assert.equal(module.shouldExpandHabitFormAdvanced("standard", issue), false);
+  }
+  assert.equal(module.shouldExpandHabitFormAdvanced("treatment", "basic"), false);
+});
+
+test("manual habit creation freezes activation mode and treatment enters the shared first-log flow", () => {
+  const source = readFileSync("app/habits/new.tsx", "utf8");
+  assert.match(source, /import FirstLogFlow from "@\/components\/first-log-flow"/);
+  assert.match(source, /const manualModeRef = useRef<"control" \| "treatment" \| null>\(null\)/);
+  assert.match(source, /if \(activation\.ready && manualModeRef\.current === null\)/);
+  assert.match(source, /const isTreatment = manualModeRef\.current === "treatment"/);
+  assert.match(source, /variant=\{isTreatment \? "treatment" : "standard"\}/);
+  assert.match(source, /getHabit\(result\.id, \{ force: true \}\)/);
+  assert.match(source, /resolveManualCreatedHabit/);
+  assert.match(source, /<FirstLogFlow/);
+  assert.match(source, /if \(!isTreatment\) \{[\s\S]*?router\.replace\("\/"\)/);
+});
+
+test("treatment manual form keeps basics visible and advanced options accessible", () => {
+  const source = readFileSync("components/habit-form.tsx", "utf8");
+  assert.match(source, /variant\?: HabitFormVariant/);
+  assert.match(source, /const isTreatment = variant === "treatment" && !initial/);
+  assert.match(source, /const \[advancedExpanded, setAdvancedExpanded\] = useState\(false\)/);
+  assert.match(source, /accessibilityState=\{\{ expanded: advancedExpanded \}\}/);
+  assert.match(source, /aria-expanded=\{advancedExpanded\}/);
+  assert.match(source, /shouldExpandHabitFormAdvanced\("treatment", "target"\)/);
+  assert.match(source, /shouldExpandHabitFormAdvanced\("treatment", "reminders"\)/);
+  assert.match(source, /shouldExpandHabitFormAdvanced\("treatment", "validation"\)/);
+  assert.match(source, /const submittingRef = useRef\(false\)/);
+  assert.match(source, /disabled=\{!name\.trim\(\) \|\| loading\}/);
+  assert.match(source, /defaultLogValue: isTreatment[\s\S]*?clampDefaultLogValueToTarget/);
+});
+
+test("treatment manual form summary and advanced controls are localized in Hindi", () => {
+  const source = readFileSync("components/habit-form.tsx", "utf8");
+  for (const label of [
+    "Target: {target} {unit}",
+    "No target",
+    "Reminders: off",
+    "Reminders: {count}",
+    "Advanced",
+    "Show advanced habit options",
+    "Hide advanced habit options",
+  ]) {
+    assert.match(source, new RegExp(`"${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+    assert.notEqual(translate("hi", label), label, `missing Hindi treatment copy: ${label}`);
+  }
+});
+
+test("first-run smoke suite covers both control and treatment manual creation", () => {
+  const treatmentPath = "scripts/first-run/treatment-manual-habit-smoke.cjs";
+  assert.equal(existsSync(treatmentPath), true, "expected a treatment manual-create smoke");
+  const suite = readFileSync("scripts/first-run/all-smokes.cjs", "utf8");
+  assert.match(suite, /manual-habit-smoke\.cjs/);
+  assert.match(suite, /treatment-manual-habit-smoke\.cjs/);
+
+  const source = readFileSync(treatmentPath, "utf8");
+  for (const proof of [
+    "Show advanced habit options",
+    "Saving...",
+    "Let's log your first habit together",
+    "First Step",
+    "Maybe later",
+  ]) {
+    assert.match(source, new RegExp(proof.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(source, /button\.click\(\);\s*button\.click\(\);/);
+  assert.match(source, /for \(const label of advancedLabels\)/);
+  assert.match(source, /storedMarker !== "1"/);
+
+  const postCreateSource = readFileSync("scripts/first-run/post-create-smoke.cjs", "utf8");
+  assert.match(postCreateSource, /actionButton[\s\S]*?button\.click\(\);\s*button\.click\(\);/);
+  assert.match(postCreateSource, /getByText\("First Step", \{ exact: true \}\)/);
 });
 
 test("pickTutorialHabit prefers the water habit, else first, else null", () => {

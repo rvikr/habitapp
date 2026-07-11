@@ -693,12 +693,21 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Maybe later": "शायद बाद में",
   Continue: "जारी रखें",
   "Let's log your first habit together": "आइए अपनी पहली आदत साथ में लॉग करें",
+  "Let's complete your first habit together": "आइए अपनी पहली आदत साथ में पूरी करें",
   "Tap below to log {amount} {unit} for {name}. That's your first step.":
     "नीचे टैप करके {name} के लिए {amount} {unit} लॉग करें. यह आपका पहला कदम है.",
+  "Tap below to mark {name} complete. That's your first win.":
+    "नीचे टैप करके {name} को पूरा करें। यह आपकी पहली जीत है।",
   "First log: +{amount} {unit}": "पहला लॉग: +{amount} {unit}",
+  "You logged {amount} {unit} for {name}.": "आपने {name} के लिए {amount} {unit} लॉग किया।",
+  "You completed {name}.": "आपने {name} पूरा किया।",
   "Daily goal: {target} {unit}": "दैनिक लक्ष्य: {target} {unit}",
   "Log {amount} {unit}": "{amount} {unit} लॉग करें",
   "Logging...": "लॉग हो रहा है...",
+  "Could not complete habit": "आदत पूरी नहीं हो सकी",
+  "Stay on track with reminders": "रिमाइंडर के साथ सही रास्ते पर रहें",
+  "Allow notifications so we can nudge you at your reminder times. If several habits share a time, we'll bundle them into one reminder.":
+    "नोटिफिकेशन की अनुमति दें ताकि हम रिमाइंडर के समय आपको याद दिला सकें। एक समय पर कई आदतें हों, तो हम उन्हें एक रिमाइंडर में जोड़ देंगे।",
   "Great start! First log saved for {name}.": "अच्छी शुरुआत! {name} का पहला लॉग सेव हो गया.",
   Complete: "पूरा करें",
   "Completing...": "पूरा हो रहा है...",
@@ -788,7 +797,14 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Start gentle": "धीरे शुरू करें",
   Intermediate: "Intermediate",
   "Some momentum": "कुछ momentum",
-  Advanced: "Advanced",
+  Advanced: "उन्नत",
+  "Target: {target} {unit}": "लक्ष्य: {target} {unit}",
+  "No target": "कोई लक्ष्य नहीं",
+  "Reminders: off": "रिमाइंडर: बंद",
+  "Reminders: on": "रिमाइंडर: चालू",
+  "Reminders: {count}": "रिमाइंडर: {count}",
+  "Show advanced habit options": "उन्नत आदत विकल्प दिखाएँ",
+  "Hide advanced habit options": "उन्नत आदत विकल्प छिपाएँ",
   "Ready for more": "More के लिए ready",
 };
 

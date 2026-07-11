@@ -309,18 +309,23 @@ async function runScenario(browser, scenario) {
   await page.getByText("Your routine is ready").waitFor({ timeout: 30000 });
   await snap("confirm");
   await page.getByText("Let's begin").click();
-  await page
-    .getByText(/Let's (?:log|complete) your first habit together|Enable reminders/)
-    .waitFor({ timeout: 30000 });
-  const afterBegin = await snap("after-begin");
-  if (/Enable reminders|Maybe later|Continue/.test(afterBegin)) {
-    const maybe = page.getByText(/Maybe later|Continue/).last();
-    await maybe.click({ timeout: 10000 });
-    await page.getByText(scenario.tutorialHeading).waitFor({ timeout: 30000 });
-    await snap("after-reminder-primer");
-  }
   await page.getByText(scenario.tutorialHeading).waitFor({ timeout: 30000 });
-  await page.getByRole("button", { name: scenario.actionLabel, exact: true }).click();
+  await snap("after-begin");
+  const actionButton = page.getByRole("button", { name: scenario.actionLabel, exact: true });
+  await actionButton.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await page.getByText("First Step", { exact: true }).waitFor({ timeout: 30000 });
+  await snap("first-step");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const maybeLater = page.getByRole("button", { name: "Maybe later", exact: true });
+  try {
+    await maybeLater.waitFor({ timeout: 5000 });
+    await maybeLater.click();
+  } catch {
+    // A denied browser permission correctly skips the notification primer.
+  }
   await page.waitForURL((url) => url.pathname === "/" && url.searchParams.get("newUser") === "1", {
     timeout: 30000,
   });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch } from "react-native";
 import Icon from "./icon";
 import HabitCatalogPicker from "./habit-catalog-picker";
@@ -16,6 +16,11 @@ import {
 import { useLanguage } from "@/components/language-provider";
 import HabitValidationModal from "@/components/habit-validation-modal";
 import type { HabitValidationResult } from "@/lib/habits/validate";
+import {
+  clampDefaultLogValueToTarget,
+  shouldExpandHabitFormAdvanced,
+  type HabitFormVariant,
+} from "@/lib/habits/form-variant";
 
 function smartReminderSummary(
   intervalMinutes: number | null,
@@ -101,10 +106,17 @@ type Props = {
   initial?: Habit;
   onSubmit: (data: FormData) => Promise<HabitFormSubmitResult>;
   submitLabel?: string;
+  variant?: HabitFormVariant;
 };
 
-export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: Props) {
+export default function HabitForm({
+  initial,
+  onSubmit,
+  submitLabel = "Save",
+  variant = "standard",
+}: Props) {
   const { t } = useLanguage();
+  const isTreatment = variant === "treatment" && !initial;
   const [showCatalog, setShowCatalog] = useState(!initial);
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
@@ -133,6 +145,8 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   const [showMetricOptions, setShowMetricOptions] = useState(false);
   const [customTime, setCustomTime] = useState("");
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [validation, setValidation] = useState<HabitValidationResult | null>(null);
   const [lastPayload, setLastPayload] = useState<FormData | null>(null);
@@ -165,6 +179,9 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   function addCustomTime() {
     const nextTime = customTime.trim();
     if (!isValidReminderTime(nextTime)) {
+      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "reminders")) {
+        setAdvancedExpanded(true);
+      }
       setFormError(t("Use a valid 24-hour time, for example 08:30."));
       return;
     }
@@ -182,10 +199,14 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
   }
 
   async function handleSubmit() {
+    if (submittingRef.current) return;
     if (loading) return;
     if (!name.trim()) return;
     const parsedTarget = parseOptionalPositiveNumber(target);
     if (!parsedTarget.ok) {
+      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "target")) {
+        setAdvancedExpanded(true);
+      }
       setFormError(t(parsedTarget.error));
       return;
     }
@@ -206,14 +227,23 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
       intelligence.reminderStrategy === "manual" &&
       reminderTimes.length === 0
     ) {
+      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "reminders")) {
+        setAdvancedExpanded(true);
+      }
       setFormError(t("Add at least one reminder time or turn reminders off."));
       return;
     }
     if (remindersEnabled && reminderTimes.some((time) => !isValidReminderTime(time))) {
+      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "reminders")) {
+        setAdvancedExpanded(true);
+      }
       setFormError(t("Use valid 24-hour reminder times."));
       return;
     }
     if (reminderDays.some((day) => day < 0 || day > 6)) {
+      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "reminders")) {
+        setAdvancedExpanded(true);
+      }
       setFormError(t("Choose valid reminder days."));
       return;
     }
@@ -237,21 +267,32 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
       visualType: intelligence.visualType,
       reminderStrategy: intelligence.reminderStrategy,
       reminderIntervalMinutes: intelligence.reminderIntervalMinutes,
-      defaultLogValue: intelligence.defaultLogValue,
+      defaultLogValue: isTreatment
+        ? clampDefaultLogValueToTarget(intelligence.defaultLogValue, intelligence.target)
+        : intelligence.defaultLogValue,
       mergeSimilar,
     };
     await submitWithPayload(payload);
   }
 
   async function submitWithPayload(payload: FormData) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLastPayload(payload);
     setLoading(true);
-    const result = await onSubmit(payload);
-    setLoading(false);
-    if (!result.ok && result.validation && result.validation.status !== "ok") {
-      setValidation(result.validation);
-    } else {
-      setValidation(null);
+    try {
+      const result = await onSubmit(payload);
+      if (!result.ok && result.validation && result.validation.status !== "ok") {
+        if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "validation")) {
+          setAdvancedExpanded(true);
+        }
+        setValidation(result.validation);
+      } else {
+        setValidation(null);
+      }
+    } finally {
+      submittingRef.current = false;
+      setLoading(false);
     }
   }
 
@@ -263,8 +304,13 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
 
   function applySuggestion(suggestion: NonNullable<HabitValidationResult["suggestion"]>) {
     if (suggestion.name) setName(suggestion.name);
-    if (suggestion.unit) setUnit(suggestion.unit);
-    if (suggestion.target != null) setTarget(String(suggestion.target));
+    if (suggestion.unit || suggestion.target != null) {
+      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "validation")) {
+        setAdvancedExpanded(true);
+      }
+      if (suggestion.unit) setUnit(suggestion.unit);
+      if (suggestion.target != null) setTarget(String(suggestion.target));
+    }
     setValidation(null);
   }
 
@@ -298,6 +344,17 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
       : metricPreview.metricType === "volume_ml"
         ? t("Water volume is saved in ml.")
         : null;
+  const treatmentTargetSummary = target.trim()
+    ? t("Target: {target} {unit}", {
+        target: target.trim(),
+        unit: unit.trim() || t("none"),
+      })
+    : t("No target");
+  const treatmentReminderSummary = remindersEnabled
+    ? reminderTimes.length > 0
+      ? t("Reminders: {count}", { count: reminderTimes.length })
+      : t("Reminders: on")
+    : t("Reminders: off");
 
   function selectMetricOption(option: (typeof metricOptions)[number]) {
     setUnit(option.unit);
@@ -367,288 +424,328 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
             />
           </View>
 
-          {/* Icon picker */}
-          <View>
-            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
-              {t("ICON")}
-            </Text>
-            <View className="flex-row flex-wrap gap-sm">
-              {ICONS.map((ic) => (
-                <TouchableOpacity
-                  key={ic}
-                  className="w-12 h-12 rounded-xl items-center justify-center"
-                  style={{ backgroundColor: icon === ic ? "#F26B1F" : "#F2EDE4" }}
-                  onPress={() => setIcon(ic)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("Select {label}", { label: ic.replace(/_/g, " ") })}
-                  accessibilityState={{ selected: icon === ic }}
-                >
-                  <Icon name={ic} size={24} color={icon === ic ? "#fff" : "#484554"} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Color picker */}
-          <View>
-            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
-              {t("COLOR")}
-            </Text>
-            <View className="flex-row gap-sm">
-              {COLORS.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  className="flex-1 py-sm rounded-xl items-center"
-                  style={{
-                    backgroundColor: c.hex + "22",
-                    borderWidth: 2,
-                    borderColor: color === c.id ? c.hex : "transparent",
-                  }}
-                  onPress={() => setColor(c.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={t("Select color {label}", { label: t(c.label) })}
-                  accessibilityState={{ selected: color === c.id }}
-                >
-                  <View className="w-5 h-5 rounded-full mb-xs" style={{ backgroundColor: c.hex }} />
-                  <Text className="text-label-sm" style={{ color: c.hex }}>
-                    {t(c.label)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Unit + Target */}
-          <View className="flex-row gap-sm">
-            <View className="flex-1">
-              <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
-                {t("UNIT")}
-              </Text>
-              <TextInput
-                className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
-                placeholder={t("ml, km, min...")}
-                placeholderTextColor="#8F8A82"
-                value={unit}
-                onChangeText={setUnit}
-                maxLength={16}
-              />
-            </View>
-            <View className="flex-1">
-              <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
-                {t("TARGET")}
-              </Text>
-              <TextInput
-                className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
-                placeholder={t("e.g. 2000")}
-                placeholderTextColor="#8F8A82"
-                value={target}
-                onChangeText={setTarget}
-                keyboardType="decimal-pad"
-              />
-            </View>
-          </View>
-
-          <View className="bg-primary-fixed dark:bg-d-surface-container rounded-xl px-md py-sm">
-            <Text className="text-label-lg text-primary mb-xs">{t("SMART METRIC")}</Text>
-            <TouchableOpacity
-              className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl px-md py-sm flex-row items-center justify-between"
-              onPress={() => setShowMetricOptions((prev) => !prev)}
-              accessibilityRole="button"
-              accessibilityLabel={t("Smart metric: {label}", {
-                label: t(METRIC_LABELS[metricPreview.metricType]),
-              })}
-              accessibilityState={{ expanded: showMetricOptions }}
-            >
-              <View>
-                <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
-                  {t(METRIC_LABELS[metricPreview.metricType])}
+          {isTreatment && (
+            <>
+              <View
+                className="bg-surface-container dark:bg-d-surface-container rounded-xl px-md py-sm gap-xs"
+                accessible
+                accessibilityRole="summary"
+                accessibilityLabel={`${treatmentTargetSummary}. ${treatmentReminderSummary}`}
+              >
+                <Text className="text-body-sm text-on-surface dark:text-d-on-surface font-semibold">
+                  {treatmentTargetSummary}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {t("Unit: {unit}", { unit: unit || metricPreview.unit || t("none") })}
+                  {treatmentReminderSummary}
                 </Text>
-                {storagePreview && (
-                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                    {storagePreview}
-                  </Text>
-                )}
               </View>
-              <Text className="text-primary text-body-md">{showMetricOptions ? "^" : "v"}</Text>
-            </TouchableOpacity>
-            {showMetricOptions && metricOptions.length > 0 && (
-              <View className="mt-xs bg-surface-lowest dark:bg-d-surface-lowest rounded-xl overflow-hidden">
-                {metricOptions.map((option) => {
-                  const active = unit === option.unit && metricType === option.metricType;
-                  return (
+              <TouchableOpacity
+                className="bg-surface-container dark:bg-d-surface-container rounded-xl px-md py-sm flex-row items-center justify-between"
+                onPress={() => setAdvancedExpanded((value) => !value)}
+                accessibilityRole="button"
+                accessibilityLabel={t(
+                  advancedExpanded ? "Hide advanced habit options" : "Show advanced habit options",
+                )}
+                accessibilityState={{ expanded: advancedExpanded }}
+                aria-expanded={advancedExpanded}
+              >
+                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                  {t("Advanced")}
+                </Text>
+                <Text className="text-primary text-body-md">{advancedExpanded ? "^" : "v"}</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {(!isTreatment || advancedExpanded) && (
+            <>
+              {/* Icon picker */}
+              <View>
+                <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+                  {t("ICON")}
+                </Text>
+                <View className="flex-row flex-wrap gap-sm">
+                  {ICONS.map((ic) => (
                     <TouchableOpacity
-                      key={`${option.metricType}-${option.unit}`}
-                      className="px-md py-sm border-b border-outline-variant dark:border-d-outline-variant"
-                      style={{ backgroundColor: active ? "#FFE6CF" : "transparent" }}
-                      onPress={() => selectMetricOption(option)}
+                      key={ic}
+                      className="w-12 h-12 rounded-xl items-center justify-center"
+                      style={{ backgroundColor: icon === ic ? "#F26B1F" : "#F2EDE4" }}
+                      onPress={() => setIcon(ic)}
                       accessibilityRole="button"
-                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={t("Select {label}", { label: ic.replace(/_/g, " ") })}
+                      accessibilityState={{ selected: icon === ic }}
                     >
-                      <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
-                        {t(option.label)}
-                      </Text>
-                      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                        {t("Store as {unit}", {
-                          unit:
-                            option.metricType === "volume_ml"
-                              ? "ml"
-                              : option.metricType === "distance_km"
-                                ? "km"
-                                : option.unit,
-                        })}
+                      <Icon name={ic} size={24} color={icon === ic ? "#fff" : "#484554"} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Color picker */}
+              <View>
+                <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+                  {t("COLOR")}
+                </Text>
+                <View className="flex-row gap-sm">
+                  {COLORS.map((c) => (
+                    <TouchableOpacity
+                      key={c.id}
+                      className="flex-1 py-sm rounded-xl items-center"
+                      style={{
+                        backgroundColor: c.hex + "22",
+                        borderWidth: 2,
+                        borderColor: color === c.id ? c.hex : "transparent",
+                      }}
+                      onPress={() => setColor(c.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("Select color {label}", { label: t(c.label) })}
+                      accessibilityState={{ selected: color === c.id }}
+                    >
+                      <View
+                        className="w-5 h-5 rounded-full mb-xs"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                      <Text className="text-label-sm" style={{ color: c.hex }}>
+                        {t(c.label)}
                       </Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-
-          {/* Reminders */}
-          <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1">
-                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {t("Smart Reminders")}
-                </Text>
-                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {reminderStrategy !== "manual"
-                    ? t(
-                        "Fires automatically based on your habit — stops once you log it for the day.",
-                      )
-                    : t("Set specific times for this habit.")}
-                </Text>
-              </View>
-              <Switch
-                value={remindersEnabled}
-                onValueChange={setRemindersEnabled}
-                trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
-                thumbColor="#fff"
-              />
-            </View>
-
-            {remindersEnabled && reminderStrategy !== "manual" && (
-              <Text className="text-label-sm text-primary">
-                {smartReminderSummary(reminderIntervalMinutes, reminderStrategy, t)}
-              </Text>
-            )}
-
-            {remindersEnabled && (
-              <>
-                <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
-                  {reminderStrategy !== "manual"
-                    ? t("CUSTOM OVERRIDE TIMES (optional)")
-                    : t("TIMES")}
-                </Text>
-                <View className="flex-row flex-wrap gap-xs">
-                  {TIME_PRESETS.map((t) => {
-                    const active = reminderTimes.includes(t);
-                    return (
-                      <TouchableOpacity
-                        key={t}
-                        onPress={() => toggleTime(t)}
-                        className={`px-md py-xs rounded-full ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <Text
-                          className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
-                        >
-                          {t}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                  ))}
                 </View>
+              </View>
 
-                {reminderTimes.filter((t) => !TIME_PRESETS.includes(t)).length > 0 && (
-                  <View className="flex-row flex-wrap gap-xs">
-                    {reminderTimes
-                      .filter((time) => !TIME_PRESETS.includes(time))
-                      .map((time) => (
+              {/* Unit + Target */}
+              <View className="flex-row gap-sm">
+                <View className="flex-1">
+                  <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+                    {t("UNIT")}
+                  </Text>
+                  <TextInput
+                    className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
+                    placeholder={t("ml, km, min...")}
+                    placeholderTextColor="#8F8A82"
+                    value={unit}
+                    onChangeText={setUnit}
+                    maxLength={16}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-xs">
+                    {t("TARGET")}
+                  </Text>
+                  <TextInput
+                    className="bg-surface-container dark:bg-d-surface-container text-on-surface dark:text-d-on-surface rounded-xl px-md py-sm text-body-md"
+                    placeholder={t("e.g. 2000")}
+                    placeholderTextColor="#8F8A82"
+                    value={target}
+                    onChangeText={setTarget}
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+              </View>
+
+              <View className="bg-primary-fixed dark:bg-d-surface-container rounded-xl px-md py-sm">
+                <Text className="text-label-lg text-primary mb-xs">{t("SMART METRIC")}</Text>
+                <TouchableOpacity
+                  className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl px-md py-sm flex-row items-center justify-between"
+                  onPress={() => setShowMetricOptions((prev) => !prev)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Smart metric: {label}", {
+                    label: t(METRIC_LABELS[metricPreview.metricType]),
+                  })}
+                  accessibilityState={{ expanded: showMetricOptions }}
+                >
+                  <View>
+                    <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
+                      {t(METRIC_LABELS[metricPreview.metricType])}
+                    </Text>
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {t("Unit: {unit}", { unit: unit || metricPreview.unit || t("none") })}
+                    </Text>
+                    {storagePreview && (
+                      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                        {storagePreview}
+                      </Text>
+                    )}
+                  </View>
+                  <Text className="text-primary text-body-md">{showMetricOptions ? "^" : "v"}</Text>
+                </TouchableOpacity>
+                {showMetricOptions && metricOptions.length > 0 && (
+                  <View className="mt-xs bg-surface-lowest dark:bg-d-surface-lowest rounded-xl overflow-hidden">
+                    {metricOptions.map((option) => {
+                      const active = unit === option.unit && metricType === option.metricType;
+                      return (
                         <TouchableOpacity
-                          key={time}
-                          onPress={() => toggleTime(time)}
-                          className="px-md py-xs rounded-full bg-primary flex-row items-center gap-xs"
+                          key={`${option.metricType}-${option.unit}`}
+                          className="px-md py-sm border-b border-outline-variant dark:border-d-outline-variant"
+                          style={{ backgroundColor: active ? "#FFE6CF" : "transparent" }}
+                          onPress={() => selectMetricOption(option)}
                           accessibilityRole="button"
-                          accessibilityLabel={t("Remove {label}", { label: time })}
+                          accessibilityState={{ selected: active }}
                         >
-                          <Text className="text-on-primary text-label-lg">{time}</Text>
-                          <Text className="text-on-primary text-label-sm">x</Text>
+                          <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
+                            {t(option.label)}
+                          </Text>
+                          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                            {t("Store as {unit}", {
+                              unit:
+                                option.metricType === "volume_ml"
+                                  ? "ml"
+                                  : option.metricType === "distance_km"
+                                    ? "km"
+                                    : option.unit,
+                            })}
+                          </Text>
                         </TouchableOpacity>
-                      ))}
+                      );
+                    })}
                   </View>
                 )}
-
-                <View className="flex-row gap-xs items-center">
-                  <TextInput
-                    className="flex-1 bg-surface-high dark:bg-d-surface-high text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
-                    placeholder={t("HH:MM (24h)")}
-                    placeholderTextColor="#8F8A82"
-                    value={customTime}
-                    onChangeText={setCustomTime}
-                    keyboardType="numbers-and-punctuation"
-                    maxLength={5}
-                  />
-                  <TouchableOpacity
-                    className="bg-primary px-md py-xs rounded-full"
-                    onPress={addCustomTime}
-                    disabled={!isValidReminderTime(customTime)}
-                    style={{ opacity: isValidReminderTime(customTime) ? 1 : 0.4 }}
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: !isValidReminderTime(customTime) }}
-                  >
-                    <Text className="text-on-primary text-label-lg">{t("Add")}</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
-                  {t("REPEAT ON")}
-                </Text>
-                <View className="flex-row gap-xs">
-                  {DAY_LABELS.map((label, i) => {
-                    const active = reminderDays.includes(i);
-                    return (
-                      <TouchableOpacity
-                        key={i}
-                        onPress={() => toggleDay(i)}
-                        className={`flex-1 py-xs rounded-full items-center ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: active }}
-                      >
-                        <Text
-                          className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
-                        >
-                          {t(label)}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </>
-            )}
-          </View>
-
-          {!initial && (
-            <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center justify-between gap-md">
-              <View className="flex-1">
-                <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {t("Merge similar habits")}
-                </Text>
-                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {t("Combine this with an existing habit when it looks like the same goal.")}
-                </Text>
               </View>
-              <Switch
-                value={mergeSimilar}
-                onValueChange={setMergeSimilar}
-                trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
-                thumbColor="#fff"
-              />
-            </View>
+
+              {/* Reminders */}
+              <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-1">
+                    <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                      {t("Smart Reminders")}
+                    </Text>
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {reminderStrategy !== "manual"
+                        ? t(
+                            "Fires automatically based on your habit — stops once you log it for the day.",
+                          )
+                        : t("Set specific times for this habit.")}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={remindersEnabled}
+                    onValueChange={setRemindersEnabled}
+                    trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
+                {remindersEnabled && reminderStrategy !== "manual" && (
+                  <Text className="text-label-sm text-primary">
+                    {smartReminderSummary(reminderIntervalMinutes, reminderStrategy, t)}
+                  </Text>
+                )}
+
+                {remindersEnabled && (
+                  <>
+                    <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
+                      {reminderStrategy !== "manual"
+                        ? t("CUSTOM OVERRIDE TIMES (optional)")
+                        : t("TIMES")}
+                    </Text>
+                    <View className="flex-row flex-wrap gap-xs">
+                      {TIME_PRESETS.map((t) => {
+                        const active = reminderTimes.includes(t);
+                        return (
+                          <TouchableOpacity
+                            key={t}
+                            onPress={() => toggleTime(t)}
+                            className={`px-md py-xs rounded-full ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <Text
+                              className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
+                            >
+                              {t}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {reminderTimes.filter((t) => !TIME_PRESETS.includes(t)).length > 0 && (
+                      <View className="flex-row flex-wrap gap-xs">
+                        {reminderTimes
+                          .filter((time) => !TIME_PRESETS.includes(time))
+                          .map((time) => (
+                            <TouchableOpacity
+                              key={time}
+                              onPress={() => toggleTime(time)}
+                              className="px-md py-xs rounded-full bg-primary flex-row items-center gap-xs"
+                              accessibilityRole="button"
+                              accessibilityLabel={t("Remove {label}", { label: time })}
+                            >
+                              <Text className="text-on-primary text-label-lg">{time}</Text>
+                              <Text className="text-on-primary text-label-sm">x</Text>
+                            </TouchableOpacity>
+                          ))}
+                      </View>
+                    )}
+
+                    <View className="flex-row gap-xs items-center">
+                      <TextInput
+                        className="flex-1 bg-surface-high dark:bg-d-surface-high text-on-surface dark:text-d-on-surface rounded-xl px-md py-xs text-body-md"
+                        placeholder={t("HH:MM (24h)")}
+                        placeholderTextColor="#8F8A82"
+                        value={customTime}
+                        onChangeText={setCustomTime}
+                        keyboardType="numbers-and-punctuation"
+                        maxLength={5}
+                      />
+                      <TouchableOpacity
+                        className="bg-primary px-md py-xs rounded-full"
+                        onPress={addCustomTime}
+                        disabled={!isValidReminderTime(customTime)}
+                        style={{ opacity: isValidReminderTime(customTime) ? 1 : 0.4 }}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: !isValidReminderTime(customTime) }}
+                      >
+                        <Text className="text-on-primary text-label-lg">{t("Add")}</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mt-sm">
+                      {t("REPEAT ON")}
+                    </Text>
+                    <View className="flex-row gap-xs">
+                      {DAY_LABELS.map((label, i) => {
+                        const active = reminderDays.includes(i);
+                        return (
+                          <TouchableOpacity
+                            key={i}
+                            onPress={() => toggleDay(i)}
+                            className={`flex-1 py-xs rounded-full items-center ${active ? "bg-primary" : "bg-surface-high dark:bg-d-surface-high"}`}
+                            accessibilityRole="button"
+                            accessibilityState={{ selected: active }}
+                          >
+                            <Text
+                              className={`text-label-lg ${active ? "text-on-primary" : "text-on-surface dark:text-d-on-surface"}`}
+                            >
+                              {t(label)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+              </View>
+
+              {!initial && (
+                <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center justify-between gap-md">
+                  <View className="flex-1">
+                    <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                      {t("Merge similar habits")}
+                    </Text>
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {t("Combine this with an existing habit when it looks like the same goal.")}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={mergeSimilar}
+                    onValueChange={setMergeSimilar}
+                    trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
+                    thumbColor="#fff"
+                  />
+                </View>
+              )}
+            </>
           )}
 
           {formError && (
@@ -669,8 +766,8 @@ export default function HabitForm({ initial, onSubmit, submitLabel = "Save" }: P
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center mt-sm"
             onPress={handleSubmit}
-            disabled={!name.trim()}
-            style={{ opacity: !name.trim() ? 0.5 : 1 }}
+            disabled={!name.trim() || loading}
+            style={{ opacity: !name.trim() || loading ? 0.5 : 1 }}
             accessibilityRole="button"
             accessibilityState={{ disabled: !name.trim() || loading }}
           >

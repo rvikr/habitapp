@@ -1,26 +1,15 @@
 import { useCallback, useRef, useState } from "react";
-import {
-  BackHandler,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { BackHandler, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Icon from "@/components/icon";
-import { useCelebrate } from "@/components/celebration";
+import FirstLogFlow from "@/components/first-log-flow";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
-import { createRoutineHabits, logCompletion, toggleHabit } from "@/lib/data/actions";
-import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
-import { syncScheduledReminders } from "@/lib/data/reminder-sync";
+import { createRoutineHabits } from "@/lib/data/actions";
 import {
   buildCreatedHabits,
-  getTutorialHabitAction,
   pickTutorialHabit,
   type CreatedHabit,
 } from "@/lib/coach/post-onboarding";
@@ -32,7 +21,6 @@ import {
   type HabitRecommendation,
   type RoutineWizardAnswers,
 } from "@/lib/coach/routine-builder";
-import { formatAmount } from "@/lib/coach/habit-intelligence";
 import { refineRoutineRecommendations } from "@/lib/coach/routine-ai";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
@@ -61,23 +49,7 @@ type ControlStepId =
   | "baseline";
 type StepId = ControlStepId | "constraint";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
-type PostCreatePhase = "confirm" | "notifications" | "tutorial" | null;
-
-// Web-only: iOS only allows push for installed (home-screen) PWAs, so on iOS
-// Safari we guide the user to install instead of showing a non-functional
-// Allow button (mirrors components/notification-permission-card.tsx).
-function isIosBrowser(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
-
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    (navigator as unknown as { standalone?: boolean }).standalone === true ||
-    window.matchMedia("(display-mode: standalone)").matches
-  );
-}
+type PostCreatePhase = "confirm" | "first_log" | null;
 
 const GOAL_OPTIONS: Option[] = [
   { value: "energy", label: "Energy", detail: "Feel less drained", icon: "weather-sunny" },
@@ -271,31 +243,25 @@ export default function HabitWizardScreen() {
   const creatingRef = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [postPhase, setPostPhase] = useState<PostCreatePhase>(null);
-  const [needsNotifPrimer, setNeedsNotifPrimer] = useState(false);
   const [createdHabits, setCreatedHabits] = useState<CreatedHabit[]>([]);
-  const [tutorialCompleting, setTutorialCompleting] = useState(false);
+  const [firstLogUserId, setFirstLogUserId] = useState("");
   const [showPersonalization, setShowPersonalization] = useState(false);
   const [showAdditionalSuggestions, setShowAdditionalSuggestions] = useState(false);
   const aiRequestRef = useRef(0);
   const reviewInteractionVersionRef = useRef(0);
   const reviewActiveRef = useRef(false);
-  const celebrate = useCelebrate();
 
   const activeSteps = isTreatment ? TREATMENT_STEPS : STEPS;
   const step = activeSteps[stepIndex];
   const selectedCount = recommendations?.filter((item) => item.selected).length ?? 0;
   const tutorialHabit = pickTutorialHabit(createdHabits);
 
-  // While in a post-create phase, consume Android back: tutorial -> confirm,
-  // confirm -> dashboard. Never let it fall back into the wizard/review screen.
+  // Confirmation may only leave for the dashboard or the one-way shared flow.
+  // FirstLogFlow owns back behavior once it starts so no back action can replay a log.
   useFocusEffect(
     useCallback(() => {
-      if (postPhase === null) return;
+      if (postPhase !== "confirm") return;
       const onBack = () => {
-        if (postPhase === "tutorial") {
-          setPostPhase("confirm");
-          return true;
-        }
         router.replace("/?newUser=1");
         return true;
       };
@@ -516,58 +482,30 @@ export default function HabitWizardScreen() {
         }
       }
 
-      // Routine creation succeeded — record onboarding as done so the dashboard
-      // never auto-launches the wizard for this user again.
-      const session = await getCurrentSession();
-      if (session?.user?.id) void markOnboardingComplete(session.user.id);
-
       const created = buildCreatedHabits(selected, results);
       if (created.length === 0) {
         router.replace("/?newUser=1"); // nothing to celebrate; straight to dashboard
         return;
       }
+      // Routine creation succeeded — record onboarding as done so the dashboard
+      // never auto-launches the wizard for this user again. A session-storage
+      // failure suppresses only the local notification offer, not the first log.
+      let userId = "";
+      try {
+        const session = await getCurrentSession();
+        userId = session?.user?.id ?? "";
+        if (userId) void markOnboardingComplete(userId);
+      } catch {
+        // Best effort: successful habit creation must still reach the shared flow.
+      }
       reviewActiveRef.current = false;
       setCreatedHabits(created);
-      // Only show the notification primer when permission hasn't been decided yet.
-      const status = await getPermissionStatus();
-      setNeedsNotifPrimer(status === "undetermined");
+      setFirstLogUserId(userId);
       setPostPhase("confirm");
     } finally {
       creatingRef.current = false;
       setCreating(false);
     }
-  }
-
-  async function handleTutorialComplete() {
-    if (tutorialCompleting) return;
-    const habit = pickTutorialHabit(createdHabits);
-    if (!habit) {
-      router.replace("/?newUser=1");
-      return;
-    }
-    setTutorialCompleting(true);
-    const action = getTutorialHabitAction(habit);
-    const result =
-      action.kind === "log_progress"
-        ? await logCompletion(habit.id, action.value)
-        : await toggleHabit(habit.id, false, habit.target ?? null);
-    setTutorialCompleting(false);
-    if (!result.ok) {
-      showAlert(
-        t(action.kind === "log_progress" ? "Could not log progress" : "Could not complete habit"),
-        result.error ?? t("Try again."),
-      );
-      return; // stay on tutorial to retry or skip
-    }
-    if (action.kind === "log_progress") {
-      celebrate(t("Great start! First log saved for {name}.", { name: t(habit.name) }));
-      router.replace("/?newUser=1");
-      return;
-    }
-    celebrate(
-      t("🎉 Great Start! 1 of {total} habits completed today.", { total: createdHabits.length }),
-    );
-    router.replace("/?newUser=1");
   }
 
   if (!activation.ready) {
@@ -581,25 +519,15 @@ export default function HabitWizardScreen() {
   }
 
   if (postPhase === "confirm") {
-    return (
-      <ConfirmScreen
-        habits={createdHabits}
-        onContinue={() => setPostPhase(needsNotifPrimer ? "notifications" : "tutorial")}
-      />
-    );
+    return <ConfirmScreen habits={createdHabits} onContinue={() => setPostPhase("first_log")} />;
   }
 
-  if (postPhase === "notifications") {
-    return <NotificationPrimerScreen onResolved={() => setPostPhase("tutorial")} />;
-  }
-
-  if (postPhase === "tutorial" && tutorialHabit) {
+  if (postPhase === "first_log" && tutorialHabit) {
     return (
-      <TutorialScreen
+      <FirstLogFlow
+        userId={firstLogUserId}
         habit={tutorialHabit}
-        completing={tutorialCompleting}
-        onComplete={handleTutorialComplete}
-        onSkip={handleExitWizard}
+        onFinished={() => router.replace("/?newUser=1")}
       />
     );
   }
@@ -1156,184 +1084,6 @@ function ConfirmScreen({ habits, onContinue }: { habits: CreatedHabit[]; onConti
             accessibilityRole="button"
           >
             <Text className="text-on-primary text-label-lg font-semibold">{t("Let's begin")}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function NotificationPrimerScreen({ onResolved }: { onResolved: () => void }) {
-  const { t } = useLanguage();
-  const [busy, setBusy] = useState(false);
-
-  // On iOS Safari (not installed) push isn't available yet — guide the user to
-  // install the PWA instead of showing a non-functional Allow button.
-  const showIosInstallGuide = Platform.OS === "web" && isIosBrowser() && !isStandalone();
-
-  async function handleEnable() {
-    if (busy) return;
-    setBusy(true);
-    const granted = await requestPermission();
-    // Reminders were created with permission still undetermined, so the initial
-    // sync no-oped. Schedule them now that the user has granted access.
-    if (granted) await syncScheduledReminders();
-    setBusy(false);
-    onResolved();
-  }
-
-  return (
-    <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
-        <View className="px-margin-mobile gap-lg pt-xl">
-          <View className="items-center gap-md">
-            <View className="w-16 h-16 rounded-full bg-primary-fixed items-center justify-center">
-              <MaterialCommunityIcons name="bell-ring" size={32} color="#F26B1F" />
-            </View>
-            <View className="items-center gap-xs">
-              <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold text-center">
-                {t("Stay on track with reminders")}
-              </Text>
-              <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
-                {showIosInstallGuide
-                  ? t(
-                      "Tap Share → Add to Home Screen, then open Lagan from your home screen to enable notifications.",
-                    )
-                  : t(
-                      "Allow notifications so we can nudge you at your reminder times. If several habits share a time, we'll bundle them into one reminder.",
-                    )}
-              </Text>
-            </View>
-          </View>
-
-          {!showIosInstallGuide && (
-            <TouchableOpacity
-              className={`rounded-full py-md items-center ${busy ? "bg-outline" : "bg-primary"}`}
-              onPress={handleEnable}
-              accessibilityRole="button"
-              accessibilityLabel={busy ? t("Enabling...") : t("Enable reminders")}
-              accessibilityState={{ disabled: busy }}
-            >
-              <Text className="text-on-primary text-label-lg font-semibold">
-                {busy ? t("Enabling...") : t("Enable reminders")}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            className="items-center py-sm"
-            onPress={() => {
-              if (!busy) onResolved();
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: busy }}
-          >
-            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
-              {showIosInstallGuide ? t("Continue") : t("Maybe later")}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-function TutorialScreen({
-  habit,
-  completing,
-  onComplete,
-  onSkip,
-}: {
-  habit: CreatedHabit;
-  completing: boolean;
-  onComplete: () => void;
-  onSkip: () => void;
-}) {
-  const { t } = useLanguage();
-  const action = getTutorialHabitAction(habit);
-  const isLogProgress = action.kind === "log_progress";
-  const amount = isLogProgress ? formatAmount(action.value) : "";
-  const unit = habit.unit ?? "";
-  return (
-    <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
-        <View className="px-margin-mobile gap-lg pt-xl">
-          <View className="gap-xs">
-            <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">
-              {t(
-                isLogProgress
-                  ? "Let's log your first habit together"
-                  : "Let's complete your first habit together",
-              )}
-            </Text>
-            <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
-              {isLogProgress
-                ? t("Tap below to log {amount} {unit} for {name}. That's your first step.", {
-                    amount,
-                    unit,
-                    name: t(habit.name),
-                  })
-                : t("Tap below to mark {name} complete. That's your first win.", {
-                    name: t(habit.name),
-                  })}
-            </Text>
-          </View>
-
-          <View className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-lg items-center gap-md">
-            <View className="w-20 h-20 rounded-full bg-primary-fixed items-center justify-center">
-              <Icon name={habit.icon} size={36} color="#F26B1F" />
-            </View>
-            <Text className="text-headline-md text-on-surface dark:text-d-on-surface font-bold text-center">
-              {t(habit.name)}
-            </Text>
-            {isLogProgress && (
-              <Text className="text-label-sm text-primary">
-                {t("First log: +{amount} {unit}", { amount, unit })}
-              </Text>
-            )}
-            {habit.target != null && (
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                {t(isLogProgress ? "Daily goal: {target} {unit}" : "Goal: {target} {unit}", {
-                  target: habit.target,
-                  unit: habit.unit,
-                })}
-              </Text>
-            )}
-          </View>
-
-          <TouchableOpacity
-            className={`rounded-full py-md items-center ${completing ? "bg-outline" : "bg-primary"}`}
-            onPress={onComplete}
-            accessibilityRole="button"
-            accessibilityLabel={
-              completing
-                ? t(isLogProgress ? "Logging..." : "Completing...")
-                : isLogProgress
-                  ? t("Log {amount} {unit}", { amount, unit })
-                  : t("Complete")
-            }
-            accessibilityState={{ disabled: completing }}
-          >
-            <Text className="text-on-primary text-label-lg font-semibold">
-              {completing
-                ? t(isLogProgress ? "Logging..." : "Completing...")
-                : isLogProgress
-                  ? t("Log {amount} {unit}", { amount, unit })
-                  : t("Complete")}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="items-center py-sm"
-            onPress={() => {
-              if (!completing) onSkip();
-            }}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: completing }}
-          >
-            <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant font-semibold">
-              {t("Skip for now")}
-            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

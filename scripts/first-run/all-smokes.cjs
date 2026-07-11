@@ -10,6 +10,7 @@ const smokes = [
   ["treatment quick start", "scripts/first-run/treatment-quick-start-smoke.cjs"],
   ["post-create tutorial", "scripts/first-run/post-create-smoke.cjs"],
   ["manual habit creation", "scripts/first-run/manual-habit-smoke.cjs"],
+  ["treatment manual habit creation", "scripts/first-run/treatment-manual-habit-smoke.cjs"],
   ["habit detail quick log", "scripts/first-run/detail-log-smoke.cjs"],
   ["desktop first-run web", "scripts/first-run/desktop-smoke.cjs"],
 ];
