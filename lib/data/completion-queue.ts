@@ -177,6 +177,10 @@ async function replayOp(op: PendingCompletionOp): Promise<{ message?: string } |
     value = target > 0 ? target : 1;
   }
 
+  if (!Number.isFinite(value) || value <= 0) {
+    return { message: "Invalid queued completion value" };
+  }
+
   const { error } = await supabase
     .from("habit_completions")
     .upsert(

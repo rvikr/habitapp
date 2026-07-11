@@ -54,8 +54,17 @@ import {
   type HabitCreateResult,
 } from "../habits/routine-create";
 import { recordPositiveCompletion } from "../services/activation-completion";
+import { normalizeReminderSchedule, validateHabitInput } from "../habits/input-rules";
+import { validateCompletionPeriod, validateCompletionValue } from "./completion-rules";
+import { enqueueHabitMutation, flushPendingHabitMutations } from "./habit-mutation-queue";
 
 type ActionResult = { ok: boolean; error?: string; queued?: boolean };
+type CompletionHabit = Pick<Habit, "name" | "unit" | "target"> & {
+  habit_type?: Habit["habit_type"];
+  metric_type?: Habit["metric_type"];
+  habitType?: HabitType | null;
+  metricType?: MetricType | null;
+};
 type HabitMutationData = {
   name: string;
   description: string | null;
@@ -93,6 +102,63 @@ async function runHabitValidation(
   return validateHabitRemote(input);
 }
 
+async function validateHabitMutationInput(
+  userId: string,
+  data: HabitMutationData,
+  intelligence: ReturnType<typeof inferHabitIntelligence>,
+  currentHabitId?: string,
+): Promise<
+  { ok: true; data: HabitMutationData; existingHabits: Habit[] } | { ok: false; error: string }
+> {
+  const { data: existingHabits, error } = await supabase
+    .from("habits")
+    .select("*")
+    .eq("user_id", userId)
+    .is("archived_at", null);
+  let activeHabits: Habit[] = [];
+  if (error) {
+    // Existing-habit updates are absolute and safe to queue. When the duplicate
+    // name lookup itself is offline, continue with local validation and let the
+    // replayed server update enforce the account boundary.
+    if (!(currentHabitId && isNetworkFailure(error))) {
+      return { ok: false, error: error.message };
+    }
+  } else {
+    activeHabits = (existingHabits ?? []) as Habit[];
+  }
+  const habitRules = validateHabitInput({
+    name: data.name,
+    metricType: intelligence.metricType,
+    target: intelligence.target,
+    existingHabits: !currentHabitId && data.mergeSimilar !== false ? [] : activeHabits,
+    currentHabitId: currentHabitId ?? null,
+  });
+  if (!habitRules.ok) return { ok: false, error: habitRules.errors[0] };
+
+  const scheduleRules = normalizeReminderSchedule({
+    remindersEnabled: data.remindersEnabled,
+    reminderStrategy: intelligence.reminderStrategy,
+    reminderTimes: data.reminderTimes,
+    reminderDays: data.reminderDays,
+    reminderIntervalMinutes: intelligence.reminderIntervalMinutes,
+  });
+  if (!scheduleRules.ok) return { ok: false, error: scheduleRules.errors[0] };
+
+  return {
+    ok: true,
+    data: {
+      ...data,
+      name: habitRules.data.name,
+      target: habitRules.data.target,
+      remindersEnabled: scheduleRules.data.remindersEnabled,
+      reminderTimes: scheduleRules.data.reminderTimes,
+      reminderDays: scheduleRules.data.reminderDays,
+      reminderIntervalMinutes: scheduleRules.data.reminderIntervalMinutes,
+    },
+    existingHabits: activeHabits,
+  };
+}
+
 async function getUser() {
   return getCurrentUser();
 }
@@ -103,6 +169,37 @@ function notSignedIn(): ActionResult {
 
 function mutationResult(error: { message?: string } | null | undefined): ActionResult {
   return error ? { ok: false, error: error.message ?? "Something went wrong." } : { ok: true };
+}
+
+function validateCompletionIncrement(value: number, habit?: CompletionHabit) {
+  if (!habit) {
+    return Number.isFinite(value) && value > 0
+      ? ({ ok: true, value } as const)
+      : ({ ok: false, error: "Value must be a positive number." } as const);
+  }
+  const metricType =
+    habit.metric_type ??
+    habit.metricType ??
+    inferHabitIntelligence({
+      name: habit.name,
+      unit: habit.unit,
+      target: habit.target,
+      habitType: habit.habit_type ?? habit.habitType,
+    }).metricType;
+  return validateCompletionValue(value, { metricType, target: habit.target });
+}
+
+async function queueHabitPatch(
+  kind: "update" | "archive",
+  habitId: string,
+  userId: string,
+  payload: Record<string, unknown>,
+  error: { message?: string } | null | undefined,
+): Promise<ActionResult> {
+  if (!isNetworkFailure(error)) return mutationResult(error);
+  await enqueueHabitMutation({ kind, habitId, userId, payload });
+  clearDataCache();
+  return { ok: true, queued: true };
 }
 
 function networkError(): Error {
@@ -307,14 +404,20 @@ export async function logCompletion(
   habitId: string,
   value?: number,
   note?: string,
+  completedOn = localDateKey(),
+  habit?: CompletionHabit,
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  const period = validateCompletionPeriod(completedOn, { operation: "log" });
+  if (!period.ok) return { ok: false, error: period.error };
   void flushPendingCompletions();
-  const increment = value ?? 1;
+  const incrementValue = validateCompletionIncrement(value ?? 1, habit);
+  if (!incrementValue.ok) return { ok: false, error: incrementValue.error };
+  const increment = incrementValue.value;
   const { error } = await supabase.rpc("log_habit_completion", {
     p_habit_id: habitId,
-    p_completed_on: localDateKey(),
+    p_completed_on: completedOn,
     p_increment: increment,
     p_note: note?.trim() || null,
   });
@@ -324,7 +427,7 @@ export async function logCompletion(
       kind: "increment",
       habitId,
       userId: user.id,
-      completedOn: localDateKey(),
+      completedOn,
       value: increment,
       note: note?.trim() || null,
     });
@@ -342,12 +445,17 @@ export async function logCompletionOnce(
   operationId: string,
   value?: number,
   note?: string,
+  completedOn = localDateKey(),
+  habit?: CompletionHabit,
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  const period = validateCompletionPeriod(completedOn, { operation: "log" });
+  if (!period.ok) return { ok: false, error: period.error };
   void flushPendingCompletions();
-  const increment = value ?? 1;
-  const completedOn = localDateKey();
+  const incrementValue = validateCompletionIncrement(value ?? 1, habit);
+  if (!incrementValue.ok) return { ok: false, error: incrementValue.error };
+  const increment = incrementValue.value;
   const { error } = await supabase.rpc("log_habit_completion_once", {
     p_operation_id: operationId,
     p_habit_id: habitId,
@@ -417,9 +525,15 @@ export async function toggleHabit(
   habitId: string,
   currentlyDone: boolean,
   knownTarget?: number | null,
+  completedOn = localDateKey(),
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  const period = validateCompletionPeriod(completedOn, {
+    operation: currentlyDone ? "undo" : "done",
+    existingCompletion: currentlyDone,
+  });
+  if (!period.ok) return { ok: false, error: period.error };
   void flushPendingCompletions();
 
   if (currentlyDone) {
@@ -428,14 +542,14 @@ export async function toggleHabit(
       .delete()
       .eq("habit_id", habitId)
       .eq("user_id", user.id)
-      .eq("completed_on", localDateKey());
+      .eq("completed_on", completedOn);
     if (error) {
       if (!isNetworkFailure(error)) return mutationResult(error);
       await enqueueCompletionOp({
         kind: "uncomplete",
         habitId,
         userId: user.id,
-        completedOn: localDateKey(),
+        completedOn,
       });
       track("habit_uncompleted", { queued: true });
       return { ok: true, queued: true };
@@ -464,7 +578,7 @@ export async function toggleHabit(
         kind: "complete",
         habitId,
         userId: user.id,
-        completedOn: localDateKey(),
+        completedOn,
       });
       track("habit_completed", { queued: true });
       await recordPositiveCompletion(user.id, true);
@@ -477,7 +591,7 @@ export async function toggleHabit(
   const { error } = await supabase
     .from("habit_completions")
     .upsert(
-      { habit_id: habitId, user_id: user.id, completed_on: localDateKey(), value: resolvedTarget },
+      { habit_id: habitId, user_id: user.id, completed_on: completedOn, value: resolvedTarget },
       { onConflict: "habit_id,completed_on" },
     );
   if (error) {
@@ -486,7 +600,7 @@ export async function toggleHabit(
       kind: "complete",
       habitId,
       userId: user.id,
-      completedOn: localDateKey(),
+      completedOn,
       value: resolvedTarget,
     });
     track("habit_completed", { queued: true });
@@ -549,16 +663,23 @@ export async function updateHabitReminders(
 ): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  await flushPendingHabitMutations();
+  const payload = {
+    reminders_enabled: data.enabled,
+    reminder_times: data.times,
+    reminder_days: data.days,
+  };
   const { error } = await supabase
     .from("habits")
-    .update({
-      reminders_enabled: data.enabled,
-      reminder_times: data.times,
-      reminder_days: data.days,
-    })
+    .update(payload)
     .eq("id", habitId)
     .eq("user_id", user.id);
-  if (error) return mutationResult(error);
+  if (error) {
+    const queued = await queueHabitPatch("update", habitId, user.id, payload, error);
+    if (!queued.ok || !queued.queued) return queued;
+    if (!data.enabled) await cancelHabitReminders(habitId).catch(() => undefined);
+    return queued;
+  }
 
   clearDataCache();
   if (data.enabled) await syncScheduledReminders();
@@ -619,6 +740,10 @@ async function createHabitForUserUnsafe(
     defaultLogValue: data.defaultLogValue,
   });
 
+  const inputRules = await validateHabitMutationInput(userId, data, intelligence);
+  if (!inputRules.ok) return createHabitFailure(inputRules.error, "validation");
+  data = inputRules.data;
+
   let validation: HabitValidationResult;
   try {
     validation = await runHabitValidation(intelligence, data);
@@ -645,13 +770,7 @@ async function createHabitForUserUnsafe(
   };
   let match: { habit: Habit; score: number } | undefined;
   if (data.mergeSimilar !== false) {
-    const { data: existingHabits, error: readError } = await supabase
-      .from("habits")
-      .select("*")
-      .eq("user_id", userId)
-      .is("archived_at", null);
-    if (readError) return createHabitFailure(readError);
-    match = ((existingHabits ?? []) as Habit[])
+    match = inputRules.existingHabits
       .map((habit) => ({ habit, score: scoreHabitSimilarity(candidate, habit) }))
       .sort((a, b) => b.score - a.score)[0];
   }
@@ -758,6 +877,7 @@ export async function updateHabitFull(
 ): Promise<ActionResult & { validation?: HabitValidationResult }> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  await flushPendingHabitMutations();
   const intelligence = inferHabitIntelligence({
     name: data.name,
     icon: data.icon,
@@ -771,6 +891,10 @@ export async function updateHabitFull(
     defaultLogValue: data.defaultLogValue,
   });
 
+  const inputRules = await validateHabitMutationInput(user.id, data, intelligence, habitId);
+  if (!inputRules.ok) return { ok: false, error: inputRules.error };
+  data = inputRules.data;
+
   const validation = await runHabitValidation(intelligence, data);
   if (validation.status === "block") {
     return { ok: false, validation };
@@ -779,19 +903,32 @@ export async function updateHabitFull(
     return { ok: false, validation };
   }
 
+  const smartPayload = smartHabitPayload(data, intelligence);
   const { error } = await supabase
     .from("habits")
-    .update(smartHabitPayload(data, intelligence))
+    .update(smartPayload)
     .eq("id", habitId)
     .eq("user_id", user.id);
   if (error) {
+    if (isNetworkFailure(error)) {
+      const queued = await queueHabitPatch("update", habitId, user.id, smartPayload, error);
+      if (!queued.ok || !queued.queued) return queued;
+      if (!data.remindersEnabled) await cancelHabitReminders(habitId).catch(() => undefined);
+      return queued;
+    }
     if (!isMissingSmartHabitColumn(error)) return mutationResult(error);
+    const legacyPayload = legacyHabitPayload(data, intelligence);
     const { error: legacyError } = await supabase
       .from("habits")
-      .update(legacyHabitPayload(data, intelligence))
+      .update(legacyPayload)
       .eq("id", habitId)
       .eq("user_id", user.id);
-    if (legacyError) return mutationResult(legacyError);
+    if (legacyError) {
+      const queued = await queueHabitPatch("update", habitId, user.id, legacyPayload, legacyError);
+      if (!queued.ok || !queued.queued) return queued;
+      if (!data.remindersEnabled) await cancelHabitReminders(habitId).catch(() => undefined);
+      return queued;
+    }
   }
 
   clearDataCache();
@@ -813,12 +950,19 @@ export async function updateHabitFull(
 export async function deleteHabit(habitId: string): Promise<ActionResult> {
   const user = await getUser();
   if (!user) return notSignedIn();
+  await flushPendingHabitMutations();
+  const payload = { archived_at: new Date().toISOString(), reminders_enabled: false };
   const { error } = await supabase
     .from("habits")
-    .update({ archived_at: new Date().toISOString(), reminders_enabled: false })
+    .update(payload)
     .eq("id", habitId)
     .eq("user_id", user.id);
-  if (error) return mutationResult(error);
+  if (error) {
+    const queued = await queueHabitPatch("archive", habitId, user.id, payload, error);
+    if (!queued.ok || !queued.queued) return queued;
+    await cancelHabitReminders(habitId).catch(() => undefined);
+    return queued;
+  }
 
   clearDataCache();
   // Cancel the deleted habit's scheduled ids, then rebuild so any bundle it

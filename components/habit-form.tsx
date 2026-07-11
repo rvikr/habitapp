@@ -5,6 +5,7 @@ import HabitCatalogPicker from "./habit-catalog-picker";
 import type { Habit } from "@/types/db";
 import type { CatalogEntry } from "@/lib/data/habit-catalog";
 import { isValidReminderTime, parseOptionalPositiveNumber } from "@/lib/auth/validation";
+import { normalizeReminderSchedule, validateHabitInput } from "@/lib/habits/input-rules";
 import {
   inferHabitIntelligence,
   unitOptionsForHabit,
@@ -201,7 +202,6 @@ export default function HabitForm({
   async function handleSubmit() {
     if (submittingRef.current) return;
     if (loading) return;
-    if (!name.trim()) return;
     const parsedTarget = parseOptionalPositiveNumber(target);
     if (!parsedTarget.ok) {
       if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "target")) {
@@ -222,51 +222,51 @@ export default function HabitForm({
       reminderIntervalMinutes,
       defaultLogValue,
     });
-    if (
-      remindersEnabled &&
-      intelligence.reminderStrategy === "manual" &&
-      reminderTimes.length === 0
-    ) {
+    const habitRules = validateHabitInput({
+      name,
+      metricType: intelligence.metricType,
+      target: parsedTarget.value,
+      currentHabitId: initial?.id ?? null,
+    });
+    if (!habitRules.ok) {
+      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "target")) {
+        setAdvancedExpanded(true);
+      }
+      setFormError(t(habitRules.errors[0]));
+      return;
+    }
+
+    const scheduleRules = normalizeReminderSchedule({
+      remindersEnabled,
+      reminderStrategy: intelligence.reminderStrategy,
+      reminderTimes,
+      reminderDays,
+      reminderIntervalMinutes: intelligence.reminderIntervalMinutes,
+    });
+    if (!scheduleRules.ok) {
       if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "reminders")) {
         setAdvancedExpanded(true);
       }
-      setFormError(t("Add at least one reminder time or turn reminders off."));
+      setFormError(t(scheduleRules.errors[0]));
       return;
     }
-    if (remindersEnabled && reminderTimes.some((time) => !isValidReminderTime(time))) {
-      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "reminders")) {
-        setAdvancedExpanded(true);
-      }
-      setFormError(t("Use valid 24-hour reminder times."));
-      return;
-    }
-    if (reminderDays.some((day) => day < 0 || day > 6)) {
-      if (isTreatment && shouldExpandHabitFormAdvanced("treatment", "reminders")) {
-        setAdvancedExpanded(true);
-      }
-      setFormError(t("Choose valid reminder days."));
-      return;
-    }
+
     setFormError(null);
     const payload: FormData = {
-      name: name.trim(),
+      name: habitRules.data.name,
       description: description.trim() || null,
       icon,
       color,
       unit: unit.trim(),
-      target: parsedTarget.value,
-      remindersEnabled,
-      reminderTimes: remindersEnabled ? reminderTimes : [],
-      reminderDays: remindersEnabled
-        ? reminderDays.length > 0
-          ? reminderDays
-          : [0, 1, 2, 3, 4, 5, 6]
-        : [0, 1, 2, 3, 4, 5, 6],
+      target: habitRules.data.target,
+      remindersEnabled: scheduleRules.data.remindersEnabled,
+      reminderTimes: scheduleRules.data.reminderTimes,
+      reminderDays: scheduleRules.data.reminderDays,
       habitType: intelligence.habitType,
       metricType: intelligence.metricType,
       visualType: intelligence.visualType,
       reminderStrategy: intelligence.reminderStrategy,
-      reminderIntervalMinutes: intelligence.reminderIntervalMinutes,
+      reminderIntervalMinutes: scheduleRules.data.reminderIntervalMinutes,
       defaultLogValue: isTreatment
         ? clampDefaultLogValueToTarget(intelligence.defaultLogValue, intelligence.target)
         : intelligence.defaultLogValue,

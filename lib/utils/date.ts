@@ -11,6 +11,25 @@ export function localDateDaysAgo(days: number, from = new Date()): string {
   return localDateKey(date);
 }
 
+export function isValidDateKey(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+export function addDateKeyDays(value: string, days: number): string {
+  if (!isValidDateKey(value)) throw new Error("Invalid date key");
+  const [year, month, day] = value.split("-").map(Number);
+  return localDateKey(new Date(year, month - 1, day + days));
+}
+
+export function dayIndexForDateKey(value: string): number {
+  if (!isValidDateKey(value)) throw new Error("Invalid date key");
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day).getDay();
+}
+
 export function addLocalDays(date: Date, days: number): Date {
   const next = new Date(date);
   next.setDate(next.getDate() + days);

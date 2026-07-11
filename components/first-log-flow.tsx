@@ -22,6 +22,7 @@ import { showAlert } from "@/lib/platform/alert";
 import { getPermissionStatus, requestPermission } from "@/lib/platform/notifications";
 import { getItem, setItem } from "@/lib/platform/storage";
 import { trackActivationEvent } from "@/lib/services/analytics";
+import { localDateKey } from "@/lib/utils/date";
 
 type Props = {
   userId: string;
@@ -47,6 +48,7 @@ export default function FirstLogFlow({ userId, habit, onFinished }: Props) {
   const { analyticsContext } = useActivation();
   const [state, dispatch] = useReducer(firstLogFlowReducer, initialFirstLogFlowState);
   const [firstLogOperationId] = useState(() => Crypto.randomUUID());
+  const [firstLogCompletedOn] = useState(() => localDateKey());
   const [continuing, setContinuing] = useState(false);
   const [notificationBusy, setNotificationBusy] = useState(false);
   const actionGuardRef = useRef(createFirstLogActionGuard());
@@ -88,8 +90,15 @@ export default function FirstLogFlow({ userId, habit, onFinished }: Props) {
     try {
       const result =
         presentation.action.kind === "log_progress"
-          ? await logCompletionOnce(habit.id, firstLogOperationId, presentation.action.value)
-          : await toggleHabit(habit.id, false, habit.target ?? null);
+          ? await logCompletionOnce(
+              habit.id,
+              firstLogOperationId,
+              presentation.action.value,
+              undefined,
+              firstLogCompletedOn,
+              habit,
+            )
+          : await toggleHabit(habit.id, false, habit.target ?? null, firstLogCompletedOn);
       if (!result.ok) {
         const message = result.error ?? t("Try again.");
         dispatch({ type: "action_failed", error: message });

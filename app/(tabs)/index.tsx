@@ -16,6 +16,7 @@ import { getHabitsForToday, getStats } from "@/lib/data/habits";
 import { getHabitVisualForHabit } from "@/lib/data/habit-images";
 import { logCompletion, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
 import { flushPendingCompletions } from "@/lib/data/completion-queue";
+import { flushPendingHabitMutations } from "@/lib/data/habit-mutation-queue";
 import type { StreaksMap } from "@/lib/data/habits";
 import { useActivation } from "@/components/activation-provider";
 import { useCelebrate } from "@/components/celebration";
@@ -193,7 +194,10 @@ export default function DashboardScreen() {
     try {
       // Replay any completions queued while offline before reading, so the
       // dashboard reflects them as soon as connectivity returns.
-      await flushPendingCompletions().catch(() => undefined);
+      await Promise.all([
+        flushPendingHabitMutations().catch(() => undefined),
+        flushPendingCompletions().catch(() => undefined),
+      ]);
       const [result, proAccess, stats] = await Promise.all([
         getHabitsForToday(options),
         getCurrentProAccess(),
@@ -577,7 +581,7 @@ export default function DashboardScreen() {
     const wasDone = data?.completedToday.has(logHabit.id) ?? false;
     const prevValue = data?.todayProgress.get(logHabit.id)?.current ?? 0;
     const target = logHabit.target != null ? Number(logHabit.target) : null;
-    const result = await logCompletion(logHabit.id, value, note);
+    const result = await logCompletion(logHabit.id, value, note, undefined, logHabit);
     if (!result.ok) return result;
     setLogHabit(null);
     // logCompletion adds incrementally, so today's new total is prev + value.
@@ -616,6 +620,8 @@ export default function DashboardScreen() {
         signal.habitId,
         signal.suggestedValue,
         "Logged from AI coach",
+        undefined,
+        habit ?? undefined,
       );
       if (!result.ok) {
         showAlert(t("Could not log progress"), result.error ?? t("Try again."));
@@ -653,7 +659,13 @@ export default function DashboardScreen() {
 
   async function handleSleepCoachLog(value: number, note: string) {
     if (!sleepLogHabit) return { ok: false, error: t("Habit not loaded.") };
-    const result = await logCompletion(sleepLogHabit.id, value, note || "Logged from AI coach");
+    const result = await logCompletion(
+      sleepLogHabit.id,
+      value,
+      note || "Logged from AI coach",
+      undefined,
+      sleepLogHabit,
+    );
     if (!result.ok) return { ok: false, error: result.error ?? t("Try again.") };
     setSleepLogHabit(null);
     celebrate();

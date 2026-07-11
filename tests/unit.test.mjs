@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 import {
+  addDateKeyDays,
   addLocalDays,
   currentWeekStartKey,
+  dayIndexForDateKey,
+  isValidDateKey as isValidAppDateKey,
   localDateDaysAgo,
   localDateKey,
   previousUtcWeekStartKey,
@@ -56,9 +59,24 @@ import {
   parseOptionalPositiveNumber,
   validateFeedback,
 } from "../lib/auth/validation.ts";
+import {
+  HABIT_NAME_MAX_LENGTH,
+  normalizeHabitName,
+  normalizeReminderSchedule,
+  validateHabitInput,
+  validateLogValueForHabit,
+} from "../lib/habits/input-rules.ts";
+import {
+  COMPLETION_LOOKBACK_DAYS,
+  validateCompletionPeriod,
+  validateCompletionValue,
+} from "../lib/data/completion-rules.ts";
+import { streakForSchedule } from "../lib/coach/streak-rules.ts";
 import { longestStreakFromDates, streakFromDates } from "../lib/coach/streak.ts";
 import { nowMarkerIndex, orderHabitsForTimeline, reminderTimeFor } from "../lib/utils/timeline.ts";
 import { buildCompletionValuePayload } from "../lib/data/completions.ts";
+import { buildDataExport } from "../lib/utils/export-integrity.ts";
+import { createHabitMutationQueueStore } from "../lib/data/habit-mutation-queue-store.ts";
 import {
   healthConnectTodayRange,
   isStepHabit,
@@ -2055,7 +2073,8 @@ test("first-run manual habit creation touch targets expose web accessibility rol
 
   const formSource = readFileSync("components/habit-form.tsx", "utf8");
   const pickerSource = readFileSync("components/habit-catalog-picker.tsx", "utf8");
-  const manualCreationSource = `${formSource}\n${pickerSource}`;
+  const inputRulesSource = readFileSync("lib/habits/input-rules.ts", "utf8");
+  const manualCreationSource = `${formSource}\n${pickerSource}\n${inputRulesSource}`;
   for (const label of [
     "Select {label}",
     "Select color {label}",
@@ -2175,7 +2194,9 @@ test("first-run habit detail and log prompt touch targets expose web accessibili
     "Avg per log",
     "Recent History",
     "Yesterday",
-    "No logs this week",
+    "No logs yet",
+    "This week will fill in as you log this habit.",
+    "Log a few days to see patterns.",
     "Log {value}",
     "Log custom amount",
     "Mark as done today",
@@ -2736,12 +2757,389 @@ test("positive number parsing rejects invalid habit targets", () => {
   assert.equal(parseOptionalPositiveNumber("-1").ok, false);
 });
 
+test("app date helpers validate and shift calendar date keys", () => {
+  assert.equal(isValidAppDateKey("2026-05-31"), true);
+  assert.equal(isValidAppDateKey("2026-02-30"), false);
+  assert.equal(addDateKeyDays("2026-12-31", 1), "2027-01-01");
+  assert.equal(dayIndexForDateKey("2026-05-31"), 0);
+});
+
+test("completion period rules reject future and too-old new logs", () => {
+  const now = new Date(2026, 4, 31, 12, 0);
+  assert.deepEqual(validateCompletionPeriod("2026-05-31", { now }), { ok: true });
+  assert.equal(validateCompletionPeriod("2026-06-01", { now }).ok, false);
+  assert.equal(
+    validateCompletionPeriod(addDateKeyDays("2026-05-31", -(COMPLETION_LOOKBACK_DAYS + 1)), {
+      now,
+    }).ok,
+    false,
+  );
+});
+
+test("completion period rules keep old undo available but reject future undo", () => {
+  const now = new Date(2026, 4, 31, 12, 0);
+  assert.equal(
+    validateCompletionPeriod("2026-01-01", {
+      now,
+      operation: "undo",
+      existingCompletion: true,
+    }).ok,
+    true,
+  );
+  assert.equal(
+    validateCompletionPeriod("2026-06-01", {
+      now,
+      operation: "undo",
+      existingCompletion: true,
+    }).ok,
+    false,
+  );
+});
+
+test("habit input rules normalize names and reject active duplicates", () => {
+  const existing = [
+    { id: "h1", name: "Drink Water", archived_at: null },
+    { id: "h2", name: "Archived Habit", archived_at: "2026-05-01T00:00:00Z" },
+  ];
+
+  assert.equal(normalizeHabitName("  Drink   Water  "), "Drink Water");
+  assert.equal(validateHabitInput({ name: "   ", metricType: "boolean", target: null }).ok, false);
+  assert.equal(
+    validateHabitInput({
+      name: "x".repeat(HABIT_NAME_MAX_LENGTH + 1),
+      metricType: "boolean",
+      target: null,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: " drink water ",
+      metricType: "boolean",
+      target: null,
+      existingHabits: existing,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    validateHabitInput({
+      name: "Archived Habit",
+      metricType: "boolean",
+      target: null,
+      existingHabits: existing,
+    }).ok,
+    true,
+  );
+});
+
+test("habit input rules bound targets and preserve decimal-capable logs", () => {
+  assert.equal(validateHabitInput({ name: "Walk", metricType: "steps", target: null }).ok, false);
+  assert.equal(validateHabitInput({ name: "Walk", metricType: "steps", target: 50001 }).ok, false);
+  assert.equal(validateHabitInput({ name: "Walk", metricType: "steps", target: 10000 }).ok, true);
+  assert.deepEqual(validateCompletionValue(10, { metricType: "minutes", target: 30 }), {
+    ok: true,
+    value: 10,
+  });
+  assert.equal(validateLogValueForHabit(31, { metricType: "minutes", target: 30 }).ok, false);
+  assert.deepEqual(validateLogValueForHabit(0.5, { metricType: "distance_km", target: 5 }), {
+    ok: true,
+    value: 0.5,
+  });
+  assert.equal(validateLogValueForHabit(0.5, { metricType: "steps", target: 10000 }).ok, false);
+});
+
+test("schedule rules reject contradictions and normalize valid values", () => {
+  assert.equal(
+    normalizeReminderSchedule({
+      remindersEnabled: true,
+      reminderStrategy: "manual",
+      reminderTimes: [],
+      reminderDays: [1],
+      reminderIntervalMinutes: null,
+    }).ok,
+    false,
+  );
+  assert.equal(
+    normalizeReminderSchedule({
+      remindersEnabled: true,
+      reminderStrategy: "interval",
+      reminderTimes: [],
+      reminderDays: [1],
+      reminderIntervalMinutes: 0,
+    }).ok,
+    false,
+  );
+
+  assert.deepEqual(
+    normalizeReminderSchedule({
+      remindersEnabled: true,
+      reminderStrategy: "manual",
+      reminderTimes: ["08:30", "08:30", "20:00"],
+      reminderDays: [5, 1, 1],
+      reminderIntervalMinutes: null,
+    }),
+    {
+      ok: true,
+      data: {
+        remindersEnabled: true,
+        reminderTimes: ["08:30", "20:00"],
+        reminderDays: [1, 5],
+        reminderIntervalMinutes: null,
+      },
+    },
+  );
+});
+
+test("data export is versioned, deterministic, and reports integrity issues", () => {
+  const exported = buildDataExport({
+    exportedAt: "2026-05-31T10:00:00.000Z",
+    user: { id: "u1", email: "a@example.com" },
+    profile: null,
+    habits: [{ id: "h1", name: "Read", created_at: "2026-05-01T00:00:00.000Z" }],
+    completions: [
+      {
+        id: "c2",
+        habit_id: "missing",
+        completed_on: "2026-05-31",
+        created_at: "2026-05-31T08:00:00.000Z",
+      },
+      {
+        id: "c1",
+        habit_id: "h1",
+        completed_on: "2026-05-31",
+        created_at: "2026-05-31T07:00:00.000Z",
+      },
+      {
+        id: "c3",
+        habit_id: "h1",
+        completed_on: "2026-05-31",
+        created_at: "2026-05-31T09:00:00.000Z",
+      },
+    ],
+    sleepEntries: [],
+    feedback: [],
+  });
+
+  assert.equal(exported.schema_version, 1);
+  assert.deepEqual(exported.integrity.counts, {
+    profile: 0,
+    habits: 1,
+    completions: 3,
+    sleep_entries: 0,
+    feedback: 0,
+  });
+  assert.deepEqual(exported.integrity.duplicate_completion_periods, [
+    {
+      habit_id: "h1",
+      completed_on: "2026-05-31",
+      completion_ids: ["c1", "c3"],
+    },
+  ]);
+  assert.deepEqual(exported.integrity.orphan_completion_ids, ["c2"]);
+  assert.deepEqual(
+    exported.completions.map((completion) => completion.id),
+    ["c3", "c2", "c1"],
+  );
+});
+
+test("data export sorts tied id-less rows by canonical content", () => {
+  const exported = buildDataExport({
+    exportedAt: "2026-05-31T10:00:00.000Z",
+    user: { id: "u1", email: null },
+    profile: null,
+    habits: [
+      { name: "Zulu", created_at: "2026-05-01T00:00:00.000Z" },
+      { name: "Alpha", created_at: "2026-05-01T00:00:00.000Z" },
+    ],
+    completions: [],
+    sleepEntries: [],
+    feedback: [],
+  });
+  assert.deepEqual(
+    exported.habits.map((habit) => habit.name),
+    ["Alpha", "Zulu"],
+  );
+});
+
+test("privacy export fails query errors instead of returning partial data", () => {
+  const source = readFileSync("lib/utils/privacy.ts", "utf8");
+  assert.match(source, /profileResult/);
+  assert.match(source, /habitResult/);
+  assert.match(source, /completionResult/);
+  assert.match(source, /if \(result\.error\)/);
+  assert.match(source, /buildDataExport/);
+});
+
+test("current app surfaces explain every core no-data state", () => {
+  const dashboard = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboard, /Build your first routine/);
+  assert.match(dashboard, /Choose manually/);
+
+  const detail = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  assert.match(detail, /No logs yet/);
+  assert.match(detail, /This week will fill in as you log this habit/);
+  assert.match(detail, /Log a few days to see patterns/);
+
+  const achievements = readFileSync("app/(tabs)/achievements.tsx", "utf8");
+  assert.match(achievements, /No badges earned yet/);
+
+  const privacy = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
+  assert.match(privacy, /Includes integrity checks for counts, duplicates, and orphaned logs/);
+});
+
+test("validation, export integrity, and no-data copy is localized in Hindi", () => {
+  for (const label of [
+    "Habit name is required.",
+    "A habit with this name already exists.",
+    "Target is above the allowed maximum.",
+    "This week will fill in as you log this habit.",
+    "Log a few days to see patterns.",
+    "No badges earned yet.",
+    "Includes integrity checks for counts, duplicates, and orphaned logs.",
+  ]) {
+    assert.notEqual(translate("hi", label), label, `Missing Hindi translation for ${label}`);
+  }
+});
+
+test("habit mutation queue persists and merges idempotent patches by habit", async () => {
+  const memory = new Map();
+  const storage = {
+    async getItem(key) {
+      return memory.get(key) ?? null;
+    },
+    async setItem(key, value) {
+      memory.set(key, value);
+    },
+    async removeItem(key) {
+      memory.delete(key);
+    },
+  };
+  const queue = createHabitMutationQueueStore(storage);
+
+  await queue.enqueue({
+    id: "op-1",
+    kind: "update",
+    habitId: "h1",
+    userId: "u1",
+    payload: { name: "Read", reminder_times: ["08:00"] },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+  await queue.enqueue({
+    id: "op-2",
+    kind: "update",
+    habitId: "h1",
+    userId: "u1",
+    payload: { reminder_times: ["09:00"] },
+    queuedAt: "2026-07-11T10:01:00.000Z",
+  });
+
+  const reloaded = createHabitMutationQueueStore(storage);
+  assert.deepEqual(await reloaded.read(), [
+    {
+      id: "op-2",
+      kind: "update",
+      habitId: "h1",
+      userId: "u1",
+      payload: { name: "Read", reminder_times: ["09:00"] },
+      queuedAt: "2026-07-11T10:01:00.000Z",
+    },
+  ]);
+});
+
+test("habit archive remains terminal when compacted with an existing update", async () => {
+  let raw = null;
+  const queue = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      raw = value;
+    },
+    async removeItem() {
+      raw = null;
+    },
+  });
+  await queue.enqueue({
+    id: "update",
+    kind: "update",
+    habitId: "h1",
+    userId: "u1",
+    payload: { name: "Read daily" },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+  await queue.enqueue({
+    id: "archive",
+    kind: "archive",
+    habitId: "h1",
+    userId: "u1",
+    payload: { archived_at: "2026-07-11T10:02:00.000Z", reminders_enabled: false },
+    queuedAt: "2026-07-11T10:02:00.000Z",
+  });
+
+  const [operation] = await queue.read();
+  assert.equal(operation.kind, "archive");
+  assert.deepEqual(operation.payload, {
+    name: "Read daily",
+    archived_at: "2026-07-11T10:02:00.000Z",
+    reminders_enabled: false,
+  });
+});
+
+test("habit actions queue only retryable absolute patches and preserve completion ownership", () => {
+  const actions = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(actions, /enqueueHabitMutation/);
+  assert.match(actions, /flushPendingHabitMutations/);
+  assert.match(actions, /queueHabitPatch\("update"/);
+  assert.match(actions, /queueHabitPatch\("archive"/);
+  assert.match(actions, /kind: "increment_once"/);
+  assert.equal(
+    (actions.match(/await flushPendingHabitMutations\(\)/g) ?? []).length,
+    3,
+    "queued habit patches must settle before a newer direct update",
+  );
+
+  const dashboard = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboard, /flushPendingHabitMutations/);
+});
+
+test("offline edits may reach the idempotent update queue without a duplicate-name read", () => {
+  const actions = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(actions, /currentHabitId && isNetworkFailure\(error\)/);
+  assert.match(actions, /activeHabits[^=]*= \[\]/);
+});
+
 test("habit form validation errors are accessible beyond color", () => {
   const source = readFileSync("components/habit-form.tsx", "utf8");
   assert.match(source, /accessibilityRole="alert"/);
   assert.match(source, /accessibilityLiveRegion="polite"/);
   assert.match(source, /alert-circle-outline/);
   assert.match(source, /Error: \{message\}/);
+});
+
+test("habit form and actions share normalized habit and schedule rules", () => {
+  const formSource = readFileSync("components/habit-form.tsx", "utf8");
+  assert.match(formSource, /validateHabitInput/);
+  assert.match(formSource, /normalizeReminderSchedule/);
+
+  const actionSource = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(actionSource, /validateHabitMutationInput/);
+  assert.match(actionSource, /validateHabitInput/);
+  assert.match(actionSource, /normalizeReminderSchedule/);
+});
+
+test("completion actions enforce date periods without replacing exact-once queueing", () => {
+  const source = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(source, /validateCompletionPeriod/);
+  assert.match(source, /validateCompletionValue/);
+  assert.equal(
+    (source.match(/validateCompletionIncrement\(value \?\? 1, habit\)/g) ?? []).length,
+    2,
+    "regular and exact-once increments must share metric-aware validation",
+  );
+  assert.match(source, /completedOn = localDateKey\(\)/);
+  assert.match(source, /p_completed_on: completedOn/);
+  assert.match(source, /kind: "increment_once"/);
+  assert.match(source, /operationId/);
 });
 
 test("feedback validation requires useful message and valid rating", () => {
@@ -2776,6 +3174,60 @@ test("streakFromDates is 0 when latest completion is older than today", () => {
   const today = new Date(2026, 4, 10);
   const dates = [localDateDaysAgo(1, today), localDateDaysAgo(2, today)];
   assert.equal(streakFromDates(dates, today), 0);
+});
+
+test("scheduled streak skips unscheduled days and breaks on a missed scheduled day", () => {
+  const from = new Date(2026, 5, 5, 12, 0); // Friday
+  assert.equal(
+    streakForSchedule(["2026-06-05", "2026-06-03", "2026-06-01"], {
+      from,
+      scheduledDays: [1, 3, 5],
+    }),
+    3,
+  );
+  assert.equal(
+    streakForSchedule(["2026-06-05", "2026-06-01"], {
+      from,
+      scheduledDays: [1, 3, 5],
+    }),
+    1,
+  );
+});
+
+test("scheduled streak grace cutoff displays yesterday only before cutoff", () => {
+  const dates = ["2026-05-30", "2026-05-29"];
+  assert.equal(
+    streakForSchedule(dates, {
+      from: new Date(2026, 4, 31, 8, 0),
+      graceCutoffHour: 10,
+    }),
+    2,
+  );
+  assert.equal(
+    streakForSchedule(dates, {
+      from: new Date(2026, 4, 31, 12, 0),
+      graceCutoffHour: 10,
+    }),
+    0,
+  );
+});
+
+test("backfilled completion restores a scheduled streak", () => {
+  const from = new Date(2026, 5, 5, 12, 0);
+  assert.equal(
+    streakForSchedule(["2026-06-05", "2026-06-01"], {
+      from,
+      scheduledDays: [1, 3, 5],
+    }),
+    1,
+  );
+  assert.equal(
+    streakForSchedule(["2026-06-05", "2026-06-03", "2026-06-01"], {
+      from,
+      scheduledDays: [1, 3, 5],
+    }),
+    3,
+  );
 });
 
 test("longestStreakFromDates finds the longest run anywhere in history", () => {
@@ -2950,10 +3402,20 @@ test("completion value payload stores absolute values", () => {
       habit_id: "habit-1",
       user_id: "user-1",
       completed_on: "2026-05-14",
-      value: 1234,
+      value: 1234.9,
       note: "synced",
     },
   );
+  assert.throws(
+    () => buildCompletionValuePayload("habit-1", "user-1", "2026-05-14", 0),
+    /positive number/,
+  );
+});
+
+test("completion replay rejects corrupted non-positive values without throwing", () => {
+  const source = readFileSync("lib/data/completion-queue.ts", "utf8");
+  assert.match(source, /!Number\.isFinite\(value\) \|\| value <= 0/);
+  assert.match(source, /Invalid queued completion value/);
 });
 
 test("health connect step range starts at local midnight", () => {
@@ -6808,6 +7270,9 @@ test("quantity first-log retries and queue replay share one database operation i
   assert.match(flow, /Crypto\.randomUUID\(\)/);
   assert.match(flow, /logCompletionOnce/);
   assert.match(flow, /firstLogOperationId/);
+  assert.match(flow, /firstLogCompletedOn/);
+  assert.match(flow, /logCompletionOnce\([\s\S]*firstLogCompletedOn/);
+  assert.match(flow, /toggleHabit\([\s\S]*firstLogCompletedOn/);
 });
 
 test("completion increment idempotency migration is private, authenticated, and payload-bound", () => {

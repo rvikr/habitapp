@@ -1,7 +1,12 @@
 # Input Validation, Streak, Sync, and Export Design
 
 Date: 2026-05-31
-Status: Awaiting user review before implementation planning
+Status: Implemented with Activation V2-compatible queueing
+
+Implementation note: the current Activation V2 exact-once completion queue remains authoritative for
+completion replay. A separate compacting queue handles idempotent updates and archives for existing
+habits. Offline habit creation remains online-required because downstream first-log operations must not
+replay before the server-owned habit exists.
 
 ## Context
 

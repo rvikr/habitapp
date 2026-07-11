@@ -187,22 +187,24 @@ screenshots are acceptable only for failure diagnostics. Store generated proof u
 
 ## 4. Settings
 
-| #    | Test                                                                               | iOS | Android | Web |
-| ---- | ---------------------------------------------------------------------------------- | --- | ------- | --- |
-| 4.1  | Profile card shows avatar, name, email correctly                                   |     |         |     |
-| 4.2  | Tap profile card → avatar picker → change style → save → avatar updates everywhere |     |         |     |
-| 4.3  | Theme toggle: light → dark → light, applies immediately                            |     |         |     |
-| 4.4  | Theme persists across app restart                                                  |     |         |     |
-| 4.5  | Reminders screen shows habit list with toggle                                      |     |         |     |
-| 4.6  | Toggle reminder on → permission prompt appears                                     |     |         |     |
-| 4.7  | Allow notification → toggle stays on                                               |     |         |     |
-| 4.8  | Security: weak password rejected (< 8 chars / no number / etc.)                    |     |         |     |
-| 4.9  | Security: matching strong password updates successfully                            |     |         |     |
-| 4.10 | Sign out → returns to login screen                                                 |     |         |     |
-| 4.11 | Privacy & Data: analytics opt-out persists after restart                           |     |         |     |
-| 4.12 | Privacy & Data: data export opens and contains current user's habits/logs          |     |         |     |
-| 4.13 | Privacy & Data: account deletion request records successfully                      |     |         |     |
-| 4.14 | Feedback: submit bug/idea/usability report and verify it appears in Supabase       |     |         |     |
+| #    | Test                                                                                            | iOS | Android | Web |
+| ---- | ----------------------------------------------------------------------------------------------- | --- | ------- | --- |
+| 4.1  | Profile card shows avatar, name, email correctly                                                |     |         |     |
+| 4.2  | Tap profile card → avatar picker → change style → save → avatar updates everywhere              |     |         |     |
+| 4.3  | Theme toggle: light → dark → light, applies immediately                                         |     |         |     |
+| 4.4  | Theme persists across app restart                                                               |     |         |     |
+| 4.5  | Reminders screen shows habit list with toggle                                                   |     |         |     |
+| 4.6  | Toggle reminder on → permission prompt appears                                                  |     |         |     |
+| 4.7  | Allow notification → toggle stays on                                                            |     |         |     |
+| 4.8  | Security: weak password rejected (< 8 chars / no number / etc.)                                 |     |         |     |
+| 4.9  | Security: matching strong password updates successfully                                         |     |         |     |
+| 4.10 | Sign out → returns to login screen                                                              |     |         |     |
+| 4.11 | Privacy & Data: analytics opt-out persists after restart                                        |     |         |     |
+| 4.12 | Privacy & Data: data export opens and contains current user's habits/logs                       |     |         |     |
+| 4.13 | Data export contains `schema_version` and integrity counts; duplicate/orphan checks are present |     |         |     |
+| 4.14 | Offline edit/archive is queued and replays after reconnect without changing completion totals   |     |         |     |
+| 4.13 | Privacy & Data: account deletion request records successfully                                   |     |         |     |
+| 4.14 | Feedback: submit bug/idea/usability report and verify it appears in Supabase                    |     |         |     |
 
 ---
 

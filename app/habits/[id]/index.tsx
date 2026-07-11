@@ -109,7 +109,7 @@ export default function HabitDetailScreen() {
 
   async function handleLog(value: number, note: string) {
     if (!habit) return { ok: false, error: t("Habit not loaded.") };
-    const result = await logCompletion(habit.id, value, note);
+    const result = await logCompletion(habit.id, value, note, undefined, habit);
     if (!result.ok) return result;
     setShowLogPrompt(false);
     celebrate();
@@ -120,7 +120,7 @@ export default function HabitDetailScreen() {
   async function handleQuickLog() {
     if (!habit) return;
     const value = habit.default_log_value ?? 1;
-    const result = await logCompletion(habit.id, value, "");
+    const result = await logCompletion(habit.id, value, "", undefined, habit);
     if (!result.ok) {
       showAlert(t("Could not log progress"), result.error ?? t("Try again."));
       return;
@@ -135,7 +135,13 @@ export default function HabitDetailScreen() {
     // dashboard's coach action; everything else logs the suggested value.
     const sleepHabit = habit.habit_type === "sleep" || habit.metric_type === "hours";
     if (signal.suggestedAction === "log_value" && signal.suggestedValue && !sleepHabit) {
-      const result = await logCompletion(habit.id, signal.suggestedValue, "Logged from AI coach");
+      const result = await logCompletion(
+        habit.id,
+        signal.suggestedValue,
+        "Logged from AI coach",
+        undefined,
+        habit,
+      );
       if (!result.ok) {
         showAlert(t("Could not log progress"), result.error ?? t("Try again."));
         return;
@@ -361,6 +367,13 @@ export default function HabitDetailScreen() {
             onUpsell={() => router.push("/pro" as never)}
           />
         )}
+        {!insight && completions.length === 0 && (
+          <View className="mx-margin-mobile mb-lg rounded-2xl bg-surface-container dark:bg-d-surface border border-outline-variant dark:border-d-outline-variant p-md">
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
+              {t("Log a few days to see patterns.")}
+            </Text>
+          </View>
+        )}
 
         {/* Today toggle — kept above history so logging never requires scrolling */}
         <View className="px-margin-mobile gap-sm mb-lg">
@@ -403,9 +416,12 @@ export default function HabitDetailScreen() {
             {t("Recent History")}
           </Text>
           {historyItems.length === 0 ? (
-            <View className={`${CARD_CLASS} p-lg items-center`}>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                {t("No logs this week")}
+            <View className={`${CARD_CLASS} p-lg items-center gap-xs`}>
+              <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                {t("No logs yet")}
+              </Text>
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
+                {t("This week will fill in as you log this habit.")}
               </Text>
             </View>
           ) : (
