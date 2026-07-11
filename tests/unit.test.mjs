@@ -5044,19 +5044,19 @@ test("activation stage is fail-open and an authoritative reconciliation clears o
       .stage,
     "pre_value",
   );
-  assert.equal(
+  assert.deepEqual(
     resolveActivationStage(
       { first_habit_logged_at: "2026-07-11T00:00:00Z", activation_engaged_at: null },
       null,
-    ).stage,
-    "first_log",
+    ),
+    { stage: "first_log", authoritative: true },
   );
-  assert.equal(
+  assert.deepEqual(
     resolveActivationStage(
       { first_habit_logged_at: null, activation_engaged_at: "2026-07-11T00:00:00Z" },
       null,
-    ).stage,
-    "engaged",
+    ),
+    { stage: "engaged", authoritative: true },
   );
 
   assert.deepEqual(
@@ -5122,12 +5122,14 @@ test("activation provider state resets per account and ignores stale loads", asy
     generation: signedIn.generation,
     assignment: { variant: "activation_v2", bucket: 2, rolloutPercentage: 100 },
     stage: "pre_value",
+    authoritative: true,
   });
   assert.equal(
     loadedAfterEarlyCompletion.stage,
     "first_log",
     "a queued completion during initial loading must survive the stale pre-value snapshot",
   );
+  assert.equal(loadedAfterEarlyCompletion.authoritative, false);
 
   const switched = activationStateReducer(signedIn, {
     type: "auth_changed",
@@ -5139,6 +5141,7 @@ test("activation provider state resets per account and ignores stale loads", asy
     generation: signedIn.generation,
     assignment: { variant: "activation_v2", bucket: 2, rolloutPercentage: 100 },
     stage: "first_log",
+    authoritative: true,
   });
   assert.strictEqual(stale, switched);
 
@@ -5148,35 +5151,105 @@ test("activation provider state resets per account and ignores stale loads", asy
     generation: switched.generation,
     assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
     stage: "pre_value",
+    authoritative: true,
   });
   const optimistic = activationStateReducer(loaded, {
     type: "optimistic_first_log",
     userId: "user-b",
   });
   assert.equal(optimistic.stage, "first_log");
-  const engaged = activationStateReducer(
-    { ...optimistic, stage: "engaged" },
-    { type: "optimistic_first_log", userId: "user-b" },
-  );
-  assert.equal(engaged.stage, "engaged");
+  assert.equal(optimistic.authoritative, false, "marker-derived first_log is optimistic");
 
-  const attemptedDemotion = activationStateReducer(engaged, {
+  const failOpenEngaged = activationStateReducer(loaded, {
     type: "loaded",
     userId: "user-b",
-    generation: engaged.generation,
+    generation: loaded.generation,
+    assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+    stage: "engaged",
+    authoritative: false,
+  });
+  assert.equal(failOpenEngaged.stage, "engaged");
+
+  const recovered = activationStateReducer(failOpenEngaged, {
+    type: "loaded",
+    userId: "user-b",
+    generation: failOpenEngaged.generation,
     assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
     stage: "pre_value",
+    authoritative: true,
   });
-  assert.equal(attemptedDemotion.stage, "engaged", "engaged treatment users never demote");
+  assert.equal(
+    recovered.stage,
+    "pre_value",
+    "fail-open engaged must recover after a successful authoritative read",
+  );
+  assert.equal(recovered.authoritative, true);
+
+  const authoritativeEngaged = activationStateReducer(recovered, {
+    type: "loaded",
+    userId: "user-b",
+    generation: recovered.generation,
+    assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+    stage: "engaged",
+    authoritative: true,
+  });
+  assert.equal(authoritativeEngaged.authoritative, true);
+
+  const transientError = activationStateReducer(authoritativeEngaged, {
+    type: "loaded",
+    userId: "user-b",
+    generation: authoritativeEngaged.generation,
+    assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+    stage: "engaged",
+    authoritative: false,
+  });
+  assert.equal(transientError.stage, "engaged");
+  assert.equal(transientError.authoritative, true, "errors cannot erase engaged provenance");
+
+  const stalePreValue = activationStateReducer(transientError, {
+    type: "loaded",
+    userId: "user-b",
+    generation: transientError.generation,
+    assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+    stage: "pre_value",
+    authoritative: true,
+  });
+  assert.equal(stalePreValue.stage, "engaged", "authoritative engagement is monotonic");
+  assert.equal(stalePreValue.authoritative, true);
+
+  const controlAfterEngaged = activationStateReducer(authoritativeEngaged, {
+    type: "loaded",
+    userId: "user-b",
+    generation: authoritativeEngaged.generation,
+    assignment: { variant: "control", bucket: 3, rolloutPercentage: 0 },
+    stage: "engaged",
+    authoritative: false,
+  });
+  assert.equal(
+    controlAfterEngaged.authoritative,
+    true,
+    "a control assignment cannot erase a known engaged milestone",
+  );
+  const reEnrolledWithStalePreValue = activationStateReducer(controlAfterEngaged, {
+    type: "loaded",
+    userId: "user-b",
+    generation: controlAfterEngaged.generation,
+    assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+    stage: "pre_value",
+    authoritative: true,
+  });
+  assert.equal(reEnrolledWithStalePreValue.stage, "engaged");
+  assert.equal(reEnrolledWithStalePreValue.authoritative, true);
 
   const controlToTreatment = activationStateReducer(
-    { ...engaged, variant: "control" },
+    { ...authoritativeEngaged, variant: "control", authoritative: false },
     {
       type: "loaded",
       userId: "user-b",
-      generation: engaged.generation,
+      generation: authoritativeEngaged.generation,
       assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
       stage: "pre_value",
+      authoritative: true,
     },
   );
   assert.equal(controlToTreatment.stage, "pre_value", "newly enrolled control users may activate");
@@ -5426,6 +5499,7 @@ test("activation provider loads fail-safe config and milestones at the app root"
   assert.match(flags, /export function getAiSuggestionsEnabled/);
 
   const service = readFileSync("lib/services/activation.ts", "utf8");
+  assert.match(service, /authoritative: boolean/);
   assert.match(service, /getFeatureFlagConfig\(\s*"activation_v2"/);
   assert.match(service, /assignActivationVariant/);
   assert.match(service, /from\("profiles"\)/);
@@ -5434,10 +5508,16 @@ test("activation provider loads fail-safe config and milestones at the app root"
   assert.match(service, /resolveStageWithOptimisticMarker/);
   assert.match(
     service,
+    /authoritative:\s*remote\.authoritative\s*&&\s*resolved\.stage\s*===\s*remote\.stage/,
+  );
+  assert.match(
+    service,
     /assignment\.variant === "control"[\s\S]*options\?\.reconcile[\s\S]*optimisticFirstLogStore\.clear\(userId\)/,
   );
 
   const provider = readFileSync("components/activation-provider.tsx", "utf8");
+  const publicContext = provider.match(/type ActivationContextValue = \{[\s\S]*?\n\};/)?.[0] ?? "";
+  assert.doesNotMatch(publicContext, /authoritative/);
   assert.match(provider, /ready: boolean/);
   assert.match(provider, /variant: ActivationVariant/);
   assert.match(provider, /stage: ActivationStage/);
@@ -5452,6 +5532,7 @@ test("activation provider loads fail-safe config and milestones at the app root"
   assert.match(provider, /loadSequencerRef\.current\.begin\(\)/);
   assert.match(provider, /loadSequencerRef\.current\.isCurrent\(requestId\)/);
   assert.match(provider, /loadSequencerRef\.current\.invalidate\(\)/);
+  assert.match(provider, /authoritative:\s*snapshot\.authoritative/);
 
   const root = readFileSync("app/_layout.tsx", "utf8");
   assert.match(root, /<ActivationProvider>[\s\S]*<RootLayoutContent \/>/);

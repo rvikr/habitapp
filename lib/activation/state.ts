@@ -9,6 +9,7 @@ export type ActivationProviderState = {
   ready: boolean;
   variant: ActivationVariant;
   stage: ActivationStage;
+  authoritative: boolean;
   bucket: number;
   userId: string | null;
   generation: number;
@@ -23,6 +24,7 @@ export type ActivationStateAction =
       generation: number;
       assignment: FeatureFlagAssignment;
       stage: ActivationStage;
+      authoritative: boolean;
     }
   | { type: "optimistic_first_log"; userId: string };
 
@@ -30,6 +32,7 @@ export const initialActivationProviderState: ActivationProviderState = {
   ready: false,
   variant: "control",
   stage: "engaged",
+  authoritative: false,
   bucket: 0,
   userId: null,
   generation: 0,
@@ -49,6 +52,7 @@ export function activationStateReducer(
       ready: action.userId === null,
       variant: "control",
       stage: "engaged",
+      authoritative: false,
       bucket: action.userId ? activationBucket(action.userId) : 0,
       userId: action.userId,
       generation: state.generation + 1,
@@ -58,24 +62,35 @@ export function activationStateReducer(
 
   if (action.type === "loaded") {
     if (action.userId !== state.userId || action.generation !== state.generation) return state;
-    const preserveEngaged =
-      state.ready &&
-      state.variant === "activation_v2" &&
-      state.stage === "engaged" &&
-      action.assignment.variant === "activation_v2";
+    const preserveKnownEngagement = state.ready && state.stage === "engaged" && state.authoritative;
+    const preserveAuthoritativeEngaged =
+      preserveKnownEngagement && action.assignment.variant === "activation_v2";
+    const applyPendingOptimism =
+      action.assignment.variant === "activation_v2" &&
+      state.pendingOptimisticFirstLog &&
+      action.stage === "pre_value";
     const loadedStage =
       action.assignment.variant === "control"
         ? "engaged"
-        : preserveEngaged
+        : preserveAuthoritativeEngaged
           ? "engaged"
-          : state.pendingOptimisticFirstLog && action.stage === "pre_value"
+          : applyPendingOptimism
             ? "first_log"
             : action.stage;
+    const authoritative =
+      action.assignment.variant === "control"
+        ? preserveKnownEngagement
+        : preserveAuthoritativeEngaged
+          ? true
+          : applyPendingOptimism
+            ? false
+            : action.authoritative;
     return {
       ...state,
       ready: true,
       variant: action.assignment.variant,
       stage: loadedStage,
+      authoritative,
       bucket: action.assignment.bucket,
       pendingOptimisticFirstLog: false,
     };
@@ -84,5 +99,5 @@ export function activationStateReducer(
   if (action.userId !== state.userId) return state;
   if (!state.ready) return { ...state, pendingOptimisticFirstLog: true };
   if (state.variant !== "activation_v2" || state.stage !== "pre_value") return state;
-  return { ...state, stage: "first_log" };
+  return { ...state, stage: "first_log", authoritative: false };
 }

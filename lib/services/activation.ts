@@ -12,6 +12,7 @@ import { optimisticFirstLogStore } from "./activation-marker";
 export type ActivationSnapshot = {
   assignment: FeatureFlagAssignment;
   stage: ActivationStage;
+  authoritative: boolean;
 };
 
 export async function getActivationAssignment(
@@ -49,7 +50,7 @@ export async function loadActivationSnapshot(
   const assignment = await getActivationAssignment(userId, options);
   if (assignment.variant === "control") {
     if (options?.reconcile) await optimisticFirstLogStore.clear(userId);
-    return { assignment, stage: "engaged" };
+    return { assignment, stage: "engaged", authoritative: false };
   }
 
   const [remote, hasMarker] = await Promise.all([
@@ -62,5 +63,9 @@ export async function loadActivationSnapshot(
     reconcile: options?.reconcile ?? false,
   });
   if (resolved.clearMarker) await optimisticFirstLogStore.clear(userId);
-  return { assignment, stage: resolved.stage };
+  return {
+    assignment,
+    stage: resolved.stage,
+    authoritative: remote.authoritative && resolved.stage === remote.stage,
+  };
 }

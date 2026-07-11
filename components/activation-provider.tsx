@@ -56,6 +56,7 @@ export function ActivationProvider({ children }: { children: ReactNode }) {
             rolloutPercentage: 0,
           }),
           stage: "engaged" as const,
+          authoritative: false,
         };
       }
       if (
@@ -72,6 +73,7 @@ export function ActivationProvider({ children }: { children: ReactNode }) {
         generation,
         assignment: snapshot.assignment,
         stage: snapshot.stage,
+        authoritative: snapshot.authoritative,
       });
     },
     [],
