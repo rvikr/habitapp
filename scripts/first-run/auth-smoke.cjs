@@ -43,6 +43,7 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
   const requestFailures = [];
   const passwordResetCalls = [];
   const signupCalls = [];
+  const googleProviderCalls = [];
   const delayedSignupEmail = "first-user-signup-smoke@example.invalid";
   let resolveDelayedSignupStarted;
   const delayedSignupStarted = new Promise((resolve) => {
@@ -104,6 +105,14 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
           },
           session: null,
         }),
+      });
+    }
+    if (req.method() === "GET" && url.pathname.includes("/auth/v1/authorize")) {
+      googleProviderCalls.push(call);
+      return route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/html", "access-control-allow-origin": "*" },
+        body: "<html><body>Unexpected Google authorization</body></html>",
       });
     }
     unexpectedBackendCalls.push(call);
@@ -238,6 +247,10 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
   ) {
     throw new Error("signin-back-to-signup mode switch did not clear password and confirmation");
   }
+  const signupModeSwitchControl = await page
+    .getByRole("button", { name: /Already have an account\?\s*Sign in/ })
+    .elementHandle();
+  if (!signupModeSwitchControl) throw new Error("signup-to-signin control was not found");
 
   const signupText = await snapshot(page, "signup", snapshots);
   if (signupText.includes("Reset password")) {
@@ -288,29 +301,50 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
     .getByRole("button", { name: "अकाउंट बनाएं" })
     .elementHandle();
   if (!signupSubmitControl) throw new Error("signup submit control was not found");
-  await signupSubmitControl.click();
+  await page.evaluate(
+    ([submit, modeSwitch, google]) => {
+      const press = (element) =>
+        element.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true, view: window }),
+        );
+      press(submit);
+      press(modeSwitch);
+      press(submit);
+      press(google);
+    },
+    [signupSubmitControl, signupModeSwitchControl, googleAuthControl],
+  );
   await Promise.race([
     delayedSignupStarted,
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error("delayed signup request did not start")), 10000),
     ),
   ]);
+  if ((await page.locator("input").count()) !== 3) {
+    throw new Error("mode changed during the pre-render auth race");
+  }
   await page.waitForFunction(
     (element) => element.getAttribute("aria-disabled") === "true",
     signupSubmitControl,
     { timeout: 10000 },
   );
-  const [submitAriaDisabled, googleAriaDisabled] = await Promise.all([
+  const [submitAriaDisabled, googleAriaDisabled, modeSwitchAriaDisabled] = await Promise.all([
     signupSubmitControl.getAttribute("aria-disabled"),
     googleAuthControl.getAttribute("aria-disabled"),
+    signupModeSwitchControl.getAttribute("aria-disabled"),
   ]);
-  if (submitAriaDisabled !== "true" || googleAriaDisabled !== "true") {
-    throw new Error("signup and Google auth controls were not disabled during delayed signup");
+  if (
+    submitAriaDisabled !== "true" ||
+    googleAriaDisabled !== "true" ||
+    modeSwitchAriaDisabled !== "true"
+  ) {
+    throw new Error("signup, Google, and mode-switch controls were not disabled during signup");
   }
-  await signupSubmitControl.dispatchEvent("click");
   await page.waitForTimeout(100);
-  if (signupCalls.length !== 1) {
-    throw new Error("delayed signup allowed a duplicate submission");
+  if (signupCalls.length !== 1 || googleProviderCalls.length !== 0) {
+    throw new Error(
+      `auth race invoked signup ${signupCalls.length} times and Google ${googleProviderCalls.length} times`,
+    );
   }
   releaseDelayedSignupResponse();
   await page
@@ -343,6 +377,7 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
     requestFailures,
     passwordResetCalls,
     signupCalls,
+    googleProviderCalls,
     unexpectedBackendCalls,
   };
   fs.writeFileSync("tmp/first-run-smoke-auth-current.json", JSON.stringify(result, null, 2));

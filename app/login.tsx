@@ -77,6 +77,7 @@ export default function LoginScreen() {
   }, [mode]);
 
   function switchMode(next: Mode) {
+    if (authLoading || authInFlightRef.current) return;
     pendingModeFocusRef.current = true;
     setMode(next);
     setError(null);
@@ -423,6 +424,8 @@ export default function LoginScreen() {
               <TouchableOpacity
                 className="items-center py-sm"
                 accessibilityRole="button"
+                accessibilityState={{ disabled: authLoading }}
+                disabled={authLoading}
                 onPress={() => switchMode(mode === "signin" ? "signup" : "signin")}
               >
                 <Text className="text-label-lg" style={{ color: LOGIN_COLORS.muted }}>

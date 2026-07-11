@@ -355,6 +355,33 @@ test("landing web app CTAs use plain anchors and keep the header CTA mobile-hidd
   const pageSource = readFileSync("website/app/page.tsx", "utf8");
   const buttonSource = readFileSync("website/components/ui/button.tsx", "utf8");
 
+  function assertApprovedAppCtas(source) {
+    const hrefRefs =
+      source.match(
+        /\bhref\s*=\s*(?:\{[^}]*\bWEB_APP_URL\b[^}]*\}|\{\s*["']\/app["']\s*\}|["']\/app["'])/g,
+      ) ?? [];
+    const taggedRefs = [
+      ...source.matchAll(
+        /<([A-Za-z][\w.]*)\b[^>]*\bhref\s*=\s*(?:\{[^}]*\bWEB_APP_URL\b[^}]*\}|\{\s*["']\/app["']\s*\}|["']\/app["'])[^>]*>/g,
+      ),
+    ];
+    assert.ok(hrefRefs.length > 0, "expected at least one proxied web app CTA");
+    assert.equal(
+      taggedRefs.length,
+      hrefRefs.length,
+      "every WEB_APP_URL or literal /app href must belong to an inspected JSX tag",
+    );
+    for (const appCta of taggedRefs) {
+      const tagName = appCta[1];
+      if (tagName === "Button") {
+        assert.match(appCta[0], /(?:^|\s)external(?:=\{true\})?(?=\s|>)/);
+        continue;
+      }
+      assert.equal(tagName, "a", `unapproved proxied app CTA tag: ${tagName}`);
+    }
+    return taggedRefs.map((match) => match[0]);
+  }
+
   const externalBranch =
     buttonSource.match(
       /if \(props\.external\) \{\r?\n([\s\S]*?)\r?\n    \}(?=\r?\n    return \()/,
@@ -362,11 +389,18 @@ test("landing web app CTAs use plain anchors and keep the header CTA mobile-hidd
   assert.match(externalBranch, /<a href=\{props\.href\}/);
   assert.doesNotMatch(externalBranch, /<Link\b/);
 
-  const appCtas = pageSource.match(/<Button\s+[^>]*href=\{WEB_APP_URL\}[^>]*>/g) ?? [];
-  assert.ok(appCtas.length > 0, "expected at least one proxied web app CTA");
-  for (const appCta of appCtas) {
-    assert.match(appCta, /(?:^|\s)external(?:=\{true\})?(?=\s|>)/);
-  }
+  const appCtas = assertApprovedAppCtas(pageSource);
+  assert.throws(
+    () => assertApprovedAppCtas(`<Link href={WEB_APP_URL}>Open</Link>`),
+    /unapproved proxied app CTA tag: Link/,
+  );
+  assert.throws(
+    () => assertApprovedAppCtas(`<Link href={"/app"}>Open</Link>`),
+    /unapproved proxied app CTA tag: Link/,
+  );
+  assert.throws(() => assertApprovedAppCtas(`<Button href="/app">Open</Button>`), /external/);
+  assert.doesNotThrow(() => assertApprovedAppCtas(`<a href="/app">Open</a>`));
+  assert.equal(appCtas.length, 5);
 
   const headerCta =
     pageSource.match(

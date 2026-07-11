@@ -30,13 +30,73 @@ function fakeSession() {
   };
 }
 
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseRpcIncrementPayload(payload) {
+  const habitId = payload?.p_habit_id;
+  const completedOn = payload?.p_completed_on;
+  const increment = payload?.p_increment;
+  if (typeof habitId !== "string" || habitId.trim() === "") {
+    throw new Error("log_habit_completion requires p_habit_id");
+  }
+  if (typeof completedOn !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(completedOn)) {
+    throw new Error("log_habit_completion requires p_completed_on");
+  }
+  const [year, month, day] = completedOn.split("-").map(Number);
+  const parsedDate = new Date(year, month - 1, day);
+  if (
+    parsedDate.getFullYear() !== year ||
+    parsedDate.getMonth() !== month - 1 ||
+    parsedDate.getDate() !== day
+  ) {
+    throw new Error("log_habit_completion requires a valid p_completed_on date");
+  }
+  if (typeof increment !== "number" || !Number.isFinite(increment) || increment <= 0) {
+    throw new Error("log_habit_completion requires a positive numeric p_increment");
+  }
+  return { habitId, completedOn, increment };
+}
+
+function assertMalformedRpcPayloadsFail() {
+  if (typeof parseRpcIncrementPayload !== "function") {
+    throw new Error("post-create smoke is missing strict RPC payload validation");
+  }
+  const today = localDateKey();
+  const invalidPayloads = [
+    {},
+    { p_completed_on: today, p_increment: 250 },
+    { p_habit_id: "mock-habit-1", p_increment: 250 },
+    { p_habit_id: "mock-habit-1", p_completed_on: today },
+    { p_habit_id: "", p_completed_on: today, p_increment: 250 },
+    { p_habit_id: "mock-habit-1", p_completed_on: "not-a-date", p_increment: 250 },
+    { p_habit_id: "mock-habit-1", p_completed_on: today, p_increment: "250" },
+  ];
+  for (const payload of invalidPayloads) {
+    let rejected = false;
+    try {
+      parseRpcIncrementPayload(payload);
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error(`malformed RPC payload was accepted: ${JSON.stringify(payload)}`);
+    }
+  }
+}
+
 async function setup(page, session) {
   const storageKey = "sb-ehcqgoymkmljwoveisbl-auth-token";
   let habitInsertCount = 0;
-  let completionLogCount = 0;
-  const today = "2026-06-21";
+  const today = localDateKey();
   const createdHabits = [];
   const completionRows = [];
+  const rpcIncrementCalls = [];
+  const directCompletionWrites = [];
   await page.addInitScript(
     ({ storageKey, session }) => {
       localStorage.clear();
@@ -64,10 +124,20 @@ async function setup(page, session) {
         body: completionRows.length > 0 ? JSON.stringify([today]) : "[]",
       });
     if (path.includes("/rest/v1/rpc/log_habit_completion")) {
-      const payload = JSON.parse(req.postData() || "{}");
-      const habitId = payload.p_habit_id || "mock-habit-1";
-      const completedOn = payload.p_completed_on || today;
-      const increment = Number(payload.p_increment ?? 1);
+      let parsed;
+      try {
+        parsed = parseRpcIncrementPayload(JSON.parse(req.postData() || "{}"));
+      } catch (error) {
+        return route.fulfill({
+          status: 400,
+          headers,
+          body: JSON.stringify({
+            message: error instanceof Error ? error.message : "Malformed RPC",
+          }),
+        });
+      }
+      const { habitId, completedOn, increment } = parsed;
+      rpcIncrementCalls.push({ habitId, completedOn, increment });
       const existingIndex = completionRows.findIndex(
         (item) => item.habit_id === habitId && item.completed_on === completedOn,
       );
@@ -78,7 +148,6 @@ async function setup(page, session) {
         created_at: existing?.created_at || new Date().toISOString(),
         value: Number(existing?.value ?? 0) + increment,
       };
-      completionLogCount += 1;
       if (existingIndex >= 0) completionRows[existingIndex] = normalized;
       else completionRows.push(normalized);
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true }) });
@@ -103,7 +172,6 @@ async function setup(page, session) {
         const payload = JSON.parse(req.postData() || "{}");
         const rows = Array.isArray(payload) ? payload : [payload];
         for (const row of rows) {
-          completionLogCount += 1;
           const habitId = row.habit_id || "mock-habit-1";
           const existingIndex = completionRows.findIndex(
             (item) =>
@@ -115,6 +183,7 @@ async function setup(page, session) {
             created_at: new Date().toISOString(),
             value: row.value ?? null,
           };
+          directCompletionWrites.push({ ...normalized });
           if (existingIndex >= 0) completionRows[existingIndex] = normalized;
           else completionRows.push(normalized);
         }
@@ -176,8 +245,14 @@ async function setup(page, session) {
     });
   });
   return {
-    getCounts: () => ({ habitInsertCount, completionLogCount }),
+    getCounts: () => ({
+      habitInsertCount,
+      rpcIncrementCount: rpcIncrementCalls.length,
+      directCompletionWriteCount: directCompletionWrites.length,
+    }),
     getCompletionRows: () => completionRows.map((row) => ({ ...row })),
+    getRpcIncrementCalls: () => rpcIncrementCalls.map((call) => ({ ...call })),
+    getDirectCompletionWrites: () => directCompletionWrites.map((row) => ({ ...row })),
   };
 }
 
@@ -266,6 +341,8 @@ async function runScenario(browser, scenario) {
   const result = {
     counts: harness.getCounts(),
     completionRows: harness.getCompletionRows(),
+    rpcIncrementCalls: harness.getRpcIncrementCalls(),
+    directCompletionWrites: harness.getDirectCompletionWrites(),
     booleanCompleted,
     snapshots,
     consoleMessages,
@@ -283,11 +360,6 @@ async function runScenario(browser, scenario) {
       `[${scenario.id}] Expected ${scenario.expectedHabitCount} created habits, got ${result.counts.habitInsertCount}`,
     );
   }
-  if (result.counts.completionLogCount !== 1) {
-    throw new Error(
-      `[${scenario.id}] Expected exactly one completion log, got ${result.counts.completionLogCount}`,
-    );
-  }
   const completion = result.completionRows.find((row) => row.habit_id === "mock-habit-1");
   if (
     !completion ||
@@ -301,13 +373,38 @@ async function runScenario(browser, scenario) {
   if (scenario.kind === "quantity" && !final.includes("250 / 2000 ml")) {
     throw new Error("Expected dashboard to preserve the tutorial partial progress: 250 / 2000 ml");
   }
+  if (scenario.kind === "quantity") {
+    const [rpcCall] = result.rpcIncrementCalls;
+    if (
+      result.rpcIncrementCalls.length !== 1 ||
+      rpcCall.habitId !== "mock-habit-1" ||
+      rpcCall.completedOn !== scenario.expectedCompletedOn ||
+      rpcCall.increment !== 250 ||
+      result.directCompletionWrites.length !== 0
+    ) {
+      throw new Error(`[quantity] Expected one exact RPC increment and zero direct writes`);
+    }
+  }
   if (scenario.kind === "boolean" && (!booleanCompleted || !/Done\s+1 \/ 1/.test(final))) {
     throw new Error("Expected boolean tutorial habit to reach a completed 1 / 1 dashboard state");
+  }
+  if (scenario.kind === "boolean") {
+    const [directWrite] = result.directCompletionWrites;
+    if (
+      result.rpcIncrementCalls.length !== 0 ||
+      result.directCompletionWrites.length !== 1 ||
+      directWrite.habit_id !== "mock-habit-1" ||
+      directWrite.completed_on !== scenario.expectedCompletedOn ||
+      directWrite.value !== 1
+    ) {
+      throw new Error(`[boolean] Expected one exact direct write and zero RPC increments`);
+    }
   }
   return result;
 }
 
 (async () => {
+  assertMalformedRpcPayloadsFail();
   const browser = await chromium.launch({ headless: true });
   const scenarios = [
     {
@@ -319,6 +416,7 @@ async function runScenario(browser, scenario) {
       removeHabits: [],
       expectedHabitCount: 4,
       expectedCompletionValue: 250,
+      expectedCompletedOn: localDateKey(),
     },
     {
       id: "boolean",
@@ -329,6 +427,7 @@ async function runScenario(browser, scenario) {
       removeHabits: ["Focus Session", "Revision Block", "Read", "Walk"],
       expectedHabitCount: 1,
       expectedCompletionValue: 1,
+      expectedCompletedOn: localDateKey(),
     },
   ];
   const results = [];
