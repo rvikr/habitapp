@@ -1,5 +1,9 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require("./screenshot-helper.cjs");
 
 function fakeSession() {
   const userId = "00000000-0000-4000-8000-000000000005";
@@ -48,6 +52,7 @@ function localDateKey(date = new Date()) {
     isMobile: true,
   });
   const page = await context.newPage();
+  await prepareScreenshotPage(page);
   const pageErrors = [];
   const unexpectedBackendCalls = [];
   const snapshots = [];
@@ -223,7 +228,11 @@ function localDateKey(date = new Date()) {
 
   async function snap(label) {
     const text = await page.locator("body").innerText({ timeout: 10000 });
-    await page.screenshot({ path: `tmp/treatment-manual-${label}.png`, fullPage: true });
+    await captureStableScreenshot(page, {
+      finalUrl: page.url(),
+      target: "body",
+      screenshot: { path: `tmp/treatment-manual-${label}.png`, fullPage: true },
+    });
     snapshots.push({ label, url: page.url(), text: text.slice(0, 3000) });
     return text;
   }

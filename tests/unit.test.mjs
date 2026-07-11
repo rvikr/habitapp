@@ -2256,7 +2256,7 @@ test("first-run dashboard labels quantity habit card actions as logging progress
 test("first-run dashboard greets users before prompting for notifications", () => {
   const source = readFileSync("app/(tabs)/index.tsx", "utf8");
   const greetingIndex = source.indexOf('t("Hey, {name}"');
-  const notificationIndex = source.indexOf("<NotificationPermissionCard />");
+  const notificationIndex = source.indexOf("<NotificationPermissionCard");
 
   assert.notEqual(greetingIndex, -1);
   assert.notEqual(notificationIndex, -1);

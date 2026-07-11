@@ -1,5 +1,14 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require("./screenshot-helper.cjs");
+const {
+  assertActivationAnalyticsSafe,
+  installAnalyticsCollector,
+  requireAnalyticsEvent,
+} = require("./analytics-events.cjs");
 
 const baseUrl = "http://localhost:8083";
 const pendingSignupKey = "habbit:pending-signup-email";
@@ -60,7 +69,11 @@ function fakeSession() {
 
 async function snapshot(page, label) {
   const text = await page.locator("body").innerText({ timeout: 10000 });
-  await page.screenshot({ path: `tmp/first-run-callback-${label}.png`, fullPage: true });
+  await captureStableScreenshot(page, {
+    finalUrl: page.url(),
+    target: "body",
+    screenshot: { path: `tmp/first-run-callback-${label}.png`, fullPage: true },
+  });
   if (text.includes("undefined")) throw new Error(`${label} rendered undefined`);
   return { label, url: page.url(), text: text.slice(0, 3000) };
 }
@@ -98,6 +111,8 @@ async function runScenario(browser, options) {
     isMobile: true,
   });
   const page = await context.newPage();
+  await prepareScreenshotPage(page);
+  const analyticsCollector = installAnalyticsCollector(page);
   pageForFailureCapture = page;
   activeScenario = label;
 
@@ -196,6 +211,31 @@ async function runScenario(browser, options) {
   }
   await assertSingleAction(page, label, expectedAction, forbiddenActions);
   const scenarioSnapshot = await snapshot(page, label);
+  await page.waitForTimeout(50);
+  await analyticsCollector.settle();
+  const confirmationEvents = analyticsCollector.events.filter(
+    (event) => event.name === "signup_confirmed",
+  );
+  if (expectedAction === "Back to sign in") {
+    if (confirmationEvents.length !== 0) {
+      throw new Error(`${label} tracked a failed callback as confirmed`);
+    }
+    const failure = requireAnalyticsEvent(
+      analyticsCollector.events,
+      "signup_failed",
+      (event) =>
+        event.properties.failure_category === "confirmation_expired" &&
+        event.properties.failure_stage === "confirmation",
+    );
+    assertActivationAnalyticsSafe(failure);
+  } else {
+    const confirmation = requireAnalyticsEvent(
+      analyticsCollector.events,
+      "signup_confirmed",
+      (event) => event.properties.authenticated === !suppressAuthTokenWrites,
+    );
+    assertActivationAnalyticsSafe(confirmation);
+  }
 
   if (tokenCalls.length !== expectedTokenCalls) {
     throw new Error(
@@ -220,6 +260,7 @@ async function runScenario(browser, options) {
     consoleMessages,
     pageErrors,
     requestFailures,
+    analyticsEvents: analyticsCollector.events,
   };
   await context.close();
   pageForFailureCapture = null;

@@ -1,6 +1,11 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const { chromium } = require("playwright");
+const {
+  assertActivationAnalyticsSafe,
+  installAnalyticsCollector,
+  requireAnalyticsEvent,
+} = require("./analytics-events.cjs");
 
 const BASE_URL = "http://localhost:8083";
 const STORAGE_KEY = "sb-ehcqgoymkmljwoveisbl-auth-token";
@@ -57,6 +62,7 @@ function milestonesFor(stage) {
 }
 
 async function installBackend(page, { treatment, stage, sequence, onboardingStored }) {
+  const analyticsCollector = installAnalyticsCollector(page);
   const session = fakeSession(sequence);
   const onboardingKey = `habbit:onboarding-complete:${session.user.id}`;
   const unexpectedRequests = [];
@@ -69,6 +75,12 @@ async function installBackend(page, { treatment, stage, sequence, onboardingStor
       sessionStorage.clear();
       localStorage.setItem(storageKey, JSON.stringify(session));
       if (onboardingStored) localStorage.setItem(onboardingKey, "1");
+      if (typeof Notification !== "undefined") {
+        Object.defineProperty(Notification, "permission", {
+          configurable: true,
+          get: () => "default",
+        });
+      }
     },
     { storageKey: STORAGE_KEY, onboardingKey, onboardingStored, session },
   );
@@ -145,7 +157,23 @@ async function installBackend(page, { treatment, stage, sequence, onboardingStor
     });
   });
 
-  return { session, onboardingKey, unexpectedRequests, pageErrors };
+  return { session, onboardingKey, unexpectedRequests, pageErrors, analyticsCollector };
+}
+
+async function expectActivationAnalytics(harness, { variant, stage, rolloutPercentage }) {
+  await harness.analyticsCollector.settle();
+  for (const name of ["activation_exposed", "activation_entry"]) {
+    const matching = harness.analyticsCollector.events.filter(
+      (event) =>
+        event.name === name &&
+        event.properties.activation_variant === variant &&
+        event.properties.activation_stage === stage &&
+        event.properties.rollout_percentage === rolloutPercentage &&
+        typeof event.properties.activation_bucket === "number",
+    );
+    assert.equal(matching.length, 1, `${name} must be emitted once for ${variant}/${stage}`);
+    assertActivationAnalyticsSafe(matching[0]);
+  }
 }
 
 async function expectText(page, text, visible) {
@@ -229,6 +257,11 @@ async function runControlPreValue(browser, results) {
   await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForURL((url) => url.pathname === "/habits/wizard", { timeout: 30000 });
   await page.getByText("STEP 1 OF 8", { exact: true }).waitFor({ timeout: 30000 });
+  await expectActivationAnalytics(harness, {
+    variant: "control",
+    stage: "pre_value",
+    rolloutPercentage: 0,
+  });
   results.push({ scenario: "control-pre-value", url: page.url(), ...harness });
   await page.close();
 }
@@ -244,6 +277,11 @@ async function runControlEngaged(browser, results) {
   await openDashboard(page);
   await expectTabs(page, ["Today", "Badges", "Progress", "Ranks", "Settings"]);
   await expectDashboardSurfaces(page, "full");
+  await expectActivationAnalytics(harness, {
+    variant: "control",
+    stage: "engaged",
+    rolloutPercentage: 0,
+  });
   await page.goto(`${BASE_URL}/leaderboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.getByText("Leaderboard", { exact: true }).waitFor({ timeout: 30000 });
   assert.equal(new URL(page.url()).pathname, "/leaderboard");
@@ -263,6 +301,11 @@ async function runTreatmentPreValue(browser, results) {
   await expectTabs(page, ["Today", "Settings"]);
   await expectDashboardSurfaces(page, "restricted");
   await expectButton(page, "Add habit", false);
+  await expectActivationAnalytics(harness, {
+    variant: "activation_v2",
+    stage: "pre_value",
+    rolloutPercentage: 100,
+  });
 
   await page.goto(`${BASE_URL}/achievements`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForURL((url) => url.pathname === "/", { timeout: 30000 });
@@ -286,6 +329,11 @@ async function runTreatmentFirstLog(browser, results) {
   await openDashboard(page);
   await expectTabs(page, ["Today", "Badges", "Progress", "Settings"]);
   await expectDashboardSurfaces(page, "first_log");
+  await expectActivationAnalytics(harness, {
+    variant: "activation_v2",
+    stage: "first_log",
+    rolloutPercentage: 100,
+  });
 
   await page.evaluate(
     (key) => localStorage.setItem(key, "1"),
@@ -301,6 +349,17 @@ async function runTreatmentFirstLog(browser, results) {
 
   await page.goto(`${BASE_URL}/leaderboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.waitForURL((url) => url.pathname === "/", { timeout: 30000 });
+  await harness.analyticsCollector.settle();
+  const promptEvents = harness.analyticsCollector.events.filter(
+    (event) =>
+      event.name === "notification_prompt_shown" &&
+      event.properties.surface === "dashboard" &&
+      event.properties.activation_stage === "first_log",
+  );
+  assert.equal(promptEvents.length, 1, "the contextual dashboard prompt must be tracked once");
+  assertActivationAnalyticsSafe(
+    requireAnalyticsEvent(harness.analyticsCollector.events, "notification_prompt_shown"),
+  );
   results.push({ scenario: "treatment-first-log", url: page.url(), ...harness });
   await page.close();
 }
@@ -316,6 +375,11 @@ async function runTreatmentEngaged(browser, results) {
   await openDashboard(page);
   await expectTabs(page, ["Today", "Badges", "Progress", "Ranks", "Settings"]);
   await expectDashboardSurfaces(page, "full");
+  await expectActivationAnalytics(harness, {
+    variant: "activation_v2",
+    stage: "engaged",
+    rolloutPercentage: 100,
+  });
   await page.goto(`${BASE_URL}/leaderboard`, { waitUntil: "domcontentloaded", timeout: 60000 });
   await page.getByText("Leaderboard", { exact: true }).waitFor({ timeout: 30000 });
   assert.equal(new URL(page.url()).pathname, "/leaderboard");

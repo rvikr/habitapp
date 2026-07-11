@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BackHandler, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,6 +26,13 @@ import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import { useActivation } from "@/components/activation-provider";
 import type { QuickStartConstraint } from "@/lib/activation/contracts";
+import type {
+  ActivationAnalyticsContext,
+  ActivationAnalyticsEventName,
+  RoutineFailureCategory,
+} from "@/lib/activation/analytics";
+import { trackActivationEvent } from "@/lib/services/analytics";
+import { isNetworkFailure } from "@/lib/data/completion-queue";
 import {
   applyQuickStartConstraint,
   buildTreatmentRecommendations,
@@ -225,11 +232,13 @@ export default function HabitWizardScreen() {
   const { t } = useLanguage();
   const activation = useActivation();
   const wizardModeRef = useRef<"control" | "treatment" | null>(null);
+  const wizardAnalyticsContextRef = useRef<ActivationAnalyticsContext | null>(null);
   if (activation.ready && wizardModeRef.current === null) {
     wizardModeRef.current =
       activation.variant === "activation_v2" && activation.stage === "pre_value"
         ? "treatment"
         : "control";
+    wizardAnalyticsContextRef.current = { ...activation.analyticsContext };
   }
   const isTreatment = wizardModeRef.current === "treatment";
   const [answers, setAnswers] = useState<RoutineWizardAnswers>(INITIAL_ANSWERS);
@@ -250,11 +259,65 @@ export default function HabitWizardScreen() {
   const aiRequestRef = useRef(0);
   const reviewInteractionVersionRef = useRef(0);
   const reviewActiveRef = useRef(false);
+  const routineStartedRef = useRef(false);
+  const routineStepsTrackedRef = useRef(new Set<number>());
 
   const activeSteps = isTreatment ? TREATMENT_STEPS : STEPS;
+  const routineFlow = isTreatment ? "quick_start" : "control";
   const step = activeSteps[stepIndex];
   const selectedCount = recommendations?.filter((item) => item.selected).length ?? 0;
   const tutorialHabit = pickTutorialHabit(createdHabits);
+
+  useEffect(() => {
+    if (!activation.ready || wizardModeRef.current === null || routineStartedRef.current) return;
+    const context = wizardAnalyticsContextRef.current;
+    if (!context) return;
+    routineStartedRef.current = true;
+    trackRoutineEvent(
+      "routine_started",
+      {
+        flow: routineFlow,
+        step_count: activeSteps.length,
+      },
+      context,
+    );
+  }, [activation.ready, activeSteps.length, routineFlow]);
+
+  function trackRoutineEvent(
+    name: Extract<
+      ActivationAnalyticsEventName,
+      "routine_started" | "routine_step_completed" | "routine_created" | "routine_failed"
+    >,
+    properties: Record<string, unknown>,
+    resolvedContext?: ActivationAnalyticsContext,
+  ) {
+    const context = resolvedContext ?? wizardAnalyticsContextRef.current;
+    if (context) trackActivationEvent(name, context, properties);
+  }
+
+  function trackRoutineStepCompleted(index: number, stepId: StepId) {
+    if (routineStepsTrackedRef.current.has(index)) return;
+    routineStepsTrackedRef.current.add(index);
+    trackRoutineEvent("routine_step_completed", {
+      flow: routineFlow,
+      step_index: index + 1,
+      step_count: activeSteps.length,
+      step_id: stepId,
+    });
+  }
+
+  function trackRoutineFailure(
+    failureCategory: RoutineFailureCategory,
+    counts: { requested?: number; created?: number; failed?: number } = {},
+  ) {
+    trackRoutineEvent("routine_failed", {
+      flow: routineFlow,
+      failure_category: failureCategory,
+      requested_count: counts.requested ?? 0,
+      created_count: counts.created ?? 0,
+      failed_count: counts.failed ?? 0,
+    });
+  }
 
   // Confirmation may only leave for the dashboard or the one-way shared flow.
   // FirstLogFlow owns back behavior once it starts so no back action can replay a log.
@@ -311,9 +374,11 @@ export default function HabitWizardScreen() {
 
   function handleNextStep() {
     if (step.id === "goals" && answers.goals.length === 0) {
+      trackRoutineFailure("missing_goal");
       showAlert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
       return;
     }
+    trackRoutineStepCompleted(stepIndex, step.id);
     setStepIndex((value) => value + 1);
   }
 
@@ -323,16 +388,19 @@ export default function HabitWizardScreen() {
 
   async function buildRoutine() {
     if (answers.goals.length === 0) {
+      trackRoutineFailure("missing_goal");
       showAlert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
       return;
     }
     if (isTreatment && !constraint) {
+      trackRoutineFailure("missing_constraint");
       showAlert(
         t("Choose a constraint"),
         t("Pick the biggest blocker so I can keep your routine realistic."),
       );
       return;
     }
+    trackRoutineStepCompleted(stepIndex, step.id);
 
     const requestId = isTreatment ? ++aiRequestRef.current : 0;
     const interactionVersion = reviewInteractionVersionRef.current;
@@ -405,6 +473,7 @@ export default function HabitWizardScreen() {
       markTreatmentReviewInteraction();
       const selected = recommendations?.filter((item) => item.selected) ?? [];
       if (selected.length === 0) {
+        trackRoutineFailure("no_selection");
         showAlert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
         return;
       }
@@ -432,6 +501,13 @@ export default function HabitWizardScreen() {
       try {
         batch = await createRoutineHabits(payload);
       } catch (error) {
+        trackRoutineFailure(
+          isNetworkFailure(error as { message?: string }) ? "network" : "unknown",
+          {
+            requested: selected.length,
+            failed: selected.length,
+          },
+        );
         if (!isTreatment) throw error;
         showAlert(
           t("Routine creation stopped"),
@@ -444,6 +520,10 @@ export default function HabitWizardScreen() {
       // The auth check now happens once for the whole batch, so "sign in again"
       // can only mean a genuine signed-out state — show it once, not per habit.
       if (signedOut) {
+        trackRoutineFailure("auth_lost", {
+          requested: selected.length,
+          failed: selected.length,
+        });
         showAlert(t("Some habits were not created"), t("You need to sign in again."));
         return;
       }
@@ -456,8 +536,20 @@ export default function HabitWizardScreen() {
           return `${selected[i].name}: ${validationMessage ?? result.error ?? t("Could not create habit.")}`;
         })
         .filter((msg): msg is string => msg !== null);
+      const successfulCount = results.filter((result) => result.ok && result.id).length;
+      const validationFailed = results.some(
+        (result) => !result.ok && "validation" in result && Boolean(result.validation),
+      );
 
       if (!isTreatment && failures.length > 0) {
+        trackRoutineFailure(
+          successfulCount > 0 ? "partial_save" : validationFailed ? "validation" : "save_failed",
+          {
+            requested: selected.length,
+            created: successfulCount,
+            failed: selected.length - successfulCount,
+          },
+        );
         showAlert(t("Some habits were not created"), failures.join("\n"));
         return;
       }
@@ -465,6 +557,10 @@ export default function HabitWizardScreen() {
       if (isTreatment) {
         const outcome = classifyTreatmentCreateOutcome(false, results, selected.length);
         if (outcome.status === "none_created") {
+          trackRoutineFailure(validationFailed ? "validation" : "save_failed", {
+            requested: selected.length,
+            failed: selected.length,
+          });
           showAlert(
             t("Routine couldn't be created"),
             t("We couldn't create any habits. Review your suggestions and try again."),
@@ -472,6 +568,11 @@ export default function HabitWizardScreen() {
           return;
         }
         if (outcome.status === "partially_created") {
+          trackRoutineFailure("partial_save", {
+            requested: selected.length,
+            created: outcome.successfulCount,
+            failed: selected.length - outcome.successfulCount,
+          });
           showAlert(
             t("Some habits couldn't be created"),
             t("{created} of {total} habits were created. You can continue with those.", {
@@ -484,9 +585,20 @@ export default function HabitWizardScreen() {
 
       const created = buildCreatedHabits(selected, results);
       if (created.length === 0) {
+        trackRoutineFailure("save_failed", {
+          requested: selected.length,
+          failed: selected.length,
+        });
         router.replace("/?newUser=1"); // nothing to celebrate; straight to dashboard
         return;
       }
+      trackRoutineEvent("routine_created", {
+        flow: routineFlow,
+        requested_count: selected.length,
+        created_count: created.length,
+        failed_count: selected.length - created.length,
+        outcome: created.length === selected.length ? "complete" : "partial",
+      });
       // Routine creation succeeded — record onboarding as done so the dashboard
       // never auto-launches the wizard for this user again. A session-storage
       // failure suppresses only the local notification offer, not the first log.

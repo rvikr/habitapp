@@ -1,5 +1,9 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require('./screenshot-helper.cjs');
 
 function fakeSession() {
   const userId = '00000000-0000-4000-8000-000000000004';
@@ -95,7 +99,11 @@ async function setupDashboard(page, session) {
 
 async function snapshot(page, label, snapshots) {
   const text = await page.locator('body').innerText({ timeout: 10000 });
-  await page.screenshot({ path: `tmp/first-run-desktop-${label}.png`, fullPage: true });
+  await captureStableScreenshot(page, {
+    finalUrl: page.url(),
+    target: 'body',
+    screenshot: { path: `tmp/first-run-desktop-${label}.png`, fullPage: true },
+  });
   snapshots.push({ label, url: page.url(), text: text.slice(0, 3000) });
   if (text.includes('undefined')) throw new Error(`${label} rendered undefined`);
   return text;
@@ -110,6 +118,7 @@ async function snapshot(page, label, snapshots) {
 
   async function newDesktopPage() {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, isMobile: false });
+    await prepareScreenshotPage(page);
     page.on('console', msg => consoleMessages.push({ type: msg.type(), text: msg.text() }));
     page.on('pageerror', err => pageErrors.push(String(err.stack || err.message || err)));
     page.on('requestfailed', req => requestFailures.push({ url: req.url(), failure: req.failure()?.errorText ?? null }));

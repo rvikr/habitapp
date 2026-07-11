@@ -25,6 +25,12 @@ import {
 import LogoChainL from "@/components/logo-chain-l";
 import LoginOrbitalBackground from "@/components/login-orbital-background";
 import { useLanguage } from "@/components/language-provider";
+import {
+  categorizeSignupFailure,
+  unassignedActivationAnalyticsContext,
+  type SignupFailureCategory,
+} from "@/lib/activation/analytics";
+import { trackActivationEvent } from "@/lib/services/analytics";
 
 type Mode = "signin" | "signup";
 
@@ -57,6 +63,19 @@ export default function LoginScreen() {
   const pendingModeFocusRef = useRef(false);
   const authInFlightRef = useRef(false);
   const authLoading = loading || googleLoading;
+  const signupAnalyticsContext = unassignedActivationAnalyticsContext(Platform.OS);
+
+  function trackSignupFailure(
+    failureCategory: SignupFailureCategory,
+    failureStage: "validation" | "submission",
+    method: "email" | "google" = "email",
+  ) {
+    trackActivationEvent("signup_failed", signupAnalyticsContext, {
+      method,
+      failure_category: failureCategory,
+      failure_stage: failureStage,
+    });
+  }
 
   useEffect(() => {
     if (params.reason === "expired") {
@@ -78,6 +97,9 @@ export default function LoginScreen() {
 
   function switchMode(next: Mode) {
     if (authLoading || authInFlightRef.current) return;
+    if (next === "signup" && mode !== "signup") {
+      trackActivationEvent("signup_mode_opened", signupAnalyticsContext, { method: "email" });
+    }
     pendingModeFocusRef.current = true;
     setMode(next);
     setError(null);
@@ -91,6 +113,10 @@ export default function LoginScreen() {
 
   async function handleGoogleSignIn() {
     if (authLoading || authInFlightRef.current) return;
+    const isSignupAttempt = mode === "signup";
+    if (isSignupAttempt) {
+      trackActivationEvent("signup_submitted", signupAnalyticsContext, { method: "google" });
+    }
     authInFlightRef.current = true;
     setGoogleLoading(true);
     setError(null);
@@ -99,9 +125,17 @@ export default function LoginScreen() {
     try {
       const { error: e, cancelled } = await signInWithGoogle();
       if (cancelled) return;
-      if (e) setError(t(authErrorMessageKey(e)));
-    } catch {
+      if (e) {
+        setError(t(authErrorMessageKey(e)));
+        if (isSignupAttempt) {
+          trackSignupFailure(categorizeSignupFailure(e), "submission", "google");
+        }
+      }
+    } catch (submissionError) {
       setError(t("Network error. Check your connection and try again."));
+      if (isSignupAttempt) {
+        trackSignupFailure(categorizeSignupFailure(submissionError), "submission", "google");
+      }
     } finally {
       authInFlightRef.current = false;
       setGoogleLoading(false);
@@ -113,22 +147,27 @@ export default function LoginScreen() {
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
       setError(t("Email and password are required."));
+      if (mode === "signup") trackSignupFailure("missing_fields", "validation");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
       setError(t("Enter a valid email address."));
+      if (mode === "signup") trackSignupFailure("invalid_email", "validation");
       return;
     }
     if (mode === "signup") {
       const pwError = validatePassword(password);
       if (pwError) {
         setError(t(pwError));
+        trackSignupFailure("weak_password", "validation");
         return;
       }
       if (password !== confirmPassword) {
         setError(t("Passwords do not match."));
+        trackSignupFailure("password_mismatch", "validation");
         return;
       }
+      trackActivationEvent("signup_submitted", signupAnalyticsContext, { method: "email" });
     }
     authInFlightRef.current = true;
     setLoading(true);
@@ -150,15 +189,20 @@ export default function LoginScreen() {
         const { data, error: e } = await signUp(trimmedEmail, password);
         if (e) {
           setError(t(authErrorMessageKey(e)));
+          trackSignupFailure(categorizeSignupFailure(e), "submission");
         } else if (!data?.user || data.user.identities?.length === 0) {
           setError(t("An account with this email already exists. Try signing in instead."));
+          trackSignupFailure("duplicate_account", "submission");
         } else {
           await rememberPendingSignup(trimmedEmail).catch(() => {});
           setMessage(t(SIGNUP_CONFIRMATION_MESSAGE));
         }
       }
-    } catch {
+    } catch (submissionError) {
       setError(t("Network error. Check your connection and try again."));
+      if (mode === "signup") {
+        trackSignupFailure(categorizeSignupFailure(submissionError), "submission");
+      }
     } finally {
       authInFlightRef.current = false;
       setLoading(false);

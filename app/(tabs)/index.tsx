@@ -59,6 +59,7 @@ import {
 import { getItem, setItem } from "@/lib/platform/storage";
 import { firstLogNotificationOfferKey } from "@/lib/coach/first-log-flow";
 import { resolveActivationPresentation } from "@/lib/activation/presentation";
+import { trackActivationEvent } from "@/lib/services/analytics";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
 import { isStepHabit } from "@/lib/data/steps-shared";
 import { nowMarkerIndex, orderHabitsForTimeline } from "@/lib/utils/timeline";
@@ -125,6 +126,18 @@ export default function DashboardScreen() {
   const { language, t } = useLanguage();
   const { stepsEnabled: stepTrackingEnabled, hydrated: trackingHydrated } =
     useTrackingPreferences();
+  const handleDashboardNotificationShown = useCallback(() => {
+    trackActivationEvent("notification_prompt_shown", activation.analyticsContext, {
+      surface: "dashboard",
+    });
+  }, [activation.analyticsContext]);
+  const handleFirstLogDashboardNotificationShown = useCallback(() => {
+    trackActivationEvent(
+      "notification_prompt_shown",
+      { ...activation.analyticsContext, stage: "first_log" },
+      { surface: "dashboard" },
+    );
+  }, [activation.analyticsContext]);
   const primary = "#F26B1F";
   const [data, setData] = useState<DashboardData | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -850,10 +863,11 @@ export default function DashboardScreen() {
 
         {/* Reminder permission prompt — self-hides once notifications are granted */}
         {activationPresentation.notificationMode === "standard" ? (
-          <NotificationPermissionCard />
+          <NotificationPermissionCard onShown={handleDashboardNotificationShown} />
         ) : activationPresentation.notificationMode === "contextual" && data?.userId ? (
           <NotificationPermissionCard
             suppressIfStorageKeyPresent={firstLogNotificationOfferKey(data.userId)}
+            onShown={handleFirstLogDashboardNotificationShown}
           />
         ) : null}
 

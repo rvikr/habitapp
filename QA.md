@@ -27,6 +27,114 @@ delivery, OAuth provider configuration, or native devices/emulators.
 
 ---
 
+## Activation v2 release gate
+
+Run the activation checks with Expo web available at `http://localhost:8083`:
+
+```sh
+npm run smoke:first-run
+npm run smoke:treatment-quick-start
+npm run smoke:treatment-manual
+node scripts/first-run/activation-dashboard-smoke.cjs
+```
+
+The aggregate smoke must continue after each scenario; a passing early scenario is not
+sufficient evidence for the release.
+
+### Cohorts and onboarding
+
+| Check           | Control                                                                                    | Treatment                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Assignment      | Flag disabled, rollout `0`, and users outside the percentage retain the existing interface | Deterministic user bucket is inside the enabled rollout percentage                            |
+| Routine         | Existing eight-step flow completes without changed defaults or promotion behavior          | Exactly three required steps: primary goal, daily context, and biggest constraint             |
+| Recommendations | Existing review remains compatible                                                         | Three-to-five ordered suggestions, exactly two initially selected, extras collapsed           |
+| Personalization | Existing fields remain unchanged                                                           | Fitness, measurements, and baselines stay optional under `Personalize targets`                |
+| Saving          | Existing success path remains unchanged                                                    | Partial success reports failed habits and continues; zero saves or lost authentication blocks |
+| Manual creation | Existing create and edit forms remain unchanged                                            | Pre-value create shows Basics, a target/reminder summary, and collapsed Advanced options      |
+
+Confirm that treatment onboarding has no Pro upgrade banner, local recommendations render
+without waiting for AI, and an AI response never replaces a review after the user edits it.
+
+### Treatment activation stages
+
+Control users keep the full current interface at every milestone. For treatment users, verify:
+
+| Stage       | Server milestone                                  | Visible tabs                      | Dashboard and route checks                                                                                                                                                                                                   |
+| ----------- | ------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre_value` | `first_habit_logged_at` is null                   | Today, Settings                   | Hide notification, trial, Pro, level, coach, leaderboard, ranks, and duplicate empty-state header actions. Preserve `Build my routine` as primary and `Choose manually` as secondary. Hidden-tab deep links return to Today. |
+| `first_log` | First log exists; `activation_engaged_at` is null | Today, Badges, Progress, Settings | Show only the contextual notification offer. Keep competitive and monetization surfaces hidden. Hidden-tab deep links return to Today.                                                                                       |
+| `engaged`   | Engagement timestamp exists                       | All tabs                          | Restore the current level, Pro/trial, coach, leaderboard, and ranks experience.                                                                                                                                              |
+
+Also verify that a returning activated account does not relaunch onboarding on a new device and
+that direct Pro navigation remains available even while unsolicited promotion is hidden.
+
+### Authentication and first value
+
+- Scroll to the login footer before changing modes. Email remains populated, password and
+  confirmation clear, errors/notices clear, password visibility resets, and Email is both in the
+  live viewport and focused.
+- Rapid taps while email or Google authentication is running produce one submission.
+- Confirmation with a session shows only `Continue to app`; confirmation without a session shows
+  only `Sign in`; an error shows only `Back to sign in`.
+- Boolean and quantity habits both follow Tutorial -> First Step celebration -> optional
+  notification offer -> Today. The celebration describes the completed habit or logged amount.
+- Skipping the tutorial performs no completion, shows no celebration or notification prompt, and
+  leaves the account pre-value.
+- The notification prompt appears only when permission is undecided and the user-scoped local
+  marker is absent. Declining or dismissing it does not immediately show it again.
+- Rapid log taps, retries, offline queue replay, refresh, and reconciliation produce one completion
+  increment and one `first_habit_logged` transition.
+- While offline, the first positive log advances locally to `first_log`; after reconnection and
+  queue replay it reconciles to the server milestone without replaying celebration or analytics.
+
+### Analytics privacy
+
+Inspect development `[track]` output and the PostHog test project for control and treatment:
+
+- Identify authenticated users with the Supabase UUID only; reset identity on sign-out or expiry.
+- Every approved activation event includes cohort, bucket, rollout percentage, activation stage,
+  and platform. Control and treatment use the same event/property schema.
+- `activation_exposed`, `activation_entry`, and the monotonic first-log event occur once per
+  appropriate transition, including offline replay.
+- Signup and routine errors contain a category only, never raw error text.
+- No event or screen path contains email, habit name, habit ID, body measurements, baselines,
+  wizard answers, callback codes, or authentication URLs.
+- Analytics opt-out prevents queued and future events from being sent.
+
+### Localization and accessibility
+
+Repeat control and treatment onboarding in English and Hindi on iOS, Android, and web. Check every
+new label, error, disclosure, celebration, and accessibility description. On physical devices or
+simulators verify keyboard focus, hardware/software back navigation, notification permissions,
+VoiceOver/TalkBack reading order, 200% text zoom, contrast, and reduced motion. At 200% zoom,
+primary actions must remain reachable without clipped content.
+
+### Stable screenshot evidence
+
+Success screenshots must use `scripts/first-run/screenshot-helper.cjs`. Evidence is valid only
+after the expected final URL and named target are visible, `document.fonts.ready` resolves, and
+the target bounds remain unchanged across animation frames with reduced motion enabled. Immediate
+screenshots are acceptable only for failure diagnostics. Store generated proof under ignored
+`tmp/` paths and record the matching JSON output where the smoke provides one.
+
+### Database and rollout evidence
+
+- Start the local Supabase stack, reset it from migrations, run
+  `supabase test db supabase/tests/database/activation_v2.test.sql`, and run local security and
+  performance advisors before deployment.
+- Deploy the migration with `activation_v2` disabled at `0%`, then validate treatment at `100%` in
+  staging.
+- Run production at `10%` for at least seven days and 50 treatment users, then at `50%` for at
+  least seven days and 200 treatment users.
+- Move to `100%` only when median authenticated-entry-to-first-log is under three minutes, wizard
+  completion exceeds 70%, first-log conversion improves by at least 20% relative to control,
+  authentication and routine failure rates increase by no more than one percentage point, and
+  there is no P0/P1 issue or material Sentry regression.
+- Roll back immediately by disabling `activation_v2`; retain the control flow until the `100%`
+  rollout has remained stable for fourteen days.
+
+---
+
 ## 1. Authentication
 
 | #    | Test                                                                     | iOS | Android | Web |

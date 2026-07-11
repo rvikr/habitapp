@@ -1,5 +1,14 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require('./screenshot-helper.cjs');
+const {
+  assertActivationAnalyticsSafe,
+  installAnalyticsCollector,
+  requireAnalyticsEvent,
+} = require('./analytics-events.cjs');
 
 function fakeSession() {
   const userId = '00000000-0000-4000-8000-000000000001';
@@ -34,6 +43,8 @@ function fakeSession() {
   const session = fakeSession();
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });
+  await prepareScreenshotPage(page);
+  const analyticsCollector = installAnalyticsCollector(page);
   const consoleMessages = [];
   const pageErrors = [];
   const requests = [];
@@ -83,13 +94,46 @@ function fakeSession() {
   }
   await page.getByText('Create routine').waitFor({ timeout: 30000 });
   const reviewText = await page.locator('body').innerText({ timeout: 10000 });
-  await page.screenshot({ path: 'tmp/first-run-smoke-wizard-review-current.png', fullPage: true });
+  await captureStableScreenshot(page, {
+    finalUrl: page.url(),
+    target: page.getByText('Create routine'),
+    screenshot: { path: 'tmp/first-run-smoke-wizard-review-current.png', fullPage: true },
+  });
   const createButton = page.getByText('Create routine');
   await createButton.click({ timeout: 10000 });
   await page.getByText(/Your routine is ready|Enable reminders|Let's complete your first habit together/).waitFor({ timeout: 30000 });
   const finalText = await page.locator('body').innerText({ timeout: 10000 });
   const finalUrl = page.url();
-  await page.screenshot({ path: 'tmp/first-run-smoke-wizard-created-current.png', fullPage: true });
+  await captureStableScreenshot(page, {
+    finalUrl,
+    target: 'body',
+    screenshot: { path: 'tmp/first-run-smoke-wizard-created-current.png', fullPage: true },
+  });
+  await analyticsCollector.settle();
+  requireAnalyticsEvent(
+    analyticsCollector.events,
+    'routine_started',
+    event => event.properties.flow === 'control' && event.properties.step_count === 8,
+  );
+  const completedSteps = analyticsCollector.events.filter(
+    event => event.name === 'routine_step_completed',
+  );
+  if (completedSteps.length !== 8) {
+    throw new Error(`expected eight control routine step events, got ${completedSteps.length}`);
+  }
+  requireAnalyticsEvent(
+    analyticsCollector.events,
+    'routine_created',
+    event => event.properties.flow === 'control' && event.properties.created_count > 0,
+  );
+  for (const event of analyticsCollector.events.filter(candidate =>
+    candidate.name.startsWith('routine_'),
+  )) {
+    assertActivationAnalyticsSafe(event);
+    if (event.properties.activation_variant !== 'control') {
+      throw new Error(`control routine event lost its cohort: ${JSON.stringify(event)}`);
+    }
+  }
   await browser.close();
 
   const result = {

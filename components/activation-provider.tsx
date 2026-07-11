@@ -8,29 +8,43 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import {
   assignActivationVariant,
   type ActivationStage,
   type ActivationVariant,
 } from "@/lib/activation/contracts";
 import { activationCompletionEvents } from "@/lib/activation/events";
+import {
+  createActivationAnalyticsLifecycle,
+  type FirstLogAnalyticsSignal,
+} from "@/lib/activation/analytics-lifecycle";
+import type { ActivationAnalyticsContext } from "@/lib/activation/analytics";
 import { createActivationLoadSequencer } from "@/lib/activation/request-sequencer";
 import { createActivationAuthBootstrapGate } from "@/lib/activation/auth-bootstrap-gate";
 import { activationStateReducer, initialActivationProviderState } from "@/lib/activation/state";
 import { loadActivationSnapshot } from "@/lib/services/activation";
 import { FEATURE_FLAG_CACHE_TTL_MS } from "@/lib/services/feature-flags";
 import { getCurrentSession, isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { identifyAnalytics, trackActivationEvent } from "@/lib/services/analytics";
 
 type ActivationContextValue = {
   ready: boolean;
   variant: ActivationVariant;
   stage: ActivationStage;
   bucket: number;
+  rolloutPercentage: number;
+  analyticsContext: ActivationAnalyticsContext;
   refresh: () => Promise<void>;
 };
 
 const ActivationContext = createContext<ActivationContextValue | null>(null);
+
+function trackFirstLog(userId: string, signal: FirstLogAnalyticsSignal | null): void {
+  if (!signal) return;
+  identifyAnalytics(userId);
+  trackActivationEvent("first_habit_logged", signal.context, { queued: signal.queued });
+}
 
 export function ActivationProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(activationStateReducer, initialActivationProviderState);
@@ -38,6 +52,7 @@ export function ActivationProvider({ children }: { children: ReactNode }) {
   const userIdRef = useRef<string | null>(null);
   const generationRef = useRef(0);
   const loadSequencerRef = useRef(createActivationLoadSequencer());
+  const analyticsLifecycleRef = useRef(createActivationAnalyticsLifecycle(Platform.OS));
 
   const loadForUser = useCallback(
     async (
@@ -67,6 +82,19 @@ export function ActivationProvider({ children }: { children: ReactNode }) {
       ) {
         return;
       }
+      const analyticsSignals = analyticsLifecycleRef.current.loaded(
+        userId,
+        generation,
+        snapshot.assignment,
+        snapshot.stage,
+        snapshot.authoritative,
+      );
+      if (analyticsSignals.entryContext) {
+        identifyAnalytics(userId);
+        trackActivationEvent("activation_exposed", analyticsSignals.entryContext, {});
+        trackActivationEvent("activation_entry", analyticsSignals.entryContext, {});
+      }
+      trackFirstLog(userId, analyticsSignals.firstLog);
       dispatch({
         type: "loaded",
         userId,
@@ -89,6 +117,7 @@ export function ActivationProvider({ children }: { children: ReactNode }) {
       generationRef.current += 1;
       loadSequencerRef.current.invalidate();
       const generation = generationRef.current;
+      analyticsLifecycleRef.current.authChanged(userId, generation);
       dispatch({ type: "auth_changed", userId });
       if (userId) void loadForUser(userId, generation);
     },
@@ -133,6 +162,10 @@ export function ActivationProvider({ children }: { children: ReactNode }) {
       activationCompletionEvents.subscribe((event) => {
         if (event.userId !== userIdRef.current) return;
         if (event.type === "positive_completion") {
+          trackFirstLog(
+            event.userId,
+            analyticsLifecycleRef.current.positiveCompletion(event.userId, event.queued),
+          );
           if (state.ready) loadSequencerRef.current.invalidate();
           dispatch({ type: "optimistic_first_log", userId: event.userId });
           if (!event.queued) {
@@ -162,9 +195,17 @@ export function ActivationProvider({ children }: { children: ReactNode }) {
       variant: state.variant,
       stage: state.stage,
       bucket: state.bucket,
+      rolloutPercentage: state.rolloutPercentage,
+      analyticsContext: {
+        variant: state.variant,
+        bucket: state.bucket,
+        rolloutPercentage: state.rolloutPercentage,
+        stage: state.stage,
+        platform: Platform.OS,
+      },
       refresh,
     }),
-    [refresh, state.bucket, state.ready, state.stage, state.variant],
+    [refresh, state.bucket, state.ready, state.rolloutPercentage, state.stage, state.variant],
   );
 
   return <ActivationContext.Provider value={value}>{children}</ActivationContext.Provider>;

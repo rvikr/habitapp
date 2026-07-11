@@ -331,6 +331,7 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Continue to app": "ऐप में जाएं",
   "Back to sign in": "साइन इन पर वापस जाएं",
   "Finishing sign in...": "साइन इन पूरा हो रहा है...",
+  "Session expired — please sign in again.": "सत्र समाप्त हो गया — कृपया फिर से साइन इन करें।",
   "Account deletion": "अकाउंट डिलीशन",
   "Sign in, then open Settings, Privacy & Data, and Request account deletion. Your account and all your data (habits, completions, profile) are removed permanently within seconds.":
     "साइन इन करें, फिर Settings, Privacy & Data और Request account deletion खोलें. आपका अकाउंट और सारा डेटा (habits, completions, profile) कुछ सेकंड में स्थायी रूप से हट जाता है.",
@@ -637,6 +638,29 @@ const HI_TRANSLATIONS: Record<string, string> = {
     "Routine बनाने से पहले कम से कम एक habit रखें.",
   "Could not create habit.": "आदत नहीं बन सकी.",
   "Some habits were not created": "कुछ आदतें नहीं बन सकीं",
+  "Targets are general wellness guidance, not medical advice.":
+    "लक्ष्य सामान्य स्वास्थ्य मार्गदर्शन हैं, चिकित्सीय सलाह नहीं।",
+  "How much do you walk on a normal day?": "आप सामान्य दिन में कितना चलते हैं?",
+  "How much water do you drink now?": "आप अभी कितना पानी पीते हैं?",
+  "Targets are general wellness guidance, not medical advice. Adjust any of them before creating your routine.":
+    "लक्ष्य सामान्य स्वास्थ्य मार्गदर्शन हैं, चिकित्सीय सलाह नहीं। दिनचर्या बनाने से पहले आप इन्हें बदल सकते हैं।",
+  "Your routine is ready": "आपकी दिनचर्या तैयार है",
+  "{count} habit, ready to go.": "{count} आदत तैयार है।",
+  "{count} habits, ready to go.": "{count} आदतें तैयार हैं।",
+  Age: "उम्र",
+  years: "वर्ष",
+  "e.g. 30": "जैसे 30",
+  Height: "लंबाई",
+  cm: "सेमी",
+  "e.g. 170": "जैसे 170",
+  Weight: "वज़न",
+  kg: "किग्रा",
+  "e.g. 70": "जैसे 70",
+  "We use this only to set realistic water and step targets. Leave blank to use standard goals.":
+    "हम इसका उपयोग केवल पानी और कदमों के व्यावहारिक लक्ष्य तय करने के लिए करते हैं। सामान्य लक्ष्य रखने के लिए इसे खाली छोड़ें।",
+  "Couldn't load your habits": "आपकी आदतें लोड नहीं हो सकीं",
+  "Check your connection and try again. Your data is safe.":
+    "अपना कनेक्शन जांचें और फिर कोशिश करें। आपका डेटा सुरक्षित है।",
   "Preparing your routine...": "आपकी दिनचर्या तैयार हो रही है...",
   "Choose one goal for your quick start.": "अपनी त्वरित शुरुआत के लिए एक लक्ष्य चुनें।",
   "Daily context": "रोज़मर्रा की स्थिति",

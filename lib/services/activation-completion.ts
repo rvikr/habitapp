@@ -2,7 +2,12 @@ import { activationCompletionEvents } from "../activation/events";
 import { optimisticFirstLogStore } from "./activation-marker";
 
 export async function recordPositiveCompletion(userId: string, queued: boolean): Promise<void> {
-  await optimisticFirstLogStore.mark(userId);
+  try {
+    await optimisticFirstLogStore.mark(userId);
+  } catch {
+    // The completion already reached the server or durable queue. Activation
+    // bookkeeping is best effort and must never turn that success into a retry.
+  }
   activationCompletionEvents.positiveCompletion(userId, queued);
 }
 

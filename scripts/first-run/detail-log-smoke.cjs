@@ -1,5 +1,9 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require('./screenshot-helper.cjs');
 
 function fakeSession() {
   const userId = '00000000-0000-4000-8000-000000000003';
@@ -121,6 +125,7 @@ async function setup(page, session) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await prepareScreenshotPage(page);
   const consoleMessages = [];
   const pageErrors = [];
   const requestFailures = [];
@@ -131,7 +136,11 @@ async function setup(page, session) {
   const snapshots = [];
   async function snap(label) {
     const text = await page.locator('body').innerText({ timeout: 10000 });
-    await page.screenshot({ path: `tmp/first-run-detail-${label}.png`, fullPage: true });
+    await captureStableScreenshot(page, {
+      finalUrl: page.url(),
+      target: 'body',
+      screenshot: { path: `tmp/first-run-detail-${label}.png`, fullPage: true },
+    });
     snapshots.push({ label, url: page.url(), text: text.slice(0, 3000) });
     return text;
   }

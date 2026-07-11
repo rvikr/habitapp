@@ -11,6 +11,7 @@ export type ActivationProviderState = {
   stage: ActivationStage;
   authoritative: boolean;
   bucket: number;
+  rolloutPercentage: number;
   userId: string | null;
   generation: number;
   pendingOptimisticFirstLog: boolean;
@@ -34,6 +35,7 @@ export const initialActivationProviderState: ActivationProviderState = {
   stage: "engaged",
   authoritative: false,
   bucket: 0,
+  rolloutPercentage: 0,
   userId: null,
   generation: 0,
   pendingOptimisticFirstLog: false,
@@ -54,6 +56,7 @@ export function activationStateReducer(
       stage: "engaged",
       authoritative: false,
       bucket: action.userId ? activationBucket(action.userId) : 0,
+      rolloutPercentage: 0,
       userId: action.userId,
       generation: state.generation + 1,
       pendingOptimisticFirstLog: false,
@@ -82,6 +85,7 @@ export function activationStateReducer(
       stage: loadedStage,
       authoritative,
       bucket: action.assignment.bucket,
+      rolloutPercentage: action.assignment.rolloutPercentage,
       pendingOptimisticFirstLog: false,
     };
   }

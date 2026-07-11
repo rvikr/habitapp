@@ -1,9 +1,22 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require("./screenshot-helper.cjs");
+const {
+  assertActivationAnalyticsSafe,
+  installAnalyticsCollector,
+  requireAnalyticsEvent,
+} = require("./analytics-events.cjs");
 
 async function snapshot(page, label, snapshots) {
   const text = await page.locator("body").innerText({ timeout: 10000 });
-  await page.screenshot({ path: `tmp/first-run-auth-${label}.png`, fullPage: true });
+  await captureStableScreenshot(page, {
+    finalUrl: page.url(),
+    target: "body",
+    screenshot: { path: `tmp/first-run-auth-${label}.png`, fullPage: true },
+  });
   snapshots.push({ label, url: page.url(), text: text.slice(0, 3000) });
   if (text.includes("undefined")) throw new Error(`${label} rendered undefined`);
   return text;
@@ -38,6 +51,8 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
     deviceScaleFactor: 2,
     isMobile: true,
   });
+  await prepareScreenshotPage(page);
+  const analyticsCollector = installAnalyticsCollector(page);
   const consoleMessages = [];
   const pageErrors = [];
   const requestFailures = [];
@@ -366,6 +381,29 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
     signupCalls[0].body.password !== "StrongPass1"
   ) {
     throw new Error("signup call did not include the expected first-user email and password");
+  }
+
+  await analyticsCollector.settle();
+  requireAnalyticsEvent(analyticsCollector.events, "signup_mode_opened");
+  requireAnalyticsEvent(
+    analyticsCollector.events,
+    "signup_submitted",
+    (event) => event.properties.method === "email",
+  );
+  requireAnalyticsEvent(
+    analyticsCollector.events,
+    "signup_failed",
+    (event) => event.properties.failure_category === "missing_fields",
+  );
+  requireAnalyticsEvent(
+    analyticsCollector.events,
+    "signup_failed",
+    (event) => event.properties.failure_category === "weak_password",
+  );
+  for (const event of analyticsCollector.events.filter((candidate) =>
+    candidate.name.startsWith("signup_"),
+  )) {
+    assertActivationAnalyticsSafe(event);
   }
 
   await browser.close();

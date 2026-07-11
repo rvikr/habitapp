@@ -32,7 +32,8 @@ import {
   consumeSignOutWasUserInitiated,
 } from "@/lib/supabase/client";
 import { initSentry, setUser as setSentryUser } from "@/lib/services/sentry";
-import { initAnalytics, track } from "@/lib/services/analytics";
+import { identifyAnalytics, initAnalytics, resetAnalytics, track } from "@/lib/services/analytics";
+import { sanitizeAnalyticsPath } from "@/lib/activation/analytics";
 import { registerAppServiceWorker } from "@/lib/platform/sw-register";
 import { logOutRevenueCat, syncRevenueCatSubscription } from "@/lib/subscription/revenuecat";
 import { clearHomeWidgetSnapshot } from "@/lib/widgets/home-widget";
@@ -42,7 +43,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 function ScreenTracker() {
   const pathname = usePathname();
   useEffect(() => {
-    track("screen_viewed", { screen: pathname });
+    track("screen_viewed", { screen: sanitizeAnalyticsPath(pathname) });
   }, [pathname]);
   return null;
 }
@@ -73,8 +74,11 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
         router.replace("/");
       }
       setSentryUser(session?.user ? { id: session.user.id } : null);
-      if (session?.user?.id) void syncRevenueCatSubscription(session.user.id);
-      else {
+      if (session?.user?.id) {
+        identifyAnalytics(session.user.id);
+        void syncRevenueCatSubscription(session.user.id);
+      } else {
+        resetAnalytics();
         void logOutRevenueCat();
         void clearHomeWidgetSnapshot();
       }

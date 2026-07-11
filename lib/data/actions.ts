@@ -359,13 +359,13 @@ export async function raiseCompletionValue(
       value,
       note: note?.trim() || null,
     });
-    track("habit_progress_set", { habit_id: habitId, queued: true });
+    track("habit_progress_set", { queued: true });
     if (value > 0) await recordPositiveCompletion(user.id, true);
     return { ok: true, queued: true };
   }
   clearDataCache();
   scheduleReminderSync();
-  track("habit_progress_set", { habit_id: habitId });
+  track("habit_progress_set");
   if (value > 0) await recordPositiveCompletion(user.id, false);
   return { ok: true };
 }
@@ -394,12 +394,12 @@ export async function toggleHabit(
         userId: user.id,
         completedOn: localDateKey(),
       });
-      track("habit_uncompleted", { habit_id: habitId, queued: true });
+      track("habit_uncompleted", { queued: true });
       return { ok: true, queued: true };
     }
     clearDataCache();
     scheduleReminderSync();
-    track("habit_uncompleted", { habit_id: habitId });
+    track("habit_uncompleted");
     return { ok: true };
   }
 
@@ -423,7 +423,7 @@ export async function toggleHabit(
         userId: user.id,
         completedOn: localDateKey(),
       });
-      track("habit_completed", { habit_id: habitId, queued: true });
+      track("habit_completed", { queued: true });
       await recordPositiveCompletion(user.id, true);
       return { ok: true, queued: true };
     }
@@ -446,13 +446,13 @@ export async function toggleHabit(
       completedOn: localDateKey(),
       value: resolvedTarget,
     });
-    track("habit_completed", { habit_id: habitId, queued: true });
+    track("habit_completed", { queued: true });
     await recordPositiveCompletion(user.id, true);
     return { ok: true, queued: true };
   }
   clearDataCache();
   scheduleReminderSync();
-  track("habit_completed", { habit_id: habitId });
+  track("habit_completed");
   await recordPositiveCompletion(user.id, false);
   return { ok: true };
 }

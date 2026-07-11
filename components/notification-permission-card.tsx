@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useFocusEffect } from "expo-router";
 import { Linking, Platform, View, Text, TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -24,16 +24,31 @@ function isStandalone(): boolean {
 
 export default function NotificationPermissionCard({
   suppressIfStorageKeyPresent,
+  onShown,
 }: {
   suppressIfStorageKeyPresent?: string;
+  onShown?: () => void;
 }) {
   const { t } = useLanguage();
   const [status, setStatus] = useState<"granted" | "denied" | "undetermined">("undetermined");
   const [checkedSuppressionKey, setCheckedSuppressionKey] = useState<string | null>(null);
   const [suppressed, setSuppressed] = useState(false);
+  const [permissionChecked, setPermissionChecked] = useState(false);
+  const shownRef = useRef(false);
 
   useEffect(() => {
-    getPermissionStatus().then(setStatus);
+    let cancelled = false;
+    void getPermissionStatus()
+      .then((nextStatus) => {
+        if (!cancelled) setStatus(nextStatus);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setPermissionChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useFocusEffect(
@@ -65,13 +80,24 @@ export default function NotificationPermissionCard({
     }, [suppressIfStorageKeyPresent]),
   );
 
-  if (
-    status === "granted" ||
-    suppressed ||
-    (suppressIfStorageKeyPresent && checkedSuppressionKey !== suppressIfStorageKeyPresent)
-  ) {
-    return null;
-  }
+  const cardVisible =
+    permissionChecked &&
+    status !== "granted" &&
+    !suppressed &&
+    (!suppressIfStorageKeyPresent || checkedSuppressionKey === suppressIfStorageKeyPresent);
+  const visible = cardVisible && status === "undetermined";
+
+  useEffect(() => {
+    if (!visible) {
+      shownRef.current = false;
+      return;
+    }
+    if (shownRef.current) return;
+    shownRef.current = true;
+    onShown?.();
+  }, [onShown, visible]);
+
+  if (!cardVisible) return null;
 
   // On iOS Safari (not installed), push isn't available yet. Guide the user
   // to install the PWA first instead of showing a non-functional Allow button.

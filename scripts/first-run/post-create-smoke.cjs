@@ -1,5 +1,14 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require("./screenshot-helper.cjs");
+const {
+  assertActivationAnalyticsSafe,
+  installAnalyticsCollector,
+  requireAnalyticsEvent,
+} = require("./analytics-events.cjs");
 
 function fakeSession() {
   const userId = "00000000-0000-4000-8000-000000000001";
@@ -262,6 +271,8 @@ async function runScenario(browser, scenario) {
     deviceScaleFactor: 2,
     isMobile: true,
   });
+  await prepareScreenshotPage(page);
+  const analyticsCollector = installAnalyticsCollector(page);
   const consoleMessages = [];
   const pageErrors = [];
   const requestFailures = [];
@@ -274,16 +285,30 @@ async function runScenario(browser, scenario) {
   const snapshots = [];
   async function snap(label) {
     const text = await page.locator("body").innerText({ timeout: 10000 });
-    await page.screenshot({
-      path: `tmp/first-run-post-${scenario.id}-${label}.png`,
-      fullPage: true,
+    await captureStableScreenshot(page, {
+      finalUrl: page.url(),
+      target: "body",
+      screenshot: {
+        path: `tmp/first-run-post-${scenario.id}-${label}.png`,
+        fullPage: true,
+      },
     });
     snapshots.push({ label, url: page.url(), text: text.slice(0, 3000) });
     return text;
   }
 
   await page.goto("http://localhost:8083/", { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForURL(/habits\/wizard/, { timeout: 15000 });
+  try {
+    await page.waitForURL(/habits\/wizard/, { timeout: 15000 });
+  } catch (error) {
+    console.error(`[${scenario.id}] wizard did not open`, {
+      url: page.url(),
+      body: await page.locator("body").innerText().catch(() => "<unavailable>"),
+      consoleMessages,
+      pageErrors,
+    });
+    throw error;
+  }
   await page.getByText("Energy").click();
   if (scenario.kind === "boolean") {
     await page.getByRole("button", { name: "Next", exact: true }).click();
@@ -320,8 +345,10 @@ async function runScenario(browser, scenario) {
   await snap("first-step");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const maybeLater = page.getByRole("button", { name: "Maybe later", exact: true });
+  let notificationPromptVisible = false;
   try {
     await maybeLater.waitFor({ timeout: 5000 });
+    notificationPromptVisible = true;
     await maybeLater.click();
   } catch {
     // A denied browser permission correctly skips the notification primer.
@@ -341,6 +368,7 @@ async function runScenario(browser, scenario) {
       (await completedToggle.getAttribute("aria-label")) === "Mark Screen Limit not done";
   }
   await snap(scenario.kind === "quantity" ? "after-log" : "after-complete");
+  await analyticsCollector.settle();
   await page.close();
 
   const result = {
@@ -353,6 +381,7 @@ async function runScenario(browser, scenario) {
     consoleMessages,
     pageErrors,
     requestFailures,
+    analyticsEvents: analyticsCollector.events,
   };
   if (pageErrors.length)
     throw new Error(`[${scenario.id}] Browser page errors: ${pageErrors.join("\n")}`);
@@ -404,6 +433,28 @@ async function runScenario(browser, scenario) {
     ) {
       throw new Error(`[boolean] Expected one exact direct write and zero RPC increments`);
     }
+  }
+  const firstLogEvents = result.analyticsEvents.filter(
+    (event) =>
+      event.name === "first_habit_logged" &&
+      event.properties.activation_variant === "control" &&
+      event.properties.activation_stage === "first_log" &&
+      event.properties.rollout_percentage === 0 &&
+      event.properties.queued === false,
+  );
+  if (firstLogEvents.length !== 1) {
+    throw new Error(`[${scenario.id}] Expected exactly one monotonic first-log analytics event`);
+  }
+  assertActivationAnalyticsSafe(firstLogEvents[0]);
+  if (notificationPromptVisible) {
+    const prompt = requireAnalyticsEvent(
+      result.analyticsEvents,
+      "notification_prompt_shown",
+      (event) =>
+        event.properties.surface === "first_log_flow" &&
+        event.properties.activation_stage === "first_log",
+    );
+    assertActivationAnalyticsSafe(prompt);
   }
   return result;
 }

@@ -4,6 +4,7 @@ import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "@/components/icon";
+import { useActivation } from "@/components/activation-provider";
 import { useLanguage } from "@/components/language-provider";
 import { logCompletion, toggleHabit } from "@/lib/data/actions";
 import { syncScheduledReminders } from "@/lib/data/reminder-sync";
@@ -19,6 +20,7 @@ import { formatAmount } from "@/lib/coach/habit-intelligence";
 import { showAlert } from "@/lib/platform/alert";
 import { getPermissionStatus, requestPermission } from "@/lib/platform/notifications";
 import { getItem, setItem } from "@/lib/platform/storage";
+import { trackActivationEvent } from "@/lib/services/analytics";
 
 type Props = {
   userId: string;
@@ -41,6 +43,7 @@ function isStandalone(): boolean {
 
 export default function FirstLogFlow({ userId, habit, onFinished }: Props) {
   const { t } = useLanguage();
+  const { analyticsContext } = useActivation();
   const [state, dispatch] = useReducer(firstLogFlowReducer, initialFirstLogFlowState);
   const [continuing, setContinuing] = useState(false);
   const [notificationBusy, setNotificationBusy] = useState(false);
@@ -132,6 +135,13 @@ export default function FirstLogFlow({ userId, habit, onFinished }: Props) {
         getItem,
         setItem,
       });
+      if (offerNotifications) {
+        trackActivationEvent(
+          "notification_prompt_shown",
+          { ...analyticsContext, stage: "first_log" },
+          { surface: "first_log_flow" },
+        );
+      }
       dispatch({ type: "celebration_continued", offerNotifications });
       if (!offerNotifications) finishOnce();
     } finally {

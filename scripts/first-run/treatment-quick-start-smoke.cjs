@@ -1,5 +1,14 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const {
+  captureStableScreenshot,
+  prepareScreenshotPage,
+} = require("./screenshot-helper.cjs");
+const {
+  assertActivationAnalyticsSafe,
+  installAnalyticsCollector,
+  requireAnalyticsEvent,
+} = require("./analytics-events.cjs");
 
 function fakeSession() {
   const userId = "00000000-0000-4000-8000-000000000001";
@@ -37,6 +46,8 @@ function fakeSession() {
     isMobile: true,
   });
   const page = await context.newPage();
+  await prepareScreenshotPage(page);
+  const analyticsCollector = installAnalyticsCollector(page);
   const pageErrors = [];
   const unexpectedBackendCalls = [];
   const habitInsertRequests = [];
@@ -267,8 +278,42 @@ function fakeSession() {
     );
   }
 
+  await analyticsCollector.settle();
+  requireAnalyticsEvent(
+    analyticsCollector.events,
+    "routine_started",
+    (event) => event.properties.flow === "quick_start" && event.properties.step_count === 3,
+  );
+  const completedSteps = analyticsCollector.events.filter(
+    (event) => event.name === "routine_step_completed",
+  );
+  if (completedSteps.length !== 3) {
+    throw new Error(`expected three routine step events, got ${completedSteps.length}`);
+  }
+  requireAnalyticsEvent(
+    analyticsCollector.events,
+    "routine_created",
+    (event) =>
+      event.properties.flow === "quick_start" &&
+      event.properties.requested_count === 2 &&
+      event.properties.created_count === 2 &&
+      event.properties.failed_count === 0,
+  );
+  for (const event of analyticsCollector.events.filter((candidate) =>
+    candidate.name.startsWith("routine_"),
+  )) {
+    assertActivationAnalyticsSafe(event);
+    if (event.properties.activation_variant !== "activation_v2") {
+      throw new Error(`treatment routine event lost its cohort: ${JSON.stringify(event)}`);
+    }
+  }
+
   const text = await page.locator("body").innerText();
-  await page.screenshot({ path: "tmp/treatment-quick-start-complete.png", fullPage: true });
+  await captureStableScreenshot(page, {
+    finalUrl: page.url(),
+    target: page.getByText("Your routine is ready", { exact: true }),
+    screenshot: { path: "tmp/treatment-quick-start-complete.png", fullPage: true },
+  });
   fs.writeFileSync(
     "tmp/treatment-quick-start-smoke-current.json",
     JSON.stringify({ url: page.url(), text, pageErrors, unexpectedBackendCalls }, null, 2),

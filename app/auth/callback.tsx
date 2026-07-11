@@ -15,6 +15,12 @@ import {
   consumePendingSignupWelcome,
 } from "@/lib/auth/auth-welcome";
 import { useLanguage } from "@/components/language-provider";
+import { identifyAnalytics, trackActivationEvent } from "@/lib/services/analytics";
+import { resolveActivationAnalyticsContext } from "@/lib/services/activation-analytics-context";
+import {
+  categorizeSignupFailure,
+  unassignedActivationAnalyticsContext,
+} from "@/lib/activation/analytics";
 
 type Status = "loading" | "success" | "error";
 
@@ -25,6 +31,7 @@ export default function AuthCallbackScreen() {
   const routeCallbackUrl = authCallbackUrlFromParams(`/${AUTH_CALLBACK_PATH}`, callbackParams);
   const currentUrl = Linking.useURL();
   const handledUrlRef = useRef<string | null>(null);
+  const signupCallbackRef = useRef(false);
   // Tracks real unmount only. On web, `Linking.useURL()` starts null then resolves
   // to the page URL, re-running the effect below. A per-run `cancelled` flag would
   // be flipped by that re-run's cleanup and suppress the state updates from the run
@@ -36,6 +43,12 @@ export default function AuthCallbackScreen() {
   const [error, setError] = useState<string | null>(null);
   const [shouldWelcome, setShouldWelcome] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+
+  async function trackSignupConfirmation(userId: string | null) {
+    if (userId) identifyAnalytics(userId);
+    const context = await resolveActivationAnalyticsContext(userId ?? "", "pre_value", Platform.OS);
+    trackActivationEvent("signup_confirmed", context, { authenticated: Boolean(userId) });
+  }
 
   useEffect(() => {
     mountedRef.current = true;
@@ -53,6 +66,7 @@ export default function AuthCallbackScreen() {
       handledUrlRef.current = url;
 
       const parsed = parseAuthCallbackUrl(url);
+      signupCallbackRef.current = parsed.type === "signup";
       if (parsed.error) {
         throw new Error(parsed.errorDescription ?? parsed.error);
       }
@@ -87,6 +101,9 @@ export default function AuthCallbackScreen() {
       // `type=signup`, so they must skip the success screen and land straight on home —
       // otherwise an existing user re-authenticating sees a bogus "email confirmed".
       const isEmailConfirmation = welcome || parsed.type === "signup";
+      if (isEmailConfirmation) {
+        void trackSignupConfirmation(session?.user.id ?? null).catch(() => {});
+      }
       if (hasSession && !isEmailConfirmation) {
         requestAnimationFrame(() => {
           if (mountedRef.current) router.replace(homeDestination(welcome) as never);
@@ -97,6 +114,13 @@ export default function AuthCallbackScreen() {
     }
 
     finishAuth().catch((e) => {
+      if (signupCallbackRef.current) {
+        trackActivationEvent("signup_failed", unassignedActivationAnalyticsContext(Platform.OS), {
+          method: "email",
+          failure_category: categorizeSignupFailure(e),
+          failure_stage: "confirmation",
+        });
+      }
       if (mountedRef.current) {
         setError(e instanceof Error ? e.message : "Could not complete authentication.");
         setStatus("error");
