@@ -4,6 +4,11 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent } from "react";
 import { createHabit, toggleHabit } from "@/app/(app)/dashboard/actions";
 import { localDateKey } from "@/lib/date";
+import { formatCheckInAmount, habitCheckInActionLabel } from "@/lib/habit-progress";
+import {
+  operationForCompletionSubmission,
+  type CompletionSubmissionOperation,
+} from "@/lib/completion-submission-operation";
 import type { Habit } from "@/types/db";
 
 const COLOR_MAP: Record<string, { bg: string; ic: string }> = {
@@ -194,27 +199,47 @@ function HabitCreateForm({
   );
 }
 
-function HabitRow({ habit, done }: { habit: Habit; done: boolean }) {
+function HabitRow({
+  habit,
+  done,
+  currentValue,
+}: {
+  habit: Habit;
+  done: boolean;
+  currentValue: number;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const pendingRef = useRef(false);
+  const operationRef = useRef<CompletionSubmissionOperation | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { bg, ic } = COLOR_MAP[habit.color] ?? COLOR_MAP.neutral;
+  const actionLabel = habitCheckInActionLabel(habit, currentValue, done);
 
   async function toggle() {
-    if (pending) return;
+    if (pendingRef.current) return;
 
+    pendingRef.current = true;
     setPending(true);
     setError(null);
+    const operation = operationForCompletionSubmission(
+      operationRef.current,
+      { habitId: habit.id, value: currentValue, note: done ? "remove" : "web-check-in" },
+      () => crypto.randomUUID(),
+    );
+    operationRef.current = operation;
     try {
-      const result = await toggleHabit(habit.id, done, localDateKey());
+      const result = await toggleHabit(habit.id, done, localDateKey(), operation.id);
       if (!result.ok) {
         setError(result.error ?? "Could not update habit.");
         return;
       }
+      operationRef.current = null;
       router.refresh();
     } catch {
       setError("Could not update habit.");
     } finally {
+      pendingRef.current = false;
       setPending(false);
     }
   }
@@ -226,7 +251,7 @@ function HabitRow({ habit, done }: { habit: Habit; done: boolean }) {
         onClick={toggle}
         disabled={pending}
         aria-pressed={done}
-        aria-label={done ? `Mark ${habit.name} incomplete` : `Mark ${habit.name} complete`}
+        aria-label={actionLabel}
         className={`flex w-full items-center gap-4 rounded-2xl border border-outline-variant bg-surface p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-surface-container-high disabled:cursor-wait ${
           pending ? "opacity-70" : ""
         }`}
@@ -249,9 +274,10 @@ function HabitRow({ habit, done }: { habit: Habit; done: boolean }) {
             >
               {habit.name}
             </span>
-            {habit.target && habit.unit && (
+            {habit.target != null && Number(habit.target) > 0 && (
               <span className="rounded-full bg-surface-container px-2 py-0.5 text-xs font-bold text-on-surface-variant">
-                {habit.target} {habit.unit}
+                {formatCheckInAmount(currentValue)} / {formatCheckInAmount(Number(habit.target))}
+                {habit.unit ? ` ${habit.unit}` : ""}
               </span>
             )}
           </span>
@@ -293,9 +319,11 @@ function HabitRow({ habit, done }: { habit: Habit; done: boolean }) {
 export default function HabitList({
   habits,
   completedToday,
+  todayValues,
 }: {
   habits: Habit[];
   completedToday: Set<string>;
+  todayValues: Record<string, number>;
 }) {
   const router = useRouter();
   const [showForm, setShowForm] = useState(habits.length === 0);
@@ -344,7 +372,12 @@ export default function HabitList({
       )}
 
       {habits.map((habit) => (
-        <HabitRow key={habit.id} habit={habit} done={completedToday.has(habit.id)} />
+        <HabitRow
+          key={habit.id}
+          habit={habit}
+          done={completedToday.has(habit.id)}
+          currentValue={todayValues[habit.id] ?? 0}
+        />
       ))}
     </div>
   );

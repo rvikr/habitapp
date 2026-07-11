@@ -11,10 +11,11 @@ import {
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
+import * as Crypto from "expo-crypto";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabitsForToday, getStats } from "@/lib/data/habits";
 import { getHabitVisualForHabit } from "@/lib/data/habit-images";
-import { logCompletion, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
+import { logCompletionOnce, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
 import { flushPendingCompletions } from "@/lib/data/completion-queue";
 import type { StreaksMap } from "@/lib/data/habits";
 import { useActivation } from "@/components/activation-provider";
@@ -47,6 +48,7 @@ import type { Habit } from "@/types/db";
 import {
   isQuantityHabit,
   progressForHabit,
+  suggestedCheckInForHabit,
   type HabitProgress,
 } from "@/lib/coach/habit-intelligence";
 import type { CoachSignal } from "@/lib/coach/coach";
@@ -170,6 +172,7 @@ export default function DashboardScreen() {
   const lastStepValueRef = useRef(0);
   const lastStepSaveAtRef = useRef(0);
   const stepSavingRef = useRef(false);
+  const checkInFlightRef = useRef(new Set<string>());
 
   useEffect(() => {
     dataRef.current = data;
@@ -544,22 +547,99 @@ export default function DashboardScreen() {
 
     const habitId = habit.id;
     const wasDone = data.completedToday.has(habitId);
+    const currentProgress = data.todayProgress.get(habitId) ?? progressForHabit(habit, null);
+    const suggestion = suggestedCheckInForHabit(habit, currentProgress);
 
-    // Quantity habits (water, reading, steps…) can't be finished in one tap.
-    // Tapping when not done opens the log sheet instead of writing the full target.
+    if (!wasDone && suggestion) {
+      if (checkInFlightRef.current.has(habitId)) return;
+      checkInFlightRef.current.add(habitId);
+      try {
+        const nextProgress = progressForHabit(habit, {
+          value: currentProgress.current + suggestion.value,
+        });
+        setData((current) => {
+          if (!current) return current;
+          const nextProgressMap = new Map(current.todayProgress);
+          const nextCompleted = new Set(current.completedToday);
+          nextProgressMap.set(habitId, nextProgress);
+          if (nextProgress.isDone) nextCompleted.add(habitId);
+          else nextCompleted.delete(habitId);
+          return {
+            ...current,
+            completedToday: nextCompleted,
+            todayProgress: nextProgressMap,
+          };
+        });
+
+        const result = await logCompletionOnce(
+          habitId,
+          Crypto.randomUUID(),
+          suggestion.value,
+          "Logged from check-in",
+        );
+        if (!result.ok) {
+          setData((current) => {
+            if (!current) return current;
+            const restoredProgress = new Map(current.todayProgress);
+            const restoredCompleted = new Set(current.completedToday);
+            restoredProgress.set(habitId, currentProgress);
+            if (wasDone) restoredCompleted.add(habitId);
+            else restoredCompleted.delete(habitId);
+            return {
+              ...current,
+              completedToday: restoredCompleted,
+              todayProgress: restoredProgress,
+            };
+          });
+          showAlert(t("Could not update habit"), result.error ?? t("Try again."));
+          return;
+        }
+        if (nextProgress.isDone) {
+          celebrate();
+          recordCompletionAndMaybeReview();
+        }
+        if (!result.queued) load({ force: true });
+        return;
+      } finally {
+        checkInFlightRef.current.delete(habitId);
+      }
+    }
+
+    // Quantity habits without a safe default chunk use the custom log sheet
+    // instead of writing the full target in one tap.
     if (isQuantityHabit(habit) && !wasDone) {
       setLogHabit(habit);
       return;
     }
 
-    const previous = data.completedToday;
-    const next = new Set(previous);
-    if (wasDone) next.delete(habitId);
-    else next.add(habitId);
-    setData({ ...data, completedToday: next });
+    const toggledProgress = progressForHabit(
+      habit,
+      wasDone ? null : { value: Number(habit.target ?? 1) },
+    );
+    setData((current) => {
+      if (!current) return current;
+      const nextCompleted = new Set(current.completedToday);
+      const nextProgress = new Map(current.todayProgress);
+      if (wasDone) nextCompleted.delete(habitId);
+      else nextCompleted.add(habitId);
+      nextProgress.set(habitId, toggledProgress);
+      return { ...current, completedToday: nextCompleted, todayProgress: nextProgress };
+    });
     const result = await toggleHabit(habitId, wasDone, habit.target as number | null);
     if (!result.ok) {
-      setData((current) => (current ? { ...current, completedToday: previous } : current));
+      setData((current) => {
+        if (!current) return current;
+        const restoredCompleted = new Set(current.completedToday);
+        const restoredProgress = new Map(current.todayProgress);
+        if (wasDone) restoredCompleted.add(habitId);
+        else restoredCompleted.delete(habitId);
+        restoredProgress.set(habitId, currentProgress);
+        return {
+          ...current,
+          completedToday: restoredCompleted,
+          todayProgress: restoredProgress,
+        };
+      });
       showAlert(t("Could not update habit"), result.error ?? t("Try again."));
       return;
     }
@@ -572,15 +652,15 @@ export default function DashboardScreen() {
     if (!result.queued) load({ force: true });
   }
 
-  async function handleLogSheetSubmit(value: number, note: string) {
+  async function handleLogSheetSubmit(value: number, note: string, operationId: string) {
     if (!logHabit) return { ok: false, error: t("Habit not loaded.") };
     const wasDone = data?.completedToday.has(logHabit.id) ?? false;
     const prevValue = data?.todayProgress.get(logHabit.id)?.current ?? 0;
     const target = logHabit.target != null ? Number(logHabit.target) : null;
-    const result = await logCompletion(logHabit.id, value, note);
+    const result = await logCompletionOnce(logHabit.id, operationId, value, note);
     if (!result.ok) return result;
     setLogHabit(null);
-    // logCompletion adds incrementally, so today's new total is prev + value.
+    // The exact-once RPC adds incrementally, so today's new total is prev + value.
     const nowDone = target != null && target > 0 ? prevValue + value >= target : true;
     if (!wasDone && nowDone) {
       celebrate();
@@ -611,20 +691,57 @@ export default function DashboardScreen() {
       setSleepLogHabit(habit);
       return;
     }
-    if (signal.suggestedAction === "log_value" && signal.suggestedValue) {
-      const result = await logCompletion(
-        signal.habitId,
-        signal.suggestedValue,
-        "Logged from AI coach",
-      );
-      if (!result.ok) {
-        showAlert(t("Could not log progress"), result.error ?? t("Try again."));
+    const liveProgress =
+      habit && data
+        ? (data.todayProgress.get(signal.habitId) ?? progressForHabit(habit, null))
+        : null;
+    const liveSuggestion =
+      habit && liveProgress ? suggestedCheckInForHabit(habit, liveProgress) : null;
+    if (
+      signal.suggestedAction === "log_value" &&
+      signal.suggestedValue &&
+      habit &&
+      liveProgress &&
+      liveSuggestion
+    ) {
+      if (checkInFlightRef.current.has(signal.habitId)) return;
+      checkInFlightRef.current.add(signal.habitId);
+      try {
+        const result = await logCompletionOnce(
+          signal.habitId,
+          Crypto.randomUUID(),
+          liveSuggestion.value,
+          "Logged from AI coach",
+        );
+        if (!result.ok) {
+          showAlert(t("Could not log progress"), result.error ?? t("Try again."));
+          return;
+        }
+        const nextProgress = progressForHabit(habit, {
+          value: liveProgress.current + liveSuggestion.value,
+        });
+        setData((currentData) => {
+          if (!currentData) return currentData;
+          const nextProgressMap = new Map(currentData.todayProgress);
+          const nextCompleted = new Set(currentData.completedToday);
+          nextProgressMap.set(signal.habitId, nextProgress);
+          if (nextProgress.isDone) nextCompleted.add(signal.habitId);
+          else nextCompleted.delete(signal.habitId);
+          return {
+            ...currentData,
+            completedToday: nextCompleted,
+            todayProgress: nextProgressMap,
+          };
+        });
+        if (nextProgress.isDone) {
+          celebrate();
+          recordCompletionAndMaybeReview();
+        }
+        if (!result.queued) load({ force: true });
         return;
+      } finally {
+        checkInFlightRef.current.delete(signal.habitId);
       }
-      celebrate();
-      recordCompletionAndMaybeReview();
-      load({ force: true });
-      return;
     }
     router.push(`/habits/${signal.habitId}`);
   }
@@ -651,14 +768,25 @@ export default function DashboardScreen() {
     showAlert(t("All caught up"), t("Your coach has no suggestions right now. Keep it up!"));
   }
 
-  async function handleSleepCoachLog(value: number, note: string) {
+  async function handleSleepCoachLog(value: number, note: string, operationId: string) {
     if (!sleepLogHabit) return { ok: false, error: t("Habit not loaded.") };
-    const result = await logCompletion(sleepLogHabit.id, value, note || "Logged from AI coach");
+    const wasDone = data?.completedToday.has(sleepLogHabit.id) ?? false;
+    const prevValue = data?.todayProgress.get(sleepLogHabit.id)?.current ?? 0;
+    const target = sleepLogHabit.target != null ? Number(sleepLogHabit.target) : null;
+    const result = await logCompletionOnce(
+      sleepLogHabit.id,
+      operationId,
+      value,
+      note || "Logged from AI coach",
+    );
     if (!result.ok) return { ok: false, error: result.error ?? t("Try again.") };
     setSleepLogHabit(null);
-    celebrate();
-    recordCompletionAndMaybeReview();
-    load({ force: true });
+    const nowDone = target != null && target > 0 ? prevValue + value >= target : true;
+    if (!wasDone && nowDone) {
+      celebrate();
+      recordCompletionAndMaybeReview();
+    }
+    if (!result.queued) load({ force: true });
     return { ok: true };
   }
 
@@ -690,26 +818,60 @@ export default function DashboardScreen() {
     ? (timelineEntries.find((entry) => !data.completedToday.has(entry.habit.id)) ?? null)
     : null;
   const nextAccent = nextEntry ? getHabitVisualForHabit(nextEntry.habit).accent : "#3EBB7F";
+  const nextWidgetHabit = data
+    ? ((coachSignalActive && coachSignal
+        ? habits.find((habit) => habit.id === coachSignal.habitId)
+        : null) ??
+      nextEntry?.habit ??
+      null)
+    : null;
+  const nextWidgetProgress =
+    data && nextWidgetHabit
+      ? (data.todayProgress.get(nextWidgetHabit.id) ?? progressForHabit(nextWidgetHabit, null))
+      : null;
+  const nextWidgetSuggestion =
+    nextWidgetHabit && nextWidgetProgress
+      ? suggestedCheckInForHabit(nextWidgetHabit, nextWidgetProgress)
+      : null;
+  const nextWidgetCheckInValue = nextWidgetHabit
+    ? Number(nextWidgetHabit.target ?? 0) > 0
+      ? (nextWidgetSuggestion?.value ?? null)
+      : nextWidgetProgress?.isDone
+        ? null
+        : 1
+    : null;
 
   useEffect(() => {
     if (!data) return;
     // Prefer the coach's target as the next habit; otherwise the first habit
     // still open today. The coach message line is Pro-only.
-    const nextHabit =
-      coachSignalActive && coachSignal
-        ? coachSignal.habitName
-        : (habits.find((h) => !data.completedToday.has(h.id))?.name ?? null);
     void syncHomeWidgetFromDashboard({
       completedCount,
       totalHabits: total,
       currentStreak: data.stats?.currentStreak ?? 0,
       level: data.stats?.level ?? 1,
-      nextHabitName: nextHabit,
+      nextHabitName: nextWidgetHabit?.name ?? null,
+      nextHabit: nextWidgetHabit
+        ? {
+            id: nextWidgetHabit.id,
+            name: nextWidgetHabit.name,
+            checkInValue: nextWidgetCheckInValue,
+          }
+        : null,
       coachMessage: coachSignalActive && coachSignal ? coachSignal.message : null,
       hasPro: data.proAccess.hasPro,
       locale: language === "hi" ? "hi-IN" : "en-US",
     });
-  }, [coachSignal, coachSignalActive, completedCount, data, habits, language, total]);
+  }, [
+    coachSignal,
+    coachSignalActive,
+    completedCount,
+    data,
+    language,
+    nextWidgetCheckInValue,
+    nextWidgetHabit,
+    total,
+  ]);
 
   // First load failed and there is nothing cached to show — offer a retry
   // instead of a permanent skeleton (or, worse, a spurious onboarding bounce).
@@ -1040,6 +1202,9 @@ export default function DashboardScreen() {
         <LogPrompt
           visible={sleepLogHabit !== null}
           habit={sleepLogHabit}
+          currentValue={
+            sleepLogHabit ? (data?.todayProgress.get(sleepLogHabit.id)?.current ?? 0) : 0
+          }
           onSubmit={handleSleepCoachLog}
           onDismiss={() => setSleepLogHabit(null)}
         />

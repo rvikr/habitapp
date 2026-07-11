@@ -728,6 +728,7 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Daily goal: {target} {unit}": "दैनिक लक्ष्य: {target} {unit}",
   "Log {amount} {unit}": "{amount} {unit} लॉग करें",
   "Logging...": "लॉग हो रहा है...",
+  "Logging check-in...": "चेक-इन लॉग हो रहा है...",
   "Could not complete habit": "आदत पूरी नहीं हो सकी",
   "Stay on track with reminders": "रिमाइंडर के साथ सही रास्ते पर रहें",
   "Allow notifications so we can nudge you at your reminder times. If several habits share a time, we'll bundle them into one reminder.":

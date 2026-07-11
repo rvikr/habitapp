@@ -4,7 +4,12 @@ import { DATA_CACHE_PREFIX, getCachedValue, readThroughCache, setCachedValue } f
 import { addLocalDays, localDateKey, localDateDaysAgo } from "../utils/date";
 import { longestStreakFromDates, streakFromDates } from "../coach/streak";
 import { XP_PER_LEVEL, levelForXp, xpForCompletions, xpInLevel } from "../coach/xp";
-import { progressForHabit, type HabitProgress } from "../coach/habit-intelligence";
+import {
+  completedDatesForHabit,
+  isHabitCompletionDone,
+  progressForHabit,
+  type HabitProgress,
+} from "../coach/habit-intelligence";
 import {
   buildCoachSignals,
   chooseTopCoachSignal,
@@ -141,16 +146,10 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
       .map(([habitId]) => habitId),
   );
 
-  const completionDatesByHabit = new Map<string, string[]>();
-  for (const c of completionRows) {
-    const dates = completionDatesByHabit.get(c.habit_id as string) ?? [];
-    dates.push(c.completed_on as string);
-    completionDatesByHabit.set(c.habit_id as string, dates);
-  }
   const streaksMap: StreaksMap = new Map(
     habitsList.map((habit) => [
       habit.id,
-      streakFromDates(completionDatesByHabit.get(habit.id) ?? []),
+      streakFromDates(completedDatesForHabit(habit, completionRows)),
     ]),
   );
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
@@ -191,27 +190,39 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
 
 export async function getHabit(id: string, options?: DataFetchOptions) {
   if (!isSupabaseConfigured()) {
-    return { habit: null, completions: [] as HabitCompletion[] };
+    return { ok: false, habit: null, completions: [] as HabitCompletion[] };
   }
   const user = await getUser();
-  if (!user) return { habit: null, completions: [] as HabitCompletion[] };
+  if (!user) return { ok: false, habit: null, completions: [] as HabitCompletion[] };
 
   return readThroughCache(
     `${DATA_CACHE_PREFIX}habit:${user.id}:${id}`,
     DATA_CACHE_TTL_MS,
     async () => {
-      const [{ data: habit }, { data: completions }] = await Promise.all([
-        supabase.from("habits").select("*").eq("id", id).eq("user_id", user.id).single(),
-        supabase
-          .from("habit_completions")
-          .select("*")
-          .eq("habit_id", id)
-          .eq("user_id", user.id)
-          .order("completed_on", { ascending: false })
-          .limit(60),
-      ]);
+      const [{ data: habit, error: habitError }, { data: completions, error: completionsError }] =
+        await Promise.all([
+          supabase
+            .from("habits")
+            .select("*")
+            .eq("id", id)
+            .eq("user_id", user.id)
+            .is("archived_at", null)
+            .maybeSingle(),
+          supabase
+            .from("habit_completions")
+            .select("*")
+            .eq("habit_id", id)
+            .eq("user_id", user.id)
+            .order("completed_on", { ascending: false })
+            .limit(60),
+        ]);
+
+      if (habitError || completionsError) {
+        return { ok: false, habit: null, completions: [] as HabitCompletion[] };
+      }
 
       return {
+        ok: true,
         habit: habit as Habit | null,
         completions: (completions ?? []) as HabitCompletion[],
       };
@@ -285,36 +296,61 @@ export async function getStats(options?: DataFetchOptions) {
     `${DATA_CACHE_PREFIX}stats:${user.id}:${today()}`,
     DATA_CACHE_TTL_MS,
     async () => {
-      const [{ count: totalCompletions }, { count: totalHabits }, dateResult, { data: profile }] =
-        await Promise.all([
-          supabase
-            .from("habit_completions")
-            .select("id", { count: "exact", head: true })
-            .eq("user_id", user.id),
+      const [{ count: totalHabits }, completionStatsResult, { data: profile }] = await Promise.all([
+        supabase
+          .from("habits")
+          .select("id", { count: "exact", head: true })
+          .is("archived_at", null)
+          .eq("user_id", user.id),
+        // One target-aware RPC returns the all-time credited count plus bounded
+        // distinct dates, avoiding PostgREST's 1,000-row cap.
+        supabase.rpc("get_completion_stats"),
+        supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle(),
+      ]);
+
+      let completions = 0;
+      let dateValues: string[] = [];
+      if (completionStatsResult.error) {
+        // Migration not applied yet: keep older databases functional while
+        // applying the same target-aware rule in the fallback.
+        const [{ data: habitDocs }, { data: completionDocs }] = await Promise.all([
           supabase
             .from("habits")
-            .select("id", { count: "exact", head: true })
-            .is("archived_at", null)
+            .select("id, name, description, icon, target, unit")
             .eq("user_id", user.id),
-          // Distinct dates via RPC: the raw rows grow without bound and PostgREST
-          // truncates at 1,000, which silently corrupted streaks for long-tenured
-          // users while re-downloading full history on every load.
-          supabase.rpc("get_completion_dates"),
-          supabase.from("profiles").select("display_name").eq("user_id", user.id).maybeSingle(),
+          supabase
+            .from("habit_completions")
+            .select("habit_id, completed_on, value")
+            .eq("user_id", user.id)
+            .order("completed_on", { ascending: false }),
         ]);
-
-      let dateValues: string[];
-      if (dateResult.error) {
-        // Migration not applied yet: fall back to the legacy full-row scan so
-        // stats keep working against an older database.
-        const { data: dateDocs } = await supabase
-          .from("habit_completions")
-          .select("completed_on")
-          .eq("user_id", user.id)
-          .order("completed_on", { ascending: false });
-        dateValues = (dateDocs ?? []).map((d) => d.completed_on as string);
+        const habitsById = new Map(
+          (
+            (habitDocs ?? []) as Pick<
+              Habit,
+              "id" | "name" | "description" | "icon" | "target" | "unit"
+            >[]
+          ).map((habit) => [habit.id, habit]),
+        );
+        const creditedRows = (
+          (completionDocs ?? []) as Pick<HabitCompletion, "habit_id" | "completed_on" | "value">[]
+        ).filter((completion) => {
+          const habit = habitsById.get(completion.habit_id);
+          return habit ? isHabitCompletionDone(habit, completion) : false;
+        });
+        completions = creditedRows.length;
+        dateValues = creditedRows.map((completion) => completion.completed_on);
       } else {
-        dateValues = ((dateResult.data ?? []) as string[]).map(String);
+        const result = Array.isArray(completionStatsResult.data)
+          ? completionStatsResult.data[0]
+          : completionStatsResult.data;
+        const statsRow = result as {
+          total_completions?: number | string;
+          completion_dates?: string[] | null;
+        } | null;
+        const total = Number(statsRow?.total_completions ?? 0);
+        completions = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
+        dateValues = (statsRow?.completion_dates ?? []).map(String);
       }
       const uniqueDates = [...new Set(dateValues)].sort().reverse();
       let currentStreak = 0;
@@ -346,7 +382,6 @@ export async function getStats(options?: DataFetchOptions) {
         prevDateKey = day;
       }
 
-      const completions = totalCompletions ?? 0;
       const habits = totalHabits ?? 0;
       const totalXp = xpForCompletions(completions);
 
@@ -390,29 +425,30 @@ export function getMilestones(stats: Awaited<ReturnType<typeof getStats>> | null
   ];
 }
 
-export function weekProgressFor(habitId: string, completions: HabitCompletion[]) {
+export function weekProgressFor(habit: Habit, completions: HabitCompletion[]) {
   const now = new Date();
   const monday = new Date(now);
   monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  const completedDates = new Set(completedDatesForHabit(habit, completions));
   const days: { label: string; key: string; done: boolean; future: boolean }[] = [];
   const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   for (let i = 0; i < 7; i++) {
     const d = addLocalDays(monday, i);
     const key = localDateKey(d);
-    const done = completions.some((c) => c.completed_on === key && c.habit_id === habitId);
+    const done = completedDates.has(key);
     days.push({ label: labels[i], key, done, future: d > now });
   }
   return days;
 }
 
-export function streakFor(completions: HabitCompletion[]) {
-  return streakFromDates(completions.map((c) => c.completed_on));
+export function streakFor(habit: Habit, completions: HabitCompletion[]) {
+  return streakFromDates(completedDatesForHabit(habit, completions));
 }
 
 // Longest streak within the completions the detail screen fetched (last 60
 // logs) — a display stat, not an all-time database aggregate.
-export function longestStreakFor(completions: HabitCompletion[]) {
-  return longestStreakFromDates(completions.map((c) => c.completed_on));
+export function longestStreakFor(habit: Habit, completions: HabitCompletion[]) {
+  return longestStreakFromDates(completedDatesForHabit(habit, completions));
 }
 
 export type DayConsistency = {
@@ -437,22 +473,25 @@ export async function getConsistencyData(options?: DataFetchOptions): Promise<Da
       const startDate = addLocalDays(now, -(dayOfWeek + 28));
       const cutoff = localDateKey(startDate);
 
-      const [{ data: rows }, { count: totalHabits }] = await Promise.all([
+      const [{ data: rows }, { data: habitRows }] = await Promise.all([
         supabase
           .from("habit_completions")
-          .select("completed_on, habit_id")
+          .select("completed_on, habit_id, value")
           .eq("user_id", user.id)
           .gte("completed_on", cutoff),
-        supabase
-          .from("habits")
-          .select("id", { count: "exact", head: true })
-          .is("archived_at", null)
-          .eq("user_id", user.id),
+        supabase.from("habits").select("*").is("archived_at", null).eq("user_id", user.id),
       ]);
 
-      const total = totalHabits ?? 0;
+      const activeHabits = (habitRows ?? []) as Habit[];
+      const habitsById = new Map(activeHabits.map((habit) => [habit.id, habit]));
+      const total = activeHabits.length;
       const countByDate = new Map<string, Set<string>>();
-      for (const row of (rows ?? []) as { completed_on: string; habit_id: string }[]) {
+      for (const row of (rows ?? []) as Pick<
+        HabitCompletion,
+        "completed_on" | "habit_id" | "value"
+      >[]) {
+        const habit = habitsById.get(row.habit_id);
+        if (!habit || !isHabitCompletionDone(habit, row)) continue;
         const set = countByDate.get(row.completed_on) ?? new Set<string>();
         set.add(row.habit_id);
         countByDate.set(row.completed_on, set);

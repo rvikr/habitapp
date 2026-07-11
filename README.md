@@ -237,9 +237,11 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
 - Migrations: [`supabase/migrations/`](supabase/migrations/) — apply in order. With the
   Supabase CLI: `supabase db push`.
 - Admin tables: [`supabase/admin_schema.sql`](supabase/admin_schema.sql).
-- Leaderboard RPC: [`supabase/get_leaderboard.sql`](supabase/get_leaderboard.sql).
+- Leaderboard: the authenticated leaderboard Edge Function validates the user's session, then
+  calls service-role-only database functions installed by the migrations. There is no manual or
+  client-callable leaderboard RPC to install.
 - Edge Functions: [`supabase/functions/`](supabase/functions/) — `coach-message`,
-  `coach-push`, `delete-account`, `habit-routine`, `smart-reminders`,
+  `coach-push`, `delete-account`, `habit-routine`, `leaderboard`, `smart-reminders`,
   `sync-subscription`, and `revenuecat-webhook`. Deploy with
   `supabase functions deploy <name> --project-ref <ref>`.
   `coach-push` is cron-driven and needs the `COACH_PUSH_CRON_SECRET` secret,

@@ -90,6 +90,7 @@ import {
   scoreHabitSimilarity,
   smartReminderTimesForDay,
 } from "../lib/coach/habit-intelligence.ts";
+import * as habitIntelligence from "../lib/coach/habit-intelligence.ts";
 import {
   learnedSmartReminderTimesForDay,
   sanitizeSmartReminderPlanTimes,
@@ -106,8 +107,11 @@ import { buildCoachSignals, formatCoachMessage, chooseTopCoachSignal } from "../
 import {
   buildCoachSignals as buildCoachSignalsPort,
   chooseTopCoachSignal as chooseTopCoachSignalPort,
+  formatCoachMessage as formatCoachMessagePort,
   localTimeContext,
 } from "../supabase/functions/_shared/coach-signals.ts";
+import * as clientCoach from "../lib/coach/coach.ts";
+import * as serverCoach from "../supabase/functions/_shared/coach-signals.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
 import { dismissCoachCard, isCoachCardDismissed } from "../lib/coach/coach-card-dismissal.ts";
 import { generateContent, parseRetryDelayMs } from "../supabase/functions/_shared/gemini.ts";
@@ -145,6 +149,7 @@ import {
   isProtectedPath,
 } from "../website/lib/auth-route-policy.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
+import * as websiteHabitProgress from "../website/lib/habit-progress.ts";
 
 const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
 
@@ -419,6 +424,102 @@ test("website habit clicks refresh dashboard data and show action errors", () =>
   assert.match(habitList, /role="alert"/);
 });
 
+test("website canonical suggestions require a positive default and keep legacy fill explicit", () => {
+  assert.equal(typeof websiteHabitProgress.defaultLogValueForTarget, "function");
+  assert.equal(typeof websiteHabitProgress.legacyFillIncrement, "function");
+  const {
+    defaultLogValueForTarget,
+    legacyFillIncrement,
+    suggestedIncrement: websiteSuggestedIncrement,
+  } = websiteHabitProgress;
+  const canonicalHabit = {
+    name: "Read",
+    target: 100,
+    default_log_value: 25,
+    unit: "pages",
+  };
+
+  assert.equal(websiteSuggestedIncrement(canonicalHabit, 0), 25);
+  assert.equal(websiteSuggestedIncrement(canonicalHabit, 90), 10);
+  assert.equal(websiteSuggestedIncrement({ ...canonicalHabit, default_log_value: null }, 40), null);
+  assert.equal(websiteSuggestedIncrement({ ...canonicalHabit, default_log_value: 0 }, 40), null);
+  assert.equal(
+    websiteSuggestedIncrement(
+      { ...canonicalHabit, default_log_value: Number.POSITIVE_INFINITY },
+      40,
+    ),
+    null,
+  );
+  assert.equal(legacyFillIncrement({ ...canonicalHabit, default_log_value: null }, 40), 60);
+  assert.equal(
+    websiteSuggestedIncrement(
+      { ...canonicalHabit, target: 1000, default_log_value: 249.89999999999998 },
+      0,
+    ),
+    249.9,
+  );
+  assert.equal(defaultLogValueForTarget(100), 25);
+  assert.equal(defaultLogValueForTarget(5), 1.25);
+  assert.equal(defaultLogValueForTarget(0.02), 0.005);
+  assert.equal(defaultLogValueForTarget(null), null);
+});
+
+test("website check-in labels distinguish canonical partial logs from legacy completion fallback", () => {
+  assert.equal(typeof websiteHabitProgress.habitCheckInActionLabel, "function");
+  const { habitCheckInActionLabel } = websiteHabitProgress;
+  const habit = {
+    name: "Read",
+    target: 100,
+    default_log_value: 25,
+    unit: "pages",
+  };
+
+  assert.equal(habitCheckInActionLabel(habit, 40, false), "Log 25 pages for Read");
+  assert.equal(habitCheckInActionLabel(habit, 90, false), "Log 10 pages for Read");
+  assert.equal(
+    habitCheckInActionLabel({ ...habit, default_log_value: null }, 40, false),
+    "Mark Read complete",
+  );
+  assert.equal(habitCheckInActionLabel(habit, 100, true), "Mark Read incomplete");
+  assert.equal(
+    habitCheckInActionLabel({ ...habit, default_log_value: 24.899999999999998 }, 0, false),
+    "Log 24.9 pages for Read",
+  );
+});
+
+test("website check-ins are clamped, owner-scoped, and exact-once", () => {
+  assert.equal(existsSync("website/lib/habit-progress.ts"), true);
+  const helper = readFileSync("website/lib/habit-progress.ts", "utf8");
+  const actions = readFileSync("website/app/(app)/dashboard/actions.ts", "utf8");
+  const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
+  const habits = readFileSync("website/lib/habits.ts", "utf8");
+  const dashboard = readFileSync("website/app/(app)/dashboard/page.tsx", "utf8");
+
+  assert.match(helper, /export function completionIsDone/);
+  assert.match(helper, /export function completedRowsFor/);
+  assert.match(helper, /export function suggestedIncrement/);
+  assert.match(actions, /operationId: string/);
+  assert.match(actions, /isValidUuid\(operationId\)/);
+  assert.match(actions, /select\("target, default_log_value"\)/);
+  assert.match(actions, /eq\("user_id", user\.id\)/);
+  assert.match(actions, /select\("value"\)/);
+  assert.match(actions, /suggestedIncrement\(habit[\s\S]*?\)\s*\?\?\s*legacyFillIncrement\(/);
+  assert.match(actions, /rpc\("log_habit_completion_once"/);
+  assert.match(actions, /p_operation_id: operationId/);
+  assert.match(habitList, /crypto\.randomUUID\(\)/);
+  assert.match(habitList, /pendingRef\.current/);
+  assert.match(habitList, /operationForCompletionSubmission\(/);
+  assert.match(habitList, /operationRef\.current = operation/);
+  assert.match(habitList, /toggleHabit\(habit\.id, done, localDateKey\(\), operation\.id\)/);
+  assert.match(habitList, /operationRef\.current = null[\s\S]*?router\.refresh\(\)/);
+  assert.match(habitList, /habitCheckInActionLabel\(habit, currentValue, done\)/);
+  assert.match(habitList, /currentValue[\s\S]*?target[\s\S]*?unit/);
+  assert.match(habits, /completedRowsFor/);
+  assert.match(habits, /get_completion_stats/);
+  assert.match(habits, /todayValues/);
+  assert.match(dashboard, /<HabitList[\s\S]*?todayValues=\{todayValues\}/);
+});
+
 test("website dashboard lets signed-in users add habits", () => {
   const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
   const actions = readFileSync("website/app/(app)/dashboard/actions.ts", "utf8");
@@ -427,6 +528,7 @@ test("website dashboard lets signed-in users add habits", () => {
   assert.doesNotMatch(habitList, /Open the mobile app to add your first habit/);
   assert.match(actions, /export async function createHabit/);
   assert.match(actions, /\.from\("habits"\)[\s\S]*\.insert\(/);
+  assert.match(actions, /default_log_value:\s*defaultLogValueForTarget\(target\.value\)/);
 });
 
 test("Expo SDK patch dependencies match Expo install expectations", () => {
@@ -501,7 +603,7 @@ test("habit dashboard queries include explicit user_id filters", () => {
 
   const websiteWeeklyFunction =
     websiteSource.match(
-      /export async function getWeeklyCompletions\(\): Promise<HabitCompletion\[\]> \{[\s\S]*?return \(data \?\? \[\]\) as HabitCompletion\[\];\r?\n\}/,
+      /export async function getWeeklyCompletions\(\): Promise<HabitCompletion\[\]> \{[\s\S]*$/,
     )?.[0] ?? "";
   assert.match(websiteWeeklyFunction, /const user = await getCurrentUser\(supabase\)/);
   assert.match(websiteWeeklyFunction, /\.eq\("user_id", user\.id\)/);
@@ -592,7 +694,174 @@ test("home widget next-habit line shows for everyone; coach line is Pro-only", (
   assert.equal(noMessage.coachLabel, "");
 });
 
-test("leaderboard RPC is restricted to authenticated callers", () => {
+test("home widget exposes a safe check-in deep link and an exact-once route", async () => {
+  const snapshot = buildHomeWidgetSnapshot({
+    completedCount: 1,
+    totalHabits: 3,
+    currentStreak: 2,
+    level: 4,
+    nextHabitName: "Drink Water",
+    nextHabit: {
+      id: "habit water/1",
+      name: "Drink Water",
+      checkInValue: 250,
+    },
+    now: new Date(2026, 4, 10, 9, 5),
+    locale: "en-US",
+  });
+
+  assert.equal(snapshot.checkInLabel, "Check in");
+  assert.equal(snapshot.checkInUrl, "lagan://widget/check-in?habitId=habit%20water%2F1");
+  assert.equal(JSON.parse(stringifyHomeWidgetSnapshot(snapshot)).checkInUrl, snapshot.checkInUrl);
+
+  const rootLayout = readFileSync("app/_layout.tsx", "utf8");
+  const route = readFileSync("app/widget/check-in.tsx", "utf8");
+  const habitsData = readFileSync("lib/data/habits.ts", "utf8");
+  const widgetHelper = readFileSync("lib/widgets/widget-check-in.ts", "utf8");
+  const plugin = readFileSync("plugins/with-lagan-widget.js", "utf8");
+  const qa = readFileSync("QA.md", "utf8");
+  assert.match(rootLayout, /widget\/check-in/);
+  assert.match(route, /getHabit/);
+  assert.match(route, /validated\.ok/);
+  assert.match(habitsData, /getHabit[\s\S]*?\.is\("archived_at", null\)/);
+  assert.match(habitsData, /habitError \|\| completionsError/);
+  assert.match(route, /widgetCheckInForValidatedState/);
+  assert.match(widgetHelper, /suggestedCheckInForHabit/);
+  assert.match(route, /logCompletionOnce/);
+  assert.match(route, /Crypto\.randomUUID\(\)/);
+  assert.doesNotMatch(route, /params\.value/);
+  assert.match(route, /finish\(\)[\s\S]*?\.catch\(\(\) => undefined\)[\s\S]*?\.finally/);
+  assert.match(route, /\.finally\(\(\) => router\.replace\("\/" as never\)\)/);
+  assert.match(qa, /force-validates the current owned habit online/i);
+  assert.match(qa, /offline[\s\S]*?does not queue or guess a check-in[\s\S]*?Today/i);
+  assert.match(plugin, /lagan_widget_check_in/);
+  assert.match(plugin, /checkInUrl/);
+  assert.match(plugin, /widget\/check-in/);
+  assert.equal(translate("en", "Logging check-in..."), "Logging check-in...");
+  assert.equal(translate("hi", "Logging check-in..."), "चेक-इन लॉग हो रहा है...");
+
+  assert.ok(existsSync("lib/widgets/widget-check-in.ts"));
+  const { widgetCheckInForValidatedState } = await import("../lib/widgets/widget-check-in.ts");
+  const activeHabit = {
+    id: "widget-habit",
+    target: 100,
+    default_log_value: 25,
+    archived_at: null,
+  };
+  assert.equal(
+    widgetCheckInForValidatedState(
+      { ok: false, habit: activeHabit, completions: [] },
+      "2026-07-11",
+    ),
+    null,
+  );
+  assert.equal(
+    widgetCheckInForValidatedState(
+      { ok: true, habit: { ...activeHabit, archived_at: "2026-07-10" }, completions: [] },
+      "2026-07-11",
+    ),
+    null,
+  );
+  assert.equal(
+    widgetCheckInForValidatedState(
+      {
+        ok: true,
+        habit: activeHabit,
+        completions: [{ completed_on: "2026-07-11", value: 100 }],
+      },
+      "2026-07-11",
+    ),
+    null,
+  );
+  assert.deepEqual(
+    widgetCheckInForValidatedState(
+      {
+        ok: true,
+        habit: activeHabit,
+        completions: [{ completed_on: "2026-07-11", value: 40 }],
+      },
+      "2026-07-11",
+    ),
+    { habitId: "widget-habit", amount: 25 },
+  );
+});
+
+test("partial check-in credit migration is target-aware, optimized, and least-privileged", () => {
+  const migrationName = readdirSync("supabase/migrations")
+    .filter((name) => name.endsWith("_smart_partial_checkin_credit.sql"))
+    .sort()
+    .at(-1);
+  assert.ok(migrationName, "expected a CLI-generated smart partial check-in migration");
+  assert.ok(
+    migrationName > "20260711101535_completion_increment_idempotency.sql",
+    "credit migration must run after the exact-once completion migration",
+  );
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  const nativeHabits = readFileSync("lib/data/habits.ts", "utf8");
+  const readme = readFileSync("README.md", "utf8");
+  assert.equal(existsSync("supabase/get_leaderboard.sql"), false);
+  assert.doesNotMatch(readme, /supabase\/get_leaderboard\.sql/i);
+  assert.doesNotMatch(readme, /Leaderboard RPC:/i);
+  assert.match(readme, /authenticated leaderboard Edge Function/i);
+  assert.match(readme, /service-role-only database functions/i);
+  assert.match(sql, /drop function if exists public\.get_leaderboard\(text\)/i);
+  assert.ok(
+    sql.indexOf("drop function if exists public.get_leaderboard(text)") <
+      sql.indexOf("create or replace function public.get_leaderboard_entries"),
+    "legacy RPC must be removed before replacement APIs are installed",
+  );
+  assert.match(
+    sql,
+    /create or replace view public\.leaderboard\s+with \(security_invoker\s*=\s*true\)/i,
+  );
+  assert.match(
+    sql,
+    /join public\.habits(?:\s+as)?\s+h\s+on h\.id\s*=\s*hc\.habit_id\s+and h\.user_id\s*=\s*hc\.user_id/i,
+  );
+  assert.match(
+    sql,
+    /h\.target is null\s+or h\.target <= 0\s+or coalesce\(hc\.value,\s*1\) >= h\.target/i,
+  );
+  assert.ok(
+    (sql.match(/coalesce\(hc\.value,\s*1\)\s*>=\s*h\.target/gi) ?? []).length >= 5,
+    "every leaderboard/date/stats path must apply target-aware credit",
+  );
+  assert.match(sql, /row_number\(\) over \(partition by dd\.user_id order by dd\.completed_on\)/i);
+  assert.match(sql, /current_islands as/i);
+  assert.match(sql, /create or replace function public\.get_leaderboard_position/i);
+  assert.match(sql, /create or replace function public\.get_completion_dates\(\)/i);
+  assert.match(sql, /create or replace function public\.get_completion_stats\(\)/i);
+  assert.match(sql, /where hc\.user_id\s*=\s*\(select auth\.uid\(\)\)/i);
+  assert.match(sql, /revoke all on public\.leaderboard from public, anon, authenticated/i);
+  assert.match(sql, /grant all on public\.leaderboard to service_role/i);
+  assert.match(
+    sql,
+    /revoke execute on function public\.get_leaderboard_entries\(text, integer, uuid\)\s+from public, anon, authenticated/i,
+  );
+  assert.match(
+    sql,
+    /grant execute on function public\.get_leaderboard_entries\(text, integer, uuid\)\s+to service_role/i,
+  );
+  assert.match(
+    sql,
+    /grant execute on function public\.get_completion_stats\(\)\s+to authenticated/i,
+  );
+  assert.match(nativeHabits, /rpc\("get_completion_stats"\)/);
+
+  const pgTapPath = "supabase/tests/database/smart_partial_checkin_credit.test.sql";
+  assert.ok(existsSync(pgTapPath), "expected target-aware credit pgTAP coverage");
+  const pgTap = readFileSync(pgTapPath, "utf8");
+  assert.match(pgTap, /partial positive-target row receives no completion credit/i);
+  assert.match(pgTap, /target-hit and targetless rows receive completion credit/i);
+  assert.match(pgTap, /get_completion_stats is scoped to the authenticated owner/i);
+  assert.match(pgTap, /anonymous callers cannot execute get_completion_stats/i);
+  assert.match(pgTap, /legacy get_leaderboard RPC is absent/i);
+  assert.match(pgTap, /authenticated callers cannot execute leaderboard entries/i);
+  assert.match(pgTap, /service role may execute leaderboard entries/i);
+});
+
+test("historical leaderboard RPC migration denied anonymous callers before retirement", () => {
   const sql = readFileSync("supabase/migrations/0012_restrict_leaderboard_rpc.sql", "utf8");
   assert.match(sql, /revoke execute on function public\.get_leaderboard\(text\) from public/i);
   assert.match(sql, /revoke execute on function public\.get_leaderboard\(text\) from anon/i);
@@ -2188,7 +2457,7 @@ test("first-run habit detail and log prompt touch targets expose web accessibili
   }
   assert.match(detailSource, /isQuantityHabit\(habit\)[\s\S]*t\("Log custom amount"\)/);
   assert.match(detailSource, /t\(progress\.label\)/);
-  assert.match(detailSource, /longestStreakFor\(completions\)/);
+  assert.match(detailSource, /longestStreakFor\(habit, completions\)/);
   for (const label of ["Done today", "Not logged yet"]) {
     assert.notEqual(translate("hi", label), label);
   }
@@ -2941,6 +3210,93 @@ test("progressForHabit supports partial and completed target habits", () => {
   assert.equal(progressForHabit(habit, null).isDone, false);
   assert.equal(progressForHabit(habit, { value: 750 }).label, "750 / 2000 ml");
   assert.equal(progressForHabit(habit, { value: 2000 }).isDone, true);
+});
+
+test("suggested check-ins use positive default chunks and clamp to remaining targets", () => {
+  assert.equal(typeof habitIntelligence.suggestedCheckInForHabit, "function");
+  const habit = {
+    id: "h1",
+    name: "Drink Water",
+    description: null,
+    icon: "water_drop",
+    target: 1000,
+    unit: "ml",
+    default_log_value: 250,
+  };
+
+  assert.deepEqual(
+    habitIntelligence.suggestedCheckInForHabit(habit, progressForHabit(habit, null)),
+    {
+      value: 250,
+      unit: "ml",
+      remainingBefore: 1000,
+      remainingAfter: 750,
+      completesGoal: false,
+      label: "250 ml",
+    },
+  );
+  assert.deepEqual(
+    habitIntelligence.suggestedCheckInForHabit(habit, progressForHabit(habit, { value: 900 })),
+    {
+      value: 100,
+      unit: "ml",
+      remainingBefore: 100,
+      remainingAfter: 0,
+      completesGoal: true,
+      label: "100 ml",
+    },
+  );
+  assert.equal(
+    habitIntelligence.suggestedCheckInForHabit(habit, progressForHabit(habit, { value: 1000 })),
+    null,
+  );
+
+  assert.equal(
+    habitIntelligence.suggestedCheckInForHabit(
+      { ...habit, default_log_value: 0 },
+      progressForHabit(habit, null),
+    ),
+    null,
+  );
+  assert.equal(
+    habitIntelligence.suggestedCheckInForHabit(
+      { ...habit, target: null },
+      progressForHabit({ ...habit, target: null }, null),
+    ),
+    null,
+  );
+});
+
+test("completed-day helpers ignore partial target rows and credit targetless rows", () => {
+  assert.equal(typeof habitIntelligence.isHabitCompletionDone, "function");
+  assert.equal(typeof habitIntelligence.completedDatesForHabit, "function");
+  const targetHabit = {
+    id: "water",
+    name: "Drink Water",
+    description: null,
+    icon: "water_drop",
+    target: 1000,
+    unit: "ml",
+  };
+  const completions = [
+    { habit_id: "water", completed_on: "2026-05-10", value: 250 },
+    { habit_id: "water", completed_on: "2026-05-11", value: 1000 },
+    { habit_id: "other", completed_on: "2026-05-12", value: 1 },
+  ];
+
+  assert.equal(habitIntelligence.isHabitCompletionDone(targetHabit, completions[0]), false);
+  assert.equal(habitIntelligence.isHabitCompletionDone(targetHabit, completions[1]), true);
+  assert.deepEqual(habitIntelligence.completedDatesForHabit(targetHabit, completions), [
+    "2026-05-11",
+  ]);
+  assert.equal(
+    habitIntelligence.isHabitCompletionDone({ ...targetHabit, target: null }, { value: null }),
+    true,
+  );
+  assert.equal(
+    habitIntelligence.isHabitCompletionDone({ ...targetHabit, target: 0 }, { value: 0 }),
+    true,
+  );
 });
 
 test("completion value payload stores absolute values", () => {
@@ -4579,6 +4935,9 @@ test("first-run smoke suite covers both control and treatment manual creation", 
   assert.match(source, /button\.click\(\);\s*button\.click\(\);/);
   assert.match(source, /for \(const label of advancedLabels\)/);
   assert.match(source, /storedMarker !== "1"/);
+  assert.match(source, /rpc\/get_completion_stats/);
+  assert.match(source, /total_completions:\s*credited \? 1 : 0/);
+  assert.match(source, /completion_dates:\s*credited \? \[today\] : \[\]/);
 
   const postCreateSource = readFileSync("scripts/first-run/post-create-smoke.cjs", "utf8");
   assert.match(postCreateSource, /actionButton[\s\S]*?button\.click\(\);\s*button\.click\(\);/);
@@ -4846,8 +5205,307 @@ test("coach detects target habits falling behind by time of day", () => {
   const signal = signals.find((item) => item.kind === "behind_progress");
   assert.equal(signal?.habitId, coachHabit.id);
   assert.equal(signal?.suggestedAction, "log_value");
-  assert.equal(signal?.suggestedValue, 500);
+  assert.equal(signal?.suggestedValue, 250);
   assert.match(signal?.message ?? "", /only completed 30%/i);
+});
+
+test("client and server coach streak signals ignore partial target days", () => {
+  const now = new Date(2026, 4, 14, 9, 0);
+  const partialHistory = [
+    {
+      habit_id: coachHabit.id,
+      completed_on: "2026-05-13",
+      created_at: "2026-05-13T09:00:00",
+      value: 250,
+    },
+    {
+      habit_id: coachHabit.id,
+      completed_on: "2026-05-12",
+      created_at: "2026-05-12T09:00:00",
+      value: 500,
+    },
+  ];
+
+  const clientSignals = buildCoachSignals({
+    habits: [coachHabit],
+    completions: partialHistory,
+    now,
+    tone: "friendly",
+  });
+  const serverSignals = portSignalsFor([coachHabit], partialHistory, now, "friendly");
+
+  assert.equal(
+    clientSignals.some((signal) => signal.kind === "streak_risk"),
+    false,
+  );
+  assert.equal(
+    serverSignals.some((signal) => signal.kind === "streak_risk"),
+    false,
+  );
+});
+
+test("partial coach actions use neutral target-progress copy with client/server parity", () => {
+  const forbiddenClaim =
+    /\b(?:complete(?:s|d)?|counts?|alive)\b|protect[^.]*streak|keep[^.]*streak/i;
+  const tones = ["friendly", "motivational", "calm", "strict", "military"];
+
+  for (const kind of ["streak_risk", "easy_alternative"]) {
+    for (const tone of tones) {
+      const signal = {
+        kind,
+        priority: 70,
+        habitId: coachHabit.id,
+        habitName: coachHabit.name,
+        suggestedAction: "log_value",
+        suggestedValue: 250,
+        tone,
+        unit: coachHabit.unit,
+      };
+      const clientMessage = formatCoachMessage(signal);
+      const serverMessage = formatCoachMessagePort(signal);
+
+      assert.equal(serverMessage, clientMessage, `${kind}/${tone} copy must stay in parity`);
+      assert.doesNotMatch(clientMessage, forbiddenClaim, `${kind}/${tone} must not promise credit`);
+      assert.match(clientMessage, /progress|target|step|log/i);
+    }
+  }
+});
+
+test("generated partial coach copy cannot reintroduce completion or streak-credit claims", async () => {
+  assert.equal(typeof clientCoach.coachMessageIsSafeForSignal, "function");
+  assert.equal(typeof serverCoach.coachMessageIsSafeForSignal, "function");
+  const baseSignal = {
+    kind: "streak_risk",
+    priority: 70,
+    habitId: coachHabit.id,
+    habitName: coachHabit.name,
+    message: "Move Drink Water closer to today's target. Log 250 ml for Drink Water.",
+    suggestedAction: "log_value",
+    suggestedValue: 250,
+    tone: "friendly",
+    unit: coachHabit.unit,
+  };
+  const unsafeMessages = [
+    "Log 250 ml to keep your streak alive.",
+    "This smaller step will finish the habit.",
+    "Log 250 ml and you're done for today.",
+    "This will reach today's target.",
+    "Your streak is safe after this log.",
+  ];
+  for (const kind of ["streak_risk", "easy_alternative", "behind_progress"]) {
+    const signal = { ...baseSignal, kind };
+    for (const unsafe of unsafeMessages) {
+      assert.equal(clientCoach.coachMessageIsSafeForSignal(signal, unsafe), false);
+      assert.equal(serverCoach.coachMessageIsSafeForSignal(signal, unsafe), false);
+    }
+  }
+
+  const behindProgressSignal = {
+    ...baseSignal,
+    kind: "behind_progress",
+    message: "You've only completed 25% of Drink Water today. Log 250 ml so you don't fall behind.",
+  };
+  assert.equal(
+    await resolveCoachMessage(behindProgressSignal, {
+      enabled: true,
+      invoke: async () => unsafeMessages[0],
+    }),
+    behindProgressSignal.message,
+  );
+
+  const cachedAt = new Date(2026, 6, 11, 12, 0).getTime();
+  const cacheKey = "habbit:coach-message:behind_progress:coach-water:friendly:250";
+  const cache = new Map([[cacheKey, JSON.stringify({ message: unsafeMessages[0], cachedAt })]]);
+  const storage = {
+    getItem: async (key) => cache.get(key) ?? null,
+    setItem: async (key, value) => void cache.set(key, value),
+  };
+  let cacheRefreshCalls = 0;
+  assert.equal(
+    await resolveCoachMessage(behindProgressSignal, {
+      enabled: true,
+      now: new Date(cachedAt + 1_000),
+      storage,
+      invoke: async () => {
+        cacheRefreshCalls++;
+        return null;
+      },
+    }),
+    behindProgressSignal.message,
+  );
+  assert.equal(
+    await resolveCoachMessage(behindProgressSignal, {
+      enabled: true,
+      now: new Date(cachedAt + 2_000),
+      storage,
+      invoke: async () => {
+        cacheRefreshCalls++;
+        return null;
+      },
+    }),
+    behindProgressSignal.message,
+  );
+  assert.equal(cacheRefreshCalls, 1, "the trusted negative fallback must suppress reinvocation");
+
+  const inApp = readFileSync("supabase/functions/coach-message/index.ts", "utf8");
+  const push = readFileSync("supabase/functions/coach-push/index.ts", "utf8");
+  for (const source of [inApp, push]) {
+    assert.match(source, /coachMessageIsSafeForSignal/);
+    assert.match(source, /partial[\s\S]*?streak[\s\S]*?completion/i);
+  }
+});
+
+test("new suggested native check-ins use exact-once logging and completion-aware history", () => {
+  const dashboard = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const detail = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  const habitsData = readFileSync("lib/data/habits.ts", "utf8");
+  const reminders = readFileSync("lib/data/reminders.ts", "utf8");
+  const reminderSync = readFileSync("lib/data/reminder-sync.ts", "utf8");
+  const logPrompt = readFileSync("components/log-prompt.tsx", "utf8");
+  const detailSmoke = readFileSync("scripts/first-run/detail-log-smoke.cjs", "utf8");
+
+  for (const source of [dashboard, detail]) {
+    assert.match(source, /import \* as Crypto from "expo-crypto"/);
+    assert.match(source, /logCompletionOnce/);
+    assert.match(source, /Crypto\.randomUUID\(\)/);
+    assert.match(source, /suggestedCheckInForHabit/);
+  }
+  assert.match(habitsData, /completedDatesForHabit/);
+  assert.match(habitsData, /isHabitCompletionDone/);
+  assert.match(reminders, /completedDatesForHabit/);
+  assert.match(reminders, /suggestedCheckInForHabit/);
+  assert.match(reminderSync, /suggestion\?: CheckInSuggestion/);
+  assert.match(logPrompt, /suggestedCheckInForHabit/);
+  assert.match(logPrompt, /else if \(base > 0\)/);
+  assert.doesNotMatch(logPrompt, /base > 0 && target == null/);
+  assert.match(logPrompt, /Math\.min\(base, remaining\)/);
+  assert.match(logPrompt, /Math\.min\(base \* 2, remaining\)/);
+  assert.match(detailSmoke, /rpc\/log_habit_completion_once/);
+  assert.match(detailSmoke, /p_operation_id/);
+  assert.match(detailSmoke, /incrementReceipts/);
+  assert.match(detailSmoke, /rpc\/get_completion_stats/);
+});
+
+test("manual and quick-chip prompt increments share a stable exact-once operation", async () => {
+  const prompt = readFileSync("components/log-prompt.tsx", "utf8");
+  const dashboard = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const detail = readFileSync("app/habits/[id]/index.tsx", "utf8");
+
+  assert.ok(existsSync("lib/data/completion-submission-operation.ts"));
+  const { operationForCompletionSubmission } =
+    await import("../lib/data/completion-submission-operation.ts");
+  let createdIds = 0;
+  const createId = () => `operation-${++createdIds}`;
+  const firstOperation = operationForCompletionSubmission(
+    null,
+    { habitId: "habit-1", value: 25, note: "steady" },
+    createId,
+  );
+  const retryOperation = operationForCompletionSubmission(
+    firstOperation,
+    { habitId: "habit-1", value: 25, note: "steady" },
+    createId,
+  );
+  const changedOperation = operationForCompletionSubmission(
+    retryOperation,
+    { habitId: "habit-1", value: 50, note: "steady" },
+    createId,
+  );
+  assert.equal(retryOperation.id, firstOperation.id);
+  assert.notEqual(changedOperation.id, firstOperation.id);
+  assert.equal(createdIds, 2);
+
+  assert.match(prompt, /import \* as Crypto from "expo-crypto"/);
+  assert.match(prompt, /const submittingRef = useRef\(false\)/);
+  assert.match(prompt, /if \(submittingRef\.current\) return/);
+  assert.match(prompt, /submittingRef\.current = true/);
+  assert.match(prompt, /operationForCompletionSubmission\(/);
+  assert.match(prompt, /Crypto\.randomUUID/);
+  assert.match(prompt, /const operationId = operation\.id/);
+  assert.match(prompt, /pendingOperationRef/);
+  assert.match(prompt, /onSubmit\(amount, note, operationId\)/);
+  assert.match(prompt, /onPress=\{\(\) => submitValue\(chip\.value\)\}/);
+  assert.match(prompt, /await submitValue\(amount\)/);
+  assert.match(prompt, /submittingRef\.current = false/);
+  assert.match(prompt, /handleMarkAllDone[\s\S]*?pendingOperationRef\.current = null/);
+  assert.match(prompt, /user-selected fallback controls, not canonical suggestions/i);
+  assert.match(prompt, /target\s*\?\s*target \/ 4/);
+  assert.match(prompt, /Math\.min\(base \* 2, suggestion\.remainingBefore\)/);
+
+  const dashboardManual =
+    dashboard.match(/async function handleLogSheetSubmit[\s\S]*?\n  \}/)?.[0] ?? "";
+  const dashboardSleep =
+    dashboard.match(/async function handleSleepCoachLog[\s\S]*?\n  \}/)?.[0] ?? "";
+  const detailManual = detail.match(/async function handleLog[\s\S]*?\n  \}/)?.[0] ?? "";
+  for (const handler of [dashboardManual, dashboardSleep, detailManual]) {
+    assert.match(handler, /operationId: string/);
+    assert.match(handler, /logCompletionOnce\([\s\S]*?operationId[\s\S]*?value/);
+    assert.doesNotMatch(handler, /\blogCompletion\(/);
+  }
+  assert.match(
+    dashboard,
+    /visible=\{sleepLogHabit !== null\}[\s\S]*?currentValue=\{\s*sleepLogHabit \? \(data\?\.todayProgress\.get\(sleepLogHabit\.id\)\?\.current \?\? 0\) : 0\s*\}[\s\S]*?onSubmit=\{handleSleepCoachLog\}/,
+  );
+  assert.match(
+    dashboardSleep,
+    /const wasDone = data\?\.completedToday\.has\(sleepLogHabit\.id\) \?\? false/,
+  );
+  assert.match(
+    dashboardSleep,
+    /const prevValue = data\?\.todayProgress\.get\(sleepLogHabit\.id\)\?\.current \?\? 0/,
+  );
+  assert.match(
+    dashboardSleep,
+    /const target = sleepLogHabit\.target != null \? Number\(sleepLogHabit\.target\) : null/,
+  );
+  assert.match(
+    dashboardSleep,
+    /const nowDone = target != null && target > 0 \? prevValue \+ value >= target : true/,
+  );
+  assert.match(
+    dashboardSleep,
+    /if \(!wasDone && nowDone\) \{[\s\S]*?celebrate\(\)[\s\S]*?recordCompletionAndMaybeReview\(\)/,
+  );
+  assert.match(dashboardSleep, /if \(!result\.queued\) load\(\{ force: true \}\)/);
+  assert.match(dashboard, /handleMarkAllDone[\s\S]*?toggleHabit\(/);
+  assert.match(detail, /handleMarkAllDone[\s\S]*?toggleHabit\(/);
+});
+
+test("suggested native check-ins reject rapid duplicate taps and keep queued detail progress", () => {
+  const dashboard = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const detail = readFileSync("app/habits/[id]/index.tsx", "utf8");
+
+  assert.match(dashboard, /checkInFlightRef\s*=\s*useRef\(new Set<string>\(\)\)/);
+  assert.match(dashboard, /checkInFlightRef\.current\.has\(habitId\)/);
+  assert.match(dashboard, /checkInFlightRef\.current\.add\(habitId\)/);
+  assert.match(dashboard, /checkInFlightRef\.current\.delete\(habitId\)/);
+  assert.match(dashboard, /checkInFlightRef\.current\.has\(signal\.habitId\)/);
+  assert.match(dashboard, /checkInFlightRef\.current\.delete\(signal\.habitId\)/);
+  assert.doesNotMatch(dashboard, /setData\(previous\)/);
+  assert.doesNotMatch(dashboard, /completedToday:\s*previous/);
+  assert.match(dashboard, /if \(!result\.ok\)[\s\S]*?setData\(\(current\)[\s\S]*?todayProgress/);
+  assert.match(
+    dashboard,
+    /const liveSuggestion[\s\S]*?suggestedCheckInForHabit\(habit, liveProgress\)/,
+  );
+  assert.match(dashboard, /handleCoachAction[\s\S]*?setData\(\(currentData\)[\s\S]*?todayProgress/);
+
+  assert.match(detail, /quickLogInFlightRef\s*=\s*useRef\(false\)/);
+  assert.match(detail, /if \(quickLogInFlightRef\.current\) return/);
+  assert.match(detail, /setQuickLogging\(true\)/);
+  assert.match(detail, /setCompletions\(\(current\)/);
+  assert.match(detail, /currentValue \+ checkInSuggestion\.value/);
+  assert.match(detail, /const liveSuggestion[\s\S]*?suggestedCheckInForHabit\(habit, progress\)/);
+  assert.match(detail, /currentValue \+ liveSuggestion\.value/);
+  assert.match(detail, /disabled=\{doneToday \|\| quickLogging\}/);
+  assert.match(
+    detail,
+    /handleInsightAction[\s\S]*?if \(quickLogInFlightRef\.current\) return[\s\S]*?Logged from AI coach/,
+  );
+  assert.match(
+    detail,
+    /handleInsightAction[\s\S]*?findIndex\(\(completion\) => completion\.completed_on === today\)[\s\S]*?optimistic-/,
+  );
 });
 
 test("AI coach card only shows secondary Open when primary logs progress", () => {
@@ -5622,6 +6280,39 @@ test("weekly report keeps step counts in steps and never invents kilometres (143
   assert.match(facts, /23,000 steps total/);
   assert.match(facts, /hit the 8,000 steps goal on 2 days/);
   assert.doesNotMatch(facts, /km/); // the regression: a steps habit must never read as km
+});
+
+test("weekly report excludes partial target rows from completion credit but keeps quantity totals", () => {
+  const stats = buildWeeklyStats({
+    habits: [
+      reportHabit({
+        id: "water",
+        name: "Water",
+        unit: "ml",
+        target: 1000,
+        metric_type: "volume_ml",
+      }),
+      reportHabit({ id: "journal", name: "Journal", metric_type: "boolean" }),
+    ],
+    completions: [
+      { habit_id: "water", completed_on: "2026-06-01", value: 250 },
+      { habit_id: "water", completed_on: "2026-06-02", value: 1000 },
+      { habit_id: "journal", completed_on: "2026-06-02", value: 1 },
+    ],
+    lastWeekCompletions: 1,
+    weekStartDate: REPORT_WEEK_START,
+    today: REPORT_FAR_FUTURE,
+  });
+
+  const water = stats.byHabit.find((habit) => habit.name === "Water");
+  assert.equal(stats.totalCompletions, 2);
+  assert.equal(stats.perfectDays, 1);
+  assert.equal(stats.bestStreak, 1);
+  assert.deepEqual(stats.trend, { lastWeekCompletions: 1, delta: 1 });
+  assert.equal(water?.daysLogged, 1);
+  assert.equal(water?.weeklyTotal, 1250);
+  assert.equal(water?.dailyAverage, 625);
+  assert.equal(water?.targetHitDays, 1);
 });
 
 test("weekly report treats boolean habits as day counts, never a quantity total", () => {

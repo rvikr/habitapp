@@ -96,6 +96,22 @@ export function scheduledDaysForHabit(
   return count;
 }
 
+export function creditedCompletionRows(
+  habits: HabitStatsRow[],
+  completions: CompletionStatsRow[],
+): CompletionStatsRow[] {
+  const habitsById = new Map(habits.map((habit) => [habit.id, habit]));
+  return completions.filter((completion) => {
+    const habit = habitsById.get(completion.habit_id);
+    if (!habit) return false;
+    const target = habit.target == null ? null : Number(habit.target);
+    if (target != null && Number.isFinite(target) && target > 0) {
+      return Number(completion.value ?? 1) >= target;
+    }
+    return true;
+  });
+}
+
 export function buildWeeklyStats(params: {
   habits: HabitStatsRow[];
   completions: CompletionStatsRow[];
@@ -104,19 +120,21 @@ export function buildWeeklyStats(params: {
   today: Date;
 }): WeeklyStats {
   const { habits, completions, lastWeekCompletions, weekStartDate, today } = params;
+  const creditedCompletions = creditedCompletionRows(habits, completions);
 
   const weekStart = formatDate(weekStartDate);
   const weekEndDate = new Date(weekStartDate);
   weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 6);
   const weekEnd = formatDate(weekEndDate);
 
-  // Per habit: distinct days logged + per-day summed value (the RPC already sums
-  // multiple same-day logs, but a habit may appear once per day here, so we
-  // re-sum defensively). dayMap tracks which habits were touched each day.
+  // Raw per-habit totals preserve every quantity increment for reporting. Credit
+  // maps include only target-reaching rows so partial days do not inflate streaks,
+  // completion rates, perfect days, or week-over-week completion counts.
   const perHabit = new Map<
     string,
     { days: Set<string>; total: number; dayTotals: Map<string, number> }
   >();
+  const creditedDaysByHabit = new Map<string, Set<string>>();
   const dayMap = new Map<string, Set<string>>();
   for (const completion of completions) {
     const entry =
@@ -129,7 +147,12 @@ export function buildWeeklyStats(params: {
       (entry.dayTotals.get(completion.completed_on) ?? 0) + value,
     );
     perHabit.set(completion.habit_id, entry);
+  }
 
+  for (const completion of creditedCompletions) {
+    const habitDays = creditedDaysByHabit.get(completion.habit_id) ?? new Set<string>();
+    habitDays.add(completion.completed_on);
+    creditedDaysByHabit.set(completion.habit_id, habitDays);
     const dayHabits = dayMap.get(completion.completed_on) ?? new Set();
     dayHabits.add(completion.habit_id);
     dayMap.set(completion.completed_on, dayHabits);
@@ -163,7 +186,8 @@ export function buildWeeklyStats(params: {
     const entry = perHabit.get(habit.id);
     const target = habit.target == null ? null : Number(habit.target);
     const isQuantity = habit.metric_type !== "boolean" && target != null && target > 0;
-    const daysLogged = entry?.days.size ?? 0;
+    const daysLogged = creditedDaysByHabit.get(habit.id)?.size ?? 0;
+    const rawDaysLogged = entry?.days.size ?? 0;
     const scheduledDays = scheduledDaysForHabit(habit, weekStartDate, today);
     const completionRate = scheduledDays > 0 ? Math.min(daysLogged / scheduledDays, 1) : 0;
 
@@ -177,7 +201,7 @@ export function buildWeeklyStats(params: {
     let displayAverage: string | null = null;
     if (isQuantity) {
       weeklyTotal = entry?.total ?? 0;
-      dailyAverage = daysLogged > 0 ? weeklyTotal / daysLogged : 0;
+      dailyAverage = rawDaysLogged > 0 ? weeklyTotal / rawDaysLogged : 0;
       targetHitDays = 0;
       if (entry && target != null) {
         for (const dayValue of entry.dayTotals.values()) {
@@ -215,7 +239,7 @@ export function buildWeeklyStats(params: {
   return {
     weekStart,
     weekEnd,
-    totalCompletions: completions.length,
+    totalCompletions: creditedCompletions.length,
     activeHabits: habitCount,
     perfectDays,
     bestStreak,
@@ -226,7 +250,7 @@ export function buildWeeklyStats(params: {
     // doesn't flag a habit that needs no work.
     focusHabit:
       focus && focus.name !== strongest?.name && focus.completionRate < 1 ? focus.name : null,
-    trend: { lastWeekCompletions, delta: completions.length - lastWeekCompletions },
+    trend: { lastWeekCompletions, delta: creditedCompletions.length - lastWeekCompletions },
     byHabit,
   };
 }
@@ -250,7 +274,7 @@ export function buildFacts(stats: WeeklyStats): string {
           ? `, hit the ${withUnit(h.target, h.unit)} goal on ${h.targetHitDays} day${h.targetHitDays === 1 ? "" : "s"}`
           : "";
       lines.push(
-        `${h.name}: logged ${h.daysLogged} of ${h.scheduledDays} days (${pct(h.completionRate)}%), ${h.displayTotal} total, ${h.displayAverage} per logged day${goal}.`,
+        `${h.name}: completed ${h.daysLogged} of ${h.scheduledDays} days (${pct(h.completionRate)}%), ${h.displayTotal} total, ${h.displayAverage} per logged day${goal}.`,
       );
     } else {
       lines.push(

@@ -18,6 +18,7 @@ export type HomeWidgetDashboardSnapshot = Pick<
   | "level"
   | "locale"
   | "nextHabitName"
+  | "nextHabit"
   | "coachMessage"
   | "hasPro"
 >;
@@ -34,6 +35,8 @@ const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
   streakLabel: "Sign in to sync",
   levelLabel: "Lagan",
   updatedLabel: "",
+  checkInLabel: "Open Lagan",
+  checkInUrl: null,
 } satisfies HomeWidgetSnapshot);
 
 export async function syncHomeWidgetFromDashboard(

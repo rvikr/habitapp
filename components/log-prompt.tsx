@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import * as Crypto from "expo-crypto";
 import {
   View,
   Text,
@@ -9,18 +10,30 @@ import {
   Platform,
 } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
+import {
+  operationForCompletionSubmission,
+  type CompletionSubmissionOperation,
+} from "@/lib/data/completion-submission-operation";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import type { Habit } from "@/types/db";
 import { parseOptionalPositiveNumber } from "@/lib/auth/validation";
 import { useLanguage } from "@/components/language-provider";
-import { formatAmount } from "@/lib/coach/habit-intelligence";
+import {
+  formatAmount,
+  progressForHabit,
+  suggestedCheckInForHabit,
+} from "@/lib/coach/habit-intelligence";
 
 type Props = {
   visible: boolean;
   habit: Habit | null;
   /** Today's already-logged amount, used for the progress line and quick-add math. */
   currentValue?: number;
-  onSubmit: (value: number, note: string) => Promise<{ ok: boolean; error?: string }> | void;
+  onSubmit: (
+    value: number,
+    note: string,
+    operationId: string,
+  ) => Promise<{ ok: boolean; error?: string }> | void;
   /** When provided, shows a "Mark all done" button that logs the full target in one tap. */
   onMarkAllDone?: () => Promise<{ ok: boolean; error?: string }> | void;
   onDismiss: () => void;
@@ -35,6 +48,12 @@ const IMPLAUSIBLE_TARGET_MULTIPLE = 10;
 
 function quickAddChips(habit: Habit, currentValue: number, fillLabel: string): QuickChip[] {
   const target = habit.target != null ? Number(habit.target) : null;
+  const suggestion = suggestedCheckInForHabit(
+    habit,
+    progressForHabit(habit, currentValue > 0 ? { value: currentValue } : null),
+  );
+  // When a legacy habit has no canonical default, target/4 and target/2 are
+  // user-selected fallback controls, not canonical suggestions.
   const baseRaw =
     habit.default_log_value != null && Number(habit.default_log_value) > 0
       ? Number(habit.default_log_value)
@@ -52,9 +71,18 @@ function quickAddChips(habit: Habit, currentValue: number, fillLabel: string): Q
       chips.push({ label, value: rounded });
     }
   };
-  if (base > 0) {
-    push(`+${formatAmount(base)}${unitLabel}`, base);
-    push(`+${formatAmount(base * 2)}${unitLabel}`, base * 2);
+  if (suggestion) {
+    push(`+${suggestion.label}`, suggestion.value);
+    push(
+      `+${formatAmount(Math.min(base * 2, suggestion.remainingBefore))}${unitLabel}`,
+      Math.min(base * 2, suggestion.remainingBefore),
+    );
+  } else if (base > 0) {
+    const remaining = target != null && target > 0 ? Math.max(target - currentValue, 0) : null;
+    const firstValue = remaining == null ? base : Math.min(base, remaining);
+    const secondValue = remaining == null ? base * 2 : Math.min(base * 2, remaining);
+    push(`+${formatAmount(firstValue)}${unitLabel}`, firstValue);
+    push(`+${formatAmount(secondValue)}${unitLabel}`, secondValue);
   }
   if (target != null) {
     push(fillLabel, target - currentValue);
@@ -75,19 +103,34 @@ export default function LogPrompt({
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const pendingOperationRef = useRef<CompletionSubmissionOperation | null>(null);
 
   async function submitValue(amount: number) {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    const operation = operationForCompletionSubmission(
+      pendingOperationRef.current,
+      { habitId: habit?.id ?? "", value: amount, note },
+      Crypto.randomUUID,
+    );
+    pendingOperationRef.current = operation;
+    const operationId = operation.id;
     setError(null);
     setSubmitting(true);
     try {
-      const result = await onSubmit(amount, note);
+      const result = await onSubmit(amount, note, operationId);
       if (result && !result.ok) {
         setError(result.error ?? t("Could not save. Try again."));
         return;
       }
+      pendingOperationRef.current = null;
       setValue("");
       setNote("");
+    } catch {
+      setError(t("Could not save. Try again."));
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -120,7 +163,8 @@ export default function LogPrompt({
   }
 
   async function handleMarkAllDone() {
-    if (!habit || !onMarkAllDone) return;
+    if (!habit || !onMarkAllDone || submittingRef.current) return;
+    submittingRef.current = true;
     // "Mark all done" is a preset action — log the full target in one tap without
     // re-confirming. Manually typed amounts still confirm via handleSubmit.
     setError(null);
@@ -129,8 +173,11 @@ export default function LogPrompt({
       const result = await onMarkAllDone();
       if (result && !result.ok) {
         setError(result.error ?? t("Could not save. Try again."));
+        return;
       }
+      pendingOperationRef.current = null;
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }

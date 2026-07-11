@@ -49,6 +49,7 @@ import { generateContent } from "../_shared/gemini.ts";
 import { isAllowedWebPushEndpoint } from "../_shared/web-push-endpoint.ts";
 import {
   buildCoachSignals,
+  coachMessageIsSafeForSignal,
   chooseTopCoachSignal,
   localTimeContext,
   normalizeCoachTone,
@@ -147,7 +148,9 @@ async function generatePersonalizedMessage(
         {
           text:
             "You write short habit-coach notifications. Be supportive, concrete, and non-medical. " +
-            "Respect the requested tone. Return one sentence under 160 characters. Do not mention AI.",
+            "Respect the requested tone. Treat suggested values as partial progress: never promise " +
+            "they protect a streak or chain, count as completion, or complete the habit. " +
+            "Return one sentence under 160 characters. Do not mention AI.",
         },
       ],
     },
@@ -186,7 +189,9 @@ async function generatePersonalizedMessage(
     return null;
   }
 
-  const message = outputText(await response.json());
+  const candidate = outputText(await response.json());
+  const message =
+    candidate && coachMessageIsSafeForSignal(signal, candidate) ? candidate : null;
   await recordAiUsageEvent(
     supabase,
     userId,

@@ -1,4 +1,4 @@
-import type { CoachSignal } from "./coach";
+import { coachMessageIsSafeForSignal, type CoachSignal } from "./coach.ts";
 import { createLimiter } from "../utils/concurrency-limiter.ts";
 
 type CoachMessageStorage = {
@@ -58,7 +58,13 @@ export async function resolveCoachMessage(
   const storage = options.storage ?? (await defaultStorage());
 
   const cached = await readCachedMessage(storage, key, now, ttlMs, negativeTtlMs);
-  if (cached) return cached;
+  // Negative-cache entries contain the deterministic fallback. Trust that
+  // exact message even when it describes the current percentage as
+  // "completed"; the safety guard is for generated claims about what a
+  // partial action will achieve.
+  if (cached && (cached === signal.message || coachMessageIsSafeForSignal(signal, cached))) {
+    return cached;
+  }
 
   // A recent rate-limit (per-user AI quota) suppresses all coach-message calls
   // until the cooldown expires, so repeated reminder syncs don't churn quota.
@@ -73,7 +79,9 @@ export async function resolveCoachMessage(
     if (!inflightInvocations.has(key)) {
       const promise = (async () => {
         try {
-          const generated = (await coachInvokeLimiter(() => invoke(signal)))?.trim();
+          const candidate = (await coachInvokeLimiter(() => invoke(signal)))?.trim();
+          const generated =
+            candidate && coachMessageIsSafeForSignal(signal, candidate) ? candidate : null;
           if (generated) await writePositive(storage, key, generated, now);
           else await writeNegative(storage, key, signal.message, now);
         } catch (error) {
@@ -88,7 +96,9 @@ export async function resolveCoachMessage(
   }
 
   try {
-    const generated = (await invoke(signal))?.trim();
+    const candidate = (await invoke(signal))?.trim();
+    const generated =
+      candidate && coachMessageIsSafeForSignal(signal, candidate) ? candidate : null;
     if (!generated) {
       await writeNegative(storage, key, signal.message, now);
       return signal.message;

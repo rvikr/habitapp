@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { enforceProAccess } from "../_shared/pro-access.ts";
 import { generateContent } from "../_shared/gemini.ts";
+import { coachMessageIsSafeForSignal } from "../_shared/coach-signals.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -113,7 +114,9 @@ serve(async (req) => {
         {
           text:
             "You write short habit-coach notifications. Be supportive, concrete, and non-medical. " +
-            "Respect the requested tone. Return one sentence under 160 characters. Do not mention AI.",
+            "Respect the requested tone. Treat suggested values as partial progress: never promise " +
+            "they protect a streak or chain, count as completion, or complete the habit. " +
+            "Return one sentence under 160 characters. Do not mention AI.",
         },
       ],
     },
@@ -152,7 +155,19 @@ serve(async (req) => {
   }
 
   const result = await response.json();
-  const message = outputText(result);
+  const candidate = outputText(result);
+  const message =
+    candidate &&
+    coachMessageIsSafeForSignal(
+      {
+        kind: signal.kind ?? "",
+        suggestedAction: signal.suggestedValue ? "log_value" : "open_habit",
+        suggestedValue: signal.suggestedValue,
+      },
+      candidate,
+    )
+      ? candidate
+      : null;
   await recordAiUsageEvent(
     admin,
     user.id,

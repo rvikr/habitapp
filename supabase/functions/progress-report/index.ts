@@ -7,6 +7,7 @@ import { generateContent } from "../_shared/gemini.ts";
 import {
   buildFacts,
   buildWeeklyStats,
+  creditedCompletionRows,
   fallbackSummary,
   formatDate,
   type CompletionStatsRow,
@@ -174,7 +175,7 @@ async function computeWeeklyStats(
       .lte("completed_on", weekEnd),
     admin
       .from("habit_completions")
-      .select("habit_id", { count: "exact", head: true })
+      .select("habit_id, completed_on, value")
       .eq("user_id", userId)
       .gte("completed_on", prevWeekStart)
       .lte("completed_on", prevWeekEnd),
@@ -189,10 +190,15 @@ async function computeWeeklyStats(
     return null;
   }
 
+  const habits = (habitsRes.data ?? []) as unknown as HabitStatsRow[];
+  const previousCompletions = prevCompletionsRes.error
+    ? []
+    : ((prevCompletionsRes.data ?? []) as unknown as CompletionStatsRow[]);
+
   return buildWeeklyStats({
-    habits: (habitsRes.data ?? []) as unknown as HabitStatsRow[],
+    habits,
     completions: (completionsRes.data ?? []) as unknown as CompletionStatsRow[],
-    lastWeekCompletions: prevCompletionsRes.error ? 0 : (prevCompletionsRes.count ?? 0),
+    lastWeekCompletions: creditedCompletionRows(habits, previousCompletions).length,
     weekStartDate,
     today: new Date(),
   });
