@@ -11,6 +11,7 @@ import CoachCard from "@/components/coach-card";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import LogPrompt from "@/components/log-prompt";
+import HabitSyncIssueBanner from "@/components/habit-sync-issue-banner";
 import ProgressRing from "@/components/progress-ring";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
@@ -245,6 +246,7 @@ export default function HabitDetailScreen() {
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <HabitSyncIssueBanner habitId={habit.id} />
         {/* Completion ring hero */}
         <View className="items-center mb-lg" style={{ paddingTop: 16 }}>
           <ProgressRing

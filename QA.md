@@ -203,8 +203,11 @@ screenshots are acceptable only for failure diagnostics. Store generated proof u
 | 4.12 | Privacy & Data: data export opens and contains current user's habits/logs                       |     |         |     |
 | 4.13 | Data export contains `schema_version` and integrity counts; duplicate/orphan checks are present |     |         |     |
 | 4.14 | Offline edit/archive is queued and replays after reconnect without changing completion totals   |     |         |     |
-| 4.13 | Privacy & Data: account deletion request records successfully                                   |     |         |     |
-| 4.14 | Feedback: submit bug/idea/usability report and verify it appears in Supabase                    |     |         |     |
+| 4.15 | Export an account with over 1,000 rows per collection; counts and final rows are complete       |     |         |     |
+| 4.16 | Permanently reject one queued edit; warning survives restart and a later edit still syncs       |     |         |     |
+| 4.17 | Dismiss the sync warning; it stays hidden and does not claim the rejected change was applied    |     |         |     |
+| 4.18 | Privacy & Data: account deletion request records successfully                                   |     |         |     |
+| 4.19 | Feedback: submit bug/idea/usability report and verify it appears in Supabase                    |     |         |     |
 
 ---
 

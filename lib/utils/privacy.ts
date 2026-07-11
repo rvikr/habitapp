@@ -1,5 +1,28 @@
 import { supabase, isSupabaseConfigured, getCurrentUser } from "../supabase/client";
 import { buildDataExport } from "./export-integrity";
+import { collectExportPages } from "./paginated-select";
+
+type ExportCollection = "habits" | "habit_completions" | "sleep_entries" | "feedback_reports";
+
+function fetchAllOwnedRows(
+  table: ExportCollection,
+  userId: string,
+  orderColumn: string,
+  ascending: boolean,
+  secondaryOrderColumn?: string,
+) {
+  return collectExportPages((from, to) => {
+    let query = supabase
+      .from(table)
+      .select("*")
+      .eq("user_id", userId)
+      .order(orderColumn, { ascending });
+    if (secondaryOrderColumn) {
+      query = query.order(secondaryOrderColumn, { ascending });
+    }
+    return query.order("id", { ascending: true }).range(from, to);
+  });
+}
 
 function errorMessage(error: unknown): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -17,26 +40,10 @@ export async function exportMyData(): Promise<{ ok: boolean; data?: string; erro
   const [profileResult, habitResult, completionResult, sleepResult, feedbackResult] =
     await Promise.all([
       supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase
-        .from("habits")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true }),
-      supabase
-        .from("habit_completions")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("completed_on", { ascending: false }),
-      supabase
-        .from("sleep_entries")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("sleep_date", { ascending: false }),
-      supabase
-        .from("feedback_reports")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
+      fetchAllOwnedRows("habits", user.id, "created_at", true),
+      fetchAllOwnedRows("habit_completions", user.id, "completed_on", false, "created_at"),
+      fetchAllOwnedRows("sleep_entries", user.id, "sleep_date", false),
+      fetchAllOwnedRows("feedback_reports", user.id, "created_at", false),
     ]);
 
   for (const result of [

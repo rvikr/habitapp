@@ -7,6 +7,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabit } from "@/lib/data/habits";
 import { updateHabitFull } from "@/lib/data/actions";
 import HabitForm from "@/components/habit-form";
+import HabitSyncIssueBanner from "@/components/habit-sync-issue-banner";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import { useLanguage } from "@/components/language-provider";
 import type { Habit } from "@/types/db";
@@ -83,6 +84,7 @@ export default function EditHabitScreen() {
           {t("Edit Habit")}
         </Text>
       </View>
+      <HabitSyncIssueBanner habitId={id} />
       <HabitForm initial={habit} onSubmit={handleUpdate} submitLabel={t("Save changes")} />
     </SafeAreaView>
   );

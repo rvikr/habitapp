@@ -56,7 +56,11 @@ import {
 import { recordPositiveCompletion } from "../services/activation-completion";
 import { normalizeReminderSchedule, validateHabitInput } from "../habits/input-rules";
 import { validateCompletionPeriod, validateCompletionValue } from "./completion-rules";
-import { enqueueHabitMutation, flushPendingHabitMutations } from "./habit-mutation-queue";
+import {
+  enqueueHabitMutation,
+  flushPendingHabitMutations,
+  resolveHabitReconciliationFailures,
+} from "./habit-mutation-queue";
 
 type ActionResult = { ok: boolean; error?: string; queued?: boolean };
 type CompletionHabit = Pick<Habit, "name" | "unit" | "target"> & {
@@ -931,6 +935,7 @@ export async function updateHabitFull(
     }
   }
 
+  await resolveHabitReconciliationFailures(habitId).catch(() => undefined);
   clearDataCache();
   if (data.remindersEnabled) scheduleReminderSync();
   else {
@@ -964,6 +969,7 @@ export async function deleteHabit(habitId: string): Promise<ActionResult> {
     return queued;
   }
 
+  await resolveHabitReconciliationFailures(habitId).catch(() => undefined);
   clearDataCache();
   // Cancel the deleted habit's scheduled ids, then rebuild so any bundle it
   // shared with remaining habits is re-scheduled without it.
