@@ -1,7 +1,9 @@
-// Offline queue for completion mutations. When logging a completion fails
-// because the request never reached the server (offline, flaky network), the
-// operation is persisted here and replayed once connectivity returns, so a
-// "done" tap in airplane mode is never lost. Replays run single-flight and in
+// Offline queue for completion mutations. When logging a completion fails with
+// a transport error, the operation is persisted here and replayed once
+// connectivity returns, so a "done" tap in airplane mode is never lost. A
+// transport error can arrive after the server commits, so increment_once carries
+// a database operation UUID; legacy increment entries remain for compatibility.
+// Replays run single-flight and in
 // FIFO order; absolute writes (complete/uncomplete/set_value) for a habit+day
 // supersede anything queued earlier for that same habit+day. Monotonic raises
 // (set_value_max, from the step sync) supersede only earlier raises — queued
@@ -16,12 +18,13 @@ import { recordCompletionQueueSettled } from "../services/activation-completion"
 import { optimisticFirstLogStore } from "../services/activation-marker";
 import { foreignCompletionOwnerIds } from "../activation/queue-marker-reconciliation";
 import { completionQueueStore } from "../services/completion-queue-store";
-import type { PendingCompletionOp } from "./completion-queue-store";
+import type { PendingCompletionInput, PendingCompletionOp } from "./completion-queue-store";
 
 export type { PendingCompletionOp } from "./completion-queue-store";
 
-// Matches the messages supabase-js surfaces when fetch itself rejects — i.e.
-// the request never reached the server, so a replay cannot double-apply.
+// Matches the messages supabase-js surfaces when fetch itself rejects. This
+// classifies queueable transport failures; it does not imply the server failed
+// to commit, which is why non-absolute increments need a receipt-backed UUID.
 export function isNetworkFailure(error: { message?: string } | string | null | undefined): boolean {
   if (!error) return false;
   const message = (typeof error === "string" ? error : (error.message ?? "")).toLowerCase();
@@ -35,9 +38,7 @@ export function isNetworkFailure(error: { message?: string } | string | null | u
   );
 }
 
-export async function enqueueCompletionOp(
-  op: Omit<PendingCompletionOp, "id" | "queuedAt">,
-): Promise<void> {
+export async function enqueueCompletionOp(op: PendingCompletionInput): Promise<void> {
   await completionQueueStore.enqueue({
     ...op,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -128,6 +129,17 @@ async function replayOp(op: PendingCompletionOp): Promise<{ message?: string } |
       .eq("habit_id", op.habitId)
       .eq("user_id", op.userId)
       .eq("completed_on", op.completedOn);
+    return error;
+  }
+
+  if (op.kind === "increment_once") {
+    const { error } = await supabase.rpc("log_habit_completion_once", {
+      p_operation_id: op.operationId,
+      p_habit_id: op.habitId,
+      p_completed_on: op.completedOn,
+      p_increment: op.value ?? 1,
+      p_note: op.note ?? null,
+    });
     return error;
   }
 

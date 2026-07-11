@@ -120,8 +120,9 @@ screenshots are acceptable only for failure diagnostics. Store generated proof u
 ### Database and rollout evidence
 
 - Start the local Supabase stack, reset it from migrations, run
-  `supabase test db supabase/tests/database/activation_v2.test.sql`, and run local security and
-  performance advisors before deployment.
+  `supabase test db supabase/tests/database/activation_v2.test.sql` and
+  `supabase test db supabase/tests/database/completion_increment_idempotency.test.sql`, then run
+  local security and performance advisors before deployment.
 - Deploy the migration with `activation_v2` disabled at `0%`, then validate treatment at `100%` in
   staging.
 - Run production at `10%` for at least seven days and 50 treatment users, then at `50%` for at

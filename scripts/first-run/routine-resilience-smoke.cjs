@@ -166,7 +166,7 @@ function fakeSession() {
         return route.fulfill({ status: 201, headers, body: JSON.stringify(saved) });
       }
     }
-    if (path.includes("/rest/v1/rpc/log_habit_completion")) {
+    if (path.endsWith("/rest/v1/rpc/log_habit_completion_once")) {
       const payload = JSON.parse(request.postData() || "{}");
       completionCalls.push(payload);
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true }) });
@@ -247,7 +247,10 @@ function fakeSession() {
   if (
     completionCalls.length !== 1 ||
     completionCalls[0].p_habit_id !== existingWater.id ||
-    completionCalls[0].p_increment !== 300
+    completionCalls[0].p_increment !== 300 ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      completionCalls[0].p_operation_id,
+    )
   ) {
     throw new Error(
       `first log ignored authoritative merge data: ${JSON.stringify(completionCalls)}`,

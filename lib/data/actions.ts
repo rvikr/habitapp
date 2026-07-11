@@ -337,6 +337,44 @@ export async function logCompletion(
   return { ok: true };
 }
 
+export async function logCompletionOnce(
+  habitId: string,
+  operationId: string,
+  value?: number,
+  note?: string,
+): Promise<ActionResult> {
+  const user = await getUser();
+  if (!user) return notSignedIn();
+  void flushPendingCompletions();
+  const increment = value ?? 1;
+  const completedOn = localDateKey();
+  const { error } = await supabase.rpc("log_habit_completion_once", {
+    p_operation_id: operationId,
+    p_habit_id: habitId,
+    p_completed_on: completedOn,
+    p_increment: increment,
+    p_note: note?.trim() || null,
+  });
+  if (error) {
+    if (!isNetworkFailure(error)) return mutationResult(error);
+    await enqueueCompletionOp({
+      kind: "increment_once",
+      operationId,
+      habitId,
+      userId: user.id,
+      completedOn,
+      value: increment,
+      note: note?.trim() || null,
+    });
+    if (increment > 0) await recordPositiveCompletion(user.id, true);
+    return { ok: true, queued: true };
+  }
+  clearDataCache();
+  scheduleReminderSync();
+  if (increment > 0) await recordPositiveCompletion(user.id, false);
+  return { ok: true };
+}
+
 // Monotonic write for auto-tracked values (step sync): only ever raises
 // today's value, so it can never clobber a higher total from a manual log.
 export async function raiseCompletionValue(

@@ -77,6 +77,7 @@ supabase start
 supabase db reset --local
 supabase migration list --local
 supabase test db supabase/tests/database/activation_v2.test.sql
+supabase test db supabase/tests/database/completion_increment_idempotency.test.sql
 supabase db advisors --local --type all --fail-on error
 ```
 

@@ -1,6 +1,5 @@
-export type PendingCompletionOp = {
+type PendingCompletionOpBase = {
   id: string;
-  kind: "complete" | "uncomplete" | "set_value" | "set_value_max" | "increment";
   habitId: string;
   userId: string;
   completedOn: string;
@@ -10,6 +9,23 @@ export type PendingCompletionOp = {
   note?: string | null;
   queuedAt: string;
 };
+
+type LegacyPendingCompletionOp = PendingCompletionOpBase & {
+  kind: "complete" | "uncomplete" | "set_value" | "set_value_max" | "increment";
+};
+
+type IdempotentIncrementCompletionOp = PendingCompletionOpBase & {
+  kind: "increment_once";
+  operationId: string;
+};
+
+export type PendingCompletionOp = LegacyPendingCompletionOp | IdempotentIncrementCompletionOp;
+
+export type PendingCompletionInput = PendingCompletionOp extends infer Operation
+  ? Operation extends PendingCompletionOp
+    ? Omit<Operation, "id" | "queuedAt">
+    : never
+  : never;
 
 export type CompletionQueueStorage = {
   getItem(key: string): Promise<string | null>;
@@ -52,7 +68,7 @@ function parseQueue(raw: string | null): PendingCompletionOp[] {
 function isPendingPositiveCompletion(op: PendingCompletionOp): boolean {
   if (op.kind === "uncomplete") return false;
   if (op.kind === "set_value_max") return op.value != null && op.value > 0;
-  if (op.kind === "increment") return (op.value ?? 1) > 0;
+  if (op.kind === "increment" || op.kind === "increment_once") return (op.value ?? 1) > 0;
   // A value-less complete/set_value resolves to the habit's positive target
   // during replay.
   return op.value == null || op.value > 0;
@@ -88,7 +104,7 @@ export function createCompletionQueueStore(storage: CompletionQueueStorage) {
         const queue = await readUnlocked();
         const next = queue.filter((item) => {
           if (item.habitId !== op.habitId || item.completedOn !== op.completedOn) return true;
-          if (op.kind === "increment") return true;
+          if (op.kind === "increment" || op.kind === "increment_once") return true;
           if (op.kind === "set_value_max") return item.kind !== "set_value_max";
           return false;
         });

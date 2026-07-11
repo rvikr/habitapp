@@ -1,12 +1,13 @@
 import { useCallback, useReducer, useRef, useState } from "react";
 import { BackHandler, Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect } from "expo-router";
+import * as Crypto from "expo-crypto";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "@/components/icon";
 import { useActivation } from "@/components/activation-provider";
 import { useLanguage } from "@/components/language-provider";
-import { logCompletion, toggleHabit } from "@/lib/data/actions";
+import { logCompletionOnce, toggleHabit } from "@/lib/data/actions";
 import { syncScheduledReminders } from "@/lib/data/reminder-sync";
 import {
   buildFirstStepPresentation,
@@ -45,6 +46,7 @@ export default function FirstLogFlow({ userId, habit, onFinished }: Props) {
   const { t } = useLanguage();
   const { analyticsContext } = useActivation();
   const [state, dispatch] = useReducer(firstLogFlowReducer, initialFirstLogFlowState);
+  const [firstLogOperationId] = useState(() => Crypto.randomUUID());
   const [continuing, setContinuing] = useState(false);
   const [notificationBusy, setNotificationBusy] = useState(false);
   const actionGuardRef = useRef(createFirstLogActionGuard());
@@ -86,7 +88,7 @@ export default function FirstLogFlow({ userId, habit, onFinished }: Props) {
     try {
       const result =
         presentation.action.kind === "log_progress"
-          ? await logCompletion(habit.id, presentation.action.value)
+          ? await logCompletionOnce(habit.id, firstLogOperationId, presentation.action.value)
           : await toggleHabit(habit.id, false, habit.target ?? null);
       if (!result.ok) {
         const message = result.error ?? t("Try again.");

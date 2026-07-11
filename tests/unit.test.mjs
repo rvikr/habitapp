@@ -6367,6 +6367,42 @@ test("completion queue storage preserves absolute-write supersession", async () 
   );
 });
 
+test("completion queue preserves idempotent increments as independent manual intent", async () => {
+  const { createCompletionQueueStore } = await import("../lib/data/completion-queue-store.ts");
+  let raw = null;
+  const store = createCompletionQueueStore({
+    getItem: async () => raw,
+    setItem: async (_key, value) => void (raw = value),
+    removeItem: async () => void (raw = null),
+  });
+  const base = {
+    habitId: "habit-a",
+    userId: "user-a",
+    completedOn: "2026-07-11",
+    value: 20,
+  };
+
+  await store.enqueue({
+    ...base,
+    id: "legacy-increment",
+    kind: "increment",
+    queuedAt: "2026-07-11T00:00:00Z",
+  });
+  await store.enqueue({
+    ...base,
+    id: "idempotent-increment",
+    kind: "increment_once",
+    operationId: "30000000-0000-4000-8000-000000000001",
+    queuedAt: "2026-07-11T00:01:00Z",
+  });
+
+  assert.deepEqual(
+    (await store.read()).map((operation) => operation.id),
+    ["legacy-increment", "idempotent-increment"],
+  );
+  assert.equal(await store.hasPendingPositive("user-a"), true);
+});
+
 test("a same-user pending positive completion preserves optimistic first-log state", async () => {
   const { createCompletionQueueStore } = await import("../lib/data/completion-queue-store.ts");
   let raw = null;
@@ -6715,6 +6751,94 @@ test("completion actions signal optimistic activation without duplicating databa
   assert.match(completionService, /optimisticFirstLogStore\.mark\(userId\)/);
   assert.match(completionService, /positiveCompletion\(userId, queued\)/);
   assert.match(completionService, /queueSettled\(userId\)/);
+});
+
+test("quantity first-log retries and queue replay share one database operation id", () => {
+  const actions = readFileSync("lib/data/actions.ts", "utf8");
+  const queue = readFileSync("lib/data/completion-queue.ts", "utf8");
+  const queueTypes = readFileSync("lib/data/completion-queue-store.ts", "utf8");
+  const flow = readFileSync("components/first-log-flow.tsx", "utf8");
+
+  const onceBlock =
+    actions.match(
+      /export async function logCompletionOnce[\s\S]*?(?=\nexport async function)/,
+    )?.[0] ?? "";
+  assert.match(onceBlock, /log_habit_completion_once/);
+  assert.match(onceBlock, /p_operation_id:\s*operationId/);
+  assert.match(onceBlock, /kind:\s*"increment_once"/);
+  assert.match(onceBlock, /operationId/);
+  assert.equal(
+    (onceBlock.match(/localDateKey\(\)/g) ?? []).length,
+    1,
+    "the initial call and queued replay must bind the same calendar date",
+  );
+  assert.match(onceBlock, /p_completed_on:\s*completedOn/);
+  assert.match(onceBlock, /completedOn,/);
+  assert.match(queueTypes, /kind:\s*"increment_once"/);
+  assert.match(queueTypes, /operationId:\s*string/);
+  assert.match(queue, /op\.kind === "increment_once"/);
+  assert.match(queue, /log_habit_completion_once/);
+  assert.match(queue, /p_operation_id:\s*op\.operationId/);
+  assert.match(flow, /Crypto\.randomUUID\(\)/);
+  assert.match(flow, /logCompletionOnce/);
+  assert.match(flow, /firstLogOperationId/);
+});
+
+test("completion increment idempotency migration is private, authenticated, and payload-bound", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_completion_increment_idempotency.sql"),
+  );
+  assert.ok(migrationName, "expected an idempotent completion migration created by the CLI");
+
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+  assert.match(sql, /create table app_private\.completion_increment_receipts/i);
+  assert.match(sql, /primary key \(user_id, operation_id\)/i);
+  assert.match(
+    sql,
+    /foreign key \(habit_id, user_id\)[\s\S]*references public\.habits\(id, user_id\)/i,
+  );
+  assert.match(
+    sql,
+    /alter table app_private\.completion_increment_receipts enable row level security/i,
+  );
+  assert.match(
+    sql,
+    /revoke all on table app_private\.completion_increment_receipts[\s\S]*public, anon, authenticated, service_role/i,
+  );
+  assert.match(sql, /create function app_private\.log_habit_completion_once/i);
+  assert.match(sql, /security definer[\s\S]*set search_path = ''/i);
+  assert.match(sql, /auth\.uid\(\)/i);
+  assert.match(sql, /from public\.habits[\s\S]*user_id = v_user_id/i);
+  assert.match(sql, /on conflict \(user_id, operation_id\) do nothing/i);
+  assert.match(sql, /is distinct from/i);
+  assert.match(sql, /idempotency key reused with different payload/i);
+  assert.match(
+    sql,
+    /on conflict \(habit_id, completed_on\) do update[\s\S]*coalesce\(public\.habit_completions\.value, 0\) \+ excluded\.value/i,
+  );
+  assert.match(sql, /create function public\.log_habit_completion_once/i);
+  assert.match(sql, /security definer[\s\S]*set search_path = ''/i);
+  assert.doesNotMatch(sql, /grant usage on schema app_private to authenticated/i);
+  assert.doesNotMatch(
+    sql,
+    /grant execute on function app_private\.log_habit_completion_once[\s\S]*to authenticated/i,
+  );
+  assert.match(
+    sql,
+    /revoke all on function public\.log_habit_completion_once[\s\S]*from public, anon, service_role/i,
+  );
+  assert.match(
+    sql,
+    /grant execute on function public\.log_habit_completion_once[\s\S]*to authenticated/i,
+  );
+
+  const pgTapPath = "supabase/tests/database/completion_increment_idempotency.test.sql";
+  assert.ok(existsSync(pgTapPath), "expected database behavior verification");
+  const pgTap = readFileSync(pgTapPath, "utf8");
+  assert.match(pgTap, /same operation is a no-op/i);
+  assert.match(pgTap, /different payload is rejected/i);
+  assert.match(pgTap, /existing progress is incremented exactly once/i);
+  assert.match(pgTap, /cross-owner habit is rejected/i);
 });
 
 test("admin activation rollout applies enabled and percentage atomically", () => {

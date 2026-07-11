@@ -1,9 +1,6 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
-const {
-  captureStableScreenshot,
-  prepareScreenshotPage,
-} = require("./screenshot-helper.cjs");
+const { captureStableScreenshot, prepareScreenshotPage } = require("./screenshot-helper.cjs");
 const {
   assertActivationAnalyticsSafe,
   installAnalyticsCollector,
@@ -47,9 +44,16 @@ function localDateKey(date = new Date()) {
 }
 
 function parseRpcIncrementPayload(payload) {
+  const operationId = payload?.p_operation_id;
   const habitId = payload?.p_habit_id;
   const completedOn = payload?.p_completed_on;
   const increment = payload?.p_increment;
+  if (
+    typeof operationId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(operationId)
+  ) {
+    throw new Error("log_habit_completion_once requires a UUID operation id");
+  }
   if (typeof habitId !== "string" || habitId.trim() === "") {
     throw new Error("log_habit_completion requires p_habit_id");
   }
@@ -68,7 +72,7 @@ function parseRpcIncrementPayload(payload) {
   if (typeof increment !== "number" || !Number.isFinite(increment) || increment <= 0) {
     throw new Error("log_habit_completion requires a positive numeric p_increment");
   }
-  return { habitId, completedOn, increment };
+  return { operationId, habitId, completedOn, increment };
 }
 
 function assertMalformedRpcPayloadsFail() {
@@ -76,14 +80,31 @@ function assertMalformedRpcPayloadsFail() {
     throw new Error("post-create smoke is missing strict RPC payload validation");
   }
   const today = localDateKey();
+  const operationId = "30000000-0000-4000-8000-000000000001";
   const invalidPayloads = [
     {},
-    { p_completed_on: today, p_increment: 250 },
-    { p_habit_id: "mock-habit-1", p_increment: 250 },
-    { p_habit_id: "mock-habit-1", p_completed_on: today },
-    { p_habit_id: "", p_completed_on: today, p_increment: 250 },
-    { p_habit_id: "mock-habit-1", p_completed_on: "not-a-date", p_increment: 250 },
-    { p_habit_id: "mock-habit-1", p_completed_on: today, p_increment: "250" },
+    {
+      p_operation_id: "not-a-uuid",
+      p_habit_id: "mock-habit-1",
+      p_completed_on: today,
+      p_increment: 250,
+    },
+    { p_operation_id: operationId, p_completed_on: today, p_increment: 250 },
+    { p_operation_id: operationId, p_habit_id: "mock-habit-1", p_increment: 250 },
+    { p_operation_id: operationId, p_habit_id: "mock-habit-1", p_completed_on: today },
+    { p_operation_id: operationId, p_habit_id: "", p_completed_on: today, p_increment: 250 },
+    {
+      p_operation_id: operationId,
+      p_habit_id: "mock-habit-1",
+      p_completed_on: "not-a-date",
+      p_increment: 250,
+    },
+    {
+      p_operation_id: operationId,
+      p_habit_id: "mock-habit-1",
+      p_completed_on: today,
+      p_increment: "250",
+    },
   ];
   for (const payload of invalidPayloads) {
     let rejected = false;
@@ -98,13 +119,14 @@ function assertMalformedRpcPayloadsFail() {
   }
 }
 
-async function setup(page, session) {
+async function setup(page, session, scenario) {
   const storageKey = "sb-ehcqgoymkmljwoveisbl-auth-token";
   let habitInsertCount = 0;
   const today = localDateKey();
   const createdHabits = [];
   const completionRows = [];
   const rpcIncrementCalls = [];
+  const incrementReceipts = new Map();
   const directCompletionWrites = [];
   await page.addInitScript(
     ({ storageKey, session }) => {
@@ -132,7 +154,7 @@ async function setup(page, session) {
         headers,
         body: completionRows.length > 0 ? JSON.stringify([today]) : "[]",
       });
-    if (path.includes("/rest/v1/rpc/log_habit_completion")) {
+    if (path.endsWith("/rest/v1/rpc/log_habit_completion_once")) {
       let parsed;
       try {
         parsed = parseRpcIncrementPayload(JSON.parse(req.postData() || "{}"));
@@ -145,21 +167,37 @@ async function setup(page, session) {
           }),
         });
       }
-      const { habitId, completedOn, increment } = parsed;
-      rpcIncrementCalls.push({ habitId, completedOn, increment });
-      const existingIndex = completionRows.findIndex(
-        (item) => item.habit_id === habitId && item.completed_on === completedOn,
-      );
-      const existing = existingIndex >= 0 ? completionRows[existingIndex] : null;
-      const normalized = {
-        habit_id: habitId,
-        completed_on: completedOn,
-        created_at: existing?.created_at || new Date().toISOString(),
-        value: Number(existing?.value ?? 0) + increment,
-      };
-      if (existingIndex >= 0) completionRows[existingIndex] = normalized;
-      else completionRows.push(normalized);
-      return route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true }) });
+      const { operationId, habitId, completedOn, increment } = parsed;
+      const fingerprint = JSON.stringify({ habitId, completedOn, increment, note: null });
+      const priorFingerprint = incrementReceipts.get(operationId);
+      if (priorFingerprint != null && priorFingerprint !== fingerprint) {
+        return route.fulfill({
+          status: 400,
+          headers,
+          body: JSON.stringify({ message: "idempotency key reused with different payload" }),
+        });
+      }
+      const applied = priorFingerprint == null;
+      rpcIncrementCalls.push({ operationId, habitId, completedOn, increment, applied });
+      if (applied) {
+        incrementReceipts.set(operationId, fingerprint);
+        const existingIndex = completionRows.findIndex(
+          (item) => item.habit_id === habitId && item.completed_on === completedOn,
+        );
+        const existing = existingIndex >= 0 ? completionRows[existingIndex] : null;
+        const normalized = {
+          habit_id: habitId,
+          completed_on: completedOn,
+          created_at: existing?.created_at || new Date().toISOString(),
+          value: Number(existing?.value ?? 0) + increment,
+        };
+        if (existingIndex >= 0) completionRows[existingIndex] = normalized;
+        else completionRows.push(normalized);
+      }
+      if (scenario.kind === "quantity" && rpcIncrementCalls.length === 1) {
+        return route.abort("failed");
+      }
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(applied) });
     }
     if (path.includes("/rest/v1/feature_flags"))
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ enabled: false }) });
@@ -262,6 +300,17 @@ async function setup(page, session) {
     getCompletionRows: () => completionRows.map((row) => ({ ...row })),
     getRpcIncrementCalls: () => rpcIncrementCalls.map((call) => ({ ...call })),
     getDirectCompletionWrites: () => directCompletionWrites.map((row) => ({ ...row })),
+    waitForRpcCount: async (expected, timeoutMs = 15000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (rpcIncrementCalls.length < expected && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      if (rpcIncrementCalls.length < expected) {
+        throw new Error(
+          `expected ${expected} idempotent RPC attempts, got ${rpcIncrementCalls.length}`,
+        );
+      }
+    },
   };
 }
 
@@ -281,7 +330,7 @@ async function runScenario(browser, scenario) {
   page.on("requestfailed", (req) =>
     requestFailures.push({ url: req.url(), failure: req.failure()?.errorText ?? null }),
   );
-  const harness = await setup(page, fakeSession());
+  const harness = await setup(page, fakeSession(), scenario);
   const snapshots = [];
   async function snap(label) {
     const text = await page.locator("body").innerText({ timeout: 10000 });
@@ -303,7 +352,10 @@ async function runScenario(browser, scenario) {
   } catch (error) {
     console.error(`[${scenario.id}] wizard did not open`, {
       url: page.url(),
-      body: await page.locator("body").innerText().catch(() => "<unavailable>"),
+      body: await page
+        .locator("body")
+        .innerText()
+        .catch(() => "<unavailable>"),
       consoleMessages,
       pageErrors,
     });
@@ -357,6 +409,7 @@ async function runScenario(browser, scenario) {
     timeout: 30000,
   });
   await page.getByText(scenario.dashboardHabit, { exact: true }).waitFor({ timeout: 30000 });
+  if (scenario.kind === "quantity") await harness.waitForRpcCount(2);
   let booleanCompleted = false;
   if (scenario.kind === "boolean") {
     const completedToggle = page.getByRole("checkbox", {
@@ -408,15 +461,20 @@ async function runScenario(browser, scenario) {
     throw new Error("Expected dashboard to preserve the tutorial partial progress: 250 / 2000 ml");
   }
   if (scenario.kind === "quantity") {
-    const [rpcCall] = result.rpcIncrementCalls;
+    const [initialCall, replayCall] = result.rpcIncrementCalls;
     if (
-      result.rpcIncrementCalls.length !== 1 ||
-      rpcCall.habitId !== "mock-habit-1" ||
-      rpcCall.completedOn !== scenario.expectedCompletedOn ||
-      rpcCall.increment !== 250 ||
+      result.rpcIncrementCalls.length !== 2 ||
+      initialCall.operationId !== replayCall.operationId ||
+      initialCall.applied !== true ||
+      replayCall.applied !== false ||
+      initialCall.habitId !== "mock-habit-1" ||
+      initialCall.completedOn !== scenario.expectedCompletedOn ||
+      initialCall.increment !== 250 ||
       result.directCompletionWrites.length !== 0
     ) {
-      throw new Error(`[quantity] Expected one exact RPC increment and zero direct writes`);
+      throw new Error(
+        `[quantity] Expected one committed request plus an idempotent replay with the same UUID`,
+      );
     }
   }
   if (scenario.kind === "boolean" && (!booleanCompleted || !/Done\s+1 \/ 1/.test(final))) {
@@ -440,7 +498,7 @@ async function runScenario(browser, scenario) {
       event.properties.activation_variant === "control" &&
       event.properties.activation_stage === "first_log" &&
       event.properties.rollout_percentage === 0 &&
-      event.properties.queued === false,
+      event.properties.queued === scenario.expectedQueued,
   );
   if (firstLogEvents.length !== 1) {
     throw new Error(`[${scenario.id}] Expected exactly one monotonic first-log analytics event`);
@@ -473,6 +531,7 @@ async function runScenario(browser, scenario) {
       expectedHabitCount: 4,
       expectedCompletionValue: 250,
       expectedCompletedOn: localDateKey(),
+      expectedQueued: true,
     },
     {
       id: "boolean",
@@ -484,6 +543,7 @@ async function runScenario(browser, scenario) {
       expectedHabitCount: 1,
       expectedCompletionValue: 1,
       expectedCompletedOn: localDateKey(),
+      expectedQueued: false,
     },
   ];
   const results = [];
