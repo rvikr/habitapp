@@ -3230,6 +3230,61 @@ test("data export sorts tied id-less rows by canonical content", () => {
   );
 });
 
+test("privacy export pagination probes past exact pages and advances by rows returned", async () => {
+  const exportModule = await import("../lib/utils/paginated-select.ts");
+  assert.equal(typeof exportModule.collectExportPages, "function");
+
+  const exactRows = ["a", "b", "c", "d"];
+  const exactCalls = [];
+  const exact = await exportModule.collectExportPages(async (from, to) => {
+    exactCalls.push([from, to]);
+    return { data: exactRows.slice(from, to + 1), error: null };
+  }, 2);
+  assert.deepEqual(exact, { data: exactRows, error: null });
+  assert.deepEqual(exactCalls, [
+    [0, 1],
+    [2, 3],
+    [4, 5],
+  ]);
+
+  const cappedRows = [1, 2, 3, 4, 5];
+  const cappedCalls = [];
+  const capped = await exportModule.collectExportPages(async (from, to) => {
+    cappedCalls.push([from, to]);
+    return { data: cappedRows.slice(from, Math.min(from + 2, to + 1)), error: null };
+  }, 4);
+  assert.deepEqual(capped, { data: cappedRows, error: null });
+  assert.deepEqual(
+    cappedCalls.map(([from]) => from),
+    [0, 2, 4, 5],
+  );
+});
+
+test("privacy export pagination rejects returned and thrown page errors without partial data", async () => {
+  const { collectExportPages } = await import("../lib/utils/paginated-select.ts");
+  assert.equal(typeof collectExportPages, "function");
+  const returnedError = { message: "page two failed" };
+  let returnedCalls = 0;
+  const returned = await collectExportPages(async () => {
+    returnedCalls++;
+    return returnedCalls === 1
+      ? { data: [{ id: "first" }], error: null }
+      : { data: null, error: returnedError };
+  }, 1);
+  assert.deepEqual(returned, { data: null, error: returnedError });
+  assert.equal(returnedCalls, 2);
+
+  const thrownError = new Error("transport failed");
+  let thrownCalls = 0;
+  const thrown = await collectExportPages(async () => {
+    thrownCalls++;
+    if (thrownCalls === 2) throw thrownError;
+    return { data: [{ id: "first" }], error: null };
+  }, 1);
+  assert.deepEqual(thrown, { data: null, error: thrownError });
+  assert.equal(thrownCalls, 2);
+});
+
 test("privacy export fails query errors instead of returning partial data", () => {
   const source = readFileSync("lib/utils/privacy.ts", "utf8");
   assert.match(source, /profileResult/);
@@ -3237,6 +3292,10 @@ test("privacy export fails query errors instead of returning partial data", () =
   assert.match(source, /completionResult/);
   assert.match(source, /if \(result\.error\)/);
   assert.match(source, /buildDataExport/);
+  assert.match(source, /fetchAllOwnedRows/);
+  assert.match(source, /\.eq\("user_id", userId\)/);
+  assert.match(source, /\.order\("id", \{ ascending: true \}\)/);
+  assert.match(source, /\.range\(from, to\)/);
 });
 
 test("current app surfaces explain every core no-data state", () => {
@@ -3265,6 +3324,12 @@ test("validation, export integrity, and no-data copy is localized in Hindi", () 
     "Log a few days to see patterns.",
     "No badges earned yet.",
     "Includes integrity checks for counts, duplicates, and orphaned logs.",
+    "Some changes didn't sync",
+    "A previous offline change didn't sync.",
+    "Review the affected habit and save or delete it again.",
+    "Review habit",
+    "Dismiss",
+    "Dismissing this notice will not apply the change.",
   ]) {
     assert.notEqual(translate("hi", label), label, `Missing Hindi translation for ${label}`);
   }
@@ -3354,6 +3419,344 @@ test("habit archive remains terminal when compacted with an existing update", as
   });
 });
 
+test("habit mutation journal migrates legacy queues and persists acknowledged failures", async () => {
+  const queueModule = await import("../lib/data/habit-mutation-queue-store.ts");
+  assert.equal(typeof queueModule.reconcileHabitMutationQueue, "function");
+  assert.equal(typeof queueModule.HABIT_MUTATION_JOURNAL_STORAGE_KEY, "string");
+
+  const legacy = {
+    id: "legacy-op",
+    kind: "update",
+    habitId: "habit-1",
+    userId: "user-1",
+    payload: { name: "Read daily" },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  };
+  const memory = new Map([
+    [queueModule.HABIT_MUTATION_JOURNAL_STORAGE_KEY, JSON.stringify([legacy])],
+  ]);
+  const store = createHabitMutationQueueStore({
+    async getItem(key) {
+      return memory.get(key) ?? null;
+    },
+    async setItem(key, value) {
+      memory.set(key, value);
+    },
+    async removeItem(key) {
+      memory.delete(key);
+    },
+  });
+
+  assert.deepEqual(await store.read(), [legacy]);
+  const failure = await store.settleRejected("legacy-op", {
+    reason: "rejected",
+    code: "42501",
+    failedAt: "2026-07-11T10:05:00.000Z",
+  });
+  assert.equal(failure?.operationId, "legacy-op");
+  assert.equal("payload" in failure, false);
+  assert.deepEqual(await store.read(), []);
+  assert.deepEqual(await store.readFailures("other-user"), []);
+  assert.equal((await store.readFailures("user-1")).length, 1);
+
+  await store.acknowledgeFailures("other-user", [failure.id]);
+  assert.equal((await store.readFailures("user-1")).length, 1);
+  await store.acknowledgeFailures("user-1", [failure.id]);
+  assert.deepEqual(await store.readFailures("user-1"), []);
+});
+
+test("habit mutation failures are bounded and queue overflow becomes visible", async () => {
+  const queueModule = await import("../lib/data/habit-mutation-queue-store.ts");
+  const memory = new Map();
+  const store = createHabitMutationQueueStore({
+    async getItem(key) {
+      return memory.get(key) ?? null;
+    },
+    async setItem(key, value) {
+      memory.set(key, value);
+    },
+    async removeItem(key) {
+      memory.delete(key);
+    },
+  });
+
+  for (let index = 0; index <= 100; index++) {
+    await store.enqueue({
+      id: `overflow-${index}`,
+      kind: "update",
+      habitId: `habit-${index}`,
+      userId: "user-1",
+      payload: { reminders_enabled: index % 2 === 0 },
+      queuedAt: `2026-07-11T10:${String(index % 60).padStart(2, "0")}:00.000Z`,
+    });
+  }
+  assert.equal((await store.read()).length, 100);
+  assert.equal((await store.readFailures("user-1"))[0]?.reason, "queue_full");
+
+  for (let index = 0; index < queueModule.MAX_HABIT_RECONCILIATION_FAILURES + 5; index++) {
+    const operation = {
+      id: `rejected-${index}`,
+      kind: "update",
+      habitId: `rejected-habit-${index}`,
+      userId: "user-1",
+      payload: { reminders_enabled: true },
+      queuedAt: "2026-07-11T11:00:00.000Z",
+    };
+    await store.enqueue(operation);
+    await store.settleRejected(operation.id, {
+      reason: "rejected",
+      code: "23514",
+      failedAt: "2026-07-11T11:01:00.000Z",
+    });
+  }
+  assert.equal(
+    (await store.readFailures("user-1")).length,
+    queueModule.MAX_HABIT_RECONCILIATION_FAILURES,
+  );
+});
+
+test("habit mutation stays pending when its failure record cannot be persisted", async () => {
+  let raw = null;
+  let rejectWrites = false;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      if (rejectWrites) throw new Error("storage unavailable");
+      raw = value;
+    },
+    async removeItem() {
+      if (rejectWrites) throw new Error("storage unavailable");
+      raw = null;
+    },
+  });
+  await store.enqueue({
+    id: "pending-until-recorded",
+    kind: "update",
+    habitId: "habit-1",
+    userId: "user-1",
+    payload: { reminders_enabled: true },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+
+  rejectWrites = true;
+  await assert.rejects(
+    store.settleRejected("pending-until-recorded", {
+      reason: "rejected",
+      failedAt: "2026-07-11T10:05:00.000Z",
+    }),
+    /storage unavailable/,
+  );
+  rejectWrites = false;
+  assert.deepEqual(
+    (await store.read()).map((operation) => operation.id),
+    ["pending-until-recorded"],
+  );
+  assert.deepEqual(await store.readFailures("user-1"), []);
+});
+
+test("habit mutation journal keeps only the newest failure per user and habit", async () => {
+  let raw = null;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      raw = value;
+    },
+    async removeItem() {
+      raw = null;
+    },
+  });
+  for (const id of ["old-failure", "new-failure"]) {
+    await store.enqueue({
+      id,
+      kind: "update",
+      habitId: "habit-1",
+      userId: "user-1",
+      payload: { reminders_enabled: true },
+      queuedAt: "2026-07-11T10:00:00.000Z",
+    });
+    await store.settleRejected(id, {
+      reason: "rejected",
+      failedAt: "2026-07-11T10:05:00.000Z",
+    });
+  }
+  assert.deepEqual(
+    (await store.readFailures("user-1")).map((failure) => failure.operationId),
+    ["new-failure"],
+  );
+});
+
+test("permanent habit rejection is quarantined while later mutations continue", async () => {
+  const { reconcileHabitMutationQueue } = await import("../lib/data/habit-mutation-queue-store.ts");
+  const memory = new Map();
+  const store = createHabitMutationQueueStore({
+    async getItem(key) {
+      return memory.get(key) ?? null;
+    },
+    async setItem(key, value) {
+      memory.set(key, value);
+    },
+    async removeItem(key) {
+      memory.delete(key);
+    },
+  });
+  for (const operation of [
+    { id: "reject-me", habitId: "habit-1" },
+    { id: "save-me", habitId: "habit-2" },
+  ]) {
+    await store.enqueue({
+      ...operation,
+      kind: "update",
+      userId: "user-1",
+      payload: { reminders_enabled: true },
+      queuedAt: "2026-07-11T10:00:00.000Z",
+    });
+  }
+
+  const sent = [];
+  const result = await reconcileHabitMutationQueue({
+    store,
+    userId: "user-1",
+    failedAt: () => "2026-07-11T10:05:00.000Z",
+    async send(operation) {
+      sent.push(operation.id);
+      return operation.id === "reject-me"
+        ? { ok: false, retry: false, reason: "rejected", code: "42501" }
+        : { ok: true };
+    },
+  });
+  assert.deepEqual(sent, ["reject-me", "save-me"]);
+  assert.deepEqual(
+    result.succeeded.map((operation) => operation.id),
+    ["save-me"],
+  );
+  assert.deepEqual(
+    result.rejected.map((failure) => failure.operationId),
+    ["reject-me"],
+  );
+  assert.deepEqual(await store.read(), []);
+  assert.equal((await store.readFailures("user-1")).length, 1);
+});
+
+test("concurrent replacement suppresses stale failures and remains replayable", async () => {
+  const { reconcileHabitMutationQueue } = await import("../lib/data/habit-mutation-queue-store.ts");
+  let raw = null;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      raw = value;
+    },
+    async removeItem() {
+      raw = null;
+    },
+  });
+  await store.enqueue({
+    id: "old",
+    kind: "update",
+    habitId: "habit-1",
+    userId: "user-1",
+    payload: { reminders_enabled: false },
+    queuedAt: "2026-07-11T10:00:00.000Z",
+  });
+
+  const sent = [];
+  await reconcileHabitMutationQueue({
+    store,
+    userId: "user-1",
+    failedAt: () => "2026-07-11T10:05:00.000Z",
+    async send(operation) {
+      sent.push(operation.id);
+      if (operation.id === "old") {
+        await store.enqueue({
+          id: "new",
+          kind: "update",
+          habitId: "habit-1",
+          userId: "user-1",
+          payload: { reminders_enabled: true },
+          queuedAt: "2026-07-11T10:04:00.000Z",
+        });
+        return { ok: false, retry: false, reason: "rejected", code: "42501" };
+      }
+      return { ok: true };
+    },
+  });
+  assert.deepEqual(sent, ["old", "new"]);
+  assert.deepEqual(await store.read(), []);
+  assert.deepEqual(await store.readFailures("user-1"), []);
+});
+
+test("retryable habit failures stop replay without dropping later mutations", async () => {
+  const { reconcileHabitMutationQueue } = await import("../lib/data/habit-mutation-queue-store.ts");
+  let raw = null;
+  const store = createHabitMutationQueueStore({
+    async getItem() {
+      return raw;
+    },
+    async setItem(_key, value) {
+      raw = value;
+    },
+    async removeItem() {
+      raw = null;
+    },
+  });
+  for (const id of ["offline", "later"]) {
+    await store.enqueue({
+      id,
+      kind: "update",
+      habitId: id,
+      userId: "user-1",
+      payload: { reminders_enabled: true },
+      queuedAt: "2026-07-11T10:00:00.000Z",
+    });
+  }
+  const sent = [];
+  await reconcileHabitMutationQueue({
+    store,
+    userId: "user-1",
+    async send(operation) {
+      sent.push(operation.id);
+      return { ok: false, retry: true };
+    },
+  });
+  assert.deepEqual(sent, ["offline"]);
+  assert.deepEqual(
+    (await store.read()).map((operation) => operation.id),
+    ["offline", "later"],
+  );
+  assert.deepEqual(await store.readFailures("user-1"), []);
+});
+
+test("habit reconciliation failures are visible and dismissible on sync paths", () => {
+  for (const path of [
+    "app/(tabs)/index.tsx",
+    "app/habits/[id]/edit.tsx",
+    "app/habits/[id]/index.tsx",
+    "app/(tabs)/settings/reminders.tsx",
+  ]) {
+    assert.match(readFileSync(path, "utf8"), /HabitSyncIssueBanner/, path);
+  }
+  const queueSource = readFileSync("lib/data/habit-mutation-queue.ts", "utf8");
+  assert.match(queueSource, /listHabitReconciliationFailures/);
+  assert.match(queueSource, /acknowledgeHabitReconciliationFailures/);
+  assert.match(queueSource, /\.select\("id"\)[\s\S]*\.maybeSingle\(\)/);
+  assert.match(queueSource, /reason: "not_found"/);
+
+  const banner = readFileSync("components/habit-sync-issue-banner.tsx", "utf8");
+  assert.match(banner, /accessibilityRole="alert"/);
+  assert.match(banner, /acknowledgeHabitReconciliationFailures/);
+  assert.match(banner, /reviewableHabitIds/);
+  assert.match(banner, /Review habit/);
+  assert.match(banner, /Dismiss/);
+
+  assert.match(readFileSync("app/(tabs)/index.tsx", "utf8"), /reviewableHabitIds/);
+  assert.match(readFileSync("app/(tabs)/settings/reminders.tsx", "utf8"), /reviewableHabitIds/);
+});
+
 test("habit actions queue only retryable absolute patches and preserve completion ownership", () => {
   const actions = readFileSync("lib/data/actions.ts", "utf8");
   assert.match(actions, /enqueueHabitMutation/);
@@ -3361,6 +3764,15 @@ test("habit actions queue only retryable absolute patches and preserve completio
   assert.match(actions, /queueHabitPatch\("update"/);
   assert.match(actions, /queueHabitPatch\("archive"/);
   assert.match(actions, /kind: "increment_once"/);
+  assert.equal(
+    (
+      actions.match(
+        /await resolveHabitReconciliationFailures\(habitId\)\.catch\(\(\) => undefined\)/g,
+      ) ?? []
+    ).length,
+    2,
+    "a confirmed full save or archive should best-effort clear the prior warning",
+  );
   assert.equal(
     (actions.match(/await flushPendingHabitMutations\(\)/g) ?? []).length,
     3,

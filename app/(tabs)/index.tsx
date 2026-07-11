@@ -18,6 +18,7 @@ import { getHabitVisualForHabit } from "@/lib/data/habit-images";
 import { logCompletionOnce, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
 import { flushPendingCompletions } from "@/lib/data/completion-queue";
 import { flushPendingHabitMutations } from "@/lib/data/habit-mutation-queue";
+import HabitSyncIssueBanner from "@/components/habit-sync-issue-banner";
 import type { StreaksMap } from "@/lib/data/habits";
 import { useActivation } from "@/components/activation-provider";
 import { useCelebrate } from "@/components/celebration";
@@ -149,6 +150,7 @@ export default function DashboardScreen() {
   const [onboardingComplete, setOnboardingComplete] = useState(true);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncIssueRefreshToken, setSyncIssueRefreshToken] = useState(0);
   const { newUser } = useLocalSearchParams<{ newUser?: string }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
@@ -201,6 +203,7 @@ export default function DashboardScreen() {
         flushPendingHabitMutations().catch(() => undefined),
         flushPendingCompletions().catch(() => undefined),
       ]);
+      setSyncIssueRefreshToken((current) => current + 1);
       const [result, proAccess, stats] = await Promise.all([
         getHabitsForToday(options),
         getCurrentProAccess(),
@@ -280,6 +283,7 @@ export default function DashboardScreen() {
         coachSignal.kind !== "encouragement"));
 
   const habits = useMemo(() => data?.habits ?? [], [data]);
+  const reviewableHabitIds = useMemo(() => habits.map((habit) => habit.id), [habits]);
   const stepHabit = habits.find(isStepHabit) ?? null;
   const stepHabitSyncKey = stepHabit
     ? [
@@ -926,6 +930,11 @@ export default function DashboardScreen() {
         contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <HabitSyncIssueBanner
+          refreshToken={syncIssueRefreshToken}
+          reviewableHabitIds={reviewableHabitIds}
+          onReview={(failure) => router.push(`/habits/${failure.habitId}` as never)}
+        />
         {/* Welcome banner */}
         {showWelcomeBanner && (
           <TouchableOpacity

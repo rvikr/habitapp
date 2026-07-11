@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Switch } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,6 +12,7 @@ import { getReminderSchedule } from "@/lib/data/reminders";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
 import { ProUpgradeBanner } from "@/components/pro-access-banner";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
+import HabitSyncIssueBanner from "@/components/habit-sync-issue-banner";
 import { useLanguage } from "@/components/language-provider";
 import type { Habit } from "@/types/db";
 import type { ReminderStrategy } from "@/lib/coach/habit-intelligence";
@@ -44,6 +45,7 @@ export default function RemindersScreen() {
   const [previewMessages, setPreviewMessages] = useState<Record<string, string>>({});
   const [hasPro, setHasPro] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const reviewableHabitIds = useMemo(() => habits.map((habit) => habit.id), [habits]);
 
   const load = useCallback(async (options?: { force?: boolean }) => {
     const { habits: h } = await getHabitsForToday(options);
@@ -133,6 +135,11 @@ export default function RemindersScreen() {
           {t("Reminders")}
         </Text>
       </View>
+
+      <HabitSyncIssueBanner
+        reviewableHabitIds={reviewableHabitIds}
+        onReview={(failure) => router.push(`/habits/${failure.habitId}` as never)}
+      />
 
       {permission !== "granted" && (
         <View className="mx-margin-mobile mb-md bg-primary-fixed rounded-xl p-md flex-row items-center gap-md">

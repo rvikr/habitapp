@@ -380,6 +380,12 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Value must be a whole number.": "मान पूर्ण संख्या होना चाहिए।",
   "Value is above the allowed maximum.": "मान अनुमत अधिकतम सीमा से ऊपर है।",
   "Value cannot exceed the habit target.": "मान आदत के लक्ष्य से अधिक नहीं हो सकता।",
+  "Some changes didn't sync": "कुछ बदलाव सिंक नहीं हुए",
+  "A previous offline change didn't sync.": "पिछला ऑफ़लाइन बदलाव सिंक नहीं हुआ।",
+  "Review the affected habit and save or delete it again.":
+    "प्रभावित आदत की समीक्षा करें और उसे फिर से सेव या डिलीट करें।",
+  "Review habit": "आदत की समीक्षा करें",
+  "Dismissing this notice will not apply the change.": "यह सूचना हटाने से बदलाव लागू नहीं होगा।",
   "Choose a positive smart reminder interval.": "धनात्मक स्मार्ट रिमाइंडर अंतराल चुनें।",
   "Choose a positive smart reminder interval or add an override time.":
     "धनात्मक स्मार्ट रिमाइंडर अंतराल चुनें या एक वैकल्पिक समय जोड़ें।",
