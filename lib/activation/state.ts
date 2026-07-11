@@ -63,28 +63,18 @@ export function activationStateReducer(
   if (action.type === "loaded") {
     if (action.userId !== state.userId || action.generation !== state.generation) return state;
     const preserveKnownEngagement = state.ready && state.stage === "engaged" && state.authoritative;
-    const preserveAuthoritativeEngaged =
-      preserveKnownEngagement && action.assignment.variant === "activation_v2";
-    const applyPendingOptimism =
-      action.assignment.variant === "activation_v2" &&
-      state.pendingOptimisticFirstLog &&
-      action.stage === "pre_value";
-    const loadedStage =
-      action.assignment.variant === "control"
-        ? "engaged"
-        : preserveAuthoritativeEngaged
-          ? "engaged"
-          : applyPendingOptimism
-            ? "first_log"
-            : action.stage;
-    const authoritative =
-      action.assignment.variant === "control"
-        ? preserveKnownEngagement
-        : preserveAuthoritativeEngaged
-          ? true
-          : applyPendingOptimism
-            ? false
-            : action.authoritative;
+    const preserveAuthoritativeEngaged = preserveKnownEngagement;
+    const applyPendingOptimism = state.pendingOptimisticFirstLog && action.stage === "pre_value";
+    const loadedStage = preserveAuthoritativeEngaged
+      ? "engaged"
+      : applyPendingOptimism
+        ? "first_log"
+        : action.stage;
+    const authoritative = preserveAuthoritativeEngaged
+      ? true
+      : applyPendingOptimism
+        ? false
+        : action.authoritative;
     return {
       ...state,
       ready: true,
@@ -98,6 +88,6 @@ export function activationStateReducer(
 
   if (action.userId !== state.userId) return state;
   if (!state.ready) return { ...state, pendingOptimisticFirstLog: true };
-  if (state.variant !== "activation_v2" || state.stage !== "pre_value") return state;
+  if (state.stage !== "pre_value") return state;
   return { ...state, stage: "first_log", authoritative: false };
 }

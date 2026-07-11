@@ -2344,11 +2344,12 @@ test("first-login welcome is hidden for existing users with habits", () => {
   assert.equal(shouldShowFirstLoginWelcome({ newUser: undefined, habitCount: 0 }), false);
 });
 
-test("tabs layout waits for a session before mounting protected tabs", () => {
+test("tabs layout waits for the session and activation assignment before mounting protected tabs", () => {
   const source = readFileSync("app/(tabs)/_layout.tsx", "utf8");
   assert.match(source, /getCurrentSession/);
+  assert.match(source, /useActivation/);
   assert.match(source, /Redirect/);
-  assert.match(source, /if \(!sessionChecked\) return null;/);
+  assert.match(source, /if \(!sessionChecked \|\| !activation\.ready\) return null;/);
   assert.match(source, /if \(!hasSession\) return <Redirect href="\/login" \/>;/);
 });
 
@@ -6002,6 +6003,89 @@ test("activation provider state resets per account and ignores stale loads", asy
   assert.equal(controlToTreatment.stage, "pre_value", "newly enrolled control users may activate");
 });
 
+test("control assignments retain authoritative server activation milestones", async () => {
+  const { activationStateReducer, initialActivationProviderState } =
+    await import("../lib/activation/state.ts");
+  const signedIn = activationStateReducer(initialActivationProviderState, {
+    type: "auth_changed",
+    userId: "control-user",
+  });
+
+  for (const stage of ["pre_value", "first_log", "engaged"]) {
+    const loaded = activationStateReducer(signedIn, {
+      type: "loaded",
+      userId: "control-user",
+      generation: signedIn.generation,
+      assignment: { variant: "control", bucket: 14, rolloutPercentage: 0 },
+      stage,
+      authoritative: true,
+    });
+    assert.equal(loaded.variant, "control");
+    assert.equal(loaded.stage, stage);
+    assert.equal(loaded.authoritative, true);
+  }
+});
+
+test("a control offline first log survives reload until authoritative reconciliation", async () => {
+  const { resolveStageWithOptimisticMarker } = await import("../lib/activation/contracts.ts");
+  const { activationStateReducer, initialActivationProviderState } =
+    await import("../lib/activation/state.ts");
+  const signedIn = activationStateReducer(initialActivationProviderState, {
+    type: "auth_changed",
+    userId: "offline-control",
+  });
+  const optimisticBeforeLoad = activationStateReducer(signedIn, {
+    type: "optimistic_first_log",
+    userId: "offline-control",
+  });
+  const loadedAfterEarlyCompletion = activationStateReducer(optimisticBeforeLoad, {
+    type: "loaded",
+    userId: "offline-control",
+    generation: signedIn.generation,
+    assignment: { variant: "control", bucket: 41, rolloutPercentage: 0 },
+    stage: "pre_value",
+    authoritative: true,
+  });
+  assert.equal(loadedAfterEarlyCompletion.stage, "first_log");
+  assert.equal(loadedAfterEarlyCompletion.authoritative, false);
+
+  const preValue = activationStateReducer(signedIn, {
+    type: "loaded",
+    userId: "offline-control",
+    generation: signedIn.generation,
+    assignment: { variant: "control", bucket: 41, rolloutPercentage: 0 },
+    stage: "pre_value",
+    authoritative: true,
+  });
+  const optimistic = activationStateReducer(preValue, {
+    type: "optimistic_first_log",
+    userId: "offline-control",
+  });
+  assert.equal(optimistic.stage, "first_log");
+  assert.equal(optimistic.authoritative, false);
+
+  assert.deepEqual(
+    resolveStageWithOptimisticMarker({
+      remote: { stage: "pre_value", authoritative: true },
+      hasMarker: true,
+      hasPendingPositive: true,
+      reconcile: false,
+    }),
+    { stage: "first_log", clearMarker: false },
+    "a reload keeps the optimistic stage while the positive completion is queued",
+  );
+  assert.deepEqual(
+    resolveStageWithOptimisticMarker({
+      remote: { stage: "first_log", authoritative: true },
+      hasMarker: true,
+      hasPendingPositive: false,
+      reconcile: true,
+    }),
+    { stage: "first_log", clearMarker: true },
+    "queue replay clears the marker only after the server milestone is authoritative",
+  );
+});
+
 test("activation loads accept only the latest same-user request and optimism invalidates reads", async () => {
   const { createActivationLoadSequencer } = await import("../lib/activation/request-sequencer.ts");
   const sequencer = createActivationLoadSequencer();
@@ -6417,9 +6501,10 @@ test("activation provider loads fail-safe config and milestones at the app root"
     service,
     /authoritative:\s*remote\.authoritative\s*&&\s*resolved\.stage\s*===\s*remote\.stage/,
   );
-  assert.match(
+  assert.doesNotMatch(
     service,
-    /assignment\.variant === "control"[\s\S]*options\?\.reconcile[\s\S]*optimisticFirstLogStore\.clear\(userId\)/,
+    /if \(assignment\.variant === "control"\)/,
+    "control and treatment must share durable optimistic milestone reconciliation",
   );
   const queueStoreService = readFileSync("lib/services/completion-queue-store.ts", "utf8");
   assert.doesNotMatch(queueStoreService, /from "\.\.\/data\/completion-queue"/);

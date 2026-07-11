@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, usePathname } from "expo-router";
 import { useColorScheme, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useActivation } from "@/components/activation-provider";
 import { useLanguage } from "@/components/language-provider";
+import {
+  isActivationTabPathAllowed,
+  resolveActivationPresentation,
+} from "@/lib/activation/presentation";
 import { getCurrentSession } from "@/lib/supabase/client";
 
 const TAB_ACTIVE = "#F26B1F";
@@ -14,6 +19,8 @@ const TAB_INACTIVE_DARK = "#7A7E88";
 export default function TabsLayout() {
   const scheme = useColorScheme();
   const { t } = useLanguage();
+  const activation = useActivation();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [sessionChecked, setSessionChecked] = useState(false);
   const [hasSession, setHasSession] = useState(false);
@@ -21,6 +28,7 @@ export default function TabsLayout() {
   const active = isDark ? TAB_ACTIVE_DARK : TAB_ACTIVE;
   const inactive = isDark ? TAB_INACTIVE_DARK : TAB_INACTIVE;
   const tabBarBg = isDark ? "#16161C" : "#FFFFFF";
+  const presentation = resolveActivationPresentation(activation.variant, activation.stage);
   // Once we override tabBarStyle.height/paddingBottom, React Navigation stops
   // auto-applying the safe-area inset, so we must add it back ourselves. This
   // matters on Android gesture-nav devices (the nav pill overlapped the tabs,
@@ -41,8 +49,9 @@ export default function TabsLayout() {
     };
   }, []);
 
-  if (!sessionChecked) return null;
+  if (!sessionChecked || !activation.ready) return null;
   if (!hasSession) return <Redirect href="/login" />;
+  if (!isActivationTabPathAllowed(pathname, presentation)) return <Redirect href="/" />;
 
   return (
     <Tabs
@@ -76,6 +85,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="achievements"
         options={{
+          href: presentation.visibleTabs.includes("achievements") ? undefined : null,
           title: t("Badges"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="trophy" size={size} color={color} />
@@ -85,6 +95,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="progress"
         options={{
+          href: presentation.visibleTabs.includes("progress") ? undefined : null,
           title: t("Progress"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="chart-line" size={size} color={color} />
@@ -94,6 +105,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="leaderboard"
         options={{
+          href: presentation.visibleTabs.includes("leaderboard") ? undefined : null,
           title: t("Ranks"),
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="podium" size={size} color={color} />

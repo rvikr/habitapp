@@ -17,6 +17,7 @@ import { getHabitVisualForHabit } from "@/lib/data/habit-images";
 import { logCompletion, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
 import { flushPendingCompletions } from "@/lib/data/completion-queue";
 import type { StreaksMap } from "@/lib/data/habits";
+import { useActivation } from "@/components/activation-provider";
 import { useCelebrate } from "@/components/celebration";
 import { useTheme } from "@/components/theme-provider";
 import { recordCompletionAndMaybeReview } from "@/lib/platform/store-review";
@@ -56,6 +57,8 @@ import {
   type ProAccess,
 } from "@/lib/subscription/access";
 import { getItem, setItem } from "@/lib/platform/storage";
+import { firstLogNotificationOfferKey } from "@/lib/coach/first-log-flow";
+import { resolveActivationPresentation } from "@/lib/activation/presentation";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
 import { isStepHabit } from "@/lib/data/steps-shared";
 import { nowMarkerIndex, orderHabitsForTimeline } from "@/lib/utils/timeline";
@@ -112,6 +115,11 @@ type StepTrackingState = {
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const activation = useActivation();
+  const activationPresentation = resolveActivationPresentation(
+    activation.variant,
+    activation.stage,
+  );
   const celebrate = useCelebrate();
   const { colorScheme } = useTheme();
   const { language, t } = useLanguage();
@@ -243,6 +251,7 @@ export default function DashboardScreen() {
   // Encouragement is the daily fallback signal — auto-surfacing it would train
   // users to ignore the card, so it only appears via the bot button.
   const coachCardVisible =
+    activationPresentation.showCoach &&
     coachSignalActive &&
     !!coachSignal &&
     (coachCardOverride === "shown" ||
@@ -262,7 +271,7 @@ export default function DashboardScreen() {
       ].join(":")
     : null;
   const requiresFirstRunOnboarding =
-    data && onboardingChecked
+    activation.ready && activationPresentation.allowFirstRunOnboarding && data && onboardingChecked
       ? shouldRequireFirstRunOnboarding({
           habitCount: data.habits.length,
           dataOk: data.ok,
@@ -273,12 +282,14 @@ export default function DashboardScreen() {
     showWelcome && data
       ? shouldShowFirstLoginWelcome({ newUser, habitCount: data.habits.length })
       : false;
-  const showTrialBanner = data
-    ? shouldShowTrialSubscriptionBanner(data.proAccess, trialBannerDismissed)
-    : false;
-  const showTrialEndedBanner = data
-    ? shouldShowTrialEndedBanner(data.proAccess, trialEndedDismissedAt)
-    : false;
+  const showTrialBanner =
+    activationPresentation.showMonetization && data
+      ? shouldShowTrialSubscriptionBanner(data.proAccess, trialBannerDismissed)
+      : false;
+  const showTrialEndedBanner =
+    activationPresentation.showMonetization && data
+      ? shouldShowTrialEndedBanner(data.proAccess, trialEndedDismissedAt)
+      : false;
 
   useEffect(() => {
     if (requiresFirstRunOnboarding && !wizardAutoLaunchedForSession) {
@@ -793,9 +804,11 @@ export default function DashboardScreen() {
             >
               {isInitialLoading ? "" : t("Hey, {name}", { name: data.profile.displayName })}
             </Text>
-            {!isInitialLoading && (data?.stats?.level || data?.proAccess) ? (
+            {!isInitialLoading &&
+            ((activationPresentation.showCompetition && data?.stats?.level) ||
+              (activationPresentation.showMonetization && data?.proAccess)) ? (
               <View className="flex-row items-center gap-sm mt-xs flex-wrap">
-                {data?.stats?.level ? (
+                {activationPresentation.showCompetition && data?.stats?.level ? (
                   <View
                     className="flex-row items-center gap-1 px-sm rounded-full"
                     style={{ paddingVertical: 3, borderWidth: 1, borderColor: primary }}
@@ -806,31 +819,43 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                 ) : null}
-                {data?.proAccess ? <ProBadge access={data.proAccess} /> : null}
+                {activationPresentation.showMonetization && data?.proAccess ? (
+                  <ProBadge access={data.proAccess} />
+                ) : null}
               </View>
             ) : null}
             {isInitialLoading && <SkeletonText className="mt-xs h-8" width={152} />}
           </View>
           <View className="flex-row items-center gap-sm shrink-0">
-            <CoachHeaderButton
-              signal={coachSignal}
-              active={coachSignalActive}
-              cardVisible={coachCardVisible}
-              onPress={handleCoachButtonPress}
-            />
-            <TouchableOpacity
-              className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center"
-              onPress={handleChooseManualHabit}
-              accessibilityRole="button"
-              accessibilityLabel={t("Add habit")}
-            >
-              <MaterialCommunityIcons name="plus" size={22} color="#3D1800" />
-            </TouchableOpacity>
+            {activationPresentation.showCoach ? (
+              <CoachHeaderButton
+                signal={coachSignal}
+                active={coachSignalActive}
+                cardVisible={coachCardVisible}
+                onPress={handleCoachButtonPress}
+              />
+            ) : null}
+            {!activationPresentation.hideDuplicateEmptyHeaderAction || total > 0 ? (
+              <TouchableOpacity
+                className="w-10 h-10 rounded-full bg-primary-fixed items-center justify-center"
+                onPress={handleChooseManualHabit}
+                accessibilityRole="button"
+                accessibilityLabel={t("Add habit")}
+              >
+                <MaterialCommunityIcons name="plus" size={22} color="#3D1800" />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
 
         {/* Reminder permission prompt — self-hides once notifications are granted */}
-        <NotificationPermissionCard />
+        {activationPresentation.notificationMode === "standard" ? (
+          <NotificationPermissionCard />
+        ) : activationPresentation.notificationMode === "contextual" && data?.userId ? (
+          <NotificationPermissionCard
+            suppressIfStorageKeyPresent={firstLogNotificationOfferKey(data.userId)}
+          />
+        ) : null}
 
         {/* AI Coach card — auto-shown when a signal needs attention */}
         {coachCardVisible && coachSignal && (
@@ -966,7 +991,7 @@ export default function DashboardScreen() {
         )}
 
         {/* Leaderboard opt-in banner */}
-        {data && !data.leaderboardOptedIn && (
+        {activationPresentation.showCompetition && data && !data.leaderboardOptedIn && (
           <TouchableOpacity
             onPress={() => router.push("/(tabs)/leaderboard")}
             className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md"

@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
+import { useFocusEffect } from "expo-router";
 import { Linking, Platform, View, Text, TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
+import { getItem } from "@/lib/platform/storage";
 import { useLanguage } from "@/components/language-provider";
 
 // Web-only: detect iOS Safari (not standalone) so we can show install guidance
@@ -20,15 +22,56 @@ function isStandalone(): boolean {
   );
 }
 
-export default function NotificationPermissionCard() {
+export default function NotificationPermissionCard({
+  suppressIfStorageKeyPresent,
+}: {
+  suppressIfStorageKeyPresent?: string;
+}) {
   const { t } = useLanguage();
   const [status, setStatus] = useState<"granted" | "denied" | "undetermined">("undetermined");
+  const [checkedSuppressionKey, setCheckedSuppressionKey] = useState<string | null>(null);
+  const [suppressed, setSuppressed] = useState(false);
 
   useEffect(() => {
     getPermissionStatus().then(setStatus);
   }, []);
 
-  if (status === "granted") return null;
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      if (!suppressIfStorageKeyPresent) {
+        setCheckedSuppressionKey(null);
+        setSuppressed(false);
+        return () => {
+          cancelled = true;
+        };
+      }
+
+      setCheckedSuppressionKey(null);
+      setSuppressed(false);
+      void getItem(suppressIfStorageKeyPresent)
+        .then((value) => {
+          if (!cancelled) setSuppressed(value === "1");
+        })
+        .catch(() => {
+          if (!cancelled) setSuppressed(false);
+        })
+        .finally(() => {
+          if (!cancelled) setCheckedSuppressionKey(suppressIfStorageKeyPresent);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [suppressIfStorageKeyPresent]),
+  );
+
+  if (
+    status === "granted" ||
+    suppressed ||
+    (suppressIfStorageKeyPresent && checkedSuppressionKey !== suppressIfStorageKeyPresent)
+  ) {
+    return null;
+  }
 
   // On iOS Safari (not installed), push isn't available yet. Guide the user
   // to install the PWA first instead of showing a non-functional Allow button.

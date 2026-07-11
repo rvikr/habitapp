@@ -49,13 +49,9 @@ export async function loadActivationSnapshot(
   options?: { forceConfig?: boolean; reconcile?: boolean },
 ): Promise<ActivationSnapshot> {
   const assignment = await getActivationAssignment(userId, options);
-  if (assignment.variant === "control") {
-    if (options?.reconcile) await optimisticFirstLogStore.clear(userId);
-    return { assignment, stage: "engaged", authoritative: false };
-  }
-
+  const remotePromise = readActivationStage(userId);
   const [remote, hasMarker] = await Promise.all([
-    readActivationStage(userId),
+    remotePromise,
     optimisticFirstLogStore.has(userId),
   ]);
   const shouldVerifyPendingPositive =
