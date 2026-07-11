@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(36);
 
 select has_column(
   'public',
@@ -30,6 +30,176 @@ select has_function(
   'update_activation_milestones',
   array[]::name[],
   'activation milestone trigger function is private'
+);
+select is(
+  (
+    select p.prosecdef
+    from pg_catalog.pg_proc as p
+    join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
+    where n.nspname = 'app_private'
+      and p.proname = 'update_activation_milestones'
+      and p.pronargs = 0
+  ),
+  true,
+  'activation milestone function is SECURITY DEFINER'
+);
+select is(
+  (
+    select p.proconfig
+    from pg_catalog.pg_proc as p
+    join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
+    where n.nspname = 'app_private'
+      and p.proname = 'update_activation_milestones'
+      and p.pronargs = 0
+  ),
+  array['search_path=""']::text[],
+  'activation milestone function has exactly an empty search_path'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_catalog.pg_namespace as n
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(n.nspacl, pg_catalog.acldefault('n'::"char", n.nspowner))
+    ) as acl
+    where n.nspname = 'app_private'
+      and acl.grantee = 0
+      and acl.privilege_type = 'USAGE'
+  ),
+  'PUBLIC cannot use the private activation schema'
+);
+select ok(
+  not has_schema_privilege('anon', 'app_private', 'usage'),
+  'anonymous callers cannot use the private activation schema'
+);
+select ok(
+  not has_schema_privilege('authenticated', 'app_private', 'usage'),
+  'authenticated callers cannot use the private activation schema'
+);
+select ok(
+  not has_schema_privilege('service_role', 'app_private', 'usage'),
+  'service-role callers cannot use the private activation schema directly'
+);
+
+select ok(
+  not exists (
+    select 1
+    from pg_catalog.pg_proc as p
+    join pg_catalog.pg_namespace as n on n.oid = p.pronamespace
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(p.proacl, pg_catalog.acldefault('f'::"char", p.proowner))
+    ) as acl
+    where n.nspname = 'app_private'
+      and p.proname = 'update_activation_milestones'
+      and p.pronargs = 0
+      and acl.grantee = 0
+      and acl.privilege_type = 'EXECUTE'
+  ),
+  'PUBLIC cannot execute the private activation function'
+);
+select ok(
+  not has_function_privilege(
+    'anon',
+    'app_private.update_activation_milestones()',
+    'execute'
+  ),
+  'anonymous callers cannot execute the private activation function'
+);
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'app_private.update_activation_milestones()',
+    'execute'
+  ),
+  'authenticated callers cannot execute the private activation function'
+);
+select ok(
+  not has_function_privilege(
+    'service_role',
+    'app_private.update_activation_milestones()',
+    'execute'
+  ),
+  'service-role callers cannot execute the private activation function directly'
+);
+
+select is(
+  (
+    select count(*)
+    from pg_catalog.pg_trigger as t
+    join pg_catalog.pg_class as c on c.oid = t.tgrelid
+    join pg_catalog.pg_namespace as n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'habit_completions'
+      and t.tgname = 'on_habit_completion_update_activation'
+      and not t.tgisinternal
+  ),
+  1::bigint,
+  'habit completions have exactly one non-internal activation trigger'
+);
+select is(
+  (
+    select pn.nspname || '.' || p.proname
+    from pg_catalog.pg_trigger as t
+    join pg_catalog.pg_class as c on c.oid = t.tgrelid
+    join pg_catalog.pg_namespace as n on n.oid = c.relnamespace
+    join pg_catalog.pg_proc as p on p.oid = t.tgfoid
+    join pg_catalog.pg_namespace as pn on pn.oid = p.pronamespace
+    where n.nspname = 'public'
+      and c.relname = 'habit_completions'
+      and t.tgname = 'on_habit_completion_update_activation'
+      and not t.tgisinternal
+  ),
+  'app_private.update_activation_milestones',
+  'habit completion activation trigger calls the private milestone function'
+);
+select is(
+  (
+    select t.tgtype
+    from pg_catalog.pg_trigger as t
+    join pg_catalog.pg_class as c on c.oid = t.tgrelid
+    join pg_catalog.pg_namespace as n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'habit_completions'
+      and t.tgname = 'on_habit_completion_update_activation'
+      and not t.tgisinternal
+  ),
+  21::smallint,
+  'activation trigger is row-level AFTER INSERT and UPDATE only'
+);
+select is(
+  (
+    select t.tgattr::text
+    from pg_catalog.pg_trigger as t
+    join pg_catalog.pg_class as c on c.oid = t.tgrelid
+    join pg_catalog.pg_namespace as n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'habit_completions'
+      and t.tgname = 'on_habit_completion_update_activation'
+      and not t.tgisinternal
+  ),
+  (
+    select a.attnum::text
+    from pg_catalog.pg_attribute as a
+    where a.attrelid = 'public.habit_completions'::regclass
+      and a.attname = 'value'
+      and not a.attisdropped
+  ),
+  'activation trigger limits UPDATE events to the completion value column'
+);
+select is(
+  (
+    select t.tgenabled
+    from pg_catalog.pg_trigger as t
+    join pg_catalog.pg_class as c on c.oid = t.tgrelid
+    join pg_catalog.pg_namespace as n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'habit_completions'
+      and t.tgname = 'on_habit_completion_update_activation'
+      and not t.tgisinternal
+  ),
+  'O'::"char",
+  'activation trigger is enabled for the normal replication role'
 );
 
 insert into auth.users (

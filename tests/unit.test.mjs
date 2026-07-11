@@ -6633,7 +6633,33 @@ test("activation schema parity and pgTAP verification are source-controlled", ()
     "expected activation pgTAP verification",
   );
   const pgTap = readFileSync("supabase/tests/database/activation_v2.test.sql", "utf8");
-  assert.match(pgTap, /select plan\(21\)/i);
+  assert.match(pgTap, /select plan\(36\)/i);
+  assert.match(pgTap, /prosecdef[\s\S]*pg_catalog\.pg_proc/i);
+  assert.match(pgTap, /proconfig[\s\S]*array\['search_path=""'\]::text\[\]/i);
+  assert.match(
+    pgTap,
+    /aclexplode\([\s\S]*nspacl[\s\S]*grantee\s*=\s*0[\s\S]*privilege_type\s*=\s*'USAGE'/i,
+  );
+  for (const role of ["anon", "authenticated", "service_role"]) {
+    assert.match(
+      pgTap,
+      new RegExp(`not\\s+has_schema_privilege\\(\\s*'${role}'[\\s\\S]*?'usage'`, "i"),
+    );
+    assert.match(
+      pgTap,
+      new RegExp(`not\\s+has_function_privilege\\(\\s*'${role}'[\\s\\S]*?'execute'`, "i"),
+    );
+  }
+  assert.match(
+    pgTap,
+    /aclexplode\([\s\S]*proacl[\s\S]*grantee\s*=\s*0[\s\S]*privilege_type\s*=\s*'EXECUTE'/i,
+  );
+  assert.match(pgTap, /pg_trigger[\s\S]*not\s+t\.tgisinternal/i);
+  assert.match(pgTap, /join pg_catalog\.pg_proc as p on p\.oid = t\.tgfoid/i);
+  assert.match(pgTap, /tgtype[\s\S]*21::smallint/i);
+  assert.match(pgTap, /tgattr[\s\S]*attname\s*=\s*'value'/i);
+  assert.match(pgTap, /app_private\.update_activation_milestones/i);
+  assert.match(pgTap, /tgenabled[\s\S]*'O'::"char"/i);
   assert.match(pgTap, /first positive completion/i);
   assert.match(pgTap, /third positive completion/i);
   assert.match(pgTap, /repeat same-row update does not reach engagement/i);
