@@ -1,0 +1,46 @@
+env: load .env.local
+env: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_POSTHOG_KEY EXPO_PUBLIC_POSTHOG_HOST EXPO_PUBLIC_PRIVACY_POLICY_URL EXPO_PUBLIC_TERMS_URL EXPO_PUBLIC_ACCOUNT_DELETION_URL EXPO_PUBLIC_SUPPORT_EMAIL EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY REVENUECAT_SECRET_API_KEY REVENUECAT_WEBHOOK_AUTH_TOKEN
+Starting project at C:\Users\rk\habbitapp
+Starting Metro Bundler
+Waiting on http://localhost:8083
+Logs for your project will appear below.
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  1.0% (1/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓░░░░░░░░░░░ 36.0% (205/428)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓░░░░░░░░░ 50.0% (528/747)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 83.1% (1011/1109)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web node_modules\expo-router\entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 97.5% (1321/1338)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 19868ms node_modules\expo-router\entry.js (1356 modules)
+Web Bundled 7853ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 22ms lib\platform\storage.web.ts (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 11ms lib\platform\storage.web.ts (1 module)
+Web Bundled 59ms lib\supabase\client.ts (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 37ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 2ms lib\platform\storage.web.ts (1 module)
+Web Bundled 45ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 2ms lib\platform\storage.web.ts (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 39ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 2ms lib\platform\storage.web.ts (1 module)
+Web node_modules\expo-router\entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 62ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 42ms node_modules\expo-router\entry.js (1 module)
+Web Bundled 45ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 1ms lib\platform\storage.web.ts (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 2ms lib\platform\storage.web.ts (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 2ms lib\platform\storage.web.ts (1 module)
+Web Bundled 36ms node_modules\expo-router\entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web Bundled 2ms lib\platform\storage.web.ts (1 module)
