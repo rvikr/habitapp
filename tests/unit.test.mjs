@@ -1999,11 +1999,22 @@ test("first-run wizard touch targets expose web accessibility roles", () => {
 test("first-run wizard primary actions use text loading states", () => {
   const source = readFileSync("app/habits/wizard.tsx", "utf8");
   assert.doesNotMatch(source, /ActivityIndicator/);
-  assert.doesNotMatch(source, /disabled=\{(?:creating|busy|completing)/);
+  assert.match(source, /disabled=\{creating\}/);
+  assert.doesNotMatch(source, /disabled=\{(?:busy|completing)/);
   for (const label of ["Creating routine...", "Enabling...", "Completing...", "Logging..."]) {
     assert.match(source, new RegExp(`"${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
     assert.notEqual(translate("hi", label), label);
   }
+});
+
+test("wizard routine creation synchronously rejects duplicate activation and always unlocks", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  assert.match(source, /const creatingRef = useRef\(false\)/);
+  assert.match(
+    source,
+    /async function createRoutine\(\) \{\s*if \(creatingRef\.current\) return;\s*creatingRef\.current = true;/,
+  );
+  assert.match(source, /finally \{\s*creatingRef\.current = false;\s*setCreating\(false\);\s*\}/);
 });
 
 test("first-run wizard next button validates each step before advancing", () => {

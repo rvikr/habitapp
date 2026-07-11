@@ -39,6 +39,11 @@ function fakeSession() {
   const page = await context.newPage();
   const pageErrors = [];
   const unexpectedBackendCalls = [];
+  const habitInsertRequests = [];
+  let releaseFirstHabitPost;
+  const firstHabitPostGate = new Promise((resolve) => {
+    releaseFirstHabitPost = resolve;
+  });
   page.on("pageerror", (error) => pageErrors.push(String(error.stack || error.message || error)));
 
   await page.addInitScript(
@@ -50,7 +55,7 @@ function fakeSession() {
     { storageKey, session },
   );
 
-  await page.route("**/*.supabase.co/**", (route) => {
+  await page.route("**/*.supabase.co/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
@@ -61,6 +66,9 @@ function fakeSession() {
     }
     if (path.includes("/functions/v1/sync-subscription")) {
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true }) });
+    }
+    if (path.includes("/functions/v1/validate-habit")) {
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ status: "ok" }) });
     }
     if (path.includes("/rest/v1/feature_flags")) {
       const activation = request.url().includes("activation_v2");
@@ -89,7 +97,32 @@ function fakeSession() {
         }),
       });
     }
-    if (path.includes("/rest/v1/habits") || path.includes("/rest/v1/habit_completions")) {
+    if (path.includes("/rest/v1/habits")) {
+      if (request.method() === "POST") {
+        const parsed = JSON.parse(request.postData() || "{}");
+        const rows = Array.isArray(parsed) ? parsed : [parsed];
+        if (rows.length !== 1) {
+          unexpectedBackendCalls.push({
+            method: request.method(),
+            url: request.url(),
+            reason: `expected one inserted habit, received ${rows.length}`,
+          });
+        }
+        const sequence = habitInsertRequests.length + 1;
+        const id = `00000000-0000-4000-8000-${String(sequence).padStart(12, "0")}`;
+        habitInsertRequests.push({ id, payload: rows[0] });
+        if (sequence === 1) {
+          await firstHabitPostGate;
+        }
+        return route.fulfill({ status: 201, headers, body: JSON.stringify({ id }) });
+      }
+      return route.fulfill({
+        status: 200,
+        headers,
+        body: request.method() === "HEAD" ? "" : "[]",
+      });
+    }
+    if (path.includes("/rest/v1/habit_completions")) {
       return route.fulfill({
         status: 200,
         headers,
@@ -113,9 +146,10 @@ function fakeSession() {
   });
   await page.waitForURL(/habits\/wizard/, { timeout: 30000 });
 
-  await page.waitForTimeout(3000);
-  const initialText = await page.locator("body").innerText({ timeout: 10000 });
-  if (!initialText.includes("STEP 1 OF 3")) {
+  try {
+    await page.getByText("STEP 1 OF 3", { exact: true }).waitFor({ timeout: 30000 });
+  } catch {
+    const initialText = await page.locator("body").innerText({ timeout: 10000 });
     await page.screenshot({ path: "tmp/treatment-quick-start-failure.png", fullPage: true });
     fs.writeFileSync(
       "tmp/treatment-quick-start-smoke-failure.json",
@@ -195,8 +229,46 @@ function fakeSession() {
   }
   await page.getByText("Meditate", { exact: true }).waitFor({ timeout: 10000 });
 
+  const createRoutine = page.getByRole("button", { name: "Create routine", exact: true });
+  const firstHabitPost = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" && new URL(request.url()).pathname.includes("/rest/v1/habits"),
+    { timeout: 10000 },
+  );
+  await createRoutine.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+  await firstHabitPost;
+  try {
+    const creatingRoutine = page.getByRole("button", {
+      name: "Creating routine...",
+      exact: true,
+    });
+    await creatingRoutine.waitFor({ timeout: 10000 });
+    if (!(await creatingRoutine.isDisabled())) {
+      throw new Error("Create routine did not become disabled while the batch was in flight");
+    }
+  } finally {
+    releaseFirstHabitPost();
+  }
+
+  await page.getByText("Your routine is ready", { exact: true }).waitFor({ timeout: 30000 });
+  await page.getByText("2 habits, ready to go.", { exact: true }).waitFor({ timeout: 10000 });
+  await page.waitForLoadState("networkidle", { timeout: 10000 });
+  const insertedNames = habitInsertRequests.map(({ payload }) => payload?.name);
+  if (
+    habitInsertRequests.length !== 2 ||
+    insertedNames[0] !== "Focus Session" ||
+    insertedNames[1] !== "Posture Stretch"
+  ) {
+    throw new Error(
+      `expected one two-habit creation batch, received ${JSON.stringify(insertedNames)}`,
+    );
+  }
+
   const text = await page.locator("body").innerText();
-  await page.screenshot({ path: "tmp/treatment-quick-start-review.png", fullPage: true });
+  await page.screenshot({ path: "tmp/treatment-quick-start-complete.png", fullPage: true });
   fs.writeFileSync(
     "tmp/treatment-quick-start-smoke-current.json",
     JSON.stringify({ url: page.url(), text, pageErrors, unexpectedBackendCalls }, null, 2),

@@ -268,6 +268,7 @@ export default function HabitWizardScreen() {
   const [showRoutineUpgrade, setShowRoutineUpgrade] = useState(false);
   const [loadingRoutine, setLoadingRoutine] = useState(false);
   const [creating, setCreating] = useState(false);
+  const creatingRef = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [postPhase, setPostPhase] = useState<PostCreatePhase>(null);
   const [needsNotifPrimer, setNeedsNotifPrimer] = useState(false);
@@ -432,109 +433,109 @@ export default function HabitWizardScreen() {
   }
 
   async function createRoutine() {
-    if (creating) return;
-    markTreatmentReviewInteraction();
-    const selected = recommendations?.filter((item) => item.selected) ?? [];
-    if (selected.length === 0) {
-      showAlert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
-      return;
-    }
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+      markTreatmentReviewInteraction();
+      const selected = recommendations?.filter((item) => item.selected) ?? [];
+      if (selected.length === 0) {
+        showAlert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
+        return;
+      }
 
-    const payload = selected.map((item) => ({
-      name: item.name,
-      description: item.description,
-      icon: item.icon,
-      color: item.color,
-      unit: item.unit,
-      target: item.target,
-      remindersEnabled: item.remindersEnabled,
-      reminderTimes: item.reminderTimes,
-      reminderDays: item.reminderDays,
-      habitType: item.habitType,
-      metricType: item.metricType,
-      visualType: item.visualType,
-      reminderStrategy: item.reminderStrategy,
-      reminderIntervalMinutes: item.reminderIntervalMinutes,
-      defaultLogValue: item.defaultLogValue,
-      mergeSimilar: item.mergeSimilar,
-    }));
-    setCreating(true);
-    let batch: Awaited<ReturnType<typeof createRoutineHabits>>;
-    if (isTreatment) {
+      const payload = selected.map((item) => ({
+        name: item.name,
+        description: item.description,
+        icon: item.icon,
+        color: item.color,
+        unit: item.unit,
+        target: item.target,
+        remindersEnabled: item.remindersEnabled,
+        reminderTimes: item.reminderTimes,
+        reminderDays: item.reminderDays,
+        habitType: item.habitType,
+        metricType: item.metricType,
+        visualType: item.visualType,
+        reminderStrategy: item.reminderStrategy,
+        reminderIntervalMinutes: item.reminderIntervalMinutes,
+        defaultLogValue: item.defaultLogValue,
+        mergeSimilar: item.mergeSimilar,
+      }));
+      setCreating(true);
+      let batch: Awaited<ReturnType<typeof createRoutineHabits>>;
       try {
         batch = await createRoutineHabits(payload);
-      } catch {
+      } catch (error) {
+        if (!isTreatment) throw error;
         showAlert(
           t("Routine creation stopped"),
           t("We couldn't finish creating your routine. Review your suggestions and try again."),
         );
         return;
-      } finally {
-        setCreating(false);
       }
-    } else {
-      batch = await createRoutineHabits(payload);
-      setCreating(false);
-    }
-    const { signedOut, results } = batch;
+      const { signedOut, results } = batch;
 
-    // The auth check now happens once for the whole batch, so "sign in again"
-    // can only mean a genuine signed-out state — show it once, not per habit.
-    if (signedOut) {
-      showAlert(t("Some habits were not created"), t("You need to sign in again."));
-      return;
-    }
-
-    const failures = results
-      .map((result, i) => {
-        if (result.ok) return null;
-        const validationMessage =
-          "validation" in result && result.validation?.message ? result.validation.message : null;
-        return `${selected[i].name}: ${validationMessage ?? result.error ?? t("Could not create habit.")}`;
-      })
-      .filter((msg): msg is string => msg !== null);
-
-    if (!isTreatment && failures.length > 0) {
-      showAlert(t("Some habits were not created"), failures.join("\n"));
-      return;
-    }
-
-    if (isTreatment) {
-      const outcome = classifyTreatmentCreateOutcome(false, results, selected.length);
-      if (outcome.status === "none_created") {
-        showAlert(
-          t("Routine couldn't be created"),
-          t("We couldn't create any habits. Review your suggestions and try again."),
-        );
+      // The auth check now happens once for the whole batch, so "sign in again"
+      // can only mean a genuine signed-out state — show it once, not per habit.
+      if (signedOut) {
+        showAlert(t("Some habits were not created"), t("You need to sign in again."));
         return;
       }
-      if (outcome.status === "partially_created") {
-        showAlert(
-          t("Some habits couldn't be created"),
-          t("{created} of {total} habits were created. You can continue with those.", {
-            created: outcome.successfulCount,
-            total: outcome.totalCount,
-          }),
-        );
+
+      const failures = results
+        .map((result, i) => {
+          if (result.ok) return null;
+          const validationMessage =
+            "validation" in result && result.validation?.message ? result.validation.message : null;
+          return `${selected[i].name}: ${validationMessage ?? result.error ?? t("Could not create habit.")}`;
+        })
+        .filter((msg): msg is string => msg !== null);
+
+      if (!isTreatment && failures.length > 0) {
+        showAlert(t("Some habits were not created"), failures.join("\n"));
+        return;
       }
-    }
 
-    // Routine creation succeeded — record onboarding as done so the dashboard
-    // never auto-launches the wizard for this user again.
-    const session = await getCurrentSession();
-    if (session?.user?.id) void markOnboardingComplete(session.user.id);
+      if (isTreatment) {
+        const outcome = classifyTreatmentCreateOutcome(false, results, selected.length);
+        if (outcome.status === "none_created") {
+          showAlert(
+            t("Routine couldn't be created"),
+            t("We couldn't create any habits. Review your suggestions and try again."),
+          );
+          return;
+        }
+        if (outcome.status === "partially_created") {
+          showAlert(
+            t("Some habits couldn't be created"),
+            t("{created} of {total} habits were created. You can continue with those.", {
+              created: outcome.successfulCount,
+              total: outcome.totalCount,
+            }),
+          );
+        }
+      }
 
-    const created = buildCreatedHabits(selected, results);
-    if (created.length === 0) {
-      router.replace("/?newUser=1"); // nothing to celebrate; straight to dashboard
-      return;
+      // Routine creation succeeded — record onboarding as done so the dashboard
+      // never auto-launches the wizard for this user again.
+      const session = await getCurrentSession();
+      if (session?.user?.id) void markOnboardingComplete(session.user.id);
+
+      const created = buildCreatedHabits(selected, results);
+      if (created.length === 0) {
+        router.replace("/?newUser=1"); // nothing to celebrate; straight to dashboard
+        return;
+      }
+      reviewActiveRef.current = false;
+      setCreatedHabits(created);
+      // Only show the notification primer when permission hasn't been decided yet.
+      const status = await getPermissionStatus();
+      setNeedsNotifPrimer(status === "undetermined");
+      setPostPhase("confirm");
+    } finally {
+      creatingRef.current = false;
+      setCreating(false);
     }
-    reviewActiveRef.current = false;
-    setCreatedHabits(created);
-    // Only show the notification primer when permission hasn't been decided yet.
-    const status = await getPermissionStatus();
-    setNeedsNotifPrimer(status === "undetermined");
-    setPostPhase("confirm");
   }
 
   async function handleTutorialComplete() {
@@ -798,6 +799,7 @@ export default function HabitWizardScreen() {
             <TouchableOpacity
               className={`rounded-full py-md items-center ${creating ? "bg-outline" : "bg-primary"}`}
               onPress={createRoutine}
+              disabled={creating}
               accessibilityRole="button"
               accessibilityLabel={creating ? t("Creating routine...") : t("Create routine")}
               accessibilityState={{ disabled: creating }}
