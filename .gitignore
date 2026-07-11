@@ -9,6 +9,9 @@ dist/
 .expo/
 expo-env.d.ts
 
+# Generated Gradle project cache
+modules/lagan-widget/android/.gradle/
+
 # env
 .env
 .env.local
