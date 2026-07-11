@@ -8,6 +8,7 @@ import {
 } from "../activation/contracts";
 import { getFeatureFlagConfig } from "./feature-flags";
 import { optimisticFirstLogStore } from "./activation-marker";
+import { completionQueueStore } from "./completion-queue-store";
 
 export type ActivationSnapshot = {
   assignment: FeatureFlagAssignment;
@@ -57,9 +58,15 @@ export async function loadActivationSnapshot(
     readActivationStage(userId),
     optimisticFirstLogStore.has(userId),
   ]);
+  const shouldVerifyPendingPositive =
+    !options?.reconcile && remote.authoritative && remote.stage === "pre_value" && hasMarker;
+  const hasPendingPositive = shouldVerifyPendingPositive
+    ? await completionQueueStore.hasPendingPositive(userId).catch(() => false)
+    : false;
   const resolved = resolveStageWithOptimisticMarker({
     remote,
     hasMarker,
+    hasPendingPositive,
     reconcile: options?.reconcile ?? false,
   });
   if (resolved.clearMarker) await optimisticFirstLogStore.clear(userId);

@@ -7,7 +7,6 @@
 // (set_value_max, from the step sync) supersede only earlier raises — queued
 // manual increments carry user intent the sync must not erase.
 
-import { getItem, removeItem, setItem } from "../platform/storage";
 import { supabase, getCurrentUser } from "../supabase/client";
 import { buildCompletionValuePayload } from "./completions";
 import { clearDataCache } from "./cache";
@@ -16,22 +15,10 @@ import { reportError } from "../services/sentry";
 import { recordCompletionQueueSettled } from "../services/activation-completion";
 import { optimisticFirstLogStore } from "../services/activation-marker";
 import { foreignCompletionOwnerIds } from "../activation/queue-marker-reconciliation";
+import { completionQueueStore } from "../services/completion-queue-store";
+import type { PendingCompletionOp } from "./completion-queue-store";
 
-const STORAGE_KEY = "habbit:pending-completions";
-const MAX_QUEUE_LENGTH = 200;
-
-export type PendingCompletionOp = {
-  id: string;
-  kind: "complete" | "uncomplete" | "set_value" | "set_value_max" | "increment";
-  habitId: string;
-  userId: string;
-  completedOn: string;
-  // For "complete" a missing value means "resolve the habit's target at replay
-  // time" (we were offline when the target lookup failed).
-  value?: number;
-  note?: string | null;
-  queuedAt: string;
-};
+export type { PendingCompletionOp } from "./completion-queue-store";
 
 // Matches the messages supabase-js surfaces when fetch itself rejects — i.e.
 // the request never reached the server, so a replay cannot double-apply.
@@ -51,23 +38,15 @@ export function isNetworkFailure(error: { message?: string } | string | null | u
 export async function enqueueCompletionOp(
   op: Omit<PendingCompletionOp, "id" | "queuedAt">,
 ): Promise<void> {
-  const queue = await readQueue();
-  const next = queue.filter((item) => {
-    if (item.habitId !== op.habitId || item.completedOn !== op.completedOn) return true;
-    if (op.kind === "increment") return true;
-    if (op.kind === "set_value_max") return item.kind !== "set_value_max";
-    return false;
-  });
-  next.push({
+  await completionQueueStore.enqueue({
     ...op,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     queuedAt: new Date().toISOString(),
   });
-  await writeQueue(next.slice(-MAX_QUEUE_LENGTH));
 }
 
 export async function pendingCompletionCount(): Promise<number> {
-  return (await readQueue()).length;
+  return (await completionQueueStore.read()).length;
 }
 
 let flushPromise: Promise<void> | null = null;
@@ -84,30 +63,35 @@ export function flushPendingCompletions(): Promise<void> {
 }
 
 async function runFlush(): Promise<void> {
-  let queue = await readQueue();
-  if (queue.length === 0) return;
+  if ((await completionQueueStore.read()).length === 0) return;
 
   const user = await getCurrentUser().catch(() => null);
   if (!user) return;
 
-  // Ops queued under a different account can never replay successfully (RLS);
-  // drop them instead of poisoning the queue.
-  const foreign = queue.filter((op) => op.userId !== user.id);
-  if (foreign.length > 0) {
-    queue = queue.filter((op) => op.userId === user.id);
-    await writeQueue(queue);
-    await Promise.all(
-      foreignCompletionOwnerIds(foreign, user.id).map((userId) =>
-        optimisticFirstLogStore.clear(userId),
-      ),
-    );
-  }
-
   let replayed = 0;
   let settled = false;
   let networkBlocked = false;
-  while (queue.length > 0) {
+  while (true) {
+    const queue = await completionQueueStore.read();
+    if (queue.length === 0) break;
+
+    // Ops queued under a different account can never replay successfully
+    // (RLS); remove their IDs against the latest queue instead of replacing a
+    // concurrent enqueue with an older snapshot.
+    const foreign = queue.filter((op) => op.userId !== user.id);
+    if (foreign.length > 0) {
+      const removed = await completionQueueStore.removeIds(foreign.map((op) => op.id));
+      await Promise.all(
+        foreignCompletionOwnerIds(removed, user.id).map((userId) =>
+          optimisticFirstLogStore.clear(userId),
+        ),
+      );
+      continue;
+    }
+
     const op = queue[0];
+    // Replay is intentionally outside the storage mutation lock. Once it
+    // settles, remove only this operation from whatever queue exists then.
     const error = await replayOp(op);
 
     if (error && isNetworkFailure(error)) {
@@ -126,8 +110,7 @@ async function runFlush(): Promise<void> {
       replayed += 1;
     }
     settled = true;
-    queue = queue.slice(1);
-    await writeQueue(queue);
+    await completionQueueStore.removeIds([op.id]);
   }
 
   if (replayed > 0) {
@@ -195,20 +178,4 @@ async function replayOp(op: PendingCompletionOp): Promise<{ message?: string } |
       { onConflict: "habit_id,completed_on" },
     );
   return error;
-}
-
-async function readQueue(): Promise<PendingCompletionOp[]> {
-  const raw = await getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as PendingCompletionOp[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeQueue(queue: PendingCompletionOp[]): Promise<void> {
-  if (queue.length === 0) await removeItem(STORAGE_KEY);
-  else await setItem(STORAGE_KEY, JSON.stringify(queue));
 }

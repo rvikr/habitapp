@@ -63,14 +63,18 @@ export function resolveActivationStage(
 export function resolveStageWithOptimisticMarker({
   remote,
   hasMarker,
+  hasPendingPositive,
   reconcile,
 }: {
   remote: ActivationStageRead;
   hasMarker: boolean;
+  hasPendingPositive: boolean;
   reconcile: boolean;
 }): { stage: ActivationStage; clearMarker: boolean } {
   if (!remote.authoritative) return { stage: "engaged", clearMarker: false };
   if (remote.stage !== "pre_value") return { stage: remote.stage, clearMarker: hasMarker };
   if (reconcile) return { stage: "pre_value", clearMarker: hasMarker };
-  return { stage: hasMarker ? "first_log" : "pre_value", clearMarker: false };
+  if (!hasMarker) return { stage: "pre_value", clearMarker: false };
+  if (hasPendingPositive) return { stage: "first_log", clearMarker: false };
+  return { stage: "pre_value", clearMarker: true };
 }

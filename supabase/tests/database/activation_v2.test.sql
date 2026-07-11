@@ -113,7 +113,7 @@ select throws_ok(
 );
 
 insert into public.habit_completions (habit_id, user_id, completed_on, value)
-values ('20000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000003', '2026-07-11', 0);
+values ('20000000-0000-4000-8000-000000000005', '10000000-0000-4000-8000-000000000003', '2026-07-11', null);
 
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 select set_config('request.jwt.claim.role', 'service_role', true);
@@ -133,15 +133,16 @@ select ok(
   'service-role completion records the milestone'
 );
 
-select lives_ok(
+select throws_matching(
   $$insert into public.habit_completions (habit_id, user_id, completed_on, value)
     values ('20000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000004', '2026-07-11', 0)$$,
-  'zero completion remains accepted'
+  'completions_value_positive',
+  'zero completion is rejected by the positive-value constraint'
 );
 select is(
   (select first_habit_logged_at from public.profiles where user_id = '10000000-0000-4000-8000-000000000004'),
   null::timestamptz,
-  'zero completion does not record a milestone'
+  'rejected zero completion does not record a milestone'
 );
 
 select lives_ok(

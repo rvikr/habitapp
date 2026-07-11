@@ -1316,7 +1316,11 @@ test("step sync writes are raise-only so manual logs are never clobbered", () =>
 
   // A queued monotonic raise must not erase queued manual increments.
   const queue = readFileSync("lib/data/completion-queue.ts", "utf8");
-  assert.match(queue, /if \(op\.kind === "set_value_max"\) return item\.kind !== "set_value_max";/);
+  const queueStore = readFileSync("lib/data/completion-queue-store.ts", "utf8");
+  assert.match(
+    queueStore,
+    /if \(op\.kind === "set_value_max"\) return item\.kind !== "set_value_max";/,
+  );
   const replayBlock = queue.match(/async function replayOp[\s\S]*?\n\}/)?.[0] ?? "";
   assert.match(replayBlock, /raise_habit_completion_value/);
 
@@ -5063,6 +5067,7 @@ test("activation stage is fail-open and an authoritative reconciliation clears o
     resolveStageWithOptimisticMarker({
       remote: { stage: "pre_value", authoritative: true },
       hasMarker: true,
+      hasPendingPositive: true,
       reconcile: false,
     }),
     { stage: "first_log", clearMarker: false },
@@ -5071,6 +5076,7 @@ test("activation stage is fail-open and an authoritative reconciliation clears o
     resolveStageWithOptimisticMarker({
       remote: { stage: "pre_value", authoritative: true },
       hasMarker: true,
+      hasPendingPositive: true,
       reconcile: true,
     }),
     { stage: "pre_value", clearMarker: true },
@@ -5079,9 +5085,19 @@ test("activation stage is fail-open and an authoritative reconciliation clears o
     resolveStageWithOptimisticMarker({
       remote: { stage: "engaged", authoritative: false },
       hasMarker: true,
+      hasPendingPositive: false,
       reconcile: true,
     }),
     { stage: "engaged", clearMarker: false },
+  );
+  assert.deepEqual(
+    resolveStageWithOptimisticMarker({
+      remote: { stage: "pre_value", authoritative: true },
+      hasMarker: true,
+      hasPendingPositive: false,
+      reconcile: false,
+    }),
+    { stage: "pre_value", clearMarker: true },
   );
 });
 
@@ -5292,6 +5308,154 @@ test("foreign queue cleanup deduplicates prior owners and never clears the curre
   );
 });
 
+test("completion queue storage serializes concurrent enqueues", async () => {
+  const { createCompletionQueueStore } = await import("../lib/data/completion-queue-store.ts");
+  let raw = null;
+  const store = createCompletionQueueStore({
+    getItem: async () => raw,
+    setItem: async (_key, value) => void (raw = value),
+    removeItem: async () => void (raw = null),
+  });
+  const base = {
+    kind: "complete",
+    userId: "user-a",
+    completedOn: "2026-07-11",
+    queuedAt: "2026-07-11T00:00:00Z",
+    value: 1,
+  };
+
+  await Promise.all([
+    store.enqueue({ ...base, id: "old-a", habitId: "habit-a" }),
+    store.enqueue({ ...base, id: "old-b", habitId: "habit-b" }),
+  ]);
+
+  assert.deepEqual(
+    (await store.read()).map((operation) => operation.id),
+    ["old-a", "old-b"],
+  );
+});
+
+test("completion replay removal merges against concurrently enqueued operations by id", async () => {
+  const { createCompletionQueueStore } = await import("../lib/data/completion-queue-store.ts");
+  let raw = null;
+  const store = createCompletionQueueStore({
+    getItem: async () => raw,
+    setItem: async (_key, value) => void (raw = value),
+    removeItem: async () => void (raw = null),
+  });
+  const oldOperation = {
+    id: "old",
+    kind: "complete",
+    habitId: "habit-old",
+    userId: "user-a",
+    completedOn: "2026-07-11",
+    value: 1,
+    queuedAt: "2026-07-11T00:00:00Z",
+  };
+  const newOperation = {
+    ...oldOperation,
+    id: "new",
+    habitId: "habit-new",
+    queuedAt: "2026-07-11T00:01:00Z",
+  };
+
+  await store.enqueue(oldOperation);
+  const replaySnapshot = await store.read();
+  await store.enqueue(newOperation);
+  await store.removeIds(replaySnapshot.map((operation) => operation.id));
+
+  assert.deepEqual(
+    (await store.read()).map((operation) => operation.id),
+    ["new"],
+  );
+});
+
+test("completion queue storage preserves absolute-write supersession", async () => {
+  const { createCompletionQueueStore } = await import("../lib/data/completion-queue-store.ts");
+  let raw = null;
+  const store = createCompletionQueueStore({
+    getItem: async () => raw,
+    setItem: async (_key, value) => void (raw = value),
+    removeItem: async () => void (raw = null),
+  });
+  const complete = {
+    id: "complete",
+    kind: "complete",
+    habitId: "habit-a",
+    userId: "user-a",
+    completedOn: "2026-07-11",
+    value: 1,
+    queuedAt: "2026-07-11T00:00:00Z",
+  };
+  await store.enqueue(complete);
+  await store.enqueue({
+    ...complete,
+    id: "uncomplete",
+    kind: "uncomplete",
+    queuedAt: "2026-07-11T00:01:00Z",
+  });
+
+  assert.deepEqual(
+    (await store.read()).map((operation) => operation.kind),
+    ["uncomplete"],
+  );
+});
+
+test("a same-user pending positive completion preserves optimistic first-log state", async () => {
+  const { createCompletionQueueStore } = await import("../lib/data/completion-queue-store.ts");
+  let raw = null;
+  const store = createCompletionQueueStore({
+    getItem: async () => raw,
+    setItem: async (_key, value) => void (raw = value),
+    removeItem: async () => void (raw = null),
+  });
+  await store.enqueue({
+    id: "positive-a",
+    kind: "complete",
+    habitId: "habit-a",
+    userId: "user-a",
+    completedOn: "2026-07-11",
+    value: 1,
+    queuedAt: "2026-07-11T00:00:00Z",
+  });
+
+  assert.equal(await store.hasPendingPositive("user-a"), true);
+});
+
+test("an orphaned optimistic marker resolves back to authoritative pre-value", async () => {
+  const { resolveStageWithOptimisticMarker } = await import("../lib/activation/contracts.ts");
+
+  assert.deepEqual(
+    resolveStageWithOptimisticMarker({
+      remote: { stage: "pre_value", authoritative: true },
+      hasMarker: true,
+      hasPendingPositive: false,
+      reconcile: false,
+    }),
+    { stage: "pre_value", clearMarker: true },
+  );
+});
+
+test("another user's pending completion does not preserve optimistic first-log state", async () => {
+  const { createCompletionQueueStore } = await import("../lib/data/completion-queue-store.ts");
+  let raw = null;
+  const store = createCompletionQueueStore({
+    getItem: async () => raw,
+    setItem: async (_key, value) => void (raw = value),
+    removeItem: async () => void (raw = null),
+  });
+  await store.enqueue({
+    id: "positive-b",
+    kind: "increment",
+    habitId: "habit-b",
+    userId: "user-b",
+    completedOn: "2026-07-11",
+    queuedAt: "2026-07-11T00:00:00Z",
+  });
+
+  assert.equal(await store.hasPendingPositive("user-a"), false);
+});
+
 test("feature flag config cache stores successes only and supports forced refresh", async () => {
   const { createFeatureFlagConfigCache } = await import("../lib/activation/flag-config-cache.ts");
   let now = 1_000;
@@ -5474,6 +5638,16 @@ test("activation schema parity and pgTAP verification are source-controlled", ()
   assert.match(pgTap, /service.role upsert/i);
   assert.match(pgTap, /auth\.uid\(\)[\s\S]*null::uuid/i);
   assert.match(pgTap, /on conflict \(habit_id, completed_on\) do update/i);
+  assert.match(
+    pgTap,
+    /values \('20000000-0000-4000-8000-000000000005'[^;]*,\s*null\);/i,
+    "the service-role conflict row must satisfy completions_value_positive before upsert",
+  );
+  assert.match(
+    pgTap,
+    /throws_matching\([\s\S]*'20000000-0000-4000-8000-000000000006'[^$]*,\s*0\)\$\$[\s\S]*completions_value_positive/i,
+  );
+  assert.doesNotMatch(pgTap, /zero completion remains accepted/i);
   assert.match(pgTap, /null completion/i);
   assert.match(pgTap, /mismatched owner/i);
   assert.match(pgTap, /delete does not reverse/i);
@@ -5506,6 +5680,8 @@ test("activation provider loads fail-safe config and milestones at the app root"
   assert.match(service, /select\("first_habit_logged_at, activation_engaged_at"\)/);
   assert.match(service, /eq\("user_id", userId\)/);
   assert.match(service, /resolveStageWithOptimisticMarker/);
+  assert.match(service, /remote\.authoritative && remote\.stage === "pre_value" && hasMarker/);
+  assert.match(service, /completionQueueStore\.hasPendingPositive\(userId\)/);
   assert.match(
     service,
     /authoritative:\s*remote\.authoritative\s*&&\s*resolved\.stage\s*===\s*remote\.stage/,
@@ -5514,6 +5690,8 @@ test("activation provider loads fail-safe config and milestones at the app root"
     service,
     /assignment\.variant === "control"[\s\S]*options\?\.reconcile[\s\S]*optimisticFirstLogStore\.clear\(userId\)/,
   );
+  const queueStoreService = readFileSync("lib/services/completion-queue-store.ts", "utf8");
+  assert.doesNotMatch(queueStoreService, /from "\.\.\/data\/completion-queue"/);
 
   const provider = readFileSync("components/activation-provider.tsx", "utf8");
   const publicContext = provider.match(/type ActivationContextValue = \{[\s\S]*?\n\};/)?.[0] ?? "";
