@@ -122,19 +122,29 @@ function assertMalformedRpcPayloadsFail() {
 async function setup(page, session, scenario) {
   const storageKey = "sb-ehcqgoymkmljwoveisbl-auth-token";
   let habitInsertCount = 0;
+  let rpcReplayEnabled = !scenario.reloadBeforeReplay;
+  let serverFirstLoggedAt = null;
   const today = localDateKey();
   const createdHabits = [];
   const completionRows = [];
   const rpcIncrementCalls = [];
   const incrementReceipts = new Map();
   const directCompletionWrites = [];
+  const profileReads = [];
   await page.addInitScript(
-    ({ storageKey, session }) => {
+    ({ storageKey, session, preserveStorageOnReload, initName }) => {
+      if (preserveStorageOnReload && window.name === initName) return;
       localStorage.clear();
       sessionStorage.clear();
       localStorage.setItem(storageKey, JSON.stringify(session));
+      if (preserveStorageOnReload) window.name = initName;
     },
-    { storageKey, session },
+    {
+      storageKey,
+      session,
+      preserveStorageOnReload: Boolean(scenario.reloadBeforeReplay),
+      initName: `lagan-${scenario.id}`,
+    },
   );
   await page.route("**/*.supabase.co/**", async (route) => {
     const req = route.request();
@@ -169,6 +179,17 @@ async function setup(page, session, scenario) {
       }
       const { operationId, habitId, completedOn, increment } = parsed;
       const fingerprint = JSON.stringify({ habitId, completedOn, increment, note: null });
+      if (scenario.reloadBeforeReplay && !rpcReplayEnabled) {
+        rpcIncrementCalls.push({
+          operationId,
+          habitId,
+          completedOn,
+          increment,
+          applied: false,
+          transport: "offline",
+        });
+        return route.abort("failed");
+      }
       const priorFingerprint = incrementReceipts.get(operationId);
       if (priorFingerprint != null && priorFingerprint !== fingerprint) {
         return route.fulfill({
@@ -181,6 +202,7 @@ async function setup(page, session, scenario) {
       rpcIncrementCalls.push({ operationId, habitId, completedOn, increment, applied });
       if (applied) {
         incrementReceipts.set(operationId, fingerprint);
+        serverFirstLoggedAt ??= new Date().toISOString();
         const existingIndex = completionRows.findIndex(
           (item) => item.habit_id === habitId && item.completed_on === completedOn,
         );
@@ -201,11 +223,14 @@ async function setup(page, session, scenario) {
     }
     if (path.includes("/rest/v1/feature_flags"))
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ enabled: false }) });
-    if (path.includes("/rest/v1/profiles"))
+    if (path.includes("/rest/v1/profiles")) {
+      profileReads.push({ first_habit_logged_at: serverFirstLoggedAt });
       return route.fulfill({
         status: 200,
         headers,
         body: JSON.stringify({
+          first_habit_logged_at: serverFirstLoggedAt,
+          activation_engaged_at: null,
           display_name: null,
           coach_tone: "friendly",
           is_pro: false,
@@ -214,6 +239,7 @@ async function setup(page, session, scenario) {
           pro_expires_at: null,
         }),
       });
+    }
     if (path.includes("/rest/v1/habit_completions")) {
       if (req.method() === "POST" || req.method() === "PATCH") {
         const payload = JSON.parse(req.postData() || "{}");
@@ -300,6 +326,10 @@ async function setup(page, session, scenario) {
     getCompletionRows: () => completionRows.map((row) => ({ ...row })),
     getRpcIncrementCalls: () => rpcIncrementCalls.map((call) => ({ ...call })),
     getDirectCompletionWrites: () => directCompletionWrites.map((row) => ({ ...row })),
+    getProfileReads: () => profileReads.map((read) => ({ ...read })),
+    enableRpcReplay: () => {
+      rpcReplayEnabled = true;
+    },
     waitForRpcCount: async (expected, timeoutMs = 15000) => {
       const deadline = Date.now() + timeoutMs;
       while (rpcIncrementCalls.length < expected && Date.now() < deadline) {
@@ -312,6 +342,29 @@ async function setup(page, session, scenario) {
       }
     },
   };
+}
+
+async function readReloadPersistence(page, userId) {
+  return page.evaluate(
+    ({ queueKey, markerKey }) => {
+      const rawQueue = localStorage.getItem(queueKey);
+      let queue = [];
+      try {
+        const parsed = rawQueue ? JSON.parse(rawQueue) : [];
+        if (Array.isArray(parsed)) queue = parsed;
+      } catch {
+        queue = [];
+      }
+      return {
+        queue,
+        optimisticMarker: localStorage.getItem(markerKey),
+      };
+    },
+    {
+      queueKey: "habbit:pending-completions",
+      markerKey: `habbit:activation:first-log:${userId}`,
+    },
+  );
 }
 
 async function runScenario(browser, scenario) {
@@ -330,8 +383,10 @@ async function runScenario(browser, scenario) {
   page.on("requestfailed", (req) =>
     requestFailures.push({ url: req.url(), failure: req.failure()?.errorText ?? null }),
   );
-  const harness = await setup(page, fakeSession(), scenario);
+  const session = fakeSession();
+  const harness = await setup(page, session, scenario);
   const snapshots = [];
+  let reloadEvidence = null;
   async function snap(label) {
     const text = await page.locator("body").innerText({ timeout: 10000 });
     await captureStableScreenshot(page, {
@@ -395,21 +450,82 @@ async function runScenario(browser, scenario) {
   });
   await page.getByText("First Step", { exact: true }).waitFor({ timeout: 30000 });
   await snap("first-step");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  const maybeLater = page.getByRole("button", { name: "Maybe later", exact: true });
   let notificationPromptVisible = false;
-  try {
-    await maybeLater.waitFor({ timeout: 5000 });
-    notificationPromptVisible = true;
-    await maybeLater.click();
-  } catch {
-    // A denied browser permission correctly skips the notification primer.
+  if (scenario.reloadBeforeReplay) {
+    await analyticsCollector.settle();
+    const beforeReload = await readReloadPersistence(page, session.user.id);
+    const [queuedBeforeReload] = beforeReload.queue;
+    const [initialCall] = harness.getRpcIncrementCalls();
+    if (
+      beforeReload.queue.length !== 1 ||
+      queuedBeforeReload.kind !== "increment_once" ||
+      queuedBeforeReload.operationId !== initialCall?.operationId ||
+      beforeReload.optimisticMarker !== "1"
+    ) {
+      throw new Error(
+        `[${scenario.id}] first log was not durably queued before reload: ${JSON.stringify(beforeReload)}`,
+      );
+    }
+    const firstLogEventsBeforeReload = analyticsCollector.events.filter(
+      (event) => event.name === "first_habit_logged",
+    ).length;
+    if (firstLogEventsBeforeReload !== 1) {
+      throw new Error(
+        `[${scenario.id}] expected one first-log event before reload, got ${firstLogEventsBeforeReload}`,
+      );
+    }
+
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.waitForURL(/habits\/wizard/, { timeout: 30000 });
+    await page.getByText("STEP 1 OF 8", { exact: true }).waitFor({ timeout: 30000 });
+    const afterReload = await readReloadPersistence(page, session.user.id);
+    const [queuedAfterReload] = afterReload.queue;
+    if (
+      afterReload.queue.length !== 1 ||
+      queuedAfterReload.id !== queuedBeforeReload.id ||
+      queuedAfterReload.operationId !== queuedBeforeReload.operationId ||
+      afterReload.optimisticMarker !== "1"
+    ) {
+      throw new Error(
+        `[${scenario.id}] queued first log did not survive reload unchanged: ${JSON.stringify(afterReload)}`,
+      );
+    }
+
+    harness.enableRpcReplay();
+    await page.goto("http://localhost:8083/", {
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+    reloadEvidence = { beforeReload, afterReload, firstLogEventsBeforeReload };
+  } else {
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    const maybeLater = page.getByRole("button", { name: "Maybe later", exact: true });
+    try {
+      await maybeLater.waitFor({ timeout: 5000 });
+      notificationPromptVisible = true;
+      await maybeLater.click();
+    } catch {
+      // A denied browser permission correctly skips the notification primer.
+    }
+    await page.waitForURL(
+      (url) => url.pathname === "/" && url.searchParams.get("newUser") === "1",
+      { timeout: 30000 },
+    );
   }
-  await page.waitForURL((url) => url.pathname === "/" && url.searchParams.get("newUser") === "1", {
-    timeout: 30000,
-  });
   await page.getByText(scenario.dashboardHabit, { exact: true }).waitFor({ timeout: 30000 });
   if (scenario.kind === "quantity") await harness.waitForRpcCount(2);
+  if (scenario.reloadBeforeReplay) {
+    await page.waitForFunction(
+      ({ queueKey, markerKey }) =>
+        localStorage.getItem(queueKey) === null && localStorage.getItem(markerKey) === null,
+      {
+        queueKey: "habbit:pending-completions",
+        markerKey: `habbit:activation:first-log:${session.user.id}`,
+      },
+      { timeout: 30000 },
+    );
+    reloadEvidence.afterReplay = await readReloadPersistence(page, session.user.id);
+  }
   let booleanCompleted = false;
   if (scenario.kind === "boolean") {
     const completedToggle = page.getByRole("checkbox", {
@@ -429,6 +545,8 @@ async function runScenario(browser, scenario) {
     completionRows: harness.getCompletionRows(),
     rpcIncrementCalls: harness.getRpcIncrementCalls(),
     directCompletionWrites: harness.getDirectCompletionWrites(),
+    profileReads: harness.getProfileReads(),
+    reloadEvidence,
     booleanCompleted,
     snapshots,
     consoleMessages,
@@ -462,18 +580,33 @@ async function runScenario(browser, scenario) {
   }
   if (scenario.kind === "quantity") {
     const [initialCall, replayCall] = result.rpcIncrementCalls;
+    const expectedInitialApplied = scenario.reloadBeforeReplay ? false : true;
+    const expectedReplayApplied = scenario.reloadBeforeReplay ? true : false;
     if (
       result.rpcIncrementCalls.length !== 2 ||
       initialCall.operationId !== replayCall.operationId ||
-      initialCall.applied !== true ||
-      replayCall.applied !== false ||
+      initialCall.applied !== expectedInitialApplied ||
+      replayCall.applied !== expectedReplayApplied ||
+      (scenario.reloadBeforeReplay && initialCall.transport !== "offline") ||
       initialCall.habitId !== "mock-habit-1" ||
       initialCall.completedOn !== scenario.expectedCompletedOn ||
       initialCall.increment !== 250 ||
       result.directCompletionWrites.length !== 0
     ) {
       throw new Error(
-        `[quantity] Expected one committed request plus an idempotent replay with the same UUID`,
+        `[${scenario.id}] Expected one quantity increment across two attempts with the same UUID`,
+      );
+    }
+  }
+  if (scenario.reloadBeforeReplay) {
+    if (
+      !result.reloadEvidence ||
+      result.reloadEvidence.afterReplay.queue.length !== 0 ||
+      result.reloadEvidence.afterReplay.optimisticMarker !== null ||
+      !result.profileReads.some((read) => read.first_habit_logged_at)
+    ) {
+      throw new Error(
+        `[${scenario.id}] queue replay did not reconcile to an authoritative first-log milestone`,
       );
     }
   }
@@ -517,7 +650,7 @@ async function runScenario(browser, scenario) {
   return result;
 }
 
-(async () => {
+async function main() {
   assertMalformedRpcPayloadsFail();
   const browser = await chromium.launch({ headless: true });
   const scenarios = [
@@ -558,7 +691,13 @@ async function runScenario(browser, scenario) {
   } finally {
     await browser.close();
   }
-})().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+}
+
+module.exports = { runScenario };
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

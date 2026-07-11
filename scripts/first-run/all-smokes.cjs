@@ -10,6 +10,7 @@ const smokes = [
   ["treatment quick start", "scripts/first-run/treatment-quick-start-smoke.cjs"],
   ["routine partial saves and merges", "scripts/first-run/routine-resilience-smoke.cjs"],
   ["post-create tutorial", "scripts/first-run/post-create-smoke.cjs"],
+  ["offline first-log reload", "scripts/first-run/offline-reload-smoke.cjs"],
   ["manual habit creation", "scripts/first-run/manual-habit-smoke.cjs"],
   ["treatment manual habit creation", "scripts/first-run/treatment-manual-habit-smoke.cjs"],
   ["activation dashboard stages", "scripts/first-run/activation-dashboard-smoke.cjs"],
