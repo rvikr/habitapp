@@ -4,6 +4,11 @@ export type HomeWidgetSnapshotInput = {
   currentStreak?: number | null;
   level?: number | null;
   nextHabitName?: string | null;
+  nextHabit?: {
+    id: string;
+    name: string;
+    checkInValue?: number | null;
+  } | null;
   coachMessage?: string | null;
   hasPro?: boolean;
   now?: Date;
@@ -22,6 +27,8 @@ export type HomeWidgetSnapshot = {
   streakLabel: string;
   levelLabel: string;
   updatedLabel: string;
+  checkInLabel: string;
+  checkInUrl: string | null;
 };
 
 function wholeNumber(value: number | null | undefined, fallback = 0): number {
@@ -65,6 +72,17 @@ function updatedLabel(now: Date, locale: string): string {
   return `Updated ${time}`;
 }
 
+function buildCheckInUrl(nextHabit: HomeWidgetSnapshotInput["nextHabit"]): string | null {
+  if (!nextHabit) return null;
+  const habitId = nextHabit.id.trim();
+  const checkInValue = Number(nextHabit.checkInValue);
+  if (!habitId || !Number.isFinite(checkInValue) || checkInValue <= 0) return null;
+
+  // The amount is deliberately omitted. The route reloads the habit and
+  // calculates a fresh, clamped increment so a stale widget cannot over-log.
+  return `lagan://widget/check-in?habitId=${encodeURIComponent(habitId)}`;
+}
+
 export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWidgetSnapshot {
   const totalHabits = wholeNumber(input.totalHabits);
   const completedCount =
@@ -75,6 +93,7 @@ export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWid
   const progressPercent = totalHabits === 0 ? 0 : Math.round((completedCount / totalHabits) * 100);
   const now = input.now ?? new Date();
   const locale = input.locale ?? "en-US";
+  const checkInUrl = buildCheckInUrl(input.nextHabit);
 
   return {
     title: "Today",
@@ -88,6 +107,8 @@ export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWid
     streakLabel: streakLabel(currentStreak),
     levelLabel: `Level ${level}`,
     updatedLabel: updatedLabel(now, locale),
+    checkInLabel: checkInUrl ? "Check in" : "Open Lagan",
+    checkInUrl,
   };
 }
 

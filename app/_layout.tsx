@@ -167,6 +167,7 @@ function RootLayoutContent() {
       <Stack.Screen name="pro" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="habits/new" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="habits/wizard" options={{ headerShown: false, presentation: "card" }} />
+      <Stack.Screen name="widget/check-in" options={{ headerShown: false }} />
       <Stack.Screen
         name="habits/[id]/index"
         options={{ headerShown: false, presentation: "card" }}

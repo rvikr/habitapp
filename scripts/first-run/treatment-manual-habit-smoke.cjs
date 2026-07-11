@@ -134,6 +134,22 @@ function localDateKey(date = new Date()) {
         body: completionValue == null ? "[]" : JSON.stringify([today]),
       });
     }
+    if (path.includes("/rest/v1/rpc/get_completion_stats")) {
+      const credited =
+        completionValue != null &&
+        authoritativeHabit != null &&
+        completionValue >= Number(authoritativeHabit.target ?? 0);
+      return route.fulfill({
+        status: 200,
+        headers,
+        body: JSON.stringify([
+          {
+            total_completions: credited ? 1 : 0,
+            completion_dates: credited ? [today] : [],
+          },
+        ]),
+      });
+    }
     if (path.includes("/rest/v1/rpc/log_habit_completion")) {
       completionRpcCount += 1;
       const payload = JSON.parse(request.postData() || "{}");

@@ -56,11 +56,12 @@ function greeting() {
 }
 
 export default async function DashboardPage() {
-  const [{ habits, completedToday, displayName }, weeklyCompletions, insights] = await Promise.all([
+  const [{ habits, completedToday, todayValues, displayName }, weeklyCompletions, insights] =
+    await Promise.all([
     getHabitsForToday(),
     getWeeklyCompletions(),
     getInsights(),
-  ]);
+    ]);
 
   const total = habits.length;
   const done = completedToday.size;
@@ -156,7 +157,11 @@ export default async function DashboardPage() {
         {/* Habit List */}
         <section className="space-y-4">
           <h2 className="font-bold text-on-background text-xl">Today&apos;s Habits</h2>
-          <HabitList habits={habits} completedToday={completedToday} />
+          <HabitList
+            habits={habits}
+            completedToday={completedToday}
+            todayValues={todayValues}
+          />
         </section>
 
         {/* Weekly chart */}

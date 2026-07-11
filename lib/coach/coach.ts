@@ -1,5 +1,10 @@
 import type { Habit, HabitCompletion } from "../../types/db";
 import { addLocalDays as addDays, localDateKey as dateKey } from "../utils/date.ts";
+import {
+  isHabitCompletionDone,
+  progressForHabit,
+  suggestedCheckInForHabit,
+} from "./habit-intelligence.ts";
 
 export type CoachTone = "friendly" | "motivational" | "calm" | "strict" | "military";
 
@@ -70,7 +75,13 @@ export function buildCoachSignals({
   const signals: CoachSignal[] = [];
   const todayKey = dateKey(now);
   const completionsByHabit = groupByHabit(completions);
-  const burnout = detectBurnout(completions, now);
+  const habitsById = new Map(habits.map((habit) => [habit.id, habit]));
+  const creditedCompletions = completions.filter((completion) => {
+    const habit = habitsById.get(completion.habit_id);
+    return habit ? isHabitCompletionDone(habit, completion) : false;
+  });
+  const creditedByHabit = groupByHabit(creditedCompletions);
+  const burnout = detectBurnout(creditedCompletions, now);
 
   if (
     burnout &&
@@ -95,10 +106,11 @@ export function buildCoachSignals({
 
   for (const habit of habits) {
     const history = completionsByHabit.get(habit.id) ?? [];
+    const creditedHistory = creditedByHabit.get(habit.id) ?? [];
     const progress = progressFor(habit, history, todayKey);
     if (progress.isDone) continue;
 
-    const suggestedValue = suggestedLogValue(habit, progress.current);
+    const suggestedValue = suggestedLogValue(habit, progress);
     const progressPct = Math.round(progress.ratio * 100);
 
     if (habit.target && habit.target > 0 && isBehindExpectedProgress(progress.ratio, now)) {
@@ -118,7 +130,7 @@ export function buildCoachSignals({
       );
     }
 
-    if (detectLateSkipWindow(history, now)) {
+    if (detectLateSkipWindow(creditedHistory, now)) {
       signals.push(
         withMessage({
           kind: "usual_skip_window",
@@ -134,7 +146,7 @@ export function buildCoachSignals({
       );
     }
 
-    const streak = currentStreak(history, now);
+    const streak = currentStreak(creditedHistory, now);
     if (streak > 1) {
       signals.push(
         withMessage({
@@ -186,10 +198,29 @@ export function chooseTopCoachSignal(signals: CoachSignal[]): CoachSignal | null
   return [...signals].sort((a, b) => b.priority - a.priority)[0] ?? null;
 }
 
+export function coachMessageIsSafeForSignal(
+  signal: { kind: string; suggestedAction?: string; suggestedValue?: number | null },
+  message: string,
+): boolean {
+  const guardsPartialCredit =
+    signal.suggestedAction === "log_value" && Number(signal.suggestedValue) > 0;
+  if (!guardsPartialCredit) return true;
+
+  const falseCredit =
+    /\b(?:complet(?:e|es|ed|ing|ion|ions)|finish(?:es|ed|ing)?|counts?|credited?|done|alive)\b/i;
+  const targetPromise =
+    /\b(?:achiev\w*|reach\w*|meet|meets|met|hit|hits)\b[^.!?]{0,32}\b(?:target|goal)\b|\b(?:target|goal)\b[^.!?]{0,32}\b(?:achiev\w*|reach\w*|met|hit)\b/i;
+  const streakPromise =
+    /\b(?:protect|keep|save|maintain|safe|secure)\b[^.!?]{0,48}\b(?:streak|chain)\b|\b(?:streak|chain)\b[^.!?]{0,48}\b(?:protect|keep|save|maintain|safe|secure)\b/i;
+  return !falseCredit.test(message) && !targetPromise.test(message) && !streakPromise.test(message);
+}
+
 export function formatCoachMessage(
   signal: Omit<CoachSignal, "message"> & { message?: string },
 ): string {
-  if (signal.message?.trim()) return signal.message.trim();
+  if (signal.message?.trim() && coachMessageIsSafeForSignal(signal, signal.message)) {
+    return signal.message.trim();
+  }
   if (signal.kind === "burnout") {
     return "You have been pushing unevenly lately. Choose one smaller step today and rebuild without forcing it.";
   }
@@ -222,23 +253,25 @@ export function formatCoachMessage(
   }
 
   if (signal.kind === "streak_risk") {
-    if (signal.tone === "military") return `Protect the streak: ${action}.`;
-    if (signal.tone === "strict") return `Do not let the streak drop today. ${action}.`;
-    if (signal.tone === "calm") return `Your streak only needs one small step. ${action}.`;
-    if (signal.tone === "motivational") return `Keep your momentum alive. ${action}.`;
-    return `Only a moment to keep your ${signal.habitName} streak alive. ${action}.`;
+    if (signal.tone === "military") return `Progress mission: ${action}.`;
+    if (signal.tone === "strict") return `Add measurable progress today. ${action}.`;
+    if (signal.tone === "calm")
+      return `A small step can move you closer to today's target. ${action}.`;
+    if (signal.tone === "motivational")
+      return `Build today's progress with one manageable step. ${action}.`;
+    return `Move ${signal.habitName} closer to today's target. ${action}.`;
   }
 
   if (signal.kind === "easy_alternative") {
     if (signal.tone === "military")
-      return `Fallback mission: complete ${valueText(signal)} of ${signal.habitName}.`;
+      return `Fallback mission: log ${valueText(signal)} toward ${signal.habitName}.`;
     if (signal.tone === "strict")
-      return `Lower the target, not the standard. Complete ${valueText(signal)} now.`;
+      return `Choose a smaller step: log ${valueText(signal)} toward today's target.`;
     if (signal.tone === "calm")
-      return `A smaller version counts. Try ${valueText(signal)} of ${signal.habitName}.`;
+      return `Try ${valueText(signal)} as progress toward ${signal.habitName}.`;
     if (signal.tone === "motivational")
-      return `Keep the chain alive with ${valueText(signal)} of ${signal.habitName}.`;
-    return `Want to make this easier? Do ${valueText(signal)} of ${signal.habitName} today.`;
+      return `Build progress with ${valueText(signal)} toward ${signal.habitName}.`;
+    return `Want to make this easier? Log ${valueText(signal)} toward ${signal.habitName} today.`;
   }
 
   if (signal.tone === "military") return `Mission: complete ${signal.habitName}. Begin now.`;
@@ -263,11 +296,7 @@ function groupByHabit(completions: CoachCompletion[]): Map<string, CoachCompleti
 
 function progressFor(habit: Habit, history: CoachCompletion[] | undefined, todayKey: string) {
   const completion = history?.find((item) => item.completed_on === todayKey);
-  const current = Number(completion?.value ?? (completion ? 1 : 0));
-  const target = habit.target == null ? null : Number(habit.target);
-  const ratio =
-    target && target > 0 ? Math.min(Math.max(current / target, 0), 1) : completion ? 1 : 0;
-  return { current, ratio, isDone: target && target > 0 ? current >= target : !!completion };
+  return progressForHabit(habit, completion);
 }
 
 function expectedProgressForDay(now: Date): number {
@@ -286,14 +315,11 @@ function isBehindExpectedProgress(ratio: number, now: Date): boolean {
   return expected >= 0.3 && ratio + 0.15 < expected;
 }
 
-function suggestedLogValue(habit: Habit, current: number): number | null {
-  const remaining = habit.target == null ? null : Math.max(Number(habit.target) - current, 0);
-  const defaultValue = Number(habit.default_log_value ?? 0);
-  if (!Number.isFinite(defaultValue) || defaultValue <= 0) return null;
-  const multiplier =
-    habit.habit_type === "water_intake" || habit.metric_type === "volume_ml" ? 2 : 1;
-  const value = Math.max(1, Math.floor(defaultValue * multiplier));
-  return remaining == null || remaining <= 0 ? value : Math.min(value, Math.floor(remaining));
+function suggestedLogValue(
+  habit: Habit,
+  progress: ReturnType<typeof progressForHabit>,
+): number | null {
+  return suggestedCheckInForHabit(habit, progress)?.value ?? null;
 }
 
 function detectLateSkipWindow(history: CoachCompletion[], now: Date): boolean {

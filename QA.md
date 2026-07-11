@@ -86,6 +86,11 @@ that direct Pro navigation remains available even while unsolicited promotion is
   increment and one `first_habit_logged` transition.
 - While offline, the first positive log advances locally to `first_log`; after reconnection and
   queue replay it reconciles to the server milestone without replaying celebration or analytics.
+- A widget check-in force-validates the current owned habit online before choosing an increment.
+  If fresh validation cannot complete offline, it intentionally does not queue or guess a check-in;
+  the route safely navigates to Today in `finally`. Once validation succeeds, a network drop during
+  the write may use the normal exact-once offline queue. This validation tradeoff protects against
+  stale, deleted, completed, or cross-account widget data.
 
 ### Analytics privacy
 
@@ -121,7 +126,8 @@ screenshots are acceptable only for failure diagnostics. Store generated proof u
 
 - Start the local Supabase stack, reset it from migrations, run
   `supabase test db supabase/tests/database/activation_v2.test.sql` and
-  `supabase test db supabase/tests/database/completion_increment_idempotency.test.sql`, then run
+  `supabase test db supabase/tests/database/completion_increment_idempotency.test.sql` and
+  `supabase test db supabase/tests/database/smart_partial_checkin_credit.test.sql`, then run
   local security and performance advisors before deployment.
 - Deploy the migration with `activation_v2` disabled at `0%`, then validate treatment at `100%` in
   staging.

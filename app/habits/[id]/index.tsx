@@ -1,11 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import * as Crypto from "expo-crypto";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabit, streakFor, longestStreakFor, getHabitCoachInsight } from "@/lib/data/habits";
-import { toggleHabit, deleteHabit, logCompletion } from "@/lib/data/actions";
+import { toggleHabit, deleteHabit, logCompletionOnce } from "@/lib/data/actions";
 import { useCelebrate } from "@/components/celebration";
 import CoachCard from "@/components/coach-card";
 import type { CoachSignal } from "@/lib/coach/coach";
@@ -15,7 +16,12 @@ import ProgressRing from "@/components/progress-ring";
 import Skeleton, { SkeletonText } from "@/components/skeleton";
 import type { Habit, HabitCompletion } from "@/types/db";
 import { currentWeekStartKey, localDateDaysAgo, localDateKey } from "@/lib/utils/date";
-import { formatAmount, isQuantityHabit, progressForHabit } from "@/lib/coach/habit-intelligence";
+import {
+  formatAmount,
+  isQuantityHabit,
+  progressForHabit,
+  suggestedCheckInForHabit,
+} from "@/lib/coach/habit-intelligence";
 import { useLanguage } from "@/components/language-provider";
 import { useTheme } from "@/components/theme-provider";
 import { getHabitVisualForHabit } from "@/lib/data/habit-images";
@@ -39,6 +45,8 @@ export default function HabitDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showLogPrompt, setShowLogPrompt] = useState(false);
   const [toggling, setToggling] = useState(false);
+  const [quickLogging, setQuickLogging] = useState(false);
+  const quickLogInFlightRef = useRef(false);
   const [insight, setInsight] = useState<CoachSignal | null>(null);
   const [insightDismissed, setInsightDismissed] = useState(false);
   // Pessimistic default so the Pro upsell row never flashes at Pro users.
@@ -76,8 +84,9 @@ export default function HabitDetailScreen() {
   const todayCompletion = completions.find((c) => c.completed_on === today);
   const progress = habit ? progressForHabit(habit, todayCompletion) : null;
   const doneToday = progress?.isDone ?? false;
-  const streak = streakFor(completions);
-  const longestStreak = longestStreakFor(completions);
+  const checkInSuggestion = habit && progress ? suggestedCheckInForHabit(habit, progress) : null;
+  const streak = habit ? streakFor(habit, completions) : 0;
+  const longestStreak = habit ? longestStreakFor(habit, completions) : 0;
 
   async function handleToggle() {
     if (!habit || toggling) return;
@@ -107,26 +116,70 @@ export default function HabitDetailScreen() {
     return result;
   }
 
-  async function handleLog(value: number, note: string) {
+  async function handleLog(value: number, note: string, operationId: string) {
     if (!habit) return { ok: false, error: t("Habit not loaded.") };
-    const result = await logCompletion(habit.id, value, note, undefined, habit);
+    const result = await logCompletionOnce(
+      habit.id,
+      operationId,
+      value,
+      note,
+      undefined,
+      habit,
+    );
     if (!result.ok) return result;
     setShowLogPrompt(false);
-    celebrate();
-    load({ force: true });
+    const nextProgress = progressForHabit(habit, { value: (progress?.current ?? 0) + value });
+    if (nextProgress.isDone) celebrate();
+    if (!result.queued) load({ force: true });
     return result;
   }
 
   async function handleQuickLog() {
-    if (!habit) return;
-    const value = habit.default_log_value ?? 1;
-    const result = await logCompletion(habit.id, value, "", undefined, habit);
-    if (!result.ok) {
-      showAlert(t("Could not log progress"), result.error ?? t("Try again."));
-      return;
+    if (!habit || !checkInSuggestion) return;
+    if (quickLogInFlightRef.current) return;
+    quickLogInFlightRef.current = true;
+    setQuickLogging(true);
+    try {
+      const currentValue = progress?.current ?? 0;
+      const result = await logCompletionOnce(
+        habit.id,
+        Crypto.randomUUID(),
+        checkInSuggestion.value,
+        "Logged from check-in",
+        undefined,
+        habit,
+      );
+      if (!result.ok) {
+        showAlert(t("Could not log progress"), result.error ?? t("Try again."));
+        return;
+      }
+      const nextValue = currentValue + checkInSuggestion.value;
+      setCompletions((current) => {
+        const existing = current.findIndex((completion) => completion.completed_on === today);
+        if (existing >= 0) {
+          return current.map((completion, index) =>
+            index === existing ? { ...completion, value: nextValue } : completion,
+          );
+        }
+        return [
+          {
+            id: `optimistic-${habit.id}-${today}`,
+            habit_id: habit.id,
+            user_id: habit.user_id,
+            completed_on: today,
+            value: nextValue,
+            note: "Logged from check-in",
+            created_at: new Date().toISOString(),
+          },
+          ...current,
+        ];
+      });
+      if (checkInSuggestion.completesGoal) celebrate();
+      if (!result.queued) load({ force: true });
+    } finally {
+      quickLogInFlightRef.current = false;
+      setQuickLogging(false);
     }
-    celebrate();
-    load();
   }
 
   async function handleInsightAction(signal: CoachSignal) {
@@ -135,20 +188,54 @@ export default function HabitDetailScreen() {
     // dashboard's coach action; everything else logs the suggested value.
     const sleepHabit = habit.habit_type === "sleep" || habit.metric_type === "hours";
     if (signal.suggestedAction === "log_value" && signal.suggestedValue && !sleepHabit) {
-      const result = await logCompletion(
-        habit.id,
-        signal.suggestedValue,
-        "Logged from AI coach",
-        undefined,
-        habit,
-      );
-      if (!result.ok) {
-        showAlert(t("Could not log progress"), result.error ?? t("Try again."));
+      const liveSuggestion = progress ? suggestedCheckInForHabit(habit, progress) : null;
+      if (!liveSuggestion) return;
+      if (quickLogInFlightRef.current) return;
+      quickLogInFlightRef.current = true;
+      setQuickLogging(true);
+      try {
+        const currentValue = progress?.current ?? 0;
+        const result = await logCompletionOnce(
+          habit.id,
+          Crypto.randomUUID(),
+          liveSuggestion.value,
+          "Logged from AI coach",
+          undefined,
+          habit,
+        );
+        if (!result.ok) {
+          showAlert(t("Could not log progress"), result.error ?? t("Try again."));
+          return;
+        }
+        const nextValue = currentValue + liveSuggestion.value;
+        setCompletions((current) => {
+          const existing = current.findIndex((completion) => completion.completed_on === today);
+          if (existing >= 0) {
+            return current.map((completion, index) =>
+              index === existing ? { ...completion, value: nextValue } : completion,
+            );
+          }
+          return [
+            {
+              id: `optimistic-${habit.id}-${today}`,
+              habit_id: habit.id,
+              user_id: habit.user_id,
+              completed_on: today,
+              value: nextValue,
+              note: "Logged from AI coach",
+              created_at: new Date().toISOString(),
+            },
+            ...current,
+          ];
+        });
+        const nextProgress = progressForHabit(habit, { value: nextValue });
+        if (nextProgress.isDone) celebrate();
+        if (!result.queued) load({ force: true });
         return;
+      } finally {
+        quickLogInFlightRef.current = false;
+        setQuickLogging(false);
       }
-      celebrate();
-      load({ force: true });
-      return;
     }
     setShowLogPrompt(true);
   }
@@ -377,20 +464,20 @@ export default function HabitDetailScreen() {
 
         {/* Today toggle — kept above history so logging never requires scrolling */}
         <View className="px-margin-mobile gap-sm mb-lg">
-          {habit.target != null && (
+          {checkInSuggestion && (
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel={t("Log {value}", {
-                value: `+${formatAmount(habit.default_log_value ?? 1)} ${habit.unit ?? ""}`.trim(),
+                value: `+${checkInSuggestion.label}`,
               })}
-              accessibilityState={{ disabled: doneToday }}
+              accessibilityState={{ disabled: doneToday || quickLogging }}
               className="rounded-full items-center justify-center bg-secondary"
-              style={{ minHeight: 48, opacity: doneToday ? 0.5 : 1 }}
+              style={{ minHeight: 48, opacity: doneToday || quickLogging ? 0.5 : 1 }}
               onPress={handleQuickLog}
-              disabled={doneToday}
+              disabled={doneToday || quickLogging}
             >
               <Text className="text-on-primary text-label-lg font-semibold">
-                +{formatAmount(habit.default_log_value ?? 1)} {habit.unit ?? ""}
+                +{checkInSuggestion.label}
               </Text>
             </TouchableOpacity>
           )}

@@ -75,6 +75,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
   companion object {
     private const val PREFS_NAME = "lagan_widget"
     private const val SNAPSHOT_KEY = "snapshot_json"
+    private const val CHECK_IN_URL_PREFIX = "lagan://widget/check-in?"
 
     fun updateAll(context: Context) {
       val manager = AppWidgetManager.getInstance(context)
@@ -107,8 +108,13 @@ class LaganWidgetProvider : AppWidgetProvider() {
         setTextViewText(R.id.lagan_widget_streak, snapshot.streakLabel)
         setTextViewText(R.id.lagan_widget_level, snapshot.levelLabel)
         setTextViewText(R.id.lagan_widget_updated, snapshot.updatedLabel)
+        setTextViewText(R.id.lagan_widget_check_in, snapshot.checkInLabel)
         setProgressBar(R.id.lagan_widget_progress, 100, snapshot.progressPercent, false)
         setOnClickPendingIntent(R.id.lagan_widget_root, openAppPendingIntent(context))
+        setOnClickPendingIntent(
+          R.id.lagan_widget_check_in,
+          checkInPendingIntent(context, snapshot.checkInUrl),
+        )
       }
       manager.updateAppWidget(widgetId, views)
     }
@@ -131,6 +137,8 @@ class LaganWidgetProvider : AppWidgetProvider() {
           streakLabel = text(json, "streakLabel", "Sign in to sync"),
           levelLabel = text(json, "levelLabel", "Lagan"),
           updatedLabel = text(json, "updatedLabel", ""),
+          checkInLabel = text(json, "checkInLabel", "Open Lagan"),
+          checkInUrl = optionalText(json, "checkInUrl"),
         )
       } catch (_: Exception) {
         WidgetSnapshot.empty()
@@ -142,6 +150,11 @@ class LaganWidgetProvider : AppWidgetProvider() {
       return if (value.isBlank()) fallback else value
     }
 
+    private fun optionalText(json: JSONObject, key: String): String? {
+      val value = json.optString(key, "")
+      return value.takeIf { it.isNotBlank() }
+    }
+
     private fun openAppPendingIntent(context: Context): PendingIntent {
       val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
         ?: Intent(Intent.ACTION_VIEW, Uri.parse("lagan://")).setPackage(context.packageName)
@@ -150,6 +163,32 @@ class LaganWidgetProvider : AppWidgetProvider() {
       return PendingIntent.getActivity(
         context,
         0,
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+      )
+    }
+
+    private fun checkInPendingIntent(context: Context, checkInUrl: String?): PendingIntent {
+      if (checkInUrl.isNullOrBlank() || !checkInUrl.startsWith(CHECK_IN_URL_PREFIX)) {
+        return openAppPendingIntent(context)
+      }
+
+      val uri = try {
+        Uri.parse(checkInUrl)
+      } catch (_: Exception) {
+        return openAppPendingIntent(context)
+      }
+      if (uri.scheme != "lagan" || uri.host != "widget" || uri.path != "/check-in") {
+        return openAppPendingIntent(context)
+      }
+
+      val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+        setPackage(context.packageName)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      return PendingIntent.getActivity(
+        context,
+        checkInUrl.hashCode(),
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
       )
@@ -166,6 +205,8 @@ private data class WidgetSnapshot(
   val streakLabel: String,
   val levelLabel: String,
   val updatedLabel: String,
+  val checkInLabel: String,
+  val checkInUrl: String?,
 ) {
   companion object {
     fun empty() = WidgetSnapshot(
@@ -177,6 +218,8 @@ private data class WidgetSnapshot(
       streakLabel = "Sign in to sync",
       levelLabel = "Lagan",
       updatedLabel = "",
+      checkInLabel = "Open Lagan",
+      checkInUrl = null,
     )
   }
 }
@@ -302,6 +345,19 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:textColor="#7B6C62"
     android:textSize="10sp"
     android:maxLines="1" />
+
+  <TextView
+    android:id="@+id/lagan_widget_check_in"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:layout_marginTop="10dp"
+    android:background="@drawable/lagan_widget_button_background"
+    android:gravity="center"
+    android:text="Open Lagan"
+    android:textColor="#FFFFFF"
+    android:textSize="13sp"
+    android:textStyle="bold"
+    android:maxLines="1" />
 </LinearLayout>
 `;
 
@@ -312,12 +368,19 @@ const WIDGET_BACKGROUND_XML = `<?xml version="1.0" encoding="utf-8"?>
 </shape>
 `;
 
+const WIDGET_BUTTON_BACKGROUND_XML = `<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+  <solid android:color="#F26B1F" />
+  <corners android:radius="18dp" />
+</shape>
+`;
+
 const WIDGET_INFO_XML = `<?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:minWidth="160dp"
-  android:minHeight="140dp"
+  android:minHeight="180dp"
   android:minResizeWidth="140dp"
-  android:minResizeHeight="120dp"
+  android:minResizeHeight="160dp"
   android:updatePeriodMillis="1800000"
   android:initialLayout="@layout/lagan_widget"
   android:resizeMode="horizontal|vertical"
@@ -367,6 +430,10 @@ const withLaganWidget = (config) => {
       writeFile(
         path.join(resRoot, "drawable", "lagan_widget_background.xml"),
         WIDGET_BACKGROUND_XML,
+      );
+      writeFile(
+        path.join(resRoot, "drawable", "lagan_widget_button_background.xml"),
+        WIDGET_BUTTON_BACKGROUND_XML,
       );
       writeFile(path.join(resRoot, "xml", "lagan_widget_info.xml"), WIDGET_INFO_XML);
       writeFile(path.join(resRoot, "values", "lagan_widget_strings.xml"), WIDGET_STRINGS_XML);

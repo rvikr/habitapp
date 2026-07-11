@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/auth";
 import { revalidatePath } from "next/cache";
 import { isValidDateKey } from "@/lib/date";
+import {
+  defaultLogValueForTarget,
+  legacyFillIncrement,
+  suggestedIncrement,
+} from "@/lib/habit-progress";
 
 type ActionResult = { ok: true } | { ok: false; error?: string };
 type TargetResult = { ok: true; value: number | null } | { ok: false; error: string };
@@ -26,6 +31,12 @@ const HABIT_ICONS = new Set([
 
 function mutationResult(error: { message?: string } | null | undefined): ActionResult {
   return error ? { ok: false, error: error.message ?? "Something went wrong." } : { ok: true };
+}
+
+function isValidUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 function textValue(formData: FormData, name: string, maxLength: number): string {
@@ -80,7 +91,7 @@ export async function createHabit(formData: FormData): Promise<ActionResult> {
     visual_type: "progress_ring",
     reminder_strategy: "manual",
     reminder_interval_minutes: null,
-    default_log_value: null,
+    default_log_value: defaultLogValueForTarget(target.value),
   });
   if (error) return mutationResult(error);
 
@@ -92,8 +103,10 @@ export async function toggleHabit(
   habitId: string,
   currentlyDone: boolean,
   completedOn: string,
+  operationId: string,
 ): Promise<ActionResult> {
   if (!isValidDateKey(completedOn)) return { ok: false, error: "Invalid completion date." };
+  if (!isValidUuid(operationId)) return { ok: false, error: "Invalid check-in operation." };
 
   const supabase = await createClient();
   const user = await getCurrentUser(supabase);
@@ -108,21 +121,39 @@ export async function toggleHabit(
       .eq("completed_on", completedOn);
     if (error) return mutationResult(error);
   } else {
-    const { data: habit, error: habitError } = await supabase
-      .from("habits")
-      .select("target")
-      .eq("id", habitId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const [{ data: habit, error: habitError }, { data: completion, error: completionError }] =
+      await Promise.all([
+        supabase
+          .from("habits")
+          .select("target, default_log_value")
+          .eq("id", habitId)
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("habit_completions")
+          .select("value")
+          .eq("habit_id", habitId)
+          .eq("user_id", user.id)
+          .eq("completed_on", completedOn)
+          .maybeSingle(),
+      ]);
     if (habitError) return mutationResult(habitError);
+    if (completionError) return mutationResult(completionError);
     if (!habit) return { ok: false, error: "Habit not found." };
 
-    const target = Number(habit?.target ?? 1);
-    const { error } = await supabase.from("habit_completions").upsert(
-      { habit_id: habitId, user_id: user.id, completed_on: completedOn, value: target > 0 ? target : 1 },
-      { onConflict: "habit_id,completed_on" }
-    );
-    if (error) return mutationResult(error);
+    const currentValue = Number(completion?.value ?? 0);
+    const increment =
+      suggestedIncrement(habit, currentValue) ?? legacyFillIncrement(habit, currentValue);
+    if (increment != null) {
+      const { error } = await supabase.rpc("log_habit_completion_once", {
+        p_operation_id: operationId,
+        p_habit_id: habitId,
+        p_completed_on: completedOn,
+        p_increment: increment,
+        p_note: "Logged from web check-in",
+      });
+      if (error) return mutationResult(error);
+    }
   }
 
   revalidatePath("/dashboard");
