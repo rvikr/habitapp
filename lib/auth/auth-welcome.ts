@@ -4,7 +4,8 @@ export const SIGNUP_CONFIRMATION_MESSAGE =
   "Account created. Check your email to confirm it, then come back here to sign in.";
 
 export const AUTH_CALLBACK_CONFIRMED_TITLE = "Congratulations, your email is confirmed!";
-export const AUTH_CALLBACK_CONFIRMED_BODY = "Refresh the app or sign in to start using Lagan.";
+export const AUTH_CALLBACK_AUTHENTICATED_BODY = "You're signed in and ready to continue to Lagan.";
+export const AUTH_CALLBACK_SIGN_IN_BODY = "Your email is confirmed. Sign in to continue to Lagan.";
 
 export const FIRST_LOGIN_WELCOME_TITLE = "Welcome to Lagan!";
 export const FIRST_LOGIN_WELCOME_BODY = "You're all set. Add your first habit to get started.";

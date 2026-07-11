@@ -9,8 +9,9 @@ import { AUTH_CALLBACK_PATH, parseAuthCallbackUrl } from "@/lib/auth/auth-redire
 import { authCallbackUrlFromParams } from "@/lib/auth/auth-callback-params";
 import { clearDataCache } from "@/lib/data/cache";
 import {
-  AUTH_CALLBACK_CONFIRMED_BODY,
+  AUTH_CALLBACK_AUTHENTICATED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
+  AUTH_CALLBACK_SIGN_IN_BODY,
   consumePendingSignupWelcome,
 } from "@/lib/auth/auth-welcome";
 import { useLanguage } from "@/components/language-provider";
@@ -34,6 +35,7 @@ export default function AuthCallbackScreen() {
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [shouldWelcome, setShouldWelcome] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -72,6 +74,7 @@ export default function AuthCallbackScreen() {
 
       if (!mountedRef.current) return;
       setShouldWelcome(welcome);
+      setHasSession(hasSession);
 
       if (parsed.type === "recovery") {
         router.replace("/reset-password" as never);
@@ -111,6 +114,17 @@ export default function AuthCallbackScreen() {
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
             {error ? t(error) : null}
           </Text>
+          <View className="w-full mt-lg">
+            <TouchableOpacity
+              className="bg-primary rounded-full py-md items-center"
+              accessibilityRole="button"
+              onPress={() => router.replace("/login" as never)}
+            >
+              <Text className="text-on-primary text-label-lg font-semibold">
+                {t("Back to sign in")}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </>
       ) : status === "success" ? (
         <>
@@ -121,25 +135,28 @@ export default function AuthCallbackScreen() {
             {t(AUTH_CALLBACK_CONFIRMED_TITLE)}
           </Text>
           <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
-            {t(AUTH_CALLBACK_CONFIRMED_BODY)}
+            {t(hasSession ? AUTH_CALLBACK_AUTHENTICATED_BODY : AUTH_CALLBACK_SIGN_IN_BODY)}
           </Text>
           <View className="w-full gap-sm mt-lg">
-            <TouchableOpacity
-              className="bg-primary rounded-full py-md items-center"
-              accessibilityRole="button"
-              onPress={() => router.replace(homeDestination(shouldWelcome) as never)}
-            >
-              <Text className="text-on-primary text-label-lg font-semibold">
-                {t("Continue to app")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="bg-surface-container dark:bg-d-surface-container rounded-full py-md items-center"
-              accessibilityRole="button"
-              onPress={() => router.replace("/login" as never)}
-            >
-              <Text className="text-primary text-label-lg font-semibold">{t("Sign in")}</Text>
-            </TouchableOpacity>
+            {hasSession ? (
+              <TouchableOpacity
+                className="bg-primary rounded-full py-md items-center"
+                accessibilityRole="button"
+                onPress={() => router.replace(homeDestination(shouldWelcome) as never)}
+              >
+                <Text className="text-on-primary text-label-lg font-semibold">
+                  {t("Continue to app")}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                className="bg-primary rounded-full py-md items-center"
+                accessibilityRole="button"
+                onPress={() => router.replace("/login" as never)}
+              >
+                <Text className="text-on-primary text-label-lg font-semibold">{t("Sign in")}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </>
       ) : (

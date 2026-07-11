@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -52,6 +52,11 @@ export default function LoginScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showForgot, setShowForgot] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const emailInputRef = useRef<TextInput>(null);
+  const pendingModeFocusRef = useRef(false);
+  const authInFlightRef = useRef(false);
+  const authLoading = loading || googleLoading;
 
   useEffect(() => {
     if (params.reason === "expired") {
@@ -61,18 +66,31 @@ export default function LoginScreen() {
     }
   }, [params.reason, t, router]);
 
+  useEffect(() => {
+    if (!pendingModeFocusRef.current) return;
+    pendingModeFocusRef.current = false;
+    const frame = requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      emailInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [mode]);
+
   function switchMode(next: Mode) {
+    pendingModeFocusRef.current = true;
     setMode(next);
     setError(null);
     setMessage(null);
     setNotice(null);
+    setPassword("");
     setConfirmPassword("");
     setShowPassword(false);
     setShowConfirmPassword(false);
   }
 
   async function handleGoogleSignIn() {
-    if (loading || googleLoading) return;
+    if (authLoading || authInFlightRef.current) return;
+    authInFlightRef.current = true;
     setGoogleLoading(true);
     setError(null);
     setMessage(null);
@@ -84,12 +102,13 @@ export default function LoginScreen() {
     } catch {
       setError(t("Network error. Check your connection and try again."));
     } finally {
+      authInFlightRef.current = false;
       setGoogleLoading(false);
     }
   }
 
   async function handleSubmit() {
-    if (loading || googleLoading) return;
+    if (authLoading || authInFlightRef.current) return;
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail || !password) {
       setError(t("Email and password are required."));
@@ -110,6 +129,7 @@ export default function LoginScreen() {
         return;
       }
     }
+    authInFlightRef.current = true;
     setLoading(true);
     setError(null);
     setMessage(null);
@@ -139,6 +159,7 @@ export default function LoginScreen() {
     } catch {
       setError(t("Network error. Check your connection and try again."));
     } finally {
+      authInFlightRef.current = false;
       setLoading(false);
     }
   }
@@ -150,7 +171,11 @@ export default function LoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+        >
           <View className="flex-1 px-margin-mobile py-xxl">
             {/* Header */}
             <View className="mb-xxl">
@@ -213,6 +238,7 @@ export default function LoginScreen() {
                   {t("Email")}
                 </Text>
                 <TextInput
+                  ref={emailInputRef}
                   className="rounded-xl px-md py-sm text-body-md"
                   placeholder="you@example.com"
                   placeholderTextColor={LOGIN_COLORS.subtle}
@@ -350,6 +376,8 @@ export default function LoginScreen() {
               <TouchableOpacity
                 className="bg-primary rounded-full py-md items-center mt-xs"
                 accessibilityRole="button"
+                accessibilityState={{ disabled: authLoading }}
+                disabled={authLoading}
                 onPress={handleSubmit}
               >
                 <Text className="text-on-primary text-label-lg font-semibold">
@@ -381,6 +409,8 @@ export default function LoginScreen() {
                 className="flex-row items-center justify-center gap-sm rounded-full py-md"
                 accessibilityRole="button"
                 accessibilityLabel={t("Sign in with Google")}
+                accessibilityState={{ disabled: authLoading }}
+                disabled={authLoading}
                 onPress={handleGoogleSignIn}
                 style={{ borderColor: "rgba(255, 255, 255, 0.16)", borderWidth: 1 }}
               >

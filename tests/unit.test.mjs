@@ -18,8 +18,9 @@ import {
 import { validatePassword } from "../lib/auth/password.ts";
 import { hasPasswordIdentity, hasRecentSignIn } from "../lib/auth/identity.ts";
 import {
-  AUTH_CALLBACK_CONFIRMED_BODY,
+  AUTH_CALLBACK_AUTHENTICATED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
+  AUTH_CALLBACK_SIGN_IN_BODY,
   FIRST_LOGIN_WELCOME_BODY,
   FIRST_LOGIN_WELCOME_TITLE,
   SIGNUP_CONFIRMATION_MESSAGE,
@@ -350,14 +351,29 @@ test("XP constants are canonical across app, website, and SQL", () => {
   assert.match(sql, /\/ 500\) \+ 1\)::integer as level/);
 });
 
-test("landing nav keeps the proxied web app CTA mobile-hidden without Next prefetch", () => {
-  const source = readFileSync("website/components/landing/site-nav.tsx", "utf8");
-  assert.doesNotMatch(source, /<Link\s+href="\/app"/);
-  assert.match(source, /<a\s+href="\/app"/);
+test("landing web app CTAs use plain anchors and keep the header CTA mobile-hidden", () => {
+  const pageSource = readFileSync("website/app/page.tsx", "utf8");
+  const buttonSource = readFileSync("website/components/ui/button.tsx", "utf8");
 
-  const appCta = source.match(/<a\s+href="\/app"[\s\S]*?<\/a>/)?.[0] ?? "";
-  assert.match(appCta, /className="[^"]*\bhidden\b[^"]*\bmd:inline-flex\b/);
-  assert.doesNotMatch(appCta, /display:\s*"inline-flex"/);
+  const externalBranch =
+    buttonSource.match(
+      /if \(props\.external\) \{\r?\n([\s\S]*?)\r?\n    \}(?=\r?\n    return \()/,
+    )?.[1] ?? "";
+  assert.match(externalBranch, /<a href=\{props\.href\}/);
+  assert.doesNotMatch(externalBranch, /<Link\b/);
+
+  const appCtas = pageSource.match(/<Button\s+[^>]*href=\{WEB_APP_URL\}[^>]*>/g) ?? [];
+  assert.ok(appCtas.length > 0, "expected at least one proxied web app CTA");
+  for (const appCta of appCtas) {
+    assert.match(appCta, /(?:^|\s)external(?:=\{true\})?(?=\s|>)/);
+  }
+
+  const headerCta =
+    pageSource.match(
+      /<Button\s+[^>]*href=\{WEB_APP_URL\}[^>]*>[\s\S]*?Open the app[\s\S]*?<\/Button>/,
+    )?.[0] ?? "";
+  assert.match(headerCta, /className="[^"]*\bhidden\b[^"]*\bsm:inline-flex\b/);
+  assert.doesNotMatch(headerCta, /display:\s*"inline-flex"/);
 });
 
 test("website habit clicks refresh dashboard data and show action errors", () => {
@@ -1600,8 +1616,21 @@ test("signup and email confirmation copy gives a clear next step", () => {
   assert.match(SIGNUP_CONFIRMATION_MESSAGE, /check your email/i);
   assert.match(SIGNUP_CONFIRMATION_MESSAGE, /confirm/i);
   assert.equal(AUTH_CALLBACK_CONFIRMED_TITLE, "Congratulations, your email is confirmed!");
-  assert.match(AUTH_CALLBACK_CONFIRMED_BODY, /refresh the app/i);
-  assert.match(AUTH_CALLBACK_CONFIRMED_BODY, /sign in/i);
+  assert.equal(
+    AUTH_CALLBACK_AUTHENTICATED_BODY,
+    "You're signed in and ready to continue to Lagan.",
+  );
+  assert.equal(
+    AUTH_CALLBACK_SIGN_IN_BODY,
+    "Your email is confirmed. Sign in to continue to Lagan.",
+  );
+  for (const copy of [
+    AUTH_CALLBACK_AUTHENTICATED_BODY,
+    AUTH_CALLBACK_SIGN_IN_BODY,
+    "Back to sign in",
+  ]) {
+    assert.notEqual(translate("hi", copy), copy);
+  }
   assert.equal(FIRST_LOGIN_WELCOME_TITLE, "Welcome to Lagan!");
   assert.match(FIRST_LOGIN_WELCOME_BODY, /all set/i);
 });

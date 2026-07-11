@@ -336,7 +336,13 @@ export default function LandingPage() {
             <Button href="/login" variant="ghost" size="md">
               Sign in
             </Button>
-            <Button href={WEB_APP_URL} variant="primary" size="md" className="hidden sm:inline-flex">
+            <Button
+              href={WEB_APP_URL}
+              external
+              variant="primary"
+              size="md"
+              className="hidden sm:inline-flex"
+            >
               <GlobeIcon />
               Open the app
             </Button>
@@ -374,11 +380,16 @@ export default function LandingPage() {
               className="hero-rise mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
               style={{ animationDelay: "0.35s" }}
             >
-              <Button href={WEB_APP_URL} className="w-full sm:w-auto">
+              <Button href={WEB_APP_URL} external className="w-full sm:w-auto">
                 <GlobeIcon />
                 Use the web app
               </Button>
-              <Button href={WEB_APP_URL} variant="outline" className="w-full sm:w-auto">
+              <Button
+                href={WEB_APP_URL}
+                external
+                variant="outline"
+                className="w-full sm:w-auto"
+              >
                 <PhoneIcon />
                 Use on iOS
               </Button>
@@ -519,11 +530,11 @@ export default function LandingPage() {
               Track daily habits, see progress clearly, and let AI guide your next small improvement.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button href={WEB_APP_URL}>
+              <Button href={WEB_APP_URL} external>
                 <GlobeIcon />
                 Use the web app
               </Button>
-              <Button href={WEB_APP_URL} variant="outline">
+              <Button href={WEB_APP_URL} external variant="outline">
                 <PhoneIcon />
                 Use on iOS
               </Button>

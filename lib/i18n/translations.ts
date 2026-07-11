@@ -324,9 +324,12 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Missing authentication code.": "प्रमाणीकरण कोड नहीं मिला. कृपया ईमेल वाला लिंक फिर से खोलें.",
   "Auth session missing!": "रीसेट सत्र नहीं मिला. कृपया अपने ईमेल से रीसेट लिंक फिर से खोलें.",
   "Congratulations, your email is confirmed!": "बधाई, आपका ईमेल कन्फर्म हो गया!",
-  "Refresh the app or sign in to start using Lagan.":
-    "Lagan इस्तेमाल शुरू करने के लिए ऐप refresh करें या sign in करें.",
+  "You're signed in and ready to continue to Lagan.":
+    "आप साइन इन हैं और Lagan जारी रखने के लिए तैयार हैं।",
+  "Your email is confirmed. Sign in to continue to Lagan.":
+    "आपका ईमेल कन्फर्म हो गया है। Lagan जारी रखने के लिए साइन इन करें।",
   "Continue to app": "ऐप में जाएं",
+  "Back to sign in": "साइन इन पर वापस जाएं",
   "Finishing sign in...": "साइन इन पूरा हो रहा है...",
   "Account deletion": "अकाउंट डिलीशन",
   "Sign in, then open Settings, Privacy & Data, and Request account deletion. Your account and all your data (habits, completions, profile) are removed permanently within seconds.":
