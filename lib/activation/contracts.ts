@@ -1,5 +1,6 @@
 export type ActivationVariant = "control" | "activation_v2";
 export type ActivationStage = "pre_value" | "first_log" | "engaged";
+export type QuickStartConstraint = "time" | "energy" | "stress" | "sleep" | "consistency";
 
 export type FeatureFlagConfig = {
   enabled: boolean;

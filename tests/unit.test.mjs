@@ -1928,6 +1928,41 @@ test("first-run Hindi copy avoids English fragments on onboarding-critical scree
   }
 });
 
+test("treatment quick-start copy has Hindi translations", () => {
+  for (const label of [
+    "Preparing your routine...",
+    "Choose one goal for your quick start.",
+    "Daily context",
+    "What does a typical day look like?",
+    "Biggest constraint",
+    "What most often gets in the way?",
+    "Not enough time",
+    "My days already feel full",
+    "Low energy",
+    "I often feel drained",
+    "High stress",
+    "I need a calmer starting point",
+    "Poor sleep",
+    "Rest makes routines harder",
+    "Staying consistent",
+    "I struggle to keep habits going",
+    "Choose a constraint",
+    "Pick the biggest blocker so I can keep your routine realistic.",
+    "Personalize targets",
+    "Optional — add fitness, body, steps, and water details.",
+    "Add another suggestion",
+    "Hide extra suggestions",
+    "Routine couldn't be created",
+    "We couldn't create any habits. Review your suggestions and try again.",
+    "Some habits couldn't be created",
+    "{created} of {total} habits were created. You can continue with those.",
+    "Routine creation stopped",
+    "We couldn't finish creating your routine. Review your suggestions and try again.",
+  ]) {
+    assert.notEqual(translate("hi", label), label, `missing Hindi treatment copy: ${label}`);
+  }
+});
+
 test("first-run wizard touch targets expose web accessibility roles", () => {
   const source = readFileSync("app/habits/wizard.tsx", "utf8");
   const touchTargets = source.match(/<TouchableOpacity\b/g) ?? [];
@@ -1977,6 +2012,13 @@ test("first-run wizard next button validates each step before advancing", () => 
   assert.match(source, /answers\.goals\.length === 0[\s\S]*showAlert\(t\("Choose a goal"\)/);
   assert.match(source, /stepIndex === STEPS\.length - 1 \? buildRoutine\(\) : handleNextStep\(\)/);
   assert.doesNotMatch(source, /stepIndex === STEPS\.length - 1 \? buildRoutine\(\) : setStepIndex/);
+});
+
+test("first-run wizard keeps its assigned control or treatment flow stable", () => {
+  const source = readFileSync("app/habits/wizard.tsx", "utf8");
+  assert.match(source, /const wizardModeRef = useRef<"control" \| "treatment" \| null>\(null\)/);
+  assert.match(source, /if \(activation\.ready && wizardModeRef\.current === null\)/);
+  assert.match(source, /const isTreatment = wizardModeRef\.current === "treatment"/);
 });
 
 test("first-run manual habit creation touch targets expose web accessibility roles", () => {
@@ -3644,6 +3686,277 @@ test("routine builder gives office workers water posture walking and sleep habit
   assert.ok(names.some((name) => name.includes("walk")));
   assert.ok(names.some((name) => name.includes("sleep")));
   assert.ok(routine.length <= 5);
+});
+
+const treatmentAnswers = (patch = {}) => ({
+  goals: ["energy"],
+  lifestyle: "office",
+  sleep: "okay",
+  workload: "normal",
+  stress: "medium",
+  fitnessLevel: "beginner",
+  age: null,
+  heightCm: null,
+  weightKg: null,
+  stepsBaseline: null,
+  waterBaseline: null,
+  constraint: "energy",
+  ...patch,
+});
+
+test("treatment quick start exposes the exact constraint priorities and overlays", async () => {
+  const { QUICK_START_CONSTRAINT_PRIORITIES, applyQuickStartConstraint } =
+    await import("../lib/coach/treatment-quick-start.ts");
+
+  assert.deepEqual(QUICK_START_CONSTRAINT_PRIORITIES, {
+    time: ["posture", "meditate", "water"],
+    energy: ["water", "walk", "sleep"],
+    stress: ["meditate", "walk", "sleep"],
+    sleep: ["sleep", "screen-limit", "meditate"],
+    consistency: ["water", "walk", "read"],
+  });
+  assert.equal(applyQuickStartConstraint(treatmentAnswers(), "time").workload, "high");
+  assert.equal(applyQuickStartConstraint(treatmentAnswers(), "stress").stress, "high");
+  assert.equal(applyQuickStartConstraint(treatmentAnswers(), "sleep").sleep, "poor");
+  assert.deepEqual(applyQuickStartConstraint(treatmentAnswers(), "energy"), treatmentAnswers());
+  assert.deepEqual(
+    applyQuickStartConstraint(treatmentAnswers(), "consistency"),
+    treatmentAnswers(),
+  );
+});
+
+test("treatment recommendations order goal then constraint then context and preselect two", async () => {
+  const { buildTreatmentRecommendations } = await import("../lib/coach/treatment-quick-start.ts");
+
+  const ordered = buildTreatmentRecommendations(
+    treatmentAnswers({ goals: ["learning"], constraint: "time", lifestyle: "office" }),
+  );
+  assert.deepEqual(
+    ordered.map((item) => item.id),
+    ["read", "revision", "focus", "posture", "meditate"],
+  );
+  assert.deepEqual(
+    ordered.map((item) => item.selected),
+    [true, true, false, false, false],
+  );
+
+  const deduped = buildTreatmentRecommendations(treatmentAnswers());
+  assert.ok(deduped.length >= 3 && deduped.length <= 5);
+  assert.equal(deduped.filter((item) => item.selected).length, 2);
+  assert.equal(new Set(deduped.map((item) => item.id)).size, deduped.length);
+  const nonCustomTypes = deduped
+    .filter((item) => item.habitType !== "custom")
+    .map((item) => item.habitType);
+  assert.equal(new Set(nonCustomTypes).size, nonCustomTypes.length);
+  assert.deepEqual(
+    deduped.map((item) => item.id),
+    ["water", "walk", "sleep", "posture"],
+  );
+});
+
+test("collapsed treatment review keeps the first two cards visible after selection changes", async () => {
+  const { buildTreatmentRecommendations, getVisibleTreatmentRecommendations } =
+    await import("../lib/coach/treatment-quick-start.ts");
+  const recommendations = buildTreatmentRecommendations(treatmentAnswers()).map((item, index) => ({
+    ...item,
+    selected: index === 2,
+  }));
+
+  assert.deepEqual(
+    getVisibleTreatmentRecommendations(recommendations, false).map((item) => item.id),
+    recommendations.slice(0, 2).map((item) => item.id),
+  );
+  assert.deepEqual(
+    getVisibleTreatmentRecommendations(recommendations, true).map((item) => item.id),
+    recommendations.map((item) => item.id),
+  );
+});
+
+test("treatment caps every constrained metric and never logs above a positive target", async () => {
+  const { QUICK_START_TARGET_CAPS, applyTreatmentConstraintCaps, clampDefaultLogValuesToTargets } =
+    await import("../lib/coach/treatment-quick-start.ts");
+
+  assert.deepEqual(Object.keys(QUICK_START_TARGET_CAPS), [
+    "time",
+    "energy",
+    "stress",
+    "consistency",
+  ]);
+
+  for (const [constraint, caps] of Object.entries(QUICK_START_TARGET_CAPS)) {
+    for (const [metricType, cap] of Object.entries(caps)) {
+      const capped = applyTreatmentConstraintCaps(
+        [
+          {
+            ...recommendation(`${constraint}-${metricType}`, "custom"),
+            metricType,
+            target: cap * 2,
+            defaultLogValue: cap * 3,
+          },
+        ],
+        constraint,
+      )[0];
+      assert.equal(capped.target, cap, `${constraint}/${metricType} target cap`);
+      assert.equal(capped.defaultLogValue, cap, `${constraint}/${metricType} default log cap`);
+    }
+  }
+
+  const sleepUncapped = applyTreatmentConstraintCaps(
+    [{ ...recommendation("Sleep", "sleep"), metricType: "hours", target: 9, defaultLogValue: 12 }],
+    "sleep",
+  )[0];
+  assert.equal(sleepUncapped.target, 9);
+  assert.equal(sleepUncapped.defaultLogValue, 9);
+
+  const explicitEdit = clampDefaultLogValuesToTargets([
+    { ...recommendation("Edited target", "custom"), target: 7, defaultLogValue: 50 },
+  ])[0];
+  assert.equal(explicitEdit.target, 7);
+  assert.equal(explicitEdit.defaultLogValue, 7);
+});
+
+test("treatment AI normalization fills 3-5 unique suggestions and selects exactly two", async () => {
+  const { buildTreatmentRecommendations, normalizeTreatmentRecommendations } =
+    await import("../lib/coach/treatment-quick-start.ts");
+  const timeAnswers = treatmentAnswers({ constraint: "time" });
+  const fallback = buildTreatmentRecommendations(timeAnswers);
+  const ai = [
+    {
+      ...fallback[0],
+      id: "ai-water",
+      name: "Gentle hydration",
+      target: 9000,
+      defaultLogValue: 12000,
+      selected: false,
+    },
+    { ...fallback[1], id: "ai-walk", name: "Gentle walk", selected: false },
+  ];
+  const normalized = normalizeTreatmentRecommendations(ai, fallback, timeAnswers);
+
+  assert.ok(normalized.length >= 3 && normalized.length <= 5);
+  assert.equal(normalized.filter((item) => item.selected).length, 2);
+  assert.deepEqual(
+    normalized.map((item) => item.selected),
+    normalized.map((_, index) => index < 2),
+  );
+  assert.equal(
+    new Set(
+      normalized.map((item) =>
+        item.habitType === "custom" ? `custom:${item.id}` : item.habitType,
+      ),
+    ).size,
+    normalized.length,
+  );
+  assert.ok(
+    normalized.every(
+      (item) =>
+        item.target == null ||
+        item.target <= 0 ||
+        item.defaultLogValue == null ||
+        item.defaultLogValue <= item.target,
+    ),
+  );
+  assert.ok((normalized.find((item) => item.id === "ai-water")?.target ?? Infinity) <= 1500);
+
+  const customAnswers = treatmentAnswers({ goals: ["learning"], constraint: "time" });
+  const customFallback = buildTreatmentRecommendations(customAnswers);
+  const customSeed = customFallback.find((item) => item.habitType === "custom");
+  assert.ok(customSeed);
+  const customDeduped = normalizeTreatmentRecommendations(
+    [
+      { ...customSeed, id: "ai-custom-one", name: "  Gentle Reset  " },
+      { ...customSeed, id: "ai-custom-two", name: "gentle reset" },
+    ],
+    customFallback,
+    customAnswers,
+  );
+  assert.equal(
+    customDeduped.filter((item) => item.name.trim().toLowerCase() === "gentle reset").length,
+    1,
+  );
+
+  const sparse = normalizeTreatmentRecommendations([fallback[0]], [fallback[0]], timeAnswers);
+  assert.ok(sparse.length >= 3 && sparse.length <= 5);
+  assert.equal(sparse.filter((item) => item.selected).length, 2);
+});
+
+test("treatment AI replacement guard rejects stale or interacted reviews", async () => {
+  const { shouldApplyTreatmentAiResult } = await import("../lib/coach/treatment-quick-start.ts");
+  const current = {
+    reviewActive: true,
+    requestId: 3,
+    currentRequestId: 3,
+    interactionVersion: 4,
+    currentInteractionVersion: 4,
+  };
+  assert.equal(shouldApplyTreatmentAiResult(current), true);
+  assert.equal(shouldApplyTreatmentAiResult({ ...current, reviewActive: false }), false);
+  assert.equal(shouldApplyTreatmentAiResult({ ...current, currentRequestId: 5 }), false);
+  assert.equal(shouldApplyTreatmentAiResult({ ...current, currentInteractionVersion: 5 }), false);
+});
+
+test("treatment create outcomes distinguish auth, zero, mixed, and complete saves", async () => {
+  const { classifyTreatmentCreateOutcome } = await import("../lib/coach/treatment-quick-start.ts");
+  assert.deepEqual(classifyTreatmentCreateOutcome(true, [], 2), {
+    status: "signed_out",
+    successfulCount: 0,
+    totalCount: 2,
+    failedIndices: [],
+  });
+  assert.equal(
+    classifyTreatmentCreateOutcome(true, [{ ok: true, id: "ignored" }], 1).status,
+    "signed_out",
+  );
+  assert.deepEqual(
+    classifyTreatmentCreateOutcome(
+      false,
+      [
+        { ok: false, id: null },
+        { ok: false, id: null },
+      ],
+      2,
+    ),
+    {
+      status: "none_created",
+      successfulCount: 0,
+      totalCount: 2,
+      failedIndices: [0, 1],
+    },
+  );
+  assert.deepEqual(
+    classifyTreatmentCreateOutcome(
+      false,
+      [
+        { ok: true, id: "created" },
+        { ok: false, id: null },
+        { ok: true, id: "merged" },
+      ],
+      3,
+    ),
+    {
+      status: "partially_created",
+      successfulCount: 2,
+      totalCount: 3,
+      failedIndices: [1],
+    },
+  );
+  assert.equal(
+    classifyTreatmentCreateOutcome(
+      false,
+      [
+        { ok: true, id: "created" },
+        { ok: true, id: "merged" },
+      ],
+      2,
+    ).status,
+    "all_created",
+  );
+  assert.deepEqual(classifyTreatmentCreateOutcome(false, [{ ok: true, id: null }], 2), {
+    status: "none_created",
+    successfulCount: 0,
+    totalCount: 2,
+    failedIndices: [0, 1],
+  });
 });
 
 function recommendation(name, habitType) {

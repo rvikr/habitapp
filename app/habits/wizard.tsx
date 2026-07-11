@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   BackHandler,
   Platform,
@@ -36,8 +36,21 @@ import { formatAmount } from "@/lib/coach/habit-intelligence";
 import { refineRoutineRecommendations } from "@/lib/coach/routine-ai";
 import { useLanguage } from "@/components/language-provider";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
+import { useActivation } from "@/components/activation-provider";
+import type { QuickStartConstraint } from "@/lib/activation/contracts";
+import {
+  applyQuickStartConstraint,
+  buildTreatmentRecommendations,
+  clampDefaultLogValuesToTargets,
+  classifyTreatmentCreateOutcome,
+  getVisibleTreatmentRecommendations,
+  normalizeTreatmentRecommendations,
+  shouldApplyTreatmentAiResult,
+  type QuickStartGoal,
+  type TreatmentQuickStartAnswers,
+} from "@/lib/coach/treatment-quick-start";
 
-type StepId =
+type ControlStepId =
   | "goals"
   | "lifestyle"
   | "sleep"
@@ -46,6 +59,7 @@ type StepId =
   | "fitnessLevel"
   | "body"
   | "baseline";
+type StepId = ControlStepId | "constraint";
 type Option<T extends string = string> = { value: T; label: string; detail: string; icon: string };
 type PostCreatePhase = "confirm" | "notifications" | "tutorial" | null;
 
@@ -80,6 +94,39 @@ const LIFESTYLE_OPTIONS: Option<RoutineWizardAnswers["lifestyle"]>[] = [
   { value: "active", label: "Active", detail: "Already moving", icon: "run-fast" },
   { value: "home", label: "Home", detail: "Flexible routine", icon: "home" },
   { value: "mixed", label: "Mixed", detail: "Different day to day", icon: "shuffle-variant" },
+];
+
+const CONSTRAINT_OPTIONS: Option<QuickStartConstraint>[] = [
+  {
+    value: "time",
+    label: "Not enough time",
+    detail: "My days already feel full",
+    icon: "clock-outline",
+  },
+  {
+    value: "energy",
+    label: "Low energy",
+    detail: "I often feel drained",
+    icon: "battery-low",
+  },
+  {
+    value: "stress",
+    label: "High stress",
+    detail: "I need a calmer starting point",
+    icon: "meditation",
+  },
+  {
+    value: "sleep",
+    label: "Poor sleep",
+    detail: "Rest makes routines harder",
+    icon: "sleep-off",
+  },
+  {
+    value: "consistency",
+    label: "Staying consistent",
+    detail: "I struggle to keep habits going",
+    icon: "repeat",
+  },
 ];
 
 const SLEEP_OPTIONS: Option<RoutineWizardAnswers["sleep"]>[] = [
@@ -125,7 +172,7 @@ const WATER_BASELINE_OPTIONS: Option<ActivityBaseline>[] = [
   { value: "high", label: "Lots", detail: "8+ glasses", icon: "water" },
 ];
 
-const STEPS: { id: StepId; title: string; subtitle: string }[] = [
+const STEPS: { id: ControlStepId; title: string; subtitle: string }[] = [
   {
     id: "goals",
     title: "What do you want to improve?",
@@ -169,6 +216,24 @@ const STEPS: { id: StepId; title: string; subtitle: string }[] = [
   },
 ];
 
+const TREATMENT_STEPS: { id: StepId; title: string; subtitle: string }[] = [
+  {
+    id: "goals",
+    title: "What do you want to improve?",
+    subtitle: "Choose one goal for your quick start.",
+  },
+  {
+    id: "lifestyle",
+    title: "Daily context",
+    subtitle: "What does a typical day look like?",
+  },
+  {
+    id: "constraint",
+    title: "Biggest constraint",
+    subtitle: "What most often gets in the way?",
+  },
+];
+
 const INITIAL_ANSWERS: RoutineWizardAnswers = {
   goals: [],
   lifestyle: "mixed",
@@ -186,7 +251,17 @@ const INITIAL_ANSWERS: RoutineWizardAnswers = {
 export default function HabitWizardScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const activation = useActivation();
+  const wizardModeRef = useRef<"control" | "treatment" | null>(null);
+  if (activation.ready && wizardModeRef.current === null) {
+    wizardModeRef.current =
+      activation.variant === "activation_v2" && activation.stage === "pre_value"
+        ? "treatment"
+        : "control";
+  }
+  const isTreatment = wizardModeRef.current === "treatment";
   const [answers, setAnswers] = useState<RoutineWizardAnswers>(INITIAL_ANSWERS);
+  const [constraint, setConstraint] = useState<QuickStartConstraint | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [recommendations, setRecommendations] = useState<HabitRecommendation[] | null>(null);
   const [generatedByAi, setGeneratedByAi] = useState(false);
@@ -198,9 +273,15 @@ export default function HabitWizardScreen() {
   const [needsNotifPrimer, setNeedsNotifPrimer] = useState(false);
   const [createdHabits, setCreatedHabits] = useState<CreatedHabit[]>([]);
   const [tutorialCompleting, setTutorialCompleting] = useState(false);
+  const [showPersonalization, setShowPersonalization] = useState(false);
+  const [showAdditionalSuggestions, setShowAdditionalSuggestions] = useState(false);
+  const aiRequestRef = useRef(0);
+  const reviewInteractionVersionRef = useRef(0);
+  const reviewActiveRef = useRef(false);
   const celebrate = useCelebrate();
 
-  const step = STEPS[stepIndex];
+  const activeSteps = isTreatment ? TREATMENT_STEPS : STEPS;
+  const step = activeSteps[stepIndex];
   const selectedCount = recommendations?.filter((item) => item.selected).length ?? 0;
   const tutorialHabit = pickTutorialHabit(createdHabits);
 
@@ -225,16 +306,35 @@ export default function HabitWizardScreen() {
   function toggleGoal(goal: string) {
     setAnswers((current) => ({
       ...current,
-      goals: current.goals.includes(goal)
-        ? current.goals.filter((item) => item !== goal)
-        : [...current.goals, goal],
+      goals: isTreatment
+        ? [goal]
+        : current.goals.includes(goal)
+          ? current.goals.filter((item) => item !== goal)
+          : [...current.goals, goal],
     }));
   }
 
+  function markTreatmentReviewInteraction() {
+    if (isTreatment) reviewInteractionVersionRef.current += 1;
+  }
+
   function updateRecommendation(id: string, patch: Partial<HabitRecommendation>) {
-    setRecommendations(
-      (current) => current?.map((item) => (item.id === id ? { ...item, ...patch } : item)) ?? null,
-    );
+    markTreatmentReviewInteraction();
+    setRecommendations((current) => {
+      const updated =
+        current?.map((item) => (item.id === id ? { ...item, ...patch } : item)) ?? null;
+      return updated && isTreatment ? clampDefaultLogValuesToTargets(updated) : updated;
+    });
+  }
+
+  function handleReviewBack() {
+    if (isTreatment) {
+      reviewActiveRef.current = false;
+      aiRequestRef.current += 1;
+      reviewInteractionVersionRef.current += 1;
+      setShowAdditionalSuggestions(false);
+    }
+    setRecommendations(null);
   }
 
   async function handleExitWizard() {
@@ -250,22 +350,82 @@ export default function HabitWizardScreen() {
     setStepIndex((value) => value + 1);
   }
 
+  function handleControlPrimaryAction() {
+    return stepIndex === STEPS.length - 1 ? buildRoutine() : handleNextStep();
+  }
+
   async function buildRoutine() {
     if (answers.goals.length === 0) {
       showAlert(t("Choose a goal"), t("Pick at least one goal so I can tailor your routine."));
       return;
     }
-    const local = buildRoutineRecommendations(answers);
+    if (isTreatment && !constraint) {
+      showAlert(
+        t("Choose a constraint"),
+        t("Pick the biggest blocker so I can keep your routine realistic."),
+      );
+      return;
+    }
+
+    const requestId = isTreatment ? ++aiRequestRef.current : 0;
+    const interactionVersion = reviewInteractionVersionRef.current;
+    reviewActiveRef.current = true;
+    setLoadingRoutine(false);
+    setGeneratedByAi(false);
+    setEditingId(null);
+    setShowAdditionalSuggestions(false);
+    let aiAnswers = answers;
+    const treatmentAnswers: TreatmentQuickStartAnswers | null =
+      isTreatment && constraint
+        ? {
+            ...answers,
+            goals: [answers.goals[0] as QuickStartGoal],
+            constraint,
+          }
+        : null;
+    const local = treatmentAnswers
+      ? buildTreatmentRecommendations(treatmentAnswers)
+      : buildRoutineRecommendations(answers);
+    if (isTreatment && constraint) aiAnswers = applyQuickStartConstraint(answers, constraint);
     setRecommendations(local);
     setShowRoutineUpgrade(false);
     const access = await getCurrentProAccess();
     if (!access.hasPro) {
       setGeneratedByAi(false);
-      setShowRoutineUpgrade(true);
+      if (!isTreatment) setShowRoutineUpgrade(true);
+      return;
+    }
+    if (
+      isTreatment &&
+      !shouldApplyTreatmentAiResult({
+        reviewActive: reviewActiveRef.current,
+        requestId,
+        currentRequestId: aiRequestRef.current,
+        interactionVersion,
+        currentInteractionVersion: reviewInteractionVersionRef.current,
+      })
+    ) {
       return;
     }
     setLoadingRoutine(true);
-    const refined = await refineRoutineRecommendations(answers, local);
+    const refined = await refineRoutineRecommendations(aiAnswers, local);
+    if (treatmentAnswers) {
+      const canApply = shouldApplyTreatmentAiResult({
+        reviewActive: reviewActiveRef.current,
+        requestId,
+        currentRequestId: aiRequestRef.current,
+        interactionVersion,
+        currentInteractionVersion: reviewInteractionVersionRef.current,
+      });
+      if (canApply) {
+        setRecommendations(
+          normalizeTreatmentRecommendations(refined.recommendations, local, treatmentAnswers),
+        );
+        setGeneratedByAi(refined.generated);
+      }
+      if (requestId === aiRequestRef.current) setLoadingRoutine(false);
+      return;
+    }
     setRecommendations(refined.recommendations);
     setGeneratedByAi(refined.generated);
     setLoadingRoutine(false);
@@ -273,34 +433,50 @@ export default function HabitWizardScreen() {
 
   async function createRoutine() {
     if (creating) return;
+    markTreatmentReviewInteraction();
     const selected = recommendations?.filter((item) => item.selected) ?? [];
     if (selected.length === 0) {
       showAlert(t("Choose habits"), t("Keep at least one habit before creating your routine."));
       return;
     }
 
+    const payload = selected.map((item) => ({
+      name: item.name,
+      description: item.description,
+      icon: item.icon,
+      color: item.color,
+      unit: item.unit,
+      target: item.target,
+      remindersEnabled: item.remindersEnabled,
+      reminderTimes: item.reminderTimes,
+      reminderDays: item.reminderDays,
+      habitType: item.habitType,
+      metricType: item.metricType,
+      visualType: item.visualType,
+      reminderStrategy: item.reminderStrategy,
+      reminderIntervalMinutes: item.reminderIntervalMinutes,
+      defaultLogValue: item.defaultLogValue,
+      mergeSimilar: item.mergeSimilar,
+    }));
     setCreating(true);
-    const { signedOut, results } = await createRoutineHabits(
-      selected.map((item) => ({
-        name: item.name,
-        description: item.description,
-        icon: item.icon,
-        color: item.color,
-        unit: item.unit,
-        target: item.target,
-        remindersEnabled: item.remindersEnabled,
-        reminderTimes: item.reminderTimes,
-        reminderDays: item.reminderDays,
-        habitType: item.habitType,
-        metricType: item.metricType,
-        visualType: item.visualType,
-        reminderStrategy: item.reminderStrategy,
-        reminderIntervalMinutes: item.reminderIntervalMinutes,
-        defaultLogValue: item.defaultLogValue,
-        mergeSimilar: item.mergeSimilar,
-      })),
-    );
-    setCreating(false);
+    let batch: Awaited<ReturnType<typeof createRoutineHabits>>;
+    if (isTreatment) {
+      try {
+        batch = await createRoutineHabits(payload);
+      } catch {
+        showAlert(
+          t("Routine creation stopped"),
+          t("We couldn't finish creating your routine. Review your suggestions and try again."),
+        );
+        return;
+      } finally {
+        setCreating(false);
+      }
+    } else {
+      batch = await createRoutineHabits(payload);
+      setCreating(false);
+    }
+    const { signedOut, results } = batch;
 
     // The auth check now happens once for the whole batch, so "sign in again"
     // can only mean a genuine signed-out state — show it once, not per habit.
@@ -318,9 +494,29 @@ export default function HabitWizardScreen() {
       })
       .filter((msg): msg is string => msg !== null);
 
-    if (failures.length > 0) {
+    if (!isTreatment && failures.length > 0) {
       showAlert(t("Some habits were not created"), failures.join("\n"));
       return;
+    }
+
+    if (isTreatment) {
+      const outcome = classifyTreatmentCreateOutcome(false, results, selected.length);
+      if (outcome.status === "none_created") {
+        showAlert(
+          t("Routine couldn't be created"),
+          t("We couldn't create any habits. Review your suggestions and try again."),
+        );
+        return;
+      }
+      if (outcome.status === "partially_created") {
+        showAlert(
+          t("Some habits couldn't be created"),
+          t("{created} of {total} habits were created. You can continue with those.", {
+            created: outcome.successfulCount,
+            total: outcome.totalCount,
+          }),
+        );
+      }
     }
 
     // Routine creation succeeded — record onboarding as done so the dashboard
@@ -333,6 +529,7 @@ export default function HabitWizardScreen() {
       router.replace("/?newUser=1"); // nothing to celebrate; straight to dashboard
       return;
     }
+    reviewActiveRef.current = false;
     setCreatedHabits(created);
     // Only show the notification primer when permission hasn't been decided yet.
     const status = await getPermissionStatus();
@@ -372,6 +569,16 @@ export default function HabitWizardScreen() {
     router.replace("/?newUser=1");
   }
 
+  if (!activation.ready) {
+    return (
+      <SafeAreaView className="flex-1 bg-background dark:bg-d-background items-center justify-center px-margin-mobile">
+        <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant text-center">
+          {t("Preparing your routine...")}
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   if (postPhase === "confirm") {
     return (
       <ConfirmScreen
@@ -397,14 +604,19 @@ export default function HabitWizardScreen() {
   }
 
   if (recommendations) {
+    const visibleRecommendations = isTreatment
+      ? getVisibleTreatmentRecommendations(recommendations, showAdditionalSuggestions)
+      : recommendations;
+    const hasAdditionalSuggestions = isTreatment && recommendations.length > 2;
     return (
       <SafeAreaView className="flex-1 bg-background dark:bg-d-background" edges={["top"]}>
         <ScrollView
           className="flex-1"
           contentContainerStyle={{ paddingBottom: 32 }}
           keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={markTreatmentReviewInteraction}
         >
-          <WizardHeader title="Your Routine" onBack={() => setRecommendations(null)} />
+          <WizardHeader title="Your Routine" onBack={handleReviewBack} />
           <View className="px-margin-mobile gap-md">
             <View className="bg-primary-fixed dark:bg-d-surface-container rounded-xl p-md gap-xs">
               <Text className="text-label-lg text-primary">
@@ -430,7 +642,7 @@ export default function HabitWizardScreen() {
               )}
             </View>
 
-            {showRoutineUpgrade && (
+            {!isTreatment && showRoutineUpgrade && (
               <ProUpgradeBanner
                 title="Unlock AI routine refinement"
                 body="Subscribe to refine starter routines with Pro AI."
@@ -439,7 +651,7 @@ export default function HabitWizardScreen() {
               />
             )}
 
-            {recommendations.map((item) => {
+            {visibleRecommendations.map((item) => {
               const editing = editingId === item.id;
               return (
                 <View
@@ -483,6 +695,7 @@ export default function HabitWizardScreen() {
                         label: t(item.name),
                       })}
                       accessibilityState={{ selected: item.selected }}
+                      aria-selected={item.selected}
                     >
                       <MaterialCommunityIcons
                         name={item.selected ? "check" : "plus"}
@@ -527,7 +740,10 @@ export default function HabitWizardScreen() {
                   <View className="flex-row gap-sm">
                     <TouchableOpacity
                       className="flex-1 bg-surface-container dark:bg-d-surface-container rounded-full py-xs items-center"
-                      onPress={() => setEditingId(editing ? null : item.id)}
+                      onPress={() => {
+                        markTreatmentReviewInteraction();
+                        setEditingId(editing ? null : item.id);
+                      }}
                       accessibilityRole="button"
                       accessibilityLabel={t(editing ? "Finish editing {label}" : "Edit {label}", {
                         label: t(item.name),
@@ -551,6 +767,33 @@ export default function HabitWizardScreen() {
                 </View>
               );
             })}
+
+            {hasAdditionalSuggestions && (
+              <TouchableOpacity
+                className="bg-surface-container dark:bg-d-surface-container rounded-full py-md items-center flex-row justify-center gap-xs"
+                onPress={() => {
+                  markTreatmentReviewInteraction();
+                  setShowAdditionalSuggestions((current) => !current);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={t(
+                  showAdditionalSuggestions ? "Hide extra suggestions" : "Add another suggestion",
+                )}
+                accessibilityState={{ expanded: showAdditionalSuggestions }}
+                aria-expanded={showAdditionalSuggestions}
+              >
+                <Text className="text-label-lg text-primary font-semibold">
+                  {t(
+                    showAdditionalSuggestions ? "Hide extra suggestions" : "Add another suggestion",
+                  )}
+                </Text>
+                <MaterialCommunityIcons
+                  name={showAdditionalSuggestions ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color="#F26B1F"
+                />
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               className={`rounded-full py-md items-center ${creating ? "bg-outline" : "bg-primary"}`}
@@ -580,7 +823,10 @@ export default function HabitWizardScreen() {
         <View className="px-margin-mobile gap-lg">
           <View className="gap-xs">
             <Text className="text-label-lg text-primary">
-              {t("STEP {current} OF {total}", { current: stepIndex + 1, total: STEPS.length })}
+              {t("STEP {current} OF {total}", {
+                current: stepIndex + 1,
+                total: activeSteps.length,
+              })}
             </Text>
             <Text className="text-headline-lg text-on-background dark:text-d-on-background font-bold">
               {t(step.title)}
@@ -702,6 +948,122 @@ export default function HabitWizardScreen() {
                 </Text>
               </View>
             )}
+            {step.id === "constraint" && (
+              <View className="gap-lg">
+                <View className="gap-sm">
+                  {CONSTRAINT_OPTIONS.map((option) => (
+                    <ChoiceRow
+                      key={option.value}
+                      option={option}
+                      selected={constraint === option.value}
+                      onPress={() => setConstraint(option.value)}
+                    />
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  className="bg-surface-lowest dark:bg-d-surface-lowest rounded-xl p-md flex-row items-center gap-md"
+                  onPress={() => setShowPersonalization((current) => !current)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("Personalize targets")}
+                  accessibilityState={{ expanded: showPersonalization }}
+                  aria-expanded={showPersonalization}
+                >
+                  <View className="w-11 h-11 rounded-full bg-surface-container dark:bg-d-surface-container items-center justify-center">
+                    <MaterialCommunityIcons name="tune-variant" size={21} color="#F26B1F" />
+                  </View>
+                  <View className="flex-1 gap-xs">
+                    <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+                      {t("Personalize targets")}
+                    </Text>
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {t("Optional — add fitness, body, steps, and water details.")}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name={showPersonalization ? "chevron-up" : "chevron-down"}
+                    size={22}
+                    color="#F26B1F"
+                  />
+                </TouchableOpacity>
+
+                {showPersonalization && (
+                  <View className="gap-lg">
+                    <View className="gap-sm">
+                      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant">
+                        {t("Where is your fitness level?")}
+                      </Text>
+                      {FITNESS_OPTIONS.map((option) => (
+                        <ChoiceRow
+                          key={option.value}
+                          option={option}
+                          selected={answers.fitnessLevel === option.value}
+                          onPress={() =>
+                            setAnswers((current) => ({
+                              ...current,
+                              fitnessLevel: option.value,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+
+                    <BodyMetricsStep
+                      age={answers.age ?? null}
+                      heightCm={answers.heightCm ?? null}
+                      weightKg={answers.weightKg ?? null}
+                      onChange={(patch) => setAnswers((current) => ({ ...current, ...patch }))}
+                    />
+
+                    <View className="gap-sm">
+                      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant">
+                        {t("How much do you walk on a normal day?")}
+                      </Text>
+                      {STEPS_BASELINE_OPTIONS.map((option) => (
+                        <ChoiceRow
+                          key={option.value}
+                          option={option}
+                          selected={answers.stepsBaseline === option.value}
+                          onPress={() =>
+                            setAnswers((current) => ({
+                              ...current,
+                              stepsBaseline:
+                                current.stepsBaseline === option.value ? null : option.value,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+
+                    <View className="gap-sm">
+                      <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant">
+                        {t("How much water do you drink now?")}
+                      </Text>
+                      {WATER_BASELINE_OPTIONS.map((option) => (
+                        <ChoiceRow
+                          key={option.value}
+                          option={option}
+                          selected={answers.waterBaseline === option.value}
+                          onPress={() =>
+                            setAnswers((current) => ({
+                              ...current,
+                              waterBaseline:
+                                current.waterBaseline === option.value ? null : option.value,
+                            }))
+                          }
+                        />
+                      ))}
+                    </View>
+
+                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                      {t(
+                        "Targets are general wellness guidance, not medical advice. Adjust any of them before creating your routine.",
+                      )}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           <View className="flex-row gap-sm">
@@ -718,11 +1080,17 @@ export default function HabitWizardScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               className="flex-1 bg-primary rounded-full py-md items-center"
-              onPress={() => (stepIndex === STEPS.length - 1 ? buildRoutine() : handleNextStep())}
+              onPress={() =>
+                isTreatment
+                  ? stepIndex === TREATMENT_STEPS.length - 1
+                    ? buildRoutine()
+                    : handleNextStep()
+                  : handleControlPrimaryAction()
+              }
               accessibilityRole="button"
             >
               <Text className="text-label-lg text-on-primary font-semibold">
-                {stepIndex === STEPS.length - 1 ? t("Build routine") : t("Next")}
+                {stepIndex === activeSteps.length - 1 ? t("Build routine") : t("Next")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1008,6 +1376,7 @@ function ChoiceRow({
       accessibilityRole="button"
       accessibilityLabel={t("Select {label}", { label: t(option.label) })}
       accessibilityState={{ selected }}
+      aria-selected={selected}
     >
       <View
         className={`w-11 h-11 rounded-full items-center justify-center ${selected ? "bg-primary" : "bg-surface-container dark:bg-d-surface-container"}`}

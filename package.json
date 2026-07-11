@@ -14,6 +14,7 @@
     "format": "prettier --write .",
     "test": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/unit.test.mjs",
     "smoke:first-run": "node scripts/first-run/all-smokes.cjs",
+    "smoke:treatment-quick-start": "node scripts/first-run/treatment-quick-start-smoke.cjs",
     "qa:first-run:readiness": "node scripts/first-run/readiness.cjs",
     "qa:first-run:readiness:skip-native-install": "node scripts/first-run/readiness.cjs --skip-native-install",
     "qa:first-run:readiness:web": "node scripts/first-run/readiness.cjs --web-only --skip-native-install",

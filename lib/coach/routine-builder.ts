@@ -45,6 +45,18 @@ export type HabitRecommendation = {
 
 type RecommendationTemplate = Omit<HabitRecommendation, "selected" | "mergeSimilar">;
 
+export type RoutineTemplateId =
+  | "water"
+  | "posture"
+  | "walk"
+  | "sleep"
+  | "focus"
+  | "revision"
+  | "read"
+  | "screen-limit"
+  | "meditate"
+  | "workout";
+
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 const MAX_RECOMMENDATIONS = 5;
 
@@ -240,6 +252,30 @@ const TEMPLATES: Record<string, RecommendationTemplate> = {
     defaultLogValue: 10,
   },
 };
+
+const TEMPLATES_BY_ID: Record<RoutineTemplateId, RecommendationTemplate> = {
+  water: TEMPLATES.water,
+  posture: TEMPLATES.posture,
+  walk: TEMPLATES.walk,
+  sleep: TEMPLATES.sleep,
+  focus: TEMPLATES.focus,
+  revision: TEMPLATES.revision,
+  read: TEMPLATES.read,
+  "screen-limit": TEMPLATES.screenLimit,
+  meditate: TEMPLATES.meditate,
+  workout: TEMPLATES.workout,
+};
+
+export function buildRoutineTemplateRecommendation(
+  id: RoutineTemplateId,
+  answers: RoutineWizardAnswers,
+): HabitRecommendation {
+  return {
+    ...adjustForAnswers(TEMPLATES_BY_ID[id], answers),
+    selected: true,
+    mergeSimilar: true,
+  };
+}
 
 export function buildRoutineRecommendations(answers: RoutineWizardAnswers): HabitRecommendation[] {
   const picked: RecommendationTemplate[] = [];

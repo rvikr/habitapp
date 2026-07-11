@@ -155,6 +155,13 @@ async function runScenario(browser, options) {
       syncSubscriptionCalls.push(call);
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ ok: true }) });
     }
+    if (req.method() === "GET" && url.pathname.includes("/rest/v1/feature_flags")) {
+      return route.fulfill({
+        status: 200,
+        headers,
+        body: JSON.stringify({ enabled: false, rollout_percentage: 0 }),
+      });
+    }
     if (req.method() === "GET" && url.pathname.includes("/rest/v1/profiles")) {
       profileCalls.push(call);
       return route.fulfill({
