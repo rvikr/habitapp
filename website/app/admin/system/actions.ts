@@ -8,6 +8,9 @@ import { requireAdmin } from "@/lib/admin/auth";
 export async function toggleFeatureFlag(key: string, enabled: boolean) {
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
+  if (key === "activation_v2") {
+    return { ok: false, error: "Use the Activation V2 rollout control" };
+  }
   try {
     const admin = createAdminClient();
     const { error } = await admin
@@ -20,6 +23,46 @@ export async function toggleFeatureFlag(key: string, enabled: boolean) {
     revalidatePath("/admin");
     return { ok: true };
   } catch (e) { return { ok: false, error: String(e) }; }
+}
+
+export async function updateFeatureFlagRollout(
+  key: "activation_v2",
+  enabled: boolean,
+  rolloutPercentage: number,
+) {
+  const auth = await requireAdmin();
+  if (!auth.ok) return { ok: false, error: auth.error };
+  if (key !== "activation_v2") return { ok: false, error: "Invalid activation flag" };
+  if (typeof enabled !== "boolean") return { ok: false, error: "Invalid enabled state" };
+  if (!Number.isInteger(rolloutPercentage) || rolloutPercentage < 0 || rolloutPercentage > 100) {
+    return { ok: false, error: "Rollout percentage must be an integer from 0 to 100" };
+  }
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("feature_flags")
+      .update({
+        enabled,
+        rollout_percentage: rolloutPercentage,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("key", key)
+      .select("key")
+      .maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    if (!data) return { ok: false, error: "Activation feature flag not found" };
+
+    await logAdminAction(auth.email, "update_activation_rollout", "feature_flag", key, {
+      enabled,
+      rolloutPercentage,
+    });
+    revalidatePath("/admin/system");
+    revalidatePath("/admin");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
 
 export async function createFeatureFlag(key: string, name: string, description: string) {

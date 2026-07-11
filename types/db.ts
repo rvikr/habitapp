@@ -62,6 +62,8 @@ export type Profile = {
   revenuecat_status: SubscriptionStatus;
   pro_expires_at: string | null;
   subscription_synced_at: string | null;
+  first_habit_logged_at: string | null;
+  activation_engaged_at: string | null;
   created_at: string;
   updated_at: string;
 };

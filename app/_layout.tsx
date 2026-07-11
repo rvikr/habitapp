@@ -22,6 +22,7 @@ import { ThemeProvider, useTheme } from "@/components/theme-provider";
 import { LanguageProvider, useLanguage } from "@/components/language-provider";
 import { TrackingPreferencesProvider } from "@/components/tracking-preferences-provider";
 import { CelebrationProvider } from "@/components/celebration";
+import { ActivationProvider } from "@/components/activation-provider";
 import ErrorBoundary from "@/components/error-boundary";
 import NotificationScheduler from "@/components/notification-scheduler";
 import {
@@ -232,7 +233,9 @@ export default function RootLayout() {
           <LanguageProvider>
             <TrackingPreferencesProvider>
               <CelebrationProvider>
-                <RootLayoutContent />
+                <ActivationProvider>
+                  <RootLayoutContent />
+                </ActivationProvider>
               </CelebrationProvider>
             </TrackingPreferencesProvider>
           </LanguageProvider>

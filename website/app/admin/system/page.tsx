@@ -2,6 +2,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FlagToggle } from "./FlagToggle";
 import { NotificationForm } from "./NotificationForm";
+import { ActivationRolloutControl } from "./ActivationRolloutControl";
 
 export const metadata: Metadata = { title: "System" };
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ interface FeatureFlag {
   name: string;
   description: string | null;
   enabled: boolean;
+  rollout_percentage: number;
   updated_at: string;
 }
 
@@ -50,7 +52,8 @@ export default async function SystemPage() {
   }
 
   const maintenanceFlag = flags.find((f) => f.key === "maintenance_mode");
-  const otherFlags = flags.filter((f) => f.key !== "maintenance_mode");
+  const activationFlag = flags.find((f) => f.key === "activation_v2");
+  const otherFlags = flags.filter((f) => f.key !== "maintenance_mode" && f.key !== "activation_v2");
 
   return (
     <div className="app-stagger p-4 sm:p-6 lg:p-8 space-y-8 max-w-4xl">
@@ -100,6 +103,34 @@ export default async function SystemPage() {
               </div>
             </div>
             <FlagToggle flagKey="maintenance_mode" enabled={maintenanceFlag.enabled} />
+          </div>
+        </div>
+      )}
+
+      {activationFlag && (
+        <div className="overflow-hidden rounded-2xl border border-outline-variant bg-surface shadow-sm">
+          <div className="flex items-start gap-4 border-b border-outline-variant/60 px-6 py-5">
+            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+              <span
+                className="material-symbols-outlined text-xl text-primary"
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                rocket_launch
+              </span>
+            </div>
+            <div>
+              <h2 className="font-bold text-on-background">Activation V2 Rollout</h2>
+              <p className="mt-0.5 text-xs leading-relaxed text-on-surface-variant">
+                Release the guided activation experience by deterministic cohort. Save the switch
+                and percentage together to avoid an accidental broad rollout.
+              </p>
+            </div>
+          </div>
+          <div className="p-6">
+            <ActivationRolloutControl
+              enabled={activationFlag.enabled}
+              rolloutPercentage={activationFlag.rollout_percentage ?? 0}
+            />
           </div>
         </div>
       )}

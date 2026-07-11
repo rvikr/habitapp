@@ -13,6 +13,9 @@ import { buildCompletionValuePayload } from "./completions";
 import { clearDataCache } from "./cache";
 import { scheduleReminderSync } from "./reminder-sync";
 import { reportError } from "../services/sentry";
+import { recordCompletionQueueSettled } from "../services/activation-completion";
+import { optimisticFirstLogStore } from "../services/activation-marker";
+import { foreignCompletionOwnerIds } from "../activation/queue-marker-reconciliation";
 
 const STORAGE_KEY = "habbit:pending-completions";
 const MAX_QUEUE_LENGTH = 200;
@@ -93,14 +96,24 @@ async function runFlush(): Promise<void> {
   if (foreign.length > 0) {
     queue = queue.filter((op) => op.userId === user.id);
     await writeQueue(queue);
+    await Promise.all(
+      foreignCompletionOwnerIds(foreign, user.id).map((userId) =>
+        optimisticFirstLogStore.clear(userId),
+      ),
+    );
   }
 
   let replayed = 0;
+  let settled = false;
+  let networkBlocked = false;
   while (queue.length > 0) {
     const op = queue[0];
     const error = await replayOp(op);
 
-    if (error && isNetworkFailure(error)) break;
+    if (error && isNetworkFailure(error)) {
+      networkBlocked = true;
+      break;
+    }
 
     if (error) {
       reportError(new Error(error.message ?? "Completion replay rejected"), {
@@ -112,6 +125,7 @@ async function runFlush(): Promise<void> {
     } else {
       replayed += 1;
     }
+    settled = true;
     queue = queue.slice(1);
     await writeQueue(queue);
   }
@@ -120,6 +134,7 @@ async function runFlush(): Promise<void> {
     clearDataCache();
     scheduleReminderSync();
   }
+  if (settled && !networkBlocked) recordCompletionQueueSettled(user.id);
 }
 
 async function replayOp(op: PendingCompletionOp): Promise<{ message?: string } | null> {

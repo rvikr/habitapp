@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 
 import {
   addLocalDays,
@@ -4990,6 +4990,549 @@ test("hasRecentSignIn honors the re-auth window and rejects garbage timestamps",
   assert.equal(hasRecentSignIn("not-a-date", now), false);
   // Custom window.
   assert.equal(hasRecentSignIn("2026-06-11T11:00:00Z", now, 2 * 60 * 60 * 1000), true);
+});
+
+test("activation assignment is deterministic and honors rollout boundaries", async () => {
+  const { activationBucket, assignActivationVariant } =
+    await import("../lib/activation/contracts.ts");
+  const firstUser = "00000000-0000-4000-8000-000000000001";
+  const secondUser = "00000000-0000-4000-8000-000000000002";
+
+  assert.equal(activationBucket(firstUser), 63);
+  assert.equal(activationBucket(secondUser), 82);
+  assert.equal(activationBucket("11111111-1111-4111-8111-111111111111"), 94);
+  assert.equal(activationBucket(firstUser), activationBucket(firstUser));
+
+  assert.deepEqual(assignActivationVariant(firstUser, { enabled: false, rolloutPercentage: 100 }), {
+    variant: "control",
+    bucket: 63,
+    rolloutPercentage: 100,
+  });
+  assert.equal(
+    assignActivationVariant(firstUser, { enabled: true, rolloutPercentage: 0 }).variant,
+    "control",
+  );
+  assert.equal(
+    assignActivationVariant(firstUser, { enabled: true, rolloutPercentage: 63 }).variant,
+    "control",
+    "the rollout comparison is strict: bucket === percentage stays control",
+  );
+  assert.equal(
+    assignActivationVariant(firstUser, { enabled: true, rolloutPercentage: 64 }).variant,
+    "activation_v2",
+  );
+  assert.equal(
+    assignActivationVariant(secondUser, { enabled: true, rolloutPercentage: 100 }).variant,
+    "activation_v2",
+  );
+});
+
+test("activation stage is fail-open and an authoritative reconciliation clears optimism", async () => {
+  const { resolveActivationStage, resolveStageWithOptimisticMarker } =
+    await import("../lib/activation/contracts.ts");
+
+  assert.deepEqual(resolveActivationStage(null, new Error("offline")), {
+    stage: "engaged",
+    authoritative: false,
+  });
+  assert.deepEqual(resolveActivationStage(null, null), {
+    stage: "engaged",
+    authoritative: false,
+  });
+  assert.equal(
+    resolveActivationStage({ first_habit_logged_at: null, activation_engaged_at: null }, null)
+      .stage,
+    "pre_value",
+  );
+  assert.equal(
+    resolveActivationStage(
+      { first_habit_logged_at: "2026-07-11T00:00:00Z", activation_engaged_at: null },
+      null,
+    ).stage,
+    "first_log",
+  );
+  assert.equal(
+    resolveActivationStage(
+      { first_habit_logged_at: null, activation_engaged_at: "2026-07-11T00:00:00Z" },
+      null,
+    ).stage,
+    "engaged",
+  );
+
+  assert.deepEqual(
+    resolveStageWithOptimisticMarker({
+      remote: { stage: "pre_value", authoritative: true },
+      hasMarker: true,
+      reconcile: false,
+    }),
+    { stage: "first_log", clearMarker: false },
+  );
+  assert.deepEqual(
+    resolveStageWithOptimisticMarker({
+      remote: { stage: "pre_value", authoritative: true },
+      hasMarker: true,
+      reconcile: true,
+    }),
+    { stage: "pre_value", clearMarker: true },
+  );
+  assert.deepEqual(
+    resolveStageWithOptimisticMarker({
+      remote: { stage: "engaged", authoritative: false },
+      hasMarker: true,
+      reconcile: true,
+    }),
+    { stage: "engaged", clearMarker: false },
+  );
+});
+
+test("activation provider state resets per account and ignores stale loads", async () => {
+  const { activationStateReducer, initialActivationProviderState } =
+    await import("../lib/activation/state.ts");
+
+  assert.equal(
+    initialActivationProviderState.ready,
+    false,
+    "auth must be unresolved until the initial session lookup completes",
+  );
+  const signedOut = activationStateReducer(initialActivationProviderState, {
+    type: "auth_changed",
+    userId: null,
+  });
+  assert.equal(signedOut.ready, true, "a resolved signed-out session can render immediately");
+
+  const signedIn = activationStateReducer(initialActivationProviderState, {
+    type: "auth_changed",
+    userId: "user-a",
+  });
+  assert.equal(signedIn.ready, false);
+  assert.equal(signedIn.generation, 1);
+  assert.strictEqual(
+    activationStateReducer(signedIn, { type: "auth_changed", userId: "user-a" }),
+    signedIn,
+    "a token refresh for the same user must not reset visible state",
+  );
+
+  const optimisticBeforeLoad = activationStateReducer(signedIn, {
+    type: "optimistic_first_log",
+    userId: "user-a",
+  });
+  const loadedAfterEarlyCompletion = activationStateReducer(optimisticBeforeLoad, {
+    type: "loaded",
+    userId: "user-a",
+    generation: signedIn.generation,
+    assignment: { variant: "activation_v2", bucket: 2, rolloutPercentage: 100 },
+    stage: "pre_value",
+  });
+  assert.equal(
+    loadedAfterEarlyCompletion.stage,
+    "first_log",
+    "a queued completion during initial loading must survive the stale pre-value snapshot",
+  );
+
+  const switched = activationStateReducer(signedIn, {
+    type: "auth_changed",
+    userId: "user-b",
+  });
+  const stale = activationStateReducer(switched, {
+    type: "loaded",
+    userId: "user-a",
+    generation: signedIn.generation,
+    assignment: { variant: "activation_v2", bucket: 2, rolloutPercentage: 100 },
+    stage: "first_log",
+  });
+  assert.strictEqual(stale, switched);
+
+  const loaded = activationStateReducer(switched, {
+    type: "loaded",
+    userId: "user-b",
+    generation: switched.generation,
+    assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+    stage: "pre_value",
+  });
+  const optimistic = activationStateReducer(loaded, {
+    type: "optimistic_first_log",
+    userId: "user-b",
+  });
+  assert.equal(optimistic.stage, "first_log");
+  const engaged = activationStateReducer(
+    { ...optimistic, stage: "engaged" },
+    { type: "optimistic_first_log", userId: "user-b" },
+  );
+  assert.equal(engaged.stage, "engaged");
+
+  const attemptedDemotion = activationStateReducer(engaged, {
+    type: "loaded",
+    userId: "user-b",
+    generation: engaged.generation,
+    assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+    stage: "pre_value",
+  });
+  assert.equal(attemptedDemotion.stage, "engaged", "engaged treatment users never demote");
+
+  const controlToTreatment = activationStateReducer(
+    { ...engaged, variant: "control" },
+    {
+      type: "loaded",
+      userId: "user-b",
+      generation: engaged.generation,
+      assignment: { variant: "activation_v2", bucket: 3, rolloutPercentage: 100 },
+      stage: "pre_value",
+    },
+  );
+  assert.equal(controlToTreatment.stage, "pre_value", "newly enrolled control users may activate");
+});
+
+test("activation loads accept only the latest same-user request and optimism invalidates reads", async () => {
+  const { createActivationLoadSequencer } = await import("../lib/activation/request-sequencer.ts");
+  const sequencer = createActivationLoadSequencer();
+  const older = sequencer.begin();
+  const newer = sequencer.begin();
+  assert.equal(sequencer.isCurrent(older), false);
+  assert.equal(sequencer.isCurrent(newer), true);
+  sequencer.invalidate();
+  assert.equal(sequencer.isCurrent(newer), false);
+});
+
+test("activation auth bootstrap cannot overwrite a newer auth event or survive cleanup", async () => {
+  const { createActivationAuthBootstrapGate } =
+    await import("../lib/activation/auth-bootstrap-gate.ts");
+  const eventFirst = createActivationAuthBootstrapGate();
+  assert.equal(eventFirst.acceptBootstrap(), true);
+  assert.equal(eventFirst.observeAuthEvent(), true);
+  assert.equal(eventFirst.acceptBootstrap(), false);
+
+  const cancelled = createActivationAuthBootstrapGate();
+  cancelled.cancel();
+  assert.equal(cancelled.acceptBootstrap(), false);
+  assert.equal(cancelled.observeAuthEvent(), false);
+});
+
+test("foreign queue cleanup deduplicates prior owners and never clears the current user", async () => {
+  const { foreignCompletionOwnerIds } =
+    await import("../lib/activation/queue-marker-reconciliation.ts");
+  assert.deepEqual(
+    foreignCompletionOwnerIds(
+      [{ userId: "user-a" }, { userId: "user-b" }, { userId: "user-a" }],
+      "user-b",
+    ),
+    ["user-a"],
+  );
+});
+
+test("feature flag config cache stores successes only and supports forced refresh", async () => {
+  const { createFeatureFlagConfigCache } = await import("../lib/activation/flag-config-cache.ts");
+  let now = 1_000;
+  let calls = 0;
+  const cache = createFeatureFlagConfigCache({
+    now: () => now,
+    ttlMs: 300,
+    load: async () => {
+      calls += 1;
+      return { enabled: true, rolloutPercentage: 25 };
+    },
+  });
+  const fallback = { enabled: false, rolloutPercentage: 0 };
+  assert.deepEqual(await cache.get("activation_v2", fallback), {
+    enabled: true,
+    rolloutPercentage: 25,
+  });
+  assert.deepEqual(await cache.get("activation_v2", fallback), {
+    enabled: true,
+    rolloutPercentage: 25,
+  });
+  assert.equal(calls, 1);
+  await cache.get("activation_v2", fallback, { force: true });
+  assert.equal(calls, 2);
+  now += 301;
+  await cache.get("activation_v2", fallback);
+  assert.equal(calls, 3);
+
+  let failedCalls = 0;
+  const failing = createFeatureFlagConfigCache({
+    load: async () => {
+      failedCalls += 1;
+      throw new Error("network");
+    },
+  });
+  assert.deepEqual(await failing.get("activation_v2", fallback), fallback);
+  assert.deepEqual(await failing.get("activation_v2", fallback), fallback);
+  assert.equal(failedCalls, 2, "fallbacks must not be cached");
+
+  let forcedCalls = 0;
+  const forcedFailure = createFeatureFlagConfigCache({
+    load: async () => {
+      forcedCalls += 1;
+      if (forcedCalls === 1) return { enabled: true, rolloutPercentage: 100 };
+      throw new Error("network");
+    },
+  });
+  assert.deepEqual(await forcedFailure.get("activation_v2", fallback), {
+    enabled: true,
+    rolloutPercentage: 100,
+  });
+  assert.deepEqual(await forcedFailure.get("activation_v2", fallback, { force: true }), fallback);
+  assert.deepEqual(await forcedFailure.get("activation_v2", fallback), fallback);
+  assert.equal(forcedCalls, 3, "a forced failure must retire the older successful config");
+
+  let raceCalls = 0;
+  let resolveOlder;
+  let resolveNewer;
+  const racing = createFeatureFlagConfigCache({
+    load: () =>
+      new Promise((resolve) => {
+        raceCalls += 1;
+        if (raceCalls === 1) resolveOlder = resolve;
+        else resolveNewer = resolve;
+      }),
+  });
+  const older = racing.get("activation_v2", fallback, { force: true });
+  const newer = racing.get("activation_v2", fallback, { force: true });
+  resolveNewer({ enabled: false, rolloutPercentage: 0 });
+  await newer;
+  resolveOlder({ enabled: true, rolloutPercentage: 100 });
+  await older;
+  assert.deepEqual(await racing.get("activation_v2", fallback), {
+    enabled: false,
+    rolloutPercentage: 0,
+  });
+  assert.equal(raceCalls, 2, "an older response must not overwrite the latest-started config");
+});
+
+test("optimistic first-log marker is persistent and user-scoped", async () => {
+  const { createOptimisticFirstLogStore, optimisticFirstLogKey } =
+    await import("../lib/activation/optimistic-marker.ts");
+  const values = new Map();
+  const storage = {
+    getItem: async (key) => values.get(key) ?? null,
+    setItem: async (key, value) => void values.set(key, value),
+    removeItem: async (key) => void values.delete(key),
+  };
+  const firstStore = createOptimisticFirstLogStore(storage);
+  assert.equal(await firstStore.has("user-a"), false);
+  await firstStore.mark("user-a");
+  assert.equal(values.get(optimisticFirstLogKey("user-a")), "1");
+
+  const reloadedStore = createOptimisticFirstLogStore(storage);
+  assert.equal(await reloadedStore.has("user-a"), true);
+  assert.equal(await reloadedStore.has("user-b"), false);
+  await reloadedStore.clear("user-a");
+  assert.equal(await firstStore.has("user-a"), false);
+});
+
+test("activation completion events distinguish optimism from queue settlement", async () => {
+  const { createActivationCompletionEventBus } = await import("../lib/activation/events.ts");
+  const bus = createActivationCompletionEventBus();
+  const received = [];
+  const unsubscribe = bus.subscribe((event) => received.push(event));
+  bus.positiveCompletion("user-a", true);
+  bus.queueSettled("user-a");
+  unsubscribe();
+  bus.positiveCompletion("user-a", false);
+  assert.deepEqual(received, [
+    { type: "positive_completion", userId: "user-a", queued: true },
+    { type: "completion_queue_settled", userId: "user-a" },
+  ]);
+});
+
+test("activation rollout migration is secure, bounded, and preserves service-role completions", () => {
+  const migrationName = readdirSync("supabase/migrations").find((name) =>
+    name.endsWith("_activation_v2_rollout.sql"),
+  );
+  assert.ok(migrationName, "expected a CLI-generated activation_v2_rollout migration");
+  const sql = readFileSync(`supabase/migrations/${migrationName}`, "utf8");
+
+  assert.match(sql, /add column if not exists rollout_percentage integer not null default 100/i);
+  assert.match(sql, /feature_flags_rollout_percentage_check/i);
+  assert.match(sql, /check\s*\(rollout_percentage between 0 and 100\)/i);
+  assert.match(sql, /'activation_v2'[\s\S]*false[\s\S]*0/i);
+  assert.match(
+    sql,
+    /on conflict \(key\)[\s\S]*enabled\s*=\s*false[\s\S]*rollout_percentage\s*=\s*0/i,
+  );
+  assert.match(sql, /first_habit_logged_at timestamptz/i);
+  assert.match(sql, /activation_engaged_at timestamptz/i);
+  assert.match(sql, /row_number\(\) over \(partition by user_id order by created_at, id\)/i);
+  assert.match(sql, /where value > 0/i);
+  assert.match(sql, /where completion_rank = 1/i);
+  assert.match(sql, /where completion_rank = 3/i);
+  assert.match(sql, /coalesce\(p\.first_habit_logged_at, b\.first_habit_logged_at\)/i);
+  assert.match(sql, /coalesce\(p\.activation_engaged_at, b\.activation_engaged_at\)/i);
+
+  assert.match(sql, /create schema if not exists app_private/i);
+  assert.match(sql, /security definer/i);
+  assert.match(sql, /set search_path = ''/i);
+  assert.match(sql, /pg_catalog\.now\(\)/i);
+  assert.match(sql, /auth\.uid\(\)/i);
+  assert.match(sql, /request\.jwt\.claim\.role/i);
+  assert.match(sql, /service_role/i);
+  assert.match(sql, /new\.user_id/i);
+  assert.match(sql, /from public\.profiles[\s\S]*activation_engaged_at is null[\s\S]*for update/i);
+  assert.match(sql, /from public\.habit_completions[\s\S]*value > 0[\s\S]*limit 3/i);
+  assert.match(sql, /revoke all on schema app_private/i);
+  assert.match(sql, /revoke all on function app_private\.update_activation_milestones\(\)/i);
+  assert.match(
+    sql,
+    /after insert or update of value on public\.habit_completions[\s\S]*when \(new\.value > 0\)/i,
+  );
+  assert.doesNotMatch(sql, /after delete/i);
+
+  const updateGrant =
+    sql.match(/grant update \(([^)]*)\)\s+on table public\.profiles to authenticated/i)?.[1] ?? "";
+  assert.doesNotMatch(updateGrant, /first_habit_logged_at|activation_engaged_at/i);
+});
+
+test("activation schema parity and pgTAP verification are source-controlled", () => {
+  const adminSchema = readFileSync("supabase/admin_schema.sql", "utf8");
+  assert.match(adminSchema, /rollout_percentage integer not null default 100/i);
+  assert.match(adminSchema, /feature_flags_rollout_percentage_check/i);
+  assert.match(adminSchema, /'activation_v2'[\s\S]*false[\s\S]*0/i);
+  assert.match(adminSchema, /first_habit_logged_at timestamptz/i);
+  assert.match(adminSchema, /activation_engaged_at timestamptz/i);
+
+  assert.ok(
+    existsSync("supabase/tests/database/activation_v2.test.sql"),
+    "expected activation pgTAP verification",
+  );
+  const pgTap = readFileSync("supabase/tests/database/activation_v2.test.sql", "utf8");
+  assert.match(pgTap, /select plan\(21\)/i);
+  assert.match(pgTap, /first positive completion/i);
+  assert.match(pgTap, /third positive completion/i);
+  assert.match(pgTap, /repeat same-row update does not reach engagement/i);
+  assert.match(pgTap, /service.role upsert/i);
+  assert.match(pgTap, /auth\.uid\(\)[\s\S]*null::uuid/i);
+  assert.match(pgTap, /on conflict \(habit_id, completed_on\) do update/i);
+  assert.match(pgTap, /null completion/i);
+  assert.match(pgTap, /mismatched owner/i);
+  assert.match(pgTap, /delete does not reverse/i);
+
+  const dbTypes = readFileSync("types/db.ts", "utf8");
+  assert.match(dbTypes, /first_habit_logged_at: string \| null/);
+  assert.match(dbTypes, /activation_engaged_at: string \| null/);
+});
+
+test("activation provider loads fail-safe config and milestones at the app root", () => {
+  assert.ok(existsSync("lib/services/activation.ts"), "expected activation data service");
+  assert.ok(
+    existsSync("components/activation-provider.tsx"),
+    "expected the root activation provider",
+  );
+
+  const flags = readFileSync("lib/services/feature-flags.ts", "utf8");
+  assert.match(flags, /export type \{ FeatureFlagConfig \}/);
+  assert.match(flags, /createFeatureFlagConfigCache/);
+  assert.match(flags, /select\("enabled, rollout_percentage"\)/);
+  assert.match(flags, /export async function getFeatureFlagConfig/);
+  assert.match(flags, /export async function getFeatureFlag\(/);
+  assert.match(flags, /export function getAiSuggestionsEnabled/);
+
+  const service = readFileSync("lib/services/activation.ts", "utf8");
+  assert.match(service, /getFeatureFlagConfig\(\s*"activation_v2"/);
+  assert.match(service, /assignActivationVariant/);
+  assert.match(service, /from\("profiles"\)/);
+  assert.match(service, /select\("first_habit_logged_at, activation_engaged_at"\)/);
+  assert.match(service, /eq\("user_id", userId\)/);
+  assert.match(service, /resolveStageWithOptimisticMarker/);
+  assert.match(
+    service,
+    /assignment\.variant === "control"[\s\S]*options\?\.reconcile[\s\S]*optimisticFirstLogStore\.clear\(userId\)/,
+  );
+
+  const provider = readFileSync("components/activation-provider.tsx", "utf8");
+  assert.match(provider, /ready: boolean/);
+  assert.match(provider, /variant: ActivationVariant/);
+  assert.match(provider, /stage: ActivationStage/);
+  assert.match(provider, /bucket: number/);
+  assert.match(provider, /refresh: \(\) => Promise<void>/);
+  assert.match(provider, /onAuthStateChange/);
+  assert.match(provider, /activationCompletionEvents\.subscribe/);
+  assert.match(provider, /AppState\.addEventListener/);
+  assert.match(provider, /FEATURE_FLAG_CACHE_TTL_MS/);
+  assert.match(provider, /createActivationLoadSequencer/);
+  assert.match(provider, /createActivationAuthBootstrapGate/);
+  assert.match(provider, /loadSequencerRef\.current\.begin\(\)/);
+  assert.match(provider, /loadSequencerRef\.current\.isCurrent\(requestId\)/);
+  assert.match(provider, /loadSequencerRef\.current\.invalidate\(\)/);
+
+  const root = readFileSync("app/_layout.tsx", "utf8");
+  assert.match(root, /<ActivationProvider>[\s\S]*<RootLayoutContent \/>/);
+});
+
+test("completion actions signal optimistic activation without duplicating database writes", () => {
+  const actions = readFileSync("lib/data/actions.ts", "utf8");
+  assert.match(actions, /recordPositiveCompletion/);
+
+  const logBlock =
+    actions.match(/export async function logCompletion[\s\S]*?(?=\nexport async function)/)?.[0] ??
+    "";
+  assert.match(logBlock, /recordPositiveCompletion\(user\.id/);
+  assert.equal((logBlock.match(/log_habit_completion/g) ?? []).length, 1);
+
+  const raiseBlock =
+    actions.match(
+      /export async function raiseCompletionValue[\s\S]*?(?=\nexport async function)/,
+    )?.[0] ?? "";
+  assert.match(raiseBlock, /recordPositiveCompletion\(user\.id/);
+  assert.equal((raiseBlock.match(/raise_habit_completion_value/g) ?? []).length, 1);
+
+  const toggleBlock =
+    actions.match(/export async function toggleHabit[\s\S]*?(?=\nexport async function)/)?.[0] ??
+    "";
+  assert.match(toggleBlock, /recordPositiveCompletion\(user\.id/);
+
+  const queue = readFileSync("lib/data/completion-queue.ts", "utf8");
+  assert.match(queue, /recordCompletionQueueSettled\(user\.id\)/);
+  assert.match(queue, /networkBlocked/);
+  assert.match(queue, /if \(settled && !networkBlocked\)/);
+  assert.match(queue, /optimisticFirstLogStore\.clear\(userId\)/);
+
+  const completionService = readFileSync("lib/services/activation-completion.ts", "utf8");
+  assert.match(completionService, /optimisticFirstLogStore\.mark\(userId\)/);
+  assert.match(completionService, /positiveCompletion\(userId, queued\)/);
+  assert.match(completionService, /queueSettled\(userId\)/);
+});
+
+test("admin activation rollout applies enabled and percentage atomically", () => {
+  const actions = readFileSync("website/app/admin/system/actions.ts", "utf8");
+  const rolloutAction =
+    actions.match(
+      /export async function updateFeatureFlagRollout[\s\S]*?(?=\nexport async function|$)/,
+    )?.[0] ?? "";
+  assert.match(rolloutAction, /key !== "activation_v2"/);
+  assert.match(rolloutAction, /Number\.isInteger\(rolloutPercentage\)/);
+  assert.match(rolloutAction, /rolloutPercentage < 0 \|\| rolloutPercentage > 100/);
+  assert.match(
+    rolloutAction,
+    /update\(\{[\s\S]*enabled,[\s\S]*rollout_percentage: rolloutPercentage[\s\S]*\}\)/,
+  );
+  assert.match(rolloutAction, /select\("key"\)[\s\S]*maybeSingle\(\)/);
+  assert.match(rolloutAction, /if \(!data\)/);
+  assert.match(rolloutAction, /rolloutPercentage/);
+  assert.match(rolloutAction, /revalidatePath\("\/admin\/system"\)/);
+  assert.match(rolloutAction, /revalidatePath\("\/admin"\)/);
+
+  const genericToggle =
+    actions.match(
+      /export async function toggleFeatureFlag[\s\S]*?(?=\nexport async function|$)/,
+    )?.[0] ?? "";
+  assert.match(genericToggle, /key === "activation_v2"/);
+
+  assert.ok(
+    existsSync("website/app/admin/system/ActivationRolloutControl.tsx"),
+    "expected a dedicated activation rollout control",
+  );
+  const control = readFileSync("website/app/admin/system/ActivationRolloutControl.tsx", "utf8");
+  assert.match(control, /type="range"/);
+  assert.match(control, /type="number"/);
+  assert.match(control, /min=\{0\}/);
+  assert.match(control, /max=\{100\}/);
+  assert.match(control, /step=\{1\}/);
+  assert.match(control, /aria-label="Activation rollout percentage"/);
+  assert.match(control, />\s*Apply rollout\s*</);
+
+  const page = readFileSync("website/app/admin/system/page.tsx", "utf8");
+  assert.match(page, /rollout_percentage: number/);
+  assert.match(page, /const activationFlag = flags\.find/);
+  assert.match(page, /<ActivationRolloutControl/);
 });
 
 await testChain;

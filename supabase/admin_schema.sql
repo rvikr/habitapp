@@ -9,8 +9,25 @@ create table if not exists public.feature_flags (
   name        text not null,
   description text,
   enabled     boolean not null default false,
+  rollout_percentage integer not null default 100,
   updated_at  timestamptz not null default now()
 );
+
+alter table public.feature_flags
+  add column if not exists rollout_percentage integer not null default 100;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'feature_flags_rollout_percentage_check'
+      and conrelid = 'public.feature_flags'::regclass
+  ) then
+    alter table public.feature_flags
+      add constraint feature_flags_rollout_percentage_check
+      check (rollout_percentage between 0 and 100);
+  end if;
+end $$;
 
 -- Suggested habits shown in the habit catalog
 create table if not exists public.suggested_habits (
@@ -61,6 +78,8 @@ alter table public.profiles add column if not exists revenuecat_entitlement_acti
 alter table public.profiles add column if not exists revenuecat_status text not null default 'free';
 alter table public.profiles add column if not exists pro_expires_at timestamptz;
 alter table public.profiles add column if not exists subscription_synced_at timestamptz;
+alter table public.profiles add column if not exists first_habit_logged_at timestamptz;
+alter table public.profiles add column if not exists activation_engaged_at timestamptz;
 
 do $$
 begin
@@ -108,6 +127,15 @@ insert into public.feature_flags (key, name, description, enabled) values
   ('ai_suggestions',      'AI Habit Suggestions',  'Enable AI-powered personalised habit suggestions',                 false),
   ('push_notifications',  'Push Notifications',    'Enable sending push notifications to mobile devices',              true)
 on conflict (key) do nothing;
+
+insert into public.feature_flags (key, name, description, enabled, rollout_percentage) values
+  ('activation_v2', 'Activation V2', 'Use the guided activation experience for a deterministic percentage of signed-in users', false, 0)
+on conflict (key) do update
+set name = excluded.name,
+    description = excluded.description,
+    enabled = false,
+    rollout_percentage = 0,
+    updated_at = now();
 
 insert into public.suggested_habits (name, description, icon, sort_order) values
   ('Drink Water',   'Stay hydrated — drink 8 glasses daily',                 'water_drop',      1),

@@ -1,0 +1,66 @@
+import { supabase } from "../supabase/client";
+import {
+  assignActivationVariant,
+  resolveActivationStage,
+  resolveStageWithOptimisticMarker,
+  type ActivationStage,
+  type FeatureFlagAssignment,
+} from "../activation/contracts";
+import { getFeatureFlagConfig } from "./feature-flags";
+import { optimisticFirstLogStore } from "./activation-marker";
+
+export type ActivationSnapshot = {
+  assignment: FeatureFlagAssignment;
+  stage: ActivationStage;
+};
+
+export async function getActivationAssignment(
+  userId: string,
+  options?: { forceConfig?: boolean },
+): Promise<FeatureFlagAssignment> {
+  const config = await getFeatureFlagConfig(
+    "activation_v2",
+    {
+      enabled: false,
+      rolloutPercentage: 0,
+    },
+    { force: options?.forceConfig },
+  );
+  return assignActivationVariant(userId, config);
+}
+
+async function readActivationStage(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("first_habit_logged_at, activation_engaged_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return resolveActivationStage(data, error);
+  } catch (error) {
+    return resolveActivationStage(null, error);
+  }
+}
+
+export async function loadActivationSnapshot(
+  userId: string,
+  options?: { forceConfig?: boolean; reconcile?: boolean },
+): Promise<ActivationSnapshot> {
+  const assignment = await getActivationAssignment(userId, options);
+  if (assignment.variant === "control") {
+    if (options?.reconcile) await optimisticFirstLogStore.clear(userId);
+    return { assignment, stage: "engaged" };
+  }
+
+  const [remote, hasMarker] = await Promise.all([
+    readActivationStage(userId),
+    optimisticFirstLogStore.has(userId),
+  ]);
+  const resolved = resolveStageWithOptimisticMarker({
+    remote,
+    hasMarker,
+    reconcile: options?.reconcile ?? false,
+  });
+  if (resolved.clearMarker) await optimisticFirstLogStore.clear(userId);
+  return { assignment, stage: resolved.stage };
+}

@@ -48,6 +48,7 @@ import {
 import type { Habit } from "../../types/db";
 import { validateHabitLocally, type HabitValidationResult } from "../habits/validate";
 import { validateHabitRemote } from "../habits/validate-remote";
+import { recordPositiveCompletion } from "../services/activation-completion";
 
 type ActionResult = { ok: boolean; error?: string; queued?: boolean };
 type HabitMutationData = {
@@ -305,10 +306,11 @@ export async function logCompletion(
   const user = await getUser();
   if (!user) return notSignedIn();
   void flushPendingCompletions();
+  const increment = value ?? 1;
   const { error } = await supabase.rpc("log_habit_completion", {
     p_habit_id: habitId,
     p_completed_on: localDateKey(),
-    p_increment: value ?? 1,
+    p_increment: increment,
     p_note: note?.trim() || null,
   });
   if (error) {
@@ -318,13 +320,15 @@ export async function logCompletion(
       habitId,
       userId: user.id,
       completedOn: localDateKey(),
-      value: value ?? 1,
+      value: increment,
       note: note?.trim() || null,
     });
+    if (increment > 0) await recordPositiveCompletion(user.id, true);
     return { ok: true, queued: true };
   }
   clearDataCache();
   scheduleReminderSync();
+  if (increment > 0) await recordPositiveCompletion(user.id, false);
   return { ok: true };
 }
 
@@ -356,11 +360,13 @@ export async function raiseCompletionValue(
       note: note?.trim() || null,
     });
     track("habit_progress_set", { habit_id: habitId, queued: true });
+    if (value > 0) await recordPositiveCompletion(user.id, true);
     return { ok: true, queued: true };
   }
   clearDataCache();
   scheduleReminderSync();
   track("habit_progress_set", { habit_id: habitId });
+  if (value > 0) await recordPositiveCompletion(user.id, false);
   return { ok: true };
 }
 
@@ -418,6 +424,7 @@ export async function toggleHabit(
         completedOn: localDateKey(),
       });
       track("habit_completed", { habit_id: habitId, queued: true });
+      await recordPositiveCompletion(user.id, true);
       return { ok: true, queued: true };
     }
     resolvedTarget = Number((habit as { target: number | null } | null)?.target ?? 1);
@@ -440,11 +447,13 @@ export async function toggleHabit(
       value: resolvedTarget,
     });
     track("habit_completed", { habit_id: habitId, queued: true });
+    await recordPositiveCompletion(user.id, true);
     return { ok: true, queued: true };
   }
   clearDataCache();
   scheduleReminderSync();
   track("habit_completed", { habit_id: habitId });
+  await recordPositiveCompletion(user.id, false);
   return { ok: true };
 }
 
