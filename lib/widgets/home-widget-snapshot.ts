@@ -1,3 +1,12 @@
+import { translate, type Language } from "../i18n/translations.ts";
+import { dayIndexForDateKey, isValidDateKey, localDateKey } from "../utils/date.ts";
+import {
+  WIDGET_TREND_DAYS,
+  type WidgetTrendDay,
+  type WidgetTrendDayState,
+} from "./widget-trend.ts";
+import type { WidgetUpcomingHabit } from "./widget-upcoming.ts";
+
 export type HomeWidgetSnapshotInput = {
   completedCount: number;
   totalHabits: number;
@@ -10,13 +19,41 @@ export type HomeWidgetSnapshotInput = {
     checkInValue?: number | null;
   } | null;
   coachMessage?: string | null;
-  hasPro?: boolean;
+  weekTrend?: WidgetTrendDay[] | null;
+  upcomingHabits?: WidgetUpcomingHabit[] | null;
+  language?: Language;
   now?: Date;
   locale?: string;
 };
 
+export type HomeWidgetTrendEntry = {
+  date: string;
+  state: WidgetTrendDayState;
+  letter: string;
+};
+
+export type HomeWidgetUpcomingEntry = {
+  name: string;
+  label: string;
+  time: string | null;
+  checkInUrl: string | null;
+  checkInLabel: string;
+  preferred: boolean;
+};
+
+export type HomeWidgetStaleLabels = {
+  completionLabel: string;
+  streakLabel: string;
+  checkInLabel: string;
+};
+
 export type HomeWidgetSnapshot = {
+  schemaVersion: 2;
   title: string;
+  // Absent (not null) in the signed-out snapshot so the provider never treats
+  // it as a stale day; org.json would read a JSON null back as "null".
+  todayKey?: string;
+  updatedAtMs: number;
   completedCount: number;
   totalHabits: number;
   remainingCount: number;
@@ -29,6 +66,20 @@ export type HomeWidgetSnapshot = {
   updatedLabel: string;
   checkInLabel: string;
   checkInUrl: string | null;
+  trend: HomeWidgetTrendEntry[];
+  upcoming: HomeWidgetUpcomingEntry[];
+  staleLabels: HomeWidgetStaleLabels;
+};
+
+// The provider only ever renders what fits; the cap just bounds the payload.
+const UPCOMING_LIMIT = 15;
+
+const TREND_STATES: ReadonlySet<string> = new Set(["full", "partial", "empty"]);
+
+// Indexed by Date#getDay() (0 = Sunday).
+const DAY_LETTERS: Record<Language, string[]> = {
+  en: ["S", "M", "T", "W", "T", "F", "S"],
+  hi: ["र", "सो", "मं", "बु", "गु", "शु", "श"],
 };
 
 function wholeNumber(value: number | null | undefined, fallback = 0): number {
@@ -58,9 +109,9 @@ function nextHabitLabel(
   return `Next: ${name}`;
 }
 
-// The coach line is Pro-only by construction; free users get the next habit only.
-function coachLabel(coachMessage: string | null | undefined, hasPro: boolean): string {
-  if (!hasPro) return "";
+// Free users get the deterministic rule-based message; Pro users' message is
+// already AI-resolved upstream (resolveCoachMessage), so no gate is needed.
+function coachLabel(coachMessage: string | null | undefined): string {
   return coachMessage?.trim() ?? "";
 }
 
@@ -83,6 +134,74 @@ function buildCheckInUrl(nextHabit: HomeWidgetSnapshotInput["nextHabit"]): strin
   return `lagan://widget/check-in?habitId=${encodeURIComponent(habitId)}`;
 }
 
+// Exactly WIDGET_TREND_DAYS well-formed entries ending today, else nothing —
+// the provider hides the row rather than render a misaligned week. Today's
+// entry is overridden from the live counts so an optimistic check-in moves
+// the last dot without waiting for a data reload.
+function buildTrend(
+  weekTrend: WidgetTrendDay[] | null | undefined,
+  todayKey: string,
+  completedCount: number,
+  totalHabits: number,
+  language: Language,
+): HomeWidgetTrendEntry[] {
+  if (!Array.isArray(weekTrend) || weekTrend.length !== WIDGET_TREND_DAYS) return [];
+  if (weekTrend[weekTrend.length - 1]?.date !== todayKey) return [];
+  const valid = weekTrend.every(
+    (day) => isValidDateKey(day.date) && TREND_STATES.has(day.state as string),
+  );
+  if (!valid) return [];
+
+  const letters = DAY_LETTERS[language] ?? DAY_LETTERS.en;
+  const todayState: WidgetTrendDayState =
+    totalHabits === 0 || completedCount === 0
+      ? "empty"
+      : completedCount >= totalHabits
+        ? "full"
+        : "partial";
+
+  return weekTrend.map((day, index) => ({
+    date: day.date,
+    state: index === weekTrend.length - 1 ? todayState : day.state,
+    letter: letters[dayIndexForDateKey(day.date)] ?? "",
+  }));
+}
+
+function buildUpcoming(
+  upcomingHabits: WidgetUpcomingHabit[] | null | undefined,
+  language: Language,
+): HomeWidgetUpcomingEntry[] {
+  if (!Array.isArray(upcomingHabits)) return [];
+  return upcomingHabits
+    .filter((habit) => habit.id.trim() && habit.name.trim())
+    .slice(0, UPCOMING_LIMIT)
+    .map((habit) => {
+      const checkInUrl = buildCheckInUrl({
+        id: habit.id,
+        name: habit.name,
+        checkInValue: habit.checkInValue,
+      });
+      return {
+        name: habit.name,
+        label: translate(language, "Next: {name}", { name: habit.name }),
+        time: habit.time,
+        checkInUrl,
+        checkInLabel: checkInUrl
+          ? translate(language, "Check in")
+          : translate(language, "Open Lagan"),
+        preferred: habit.preferred === true,
+      };
+    });
+}
+
+function buildStaleLabels(language: Language): HomeWidgetStaleLabels {
+  return {
+    completionLabel: translate(language, "New day — open Lagan"),
+    streakLabel: translate(language, "Open Lagan to keep your streak"),
+    checkInLabel: translate(language, "Open Lagan"),
+  };
+}
+
 export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWidgetSnapshot {
   const totalHabits = wholeNumber(input.totalHabits);
   const completedCount =
@@ -93,22 +212,30 @@ export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWid
   const progressPercent = totalHabits === 0 ? 0 : Math.round((completedCount / totalHabits) * 100);
   const now = input.now ?? new Date();
   const locale = input.locale ?? "en-US";
+  const language: Language = input.language ?? "en";
+  const todayKey = localDateKey(now);
   const checkInUrl = buildCheckInUrl(input.nextHabit);
 
   return {
+    schemaVersion: 2,
     title: "Today",
+    todayKey,
+    updatedAtMs: now.getTime(),
     completedCount,
     totalHabits,
     remainingCount,
     progressPercent,
     completionLabel: completionLabel(completedCount, totalHabits),
     nextHabitLabel: nextHabitLabel(input.nextHabitName, totalHabits, remainingCount),
-    coachLabel: coachLabel(input.coachMessage, input.hasPro ?? false),
+    coachLabel: coachLabel(input.coachMessage),
     streakLabel: streakLabel(currentStreak),
     levelLabel: `Level ${level}`,
     updatedLabel: updatedLabel(now, locale),
     checkInLabel: checkInUrl ? "Check in" : "Open Lagan",
     checkInUrl,
+    trend: buildTrend(input.weekTrend, todayKey, completedCount, totalHabits, language),
+    upcoming: buildUpcoming(input.upcomingHabits, language),
+    staleLabels: buildStaleLabels(language),
   };
 }
 

@@ -9,6 +9,7 @@ import {
   suggestedCheckInForHabit,
 } from "../lib/coach/habit-intelligence.ts";
 import { widgetCheckInForValidatedState } from "../lib/widgets/widget-check-in.ts";
+import { buildWidgetUpcomingInput } from "../lib/widgets/widget-upcoming.ts";
 import * as websiteHabitProgress from "../website/lib/habit-progress.ts";
 import {
   defaultWebLogValue,
@@ -124,6 +125,36 @@ test("legacy whole-number metrics offer no suggestion when less than one unit re
       "2026-07-11",
     ),
     null,
+  );
+});
+
+test("widget upcoming amounts match the deep-link route's fresh validation", () => {
+  const habit = {
+    id: "parity-widget",
+    name: "Focus",
+    description: null,
+    icon: "timer",
+    metric_type: "minutes",
+    target: 100,
+    unit: "min",
+    default_log_value: 25,
+    archived_at: null,
+  };
+
+  // Both paths funnel through suggestedCheckInForHabit, so the amount shown on
+  // the widget and the amount the check-in route logs must agree.
+  const [entry] = buildWidgetUpcomingInput({
+    timelineEntries: [{ habit, time: "08:00" }],
+    completedToday: new Set(),
+    todayProgress: new Map([[habit.id, progressForHabit(habit, { value: 40 })]]),
+    preferredHabitId: null,
+  });
+  assert.deepEqual(
+    { habitId: entry.id, amount: entry.checkInValue },
+    widgetCheckInForValidatedState(
+      { ok: true, habit, completions: [{ completed_on: "2026-07-11", value: 40 }] },
+      "2026-07-11",
+    ),
   );
 });
 

@@ -17,6 +17,7 @@ import {
   type CoachSignal,
 } from "../coach/coach";
 import { resolveCoachMessage } from "../coach/coach-ai";
+import { buildWidgetWeekTrend, type WidgetTrendDay } from "../widgets/widget-trend";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
 import { AI_DISCLOSURE_VERSION } from "../services/ai-access";
 import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
@@ -50,6 +51,7 @@ export type TodayDashboard = {
   profile: { displayName: string; email: string | null };
   leaderboardOptedIn: boolean;
   coachSignal: CoachSignal | null;
+  weekTrend: WidgetTrendDay[];
 };
 
 function emptyTodayDashboard(displayName: string, ok: boolean, userId: string | null) {
@@ -63,6 +65,7 @@ function emptyTodayDashboard(displayName: string, ok: boolean, userId: string | 
     profile: { displayName, email: null as string | null },
     leaderboardOptedIn: false,
     coachSignal: null as CoachSignal | null,
+    weekTrend: [] as WidgetTrendDay[],
   } satisfies TodayDashboard;
 }
 
@@ -153,6 +156,9 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
       habitStreakFromDates(completedDatesForHabit(habit, completionRows), habit.reminder_days),
     ]),
   );
+  // Rides the completions already fetched above — no extra query.
+  const weekTrend = buildWidgetWeekTrend({ habits: habitsList, completions: completionRows });
+
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
   // Personalized messages are Pro-only server-side: gating here keeps free
   // users on the instant template instead of a guaranteed-402 round trip.
@@ -188,6 +194,7 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
     profile: { displayName, email: user.email ?? null },
     leaderboardOptedIn: !!(profile?.display_name as string | null | undefined),
     coachSignal,
+    weekTrend,
   };
   return setCachedValue(cacheKey, result);
 }

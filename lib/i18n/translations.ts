@@ -854,6 +854,12 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Show advanced habit options": "उन्नत आदत विकल्प दिखाएँ",
   "Hide advanced habit options": "उन्नत आदत विकल्प छिपाएँ",
   "Ready for more": "More के लिए ready",
+  // Home-screen widget (labels are pre-translated app-side; Kotlin stays dumb)
+  "Next: {name}": "अगली: {name}",
+  "Check in": "चेक-इन",
+  "Open Lagan": "Lagan खोलें",
+  "New day — open Lagan": "नया दिन — Lagan खोलें",
+  "Open Lagan to keep your streak": "स्ट्रीक बनाए रखने के लिए Lagan खोलें",
 };
 
 export function isSupportedLanguage(value: unknown): value is Language {

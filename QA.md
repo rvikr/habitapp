@@ -91,6 +91,15 @@ that direct Pro navigation remains available even while unsolicited promotion is
   the route safely navigates to Today in `finally`. Once validation succeeds, a network drop during
   the write may use the normal exact-once offline queue. This validation tradeoff protects against
   stale, deleted, completed, or cross-account widget data.
+- The widget's `Next` line and check-in button advance to the next open habit as reminder times
+  pass (from the synced upcoming list), without the app running. The coach-preferred habit leads
+  until its reminder time passes.
+- After local midnight the widget shows the `New day — open Lagan` state: 0% bar, no next-habit,
+  coach, or trend rows, and no stale deep link, until the app is next opened. The signed-out card
+  never enters this state.
+- The 7-day trend dots mirror the progress tab's day coloring (full / partial / empty) and stay
+  hidden when trend data is absent (older snapshots) or the day is stale. The coach line shows the
+  deterministic message for free users and the AI-resolved one for Pro.
 
 ### Analytics privacy
 

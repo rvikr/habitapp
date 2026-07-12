@@ -87,6 +87,8 @@ import {
   buildHomeWidgetSnapshot,
   stringifyHomeWidgetSnapshot,
 } from "../lib/widgets/home-widget-snapshot.ts";
+import { buildWidgetWeekTrend } from "../lib/widgets/widget-trend.ts";
+import { buildWidgetUpcomingInput, selectNextUpcoming } from "../lib/widgets/widget-upcoming.ts";
 import {
   buildSleepCompletionValue,
   computeSleepScore,
@@ -666,6 +668,8 @@ test("home widget snapshot clamps progress and formats launcher copy", () => {
     },
   );
   assert.match(snapshot.updatedLabel, /^Updated /);
+  assert.equal(snapshot.schemaVersion, 2);
+  assert.equal(snapshot.todayKey, "2026-05-10");
 });
 
 test("home widget snapshot handles an empty routine", () => {
@@ -689,7 +693,7 @@ test("home widget snapshot handles an empty routine", () => {
   assert.doesNotThrow(() => JSON.parse(stringifyHomeWidgetSnapshot(snapshot)));
 });
 
-test("home widget next-habit line shows for everyone; coach line is Pro-only", () => {
+test("home widget next-habit and coach lines show for everyone", () => {
   const base = {
     completedCount: 1,
     totalHabits: 3,
@@ -701,20 +705,18 @@ test("home widget next-habit line shows for everyone; coach line is Pro-only", (
     locale: "en-US",
   };
 
-  const freeUser = buildHomeWidgetSnapshot({ ...base, hasPro: false });
-  assert.equal(freeUser.nextHabitLabel, "Next: Daily walk");
-  assert.equal(freeUser.coachLabel, "");
-
-  const proUser = buildHomeWidgetSnapshot({ ...base, hasPro: true });
-  assert.equal(proUser.nextHabitLabel, "Next: Daily walk");
-  assert.equal(proUser.coachLabel, "You're 2,000 steps short — a quick stroll gets you there.");
+  // Free users get the deterministic template, Pro users the AI-resolved
+  // message — both arrive here as coachMessage, so no gate exists anymore.
+  const snapshot = buildHomeWidgetSnapshot(base);
+  assert.equal(snapshot.nextHabitLabel, "Next: Daily walk");
+  assert.equal(snapshot.coachLabel, "You're 2,000 steps short — a quick stroll gets you there.");
 
   // All habits done: no next habit to point at, even if a stale name is passed.
-  const allDone = buildHomeWidgetSnapshot({ ...base, completedCount: 3, hasPro: true });
+  const allDone = buildHomeWidgetSnapshot({ ...base, completedCount: 3 });
   assert.equal(allDone.nextHabitLabel, "");
 
-  // Missing coach message never renders a blank Pro line.
-  const noMessage = buildHomeWidgetSnapshot({ ...base, coachMessage: null, hasPro: true });
+  // Missing coach message never renders a blank line.
+  const noMessage = buildHomeWidgetSnapshot({ ...base, coachMessage: null });
   assert.equal(noMessage.coachLabel, "");
 });
 
@@ -812,6 +814,208 @@ test("home widget exposes a safe check-in deep link and an exact-once route", as
     ),
     { habitId: "widget-habit", amount: 25 },
   );
+});
+
+test("home widget 7-day trend colors days like the progress tab", () => {
+  const now = new Date(2026, 6, 12, 9, 0);
+  const habits = [
+    { id: "walk", name: "Walk", description: null, icon: "walk", target: null, unit: null },
+    { id: "read", name: "Read", description: null, icon: "book", target: 10, unit: "pages" },
+  ];
+  const completions = [
+    { habit_id: "walk", completed_on: "2026-07-12", value: null },
+    { habit_id: "read", completed_on: "2026-07-12", value: 10 },
+    { habit_id: "walk", completed_on: "2026-07-11", value: null },
+    // Below target: logged but not credited, same as the progress tab.
+    { habit_id: "read", completed_on: "2026-07-11", value: 4 },
+    { habit_id: "deleted-habit", completed_on: "2026-07-10", value: 1 },
+  ];
+
+  const trend = buildWidgetWeekTrend({ habits, completions, now });
+  assert.equal(trend.length, 7);
+  assert.equal(trend[0].date, "2026-07-06");
+  assert.equal(trend[6].date, "2026-07-12");
+  assert.equal(trend[6].state, "full");
+  assert.equal(trend[5].state, "partial");
+  assert.equal(trend[4].state, "empty");
+  assert.deepEqual(buildWidgetWeekTrend({ habits: [], completions, now }), []);
+});
+
+test("home widget snapshot carries trend, upcoming, and stale-day labels", () => {
+  const weekTrend = Array.from({ length: 7 }, (_, index) => ({
+    date: addDateKeyDays("2026-07-06", index),
+    state: "full",
+  }));
+  const base = {
+    completedCount: 1,
+    totalHabits: 2,
+    currentStreak: 3,
+    level: 2,
+    nextHabitName: "Read",
+    nextHabit: { id: "read", name: "Read", checkInValue: 2 },
+    coachMessage: "Two pages gets you moving.",
+    weekTrend,
+    upcomingHabits: [
+      { id: "read", name: "Read", time: "07:30", checkInValue: 2, preferred: false },
+      { id: "walk", name: "Walk", time: null, checkInValue: 1, preferred: true },
+    ],
+    now: new Date(2026, 6, 12, 9, 5),
+    locale: "en-US",
+  };
+
+  const snapshot = buildHomeWidgetSnapshot({ ...base, language: "en" });
+  assert.equal(snapshot.schemaVersion, 2);
+  assert.equal(snapshot.todayKey, "2026-07-12");
+  assert.equal(snapshot.trend.length, 7);
+  // Today's dot reflects the live counts (1 of 2), not the stored history.
+  assert.equal(snapshot.trend[6].state, "partial");
+  assert.equal(snapshot.trend[0].state, "full");
+  assert.equal(
+    snapshot.trend[6].letter,
+    ["S", "M", "T", "W", "T", "F", "S"][dayIndexForDateKey("2026-07-12")],
+  );
+  assert.deepEqual(snapshot.upcoming, [
+    {
+      name: "Read",
+      label: "Next: Read",
+      time: "07:30",
+      checkInUrl: "lagan://widget/check-in?habitId=read",
+      checkInLabel: "Check in",
+      preferred: false,
+    },
+    {
+      name: "Walk",
+      label: "Next: Walk",
+      time: null,
+      checkInUrl: "lagan://widget/check-in?habitId=walk",
+      checkInLabel: "Check in",
+      preferred: true,
+    },
+  ]);
+  assert.equal(snapshot.staleLabels.completionLabel, "New day — open Lagan");
+  assert.equal(snapshot.staleLabels.streakLabel, "Open Lagan to keep your streak");
+  assert.equal(snapshot.staleLabels.checkInLabel, "Open Lagan");
+  assert.doesNotThrow(() => JSON.parse(stringifyHomeWidgetSnapshot(snapshot)));
+
+  const hindi = buildHomeWidgetSnapshot({ ...base, language: "hi" });
+  assert.equal(hindi.upcoming[0].label, "अगली: Read");
+  assert.equal(hindi.staleLabels.completionLabel, "नया दिन — Lagan खोलें");
+  assert.equal(
+    hindi.trend[6].letter,
+    ["र", "सो", "मं", "बु", "गु", "शु", "श"][dayIndexForDateKey("2026-07-12")],
+  );
+
+  // A malformed week (wrong length, wrong end date, bad state) is dropped so
+  // the provider hides the row instead of rendering a misaligned week.
+  assert.deepEqual(
+    buildHomeWidgetSnapshot({ ...base, weekTrend: weekTrend.slice(0, 6) }).trend,
+    [],
+  );
+  assert.deepEqual(
+    buildHomeWidgetSnapshot({
+      ...base,
+      weekTrend: weekTrend.map((day) => ({ ...day, date: addDateKeyDays(day.date, -1) })),
+    }).trend,
+    [],
+  );
+  assert.deepEqual(
+    buildHomeWidgetSnapshot({
+      ...base,
+      weekTrend: weekTrend.map((day, index) => (index === 0 ? { ...day, state: "great" } : day)),
+    }).trend,
+    [],
+  );
+  // An unloggable upcoming habit still renders, but its button opens the app.
+  const unloggable = buildHomeWidgetSnapshot({
+    ...base,
+    upcomingHabits: [
+      { id: "read", name: "Read", time: null, checkInValue: null, preferred: false },
+    ],
+  });
+  assert.equal(unloggable.upcoming[0].checkInUrl, null);
+  assert.equal(unloggable.upcoming[0].checkInLabel, "Open Lagan");
+});
+
+test("widget upcoming list keeps timeline order and dashboard check-in amounts", () => {
+  const readHabit = {
+    id: "read",
+    name: "Read",
+    description: null,
+    icon: "book",
+    target: 10,
+    unit: "pages",
+    metric_type: "pages",
+    default_log_value: 2,
+  };
+  const walkHabit = {
+    id: "walk",
+    name: "Walk",
+    description: null,
+    icon: "walk",
+    target: null,
+    unit: null,
+  };
+  const doneHabit = {
+    id: "done",
+    name: "Stretch",
+    description: null,
+    icon: "yoga",
+    target: null,
+    unit: null,
+  };
+
+  const upcoming = buildWidgetUpcomingInput({
+    timelineEntries: [
+      { habit: readHabit, time: "07:30" },
+      { habit: walkHabit, time: null },
+      { habit: doneHabit, time: null },
+    ],
+    completedToday: new Set(["done"]),
+    todayProgress: new Map(),
+    preferredHabitId: "walk",
+  });
+
+  assert.deepEqual(upcoming, [
+    { id: "read", name: "Read", time: "07:30", checkInValue: 2, preferred: false },
+    { id: "walk", name: "Walk", time: null, checkInValue: 1, preferred: true },
+  ]);
+});
+
+test("widget next-habit selection advances with the clock", () => {
+  const items = [
+    { id: "a", time: "07:00", preferred: false },
+    { id: "b", time: "12:30", preferred: true },
+    { id: "c", time: "18:00", preferred: false },
+    { id: "d", time: null, preferred: false },
+  ];
+
+  // The coach-preferred habit leads until its reminder time passes.
+  assert.equal(selectNextUpcoming(items, "06:00")?.id, "b");
+  assert.equal(selectNextUpcoming(items, "12:30")?.id, "b");
+  // After it passes, the first future-timed habit takes over.
+  assert.equal(selectNextUpcoming(items, "13:00")?.id, "c");
+  // All timed habits past-due: fall back to the untimed one.
+  assert.equal(selectNextUpcoming(items, "19:00")?.id, "d");
+  // Everything past-due: the first item stays "next" (app parity).
+  assert.equal(
+    selectNextUpcoming(
+      items.filter((item) => item.time !== null),
+      "19:00",
+    )?.id,
+    "a",
+  );
+  // An untimed preferred habit leads all day.
+  assert.equal(
+    selectNextUpcoming(
+      [
+        { id: "x", time: "07:00", preferred: false },
+        { id: "y", time: null, preferred: true },
+      ],
+      "06:00",
+    )?.id,
+    "y",
+  );
+  assert.equal(selectNextUpcoming([], "12:00"), null);
 });
 
 test("partial check-in credit migration is target-aware, optimized, and least-privileged", () => {
@@ -1894,14 +2098,31 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /lagan_widget_coach/);
   assert.match(pluginSource, /json\.optString\("nextHabitLabel", ""\)/);
   assert.match(pluginSource, /json\.optString\("coachLabel", ""\)/);
-  assert.match(
-    pluginSource,
-    /if \(snapshot\.nextHabitLabel\.isBlank\(\)\) View\.GONE else View\.VISIBLE/,
-  );
+  // The next-habit line binds the time-aware selected label (falling back to
+  // the synced snapshot label for v1 payloads), hidden when blank.
+  assert.match(pluginSource, /if \(nextHabitLabel\.isBlank\(\)\) View\.GONE else View\.VISIBLE/);
   assert.match(
     pluginSource,
     /if \(snapshot\.coachLabel\.isBlank\(\)\) View\.GONE else View\.VISIBLE/,
   );
+  // 7-day trend row: fixed per-day views bound via setImageViewResource, and
+  // hidden entirely for v1 snapshots that carry no trend data.
+  assert.match(pluginSource, /TREND_DAYS = 7/);
+  assert.match(pluginSource, /lagan_widget_trend_row/);
+  assert.match(pluginSource, /lagan_widget_trend_dot_/);
+  assert.match(pluginSource, /lagan_widget_trend_letter_/);
+  assert.match(pluginSource, /lagan_widget_dot_full/);
+  assert.match(pluginSource, /lagan_widget_dot_partial/);
+  assert.match(pluginSource, /lagan_widget_dot_empty/);
+  assert.match(pluginSource, /setImageViewResource/);
+  assert.match(pluginSource, /setViewVisibility\(R\.id\.lagan_widget_trend_row, View\.GONE\)/);
+  // Self-freshening provider: day rollover + time-aware next-habit selection.
+  assert.match(pluginSource, /todayKey/);
+  assert.match(pluginSource, /staleLabels/);
+  assert.match(pluginSource, /bindStaleDay/);
+  assert.match(pluginSource, /optJSONArray\("upcoming"\)/);
+  assert.match(pluginSource, /private fun selectNext\(/);
+  assert.match(pluginSource, /"with-lagan-widget", "1\.2\.0"/);
 
   const moduleConfig = JSON.parse(
     readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
@@ -1922,6 +2143,9 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(dashboardSource, /syncHomeWidgetFromDashboard/);
   assert.match(dashboardSource, /completedCount/);
   assert.match(dashboardSource, /currentStreak/);
+  assert.match(dashboardSource, /weekTrend: data\.weekTrend/);
+  assert.match(dashboardSource, /buildWidgetUpcomingInput/);
+  assert.match(dashboardSource, /upcomingHabits: widgetUpcomingHabits/);
 });
 
 test("sign-out clears the Android launcher widget snapshot", () => {
@@ -1930,6 +2154,9 @@ test("sign-out clears the Android launcher widget snapshot", () => {
   assert.match(widgetSource, /SIGNED_OUT_HOME_WIDGET_SNAPSHOT/);
   assert.match(widgetSource, /Open Lagan to start/);
   assert.match(widgetSource, /Sign in to sync/);
+  // No todayKey in the signed-out snapshot: the provider must never flip the
+  // signed-out card into the day-rollover ("stale") state.
+  assert.doesNotMatch(widgetSource, /todayKey:/);
 
   const platformSource = readFileSync("lib/platform/home-widget.android.ts", "utf8");
   assert.match(platformSource, /clearAsync/);

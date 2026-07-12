@@ -17,14 +17,20 @@ export type HomeWidgetDashboardSnapshot = Pick<
   | "currentStreak"
   | "level"
   | "locale"
+  | "language"
   | "nextHabitName"
   | "nextHabit"
   | "coachMessage"
-  | "hasPro"
+  | "weekTrend"
+  | "upcomingHabits"
 >;
 
+// No todayKey on purpose: the signed-out card must never flip to the
+// day-rollover ("stale") state, whatever day the launcher renders it on.
 const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
+  schemaVersion: 2,
   title: "Today",
+  updatedAtMs: 0,
   completedCount: 0,
   totalHabits: 0,
   remainingCount: 0,
@@ -37,6 +43,13 @@ const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
   updatedLabel: "",
   checkInLabel: "Open Lagan",
   checkInUrl: null,
+  trend: [],
+  upcoming: [],
+  staleLabels: {
+    completionLabel: "New day — open Lagan",
+    streakLabel: "Open Lagan to keep your streak",
+    checkInLabel: "Open Lagan",
+  },
 } satisfies HomeWidgetSnapshot);
 
 export async function syncHomeWidgetFromDashboard(

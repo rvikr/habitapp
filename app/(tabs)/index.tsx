@@ -65,6 +65,8 @@ import { firstLogNotificationOfferKey } from "@/lib/coach/first-log-flow";
 import { resolveActivationPresentation } from "@/lib/activation/presentation";
 import { trackActivationEvent } from "@/lib/services/analytics";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
+import { buildWidgetUpcomingInput } from "@/lib/widgets/widget-upcoming";
+import type { WidgetTrendDay } from "@/lib/widgets/widget-trend";
 import { isStepHabit } from "@/lib/data/steps-shared";
 import { nowMarkerIndex, orderHabitsForTimeline } from "@/lib/utils/timeline";
 import { GET_APP_URL } from "@/lib/constants";
@@ -89,6 +91,7 @@ type DashboardData = {
   profile: { displayName: string; email: string | null };
   leaderboardOptedIn: boolean;
   coachSignal: CoachSignal | null;
+  weekTrend: WidgetTrendDay[];
   proAccess: ProAccess;
   stats: StatsData;
 };
@@ -861,11 +864,27 @@ export default function DashboardScreen() {
         ? null
         : 1
     : null;
+  // Everything still open today, in timeline order, so the widget provider can
+  // advance its "Next:" line (and deep link) as reminder times pass without
+  // the app running.
+  const widgetUpcomingHabits = useMemo(
+    () =>
+      data
+        ? buildWidgetUpcomingInput({
+            timelineEntries,
+            completedToday: data.completedToday,
+            todayProgress: data.todayProgress,
+            preferredHabitId: coachSignalActive && coachSignal ? coachSignal.habitId : null,
+          })
+        : [],
+    [coachSignal, coachSignalActive, data, timelineEntries],
+  );
 
   useEffect(() => {
     if (!data) return;
     // Prefer the coach's target as the next habit; otherwise the first habit
-    // still open today. The coach message line is Pro-only.
+    // still open today. The coach message shows for everyone — free users get
+    // the deterministic template, Pro users the AI-resolved one (upstream).
     void syncHomeWidgetFromDashboard({
       completedCount,
       totalHabits: total,
@@ -880,7 +899,9 @@ export default function DashboardScreen() {
           }
         : null,
       coachMessage: coachSignalActive && coachSignal ? coachSignal.message : null,
-      hasPro: data.proAccess.hasPro,
+      weekTrend: data.weekTrend,
+      upcomingHabits: widgetUpcomingHabits,
+      language: language === "hi" ? "hi" : "en",
       locale: language === "hi" ? "hi-IN" : "en-US",
     });
   }, [
@@ -892,6 +913,7 @@ export default function DashboardScreen() {
     nextWidgetCheckInValue,
     nextWidgetHabit,
     total,
+    widgetUpcomingHabits,
   ]);
 
   // First load failed and there is nothing cached to show — offer a retry
