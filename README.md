@@ -247,7 +247,9 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
   manual (not CI), so redeploy a function after editing its source. The AI functions
   (`coach-message`, `coach-push`, `habit-routine`, `progress-report`,
   `smart-reminders`, `validate-habit`) all need the `GEMINI_API_KEY` secret and the
-  `ai_suggestions` feature flag enabled.
+  `ai_suggestions` feature flag (shown as **All Gemini Features**) enabled. Production also
+  requires `GEMINI_PAID_SERVICE_CONFIRMED=true`; missing confirmation fails safely without a
+  provider request. Each user must accept the current 18+ AI disclosure before any Gemini call.
   `coach-push` is cron-driven and needs the `COACH_PUSH_CRON_SECRET` secret,
   `coach_push_url`/`coach_push_cron_secret` vault entries, a
   `cron.schedule('coach-push', '*/15 * * * *', …)` job, and the `coach_push`
@@ -258,7 +260,7 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
   `PROGRESS_REPORT_BATCH_SIZE`, `PROGRESS_REPORT_CONCURRENCY`,
   `PROGRESS_REPORT_MIN_INTERVAL_MS`, `PROGRESS_REPORT_DEADLINE_MS`), the
   `progress_report_url`/`progress_report_cron_secret` vault entries, and a
-  `cron.schedule('weekly-progress-reports', '0 9 * * 1', …)` job — ready-to-run
+  `cron.schedule('weekly-progress-reports', '0 * * * *', …)` hourly job. The request SQL remains
   SQL lives in the header comment of
   [`supabase/migrations/0019_weekly_progress_reports.sql`](supabase/migrations/0019_weekly_progress_reports.sql).
   Validating a deployment (read-only, via `supabase db query --linked`):
@@ -268,11 +270,12 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
     `x-cron-secret` header; the response reports
     `processed`/`written`/`skipped`/`failed`/`remaining`/`deadlineReached`.
 
-  A batch fetches at most 200 Pro users and processes ~100 inside its 120 s
-  deadline, and the weekly schedule never revisits a past week. If a run ends
-  with `deadlineReached: true` or nonzero `remaining`, re-invoke `cron-batch`
-  manually within the same week — re-runs are idempotent and skip users who
-  already have that week's report.
+  Each invocation repeatedly fetches bounded, deterministic pages of eligible Pro users who
+  are missing their previous local Monday-Sunday report. It writes the deterministic report
+  even when AI access is unavailable, and adds optional Gemini insight only when every gate
+  passes. The function stops at its deadline; the next hourly invocation continues with the
+  remaining candidates. The unique `(user_id, week_start)` constraint makes overlapping or
+  manual invocations idempotent.
 
 - Pro subscriptions use RevenueCat entitlement `pro` with Google Play product
   ids `rc_49_1m` (monthly) and `rc_499_12m` (annual), attached to the _current_

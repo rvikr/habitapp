@@ -119,6 +119,9 @@ async function installBackend(page, { treatment, stage, sequence, onboardingStor
         }),
       });
     }
+    if (path.endsWith("/rest/v1/rpc/set_profile_time_zone")) {
+      return route.fulfill({ status: 200, headers, body: JSON.stringify("UTC") });
+    }
     if (path.includes("/rest/v1/profiles")) {
       const trialEnd = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
       return route.fulfill({

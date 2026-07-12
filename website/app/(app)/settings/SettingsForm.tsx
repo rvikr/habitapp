@@ -10,7 +10,11 @@ interface Props {
   displayName: string;
   email: string;
   usesPassword: boolean;
+  aiAdultAttestedAt: string | null;
+  aiDisclosureVersion: string | null;
 }
+
+const AI_DISCLOSURE_VERSION = "2026-07-12";
 
 function Toggle({
   checked,
@@ -36,7 +40,14 @@ function Toggle({
   );
 }
 
-export default function SettingsForm({ userId, displayName, email, usesPassword }: Props) {
+export default function SettingsForm({
+  userId,
+  displayName,
+  email,
+  usesPassword,
+  aiAdultAttestedAt,
+  aiDisclosureVersion,
+}: Props) {
   const router = useRouter();
   const supabase = createClient();
 
@@ -52,6 +63,37 @@ export default function SettingsForm({ userId, displayName, email, usesPassword 
   const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState("");
+  const [aiAttested, setAiAttested] = useState(
+    Boolean(aiAdultAttestedAt && aiDisclosureVersion === AI_DISCLOSURE_VERSION),
+  );
+  const [aiSaving, setAiSaving] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
+
+  async function updateAiAccess(confirmed: boolean) {
+    if (
+      confirmed &&
+      !window.confirm(
+        "I confirm I am 18 or older and agree that relevant habit data may be processed by Google Gemini for the AI feature I use.",
+      )
+    ) return;
+    setAiSaving(true);
+    setAiMessage("");
+    const { error: aiError } = await supabase.rpc("set_ai_access_attestation", {
+      p_confirmed: confirmed,
+      p_disclosure_version: AI_DISCLOSURE_VERSION,
+    });
+    setAiSaving(false);
+    if (aiError) {
+      setAiMessage("Could not update AI access. Try again.");
+      return;
+    }
+    setAiAttested(confirmed);
+    setAiMessage(
+      confirmed
+        ? "AI access confirmed."
+        : "AI access revoked. Gemini features now use deterministic fallbacks.",
+    );
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -219,6 +261,37 @@ export default function SettingsForm({ userId, displayName, email, usesPassword 
               <p className="text-xs text-on-surface-variant">{passwordMsg}</p>
             )}
           </div>
+        </div>
+      </section>
+
+      <section className="hover-raise bg-surface rounded-3xl border border-outline-variant overflow-hidden">
+        <div className="px-6 py-5 border-b border-outline-variant flex items-center gap-3">
+          <span className="material-symbols-outlined text-primary text-xl">smart_toy</span>
+          <h2 className="font-bold text-on-background text-base">Gemini AI access (18+)</h2>
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-on-surface-variant leading-6">
+            Lagan sends only the habit and progress context needed for an AI feature to Google
+            Gemini. AI can be inaccurate and is not medical advice. We record your 18+
+            confirmation, not your birth date.
+          </p>
+          <button
+            type="button"
+            disabled={aiSaving}
+            onClick={() => void updateAiAccess(!aiAttested)}
+            className={`rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50 ${
+              aiAttested
+                ? "bg-error-container text-on-error-container"
+                : "bg-primary text-on-primary"
+            }`}
+          >
+            {aiSaving
+              ? "Saving…"
+              : aiAttested
+                ? "Revoke AI access"
+                : "I confirm I am 18 or older"}
+          </button>
+          {aiMessage ? <p className="text-xs text-on-surface-variant">{aiMessage}</p> : null}
         </div>
       </section>
 

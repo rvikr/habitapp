@@ -44,6 +44,13 @@ export function currentWeekStartKey(reference = new Date()): string {
   return localDateKey(monday);
 }
 
+export function previousLocalWeekStartKey(reference = new Date()): string {
+  const monday = new Date(reference);
+  monday.setHours(12, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) - 7);
+  return localDateKey(monday);
+}
+
 // Mirrors previousWeekStart() in supabase/functions/progress-report/index.ts:
 // weekly progress reports always cover the previous Monday-based (ISO) UTC week,
 // so both sides must compute the same week_start for staleness checks to hold.

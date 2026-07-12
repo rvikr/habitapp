@@ -22,6 +22,7 @@ type CachedValidation = { result: HabitValidationResult; cachedAt: number };
 type ValidateHabitRemoteOptions = {
   invoke?: (input: HabitValidationInput) => Promise<unknown>;
   now?: Date;
+  enabled?: boolean;
 };
 
 const resultCache = new Map<string, CachedValidation>();
@@ -103,6 +104,7 @@ export async function validateHabitRemote(
   input: HabitValidationInput,
   options: ValidateHabitRemoteOptions = {},
 ): Promise<HabitValidationResult> {
+  if (options.enabled === false) return failOpen();
   const now = (options.now ?? new Date()).getTime();
   const key = validationFingerprint(input);
 

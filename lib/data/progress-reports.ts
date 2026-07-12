@@ -1,6 +1,6 @@
 import type { WeeklyProgressReport } from "../../types/db";
 import { getCurrentUser, isSupabaseConfigured, supabase } from "../supabase/client";
-import { previousUtcWeekStartKey } from "../utils/date";
+import { previousLocalWeekStartKey } from "../utils/date";
 import { DATA_CACHE_PREFIX, readThroughCache } from "./cache";
 
 const REPORT_CACHE_TTL_MS = 5 * 60_000;
@@ -36,7 +36,9 @@ export async function getLatestProgressReport(
     async () => {
       const { data, error } = await supabase
         .from("weekly_progress_reports")
-        .select("id, user_id, week_start, summary_text, stats_snapshot, model, generated_at")
+        .select(
+          "id, user_id, week_start, summary_text, insight_text, stats_snapshot, model, prompt_version, generated_at",
+        )
         .eq("user_id", user.id)
         .order("week_start", { ascending: false })
         .limit(1)
@@ -96,11 +98,10 @@ export async function generateProgressReportNow(): Promise<GenerateProgressRepor
   }
 }
 
-// Stale = the report doesn't cover the most recent completed UTC week, i.e. the
-// Monday cron (or the user) hasn't generated last week's report yet. week_start is
+// Stale = the report doesn't cover the most recent completed local week. week_start is
 // a YYYY-MM-DD key, so plain string comparison orders correctly.
 export function isReportStale(report: WeeklyProgressReport): boolean {
-  return report.week_start < previousUtcWeekStartKey();
+  return report.week_start < previousLocalWeekStartKey();
 }
 
 export function formatReportWeekRange(weekStart: string): string {
@@ -121,7 +122,7 @@ function errorMessageForReason(reason: string | undefined): string | null {
   }
   if (reason === "quota_exceeded") return "Weekly report generation is busy. Try again later.";
   if (reason === "feature_disabled") return "Weekly report generation is temporarily unavailable.";
-  if (reason === "quota_guard_failed" || reason === "pro_guard_failed") {
+  if (reason === "provider_unavailable" || reason === "pro_guard_failed") {
     return "Weekly report generation is not available right now.";
   }
   return null;

@@ -64,6 +64,9 @@ export type Profile = {
   subscription_synced_at: string | null;
   first_habit_logged_at: string | null;
   activation_engaged_at: string | null;
+  ai_adult_attested_at: string | null;
+  ai_disclosure_version: string | null;
+  time_zone: string;
   created_at: string;
   updated_at: string;
 };
@@ -145,6 +148,7 @@ export type Milestone = {
 // edge function. Mirrors HabitAnalysis there. All figures already carry their
 // own unit; the UI renders these as-is and the AI prose only rephrases them.
 export type WeeklyReportHabitAnalysis = {
+  habitId: string;
   name: string;
   unit: string | null;
   target: number | null;
@@ -178,8 +182,10 @@ export type WeeklyProgressReport = {
   user_id: string;
   week_start: string;
   summary_text: string;
+  insight_text: string | null;
   // Older rows used a flatter shape; treat as partial when reading.
   stats_snapshot: Partial<WeeklyReportSnapshot> & Record<string, unknown>;
   model: string | null;
+  prompt_version: string | null;
   generated_at: string;
 };

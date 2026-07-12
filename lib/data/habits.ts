@@ -18,6 +18,7 @@ import {
 } from "../coach/coach";
 import { resolveCoachMessage } from "../coach/coach-ai";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
+import { AI_DISCLOSURE_VERSION } from "../services/ai-access";
 import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
 import { dashboardDisplayName } from "./display-name";
 
@@ -98,7 +99,7 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
         supabase
           .from("profiles")
           .select(
-            "display_name, coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at",
+            "display_name, coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at, ai_adult_attested_at, ai_disclosure_version",
           )
           .eq("user_id", user.id)
           .maybeSingle(),
@@ -156,6 +157,9 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
   // Personalized messages are Pro-only server-side: gating here keeps free
   // users on the instant template instead of a guaranteed-402 round trip.
   const hasPro = resolveProAccess(profile as ProAccessProfile | null).hasPro;
+  const hasAiAccess = Boolean(
+    profile?.ai_adult_attested_at && profile?.ai_disclosure_version === AI_DISCLOSURE_VERSION,
+  );
   let coachSignal = chooseTopCoachSignal(
     buildCoachSignals({ habits: habitsList, completions: completionRows, tone: coachTone }),
   );
@@ -163,7 +167,7 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
     coachSignal = {
       ...coachSignal,
       message: await resolveCoachMessage(coachSignal, {
-        enabled: aiEnabled && hasPro,
+        enabled: aiEnabled && hasPro && hasAiAccess,
         nonBlocking: true,
       }),
     };

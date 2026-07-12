@@ -223,6 +223,9 @@ async function setup(page, session, scenario) {
     }
     if (path.includes("/rest/v1/feature_flags"))
       return route.fulfill({ status: 200, headers, body: JSON.stringify({ enabled: false }) });
+    if (path.endsWith("/rest/v1/rpc/set_profile_time_zone")) {
+      return route.fulfill({ status: 200, headers, body: JSON.stringify("UTC") });
+    }
     if (path.includes("/rest/v1/profiles")) {
       profileReads.push({ first_habit_logged_at: serverFirstLoggedAt });
       return route.fulfill({

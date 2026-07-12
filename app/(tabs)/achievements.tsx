@@ -334,6 +334,11 @@ function WeeklyReportCard({
         <Text className="text-body-md text-on-surface dark:text-d-on-surface leading-6">
           {report.summary_text}
         </Text>
+        {report.insight_text ? (
+          <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant leading-6">
+            {report.insight_text}
+          </Text>
+        ) : null}
       </View>
 
       {hasPro === true && isReportStale(report) ? (

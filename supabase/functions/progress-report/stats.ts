@@ -11,6 +11,11 @@ export type HabitStatsRow = {
   reminder_days: number[] | null;
   reminders_enabled: boolean | null;
   created_at: string;
+  archived_at?: string | null;
+  /** User-local calendar date derived from created_at by the Edge Function. */
+  active_from?: string;
+  /** User-local calendar date derived from archived_at; the date itself remains active. */
+  active_until?: string | null;
 };
 
 export type CompletionStatsRow = {
@@ -23,6 +28,7 @@ export type CompletionStatsRow = {
 // own unit; the LLM only rephrases these — it never derives or converts numbers
 // (deriving numbers is what produced the bogus "143 km").
 export type HabitAnalysis = {
+  habitId: string;
   name: string;
   unit: string | null;
   target: number | null;
@@ -55,6 +61,33 @@ export function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function dateKeyInTimeZone(
+  date: Date,
+  requestedTimeZone: string,
+): string {
+  const timeZone = normalizeTimeZone(requestedTimeZone);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+export function previousWeekStartForTimeZone(
+  reference: Date,
+  requestedTimeZone: string,
+): string {
+  const localDate = dateKeyInTimeZone(reference, requestedTimeZone);
+  const date = new Date(`${localDate}T12:00:00.000Z`);
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday - 7);
+  return formatDate(date);
+}
+
 // Mirrors lib/coach/habit-intelligence.ts formatAmount, with thousands grouping
 // so large quantities (e.g. step counts) read as "41,000" not "41000".
 export function formatAmount(value: number): string {
@@ -78,19 +111,14 @@ export function scheduledDaysForHabit(
   weekStartDate: Date,
   today: Date,
 ): number {
-  const createdDay = formatDate(new Date(habit.created_at));
-  const useReminderDays =
-    habit.reminders_enabled === true &&
-    Array.isArray(habit.reminder_days) &&
-    habit.reminder_days.length > 0;
+  const todayKey = formatDate(today);
   let count = 0;
   for (let i = 0; i < 7; i += 1) {
     const day = new Date(weekStartDate);
     day.setUTCDate(day.getUTCDate() + i);
     const dayKey = formatDate(day);
-    if (day > today) continue; // never count future days
-    if (dayKey < createdDay) continue; // habit didn't exist yet
-    if (useReminderDays && !habit.reminder_days!.includes(i)) continue;
+    if (dayKey > todayKey) continue;
+    if (!isHabitScheduledOnDate(habit, dayKey, i)) continue;
     count += 1;
   }
   return count;
@@ -119,7 +147,8 @@ export function buildWeeklyStats(params: {
   weekStartDate: Date;
   today: Date;
 }): WeeklyStats {
-  const { habits, completions, lastWeekCompletions, weekStartDate, today } = params;
+  const { habits, completions, lastWeekCompletions, weekStartDate, today } =
+    params;
   const creditedCompletions = creditedCompletionRows(habits, completions);
 
   const weekStart = formatDate(weekStartDate);
@@ -137,8 +166,8 @@ export function buildWeeklyStats(params: {
   const creditedDaysByHabit = new Map<string, Set<string>>();
   const dayMap = new Map<string, Set<string>>();
   for (const completion of completions) {
-    const entry =
-      perHabit.get(completion.habit_id) ?? { days: new Set(), total: 0, dayTotals: new Map() };
+    const entry = perHabit.get(completion.habit_id) ??
+      { days: new Set(), total: 0, dayTotals: new Map() };
     const value = Number(completion.value ?? 0);
     entry.days.add(completion.completed_on);
     entry.total += value;
@@ -150,7 +179,8 @@ export function buildWeeklyStats(params: {
   }
 
   for (const completion of creditedCompletions) {
-    const habitDays = creditedDaysByHabit.get(completion.habit_id) ?? new Set<string>();
+    const habitDays = creditedDaysByHabit.get(completion.habit_id) ??
+      new Set<string>();
     habitDays.add(completion.completed_on);
     creditedDaysByHabit.set(completion.habit_id, habitDays);
     const dayHabits = dayMap.get(completion.completed_on) ?? new Set();
@@ -158,11 +188,23 @@ export function buildWeeklyStats(params: {
     dayMap.set(completion.completed_on, dayHabits);
   }
 
-  const habitCount = habits.length;
   let perfectDays = 0;
-  if (habitCount > 0) {
-    for (const set of dayMap.values()) {
-      if (set.size >= habitCount) perfectDays += 1;
+  const todayKey = formatDate(today);
+  for (let i = 0; i < 7; i += 1) {
+    const day = new Date(weekStartDate);
+    day.setUTCDate(day.getUTCDate() + i);
+    const dayKey = formatDate(day);
+    if (dayKey > todayKey) continue;
+    const scheduledHabitIds = habits
+      .filter((habit) => isHabitScheduledOnDate(habit, dayKey, i))
+      .map((habit) => habit.id);
+    if (
+      scheduledHabitIds.length > 0 &&
+      scheduledHabitIds.every((habitId) =>
+        creditedDaysByHabit.get(habitId)?.has(dayKey)
+      )
+    ) {
+      perfectDays += 1;
     }
   }
 
@@ -185,11 +227,14 @@ export function buildWeeklyStats(params: {
   const byHabit: HabitAnalysis[] = habits.map((habit) => {
     const entry = perHabit.get(habit.id);
     const target = habit.target == null ? null : Number(habit.target);
-    const isQuantity = habit.metric_type !== "boolean" && target != null && target > 0;
+    const isQuantity = habit.metric_type !== "boolean" && target != null &&
+      target > 0;
     const daysLogged = creditedDaysByHabit.get(habit.id)?.size ?? 0;
     const rawDaysLogged = entry?.days.size ?? 0;
     const scheduledDays = scheduledDaysForHabit(habit, weekStartDate, today);
-    const completionRate = scheduledDays > 0 ? Math.min(daysLogged / scheduledDays, 1) : 0;
+    const completionRate = scheduledDays > 0
+      ? Math.min(daysLogged / scheduledDays, 1)
+      : 0;
 
     scheduledTotal += scheduledDays;
     loggedTotal += Math.min(daysLogged, scheduledDays || daysLogged);
@@ -213,6 +258,7 @@ export function buildWeeklyStats(params: {
     }
 
     return {
+      habitId: habit.id,
       name: habit.name,
       unit: habit.unit,
       target,
@@ -231,28 +277,117 @@ export function buildWeeklyStats(params: {
   const scheduled = byHabit.filter((h) => h.scheduledDays > 0);
   const strongest = scheduled
     .slice()
-    .sort((a, b) => b.completionRate - a.completionRate || b.daysLogged - a.daysLogged)[0];
+    .sort((a, b) =>
+      b.completionRate - a.completionRate || b.daysLogged - a.daysLogged
+    )[0];
   const focus = scheduled
     .slice()
-    .sort((a, b) => a.completionRate - b.completionRate || a.daysLogged - b.daysLogged)[0];
+    .sort((a, b) =>
+      a.completionRate - b.completionRate || a.daysLogged - b.daysLogged
+    )[0];
 
   return {
     weekStart,
     weekEnd,
     totalCompletions: creditedCompletions.length,
-    activeHabits: habitCount,
+    activeHabits: habits.length,
     perfectDays,
     bestStreak,
-    completionRate: scheduledTotal > 0 ? Math.min(loggedTotal / scheduledTotal, 1) : 0,
+    completionRate: scheduledTotal > 0
+      ? Math.min(loggedTotal / scheduledTotal, 1)
+      : 0,
     strongestHabit: strongest?.name ?? null,
     // Only surface a focus habit when it is distinct from the strongest and
     // actually fell short (rate < 100%), so a single-habit or all-perfect week
     // doesn't flag a habit that needs no work.
     focusHabit:
-      focus && focus.name !== strongest?.name && focus.completionRate < 1 ? focus.name : null,
-    trend: { lastWeekCompletions, delta: creditedCompletions.length - lastWeekCompletions },
+      focus && focus.name !== strongest?.name && focus.completionRate < 1
+        ? focus.name
+        : null,
+    trend: {
+      lastWeekCompletions,
+      delta: creditedCompletions.length - lastWeekCompletions,
+    },
     byHabit,
   };
+}
+
+export type QualitativeInsight = {
+  encouragement: string;
+  nextStep: string;
+  habitId: string | null;
+};
+
+const ENCOURAGEMENT_TEMPLATES = {
+  steady: "A steady rhythm is taking shape.",
+  resilient: "Your effort shows care and resilience.",
+  restart: "A fresh start is always available.",
+} as const;
+
+const NEXT_STEP_TEMPLATES = {
+  make_easy: "Make the next action feel easy.",
+  prepare: "Prepare the next action in advance.",
+  begin_gently: "Choose a supportive action and begin gently.",
+} as const;
+
+export function sanitizeQualitativeInsight(
+  input: unknown,
+  allowedHabitIds: ReadonlySet<string>,
+): QualitativeInsight | null {
+  if (!isRecord(input)) return null;
+  const encouragementKey = cleanInsightText(input.encouragement, 32);
+  const nextStepKey = cleanInsightText(input.nextStep, 32);
+  const habitId = input.habitId == null
+    ? null
+    : cleanInsightText(input.habitId, 64);
+  if (!encouragementKey || !nextStepKey) return null;
+  const encouragement = ENCOURAGEMENT_TEMPLATES[
+    encouragementKey as keyof typeof ENCOURAGEMENT_TEMPLATES
+  ];
+  const nextStep =
+    NEXT_STEP_TEMPLATES[nextStepKey as keyof typeof NEXT_STEP_TEMPLATES];
+  if (!encouragement || !nextStep) return null;
+  if (habitId != null && !allowedHabitIds.has(habitId)) return null;
+  return { encouragement, nextStep, habitId };
+}
+
+function isHabitScheduledOnDate(
+  habit: HabitStatsRow,
+  dayKey: string,
+  dayOffset: number,
+): boolean {
+  const activeFrom = habit.active_from ??
+    formatDate(new Date(habit.created_at));
+  const activeUntil = habit.active_until ?? null;
+  if (dayKey < activeFrom || (activeUntil != null && dayKey > activeUntil)) {
+    return false;
+  }
+  const useReminderDays = habit.reminders_enabled === true &&
+    Array.isArray(habit.reminder_days) &&
+    habit.reminder_days.length > 0;
+  return !useReminderDays || habit.reminder_days!.includes(dayOffset);
+}
+
+function normalizeTimeZone(value: string): string {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format();
+    return value;
+  } catch {
+    return "UTC";
+  }
+}
+
+function cleanInsightText(value: unknown, maxLength = 180): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned && cleaned.length <= maxLength ? cleaned : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 // Plain-text, pre-computed facts handed to the LLM. The model is told to echo
@@ -261,32 +396,49 @@ export function buildFacts(stats: WeeklyStats): string {
   const lines: string[] = [];
   lines.push(`Week of ${stats.weekStart} to ${stats.weekEnd}.`);
   lines.push(
-    `Overall: ${stats.totalCompletions} completion${stats.totalCompletions === 1 ? "" : "s"} across ${stats.activeHabits} habit${stats.activeHabits === 1 ? "" : "s"}, ${pct(stats.completionRate)}% of scheduled habit-days completed.`,
+    `Overall: ${stats.totalCompletions} completion${
+      stats.totalCompletions === 1 ? "" : "s"
+    } across ${stats.activeHabits} habit${
+      stats.activeHabits === 1 ? "" : "s"
+    }, ${pct(stats.completionRate)}% of scheduled habit-days completed.`,
   );
   if (stats.perfectDays > 0) {
     lines.push(`Perfect days (every habit done): ${stats.perfectDays}.`);
   }
-  lines.push(`Best streak this week: ${stats.bestStreak} day${stats.bestStreak === 1 ? "" : "s"}.`);
+  lines.push(
+    `Best streak this week: ${stats.bestStreak} day${
+      stats.bestStreak === 1 ? "" : "s"
+    }.`,
+  );
   for (const h of stats.byHabit) {
     if (h.isQuantity) {
-      const goal =
-        h.target != null
-          ? `, hit the ${withUnit(h.target, h.unit)} goal on ${h.targetHitDays} day${h.targetHitDays === 1 ? "" : "s"}`
-          : "";
+      const goal = h.target != null
+        ? `, hit the ${
+          withUnit(h.target, h.unit)
+        } goal on ${h.targetHitDays} day${h.targetHitDays === 1 ? "" : "s"}`
+        : "";
       lines.push(
-        `${h.name}: completed ${h.daysLogged} of ${h.scheduledDays} days (${pct(h.completionRate)}%), ${h.displayTotal} total, ${h.displayAverage} per logged day${goal}.`,
+        `${h.name}: completed ${h.daysLogged} of ${h.scheduledDays} days (${
+          pct(h.completionRate)
+        }%), ${h.displayTotal} total, ${h.displayAverage} per logged day${goal}.`,
       );
     } else {
       lines.push(
-        `${h.name}: completed ${h.daysLogged} of ${h.scheduledDays} days (${pct(h.completionRate)}%).`,
+        `${h.name}: completed ${h.daysLogged} of ${h.scheduledDays} days (${
+          pct(h.completionRate)
+        }%).`,
       );
     }
   }
-  if (stats.strongestHabit) lines.push(`Strongest habit: ${stats.strongestHabit}.`);
+  if (stats.strongestHabit) {
+    lines.push(`Strongest habit: ${stats.strongestHabit}.`);
+  }
   if (stats.focusHabit) lines.push(`Needs the most work: ${stats.focusHabit}.`);
   const delta = stats.trend.delta;
   lines.push(
-    `Versus last week: ${delta > 0 ? `+${delta}` : delta} completion${Math.abs(delta) === 1 ? "" : "s"} (last week ${stats.trend.lastWeekCompletions}).`,
+    `Versus last week: ${delta > 0 ? `+${delta}` : delta} completion${
+      Math.abs(delta) === 1 ? "" : "s"
+    } (last week ${stats.trend.lastWeekCompletions}).`,
   );
   return lines.join("\n");
 }
@@ -297,14 +449,24 @@ export function fallbackSummary(stats: WeeklyStats): string {
   }
   const parts: string[] = [];
   parts.push(
-    `${stats.totalCompletions} completion${stats.totalCompletions === 1 ? "" : "s"} across ${stats.activeHabits} habit${stats.activeHabits === 1 ? "" : "s"} this week (${pct(stats.completionRate)}% of scheduled days).`,
+    `${stats.totalCompletions} completion${
+      stats.totalCompletions === 1 ? "" : "s"
+    } across ${stats.activeHabits} habit${
+      stats.activeHabits === 1 ? "" : "s"
+    } this week (${pct(stats.completionRate)}% of scheduled days).`,
   );
-  if (stats.strongestHabit) parts.push(`Strongest habit: ${stats.strongestHabit}.`);
+  if (stats.strongestHabit) {
+    parts.push(`Strongest habit: ${stats.strongestHabit}.`);
+  }
   if (stats.focusHabit && stats.focusHabit !== stats.strongestHabit) {
     parts.push(`Focus next week on ${stats.focusHabit}.`);
   }
   if (stats.perfectDays > 0) {
-    parts.push(`You hit every habit on ${stats.perfectDays} day${stats.perfectDays === 1 ? "" : "s"}.`);
+    parts.push(
+      `You hit every habit on ${stats.perfectDays} day${
+        stats.perfectDays === 1 ? "" : "s"
+      }.`,
+    );
   }
   return parts.join(" ").trim();
 }

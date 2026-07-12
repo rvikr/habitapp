@@ -13,6 +13,7 @@ import type { AvatarStyle } from "../utils/avatar";
 import { normalizeCoachTone, type CoachTone } from "../coach/coach";
 import { track, resetAnalytics } from "../services/analytics";
 import { reportError } from "../services/sentry";
+import { getAiAccessProfile } from "../services/ai-access";
 import { authCallbackUrl, parseAuthCallbackUrl } from "../auth/auth-redirect";
 import {
   GOOGLE_NATIVE_ANDROID_AUTH_ENABLED,
@@ -109,7 +110,8 @@ async function runHabitValidation(
   };
   const local = validateHabitLocally(input);
   if (local.status !== "uncertain") return local;
-  return validateHabitRemote(input);
+  const aiAccess = await getAiAccessProfile();
+  return validateHabitRemote(input, { enabled: aiAccess.state === "eligible" });
 }
 
 async function validateHabitMutationInput(

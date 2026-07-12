@@ -20,6 +20,12 @@ import { exportMyData } from "@/lib/utils/privacy";
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from "@/lib/services/analytics";
 import { isSentryOptedOut, setSentryOptOut } from "@/lib/services/sentry";
 import { useLanguage } from "@/components/language-provider";
+import {
+  AI_DISCLOSURE_VERSION,
+  getAiAccessProfile,
+  setAiAdultAttestation,
+  type AiAccessProfile,
+} from "@/lib/services/ai-access";
 
 const PRIVACY_POLICY_URL =
   process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || "https://lagan.health/privacy";
@@ -39,6 +45,11 @@ export default function PrivacyScreen() {
   const [usesPassword, setUsesPassword] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
+  const [aiAccess, setAiAccess] = useState<AiAccessProfile | null>(null);
+  const [savingAiAccess, setSavingAiAccess] = useState(false);
+  const hasCurrentAiAttestation = Boolean(
+    aiAccess?.attestedAt && aiAccess.disclosureVersion === AI_DISCLOSURE_VERSION,
+  );
 
   useEffect(() => {
     Promise.all([isAnalyticsOptedOut(), isSentryOptedOut()]).then(
@@ -50,6 +61,9 @@ export default function PrivacyScreen() {
     getCurrentUser().then((user) => {
       if (user) setUsesPassword(hasPasswordIdentity(user));
     });
+    getAiAccessProfile()
+      .then(setAiAccess)
+      .catch(() => setAiAccess(null));
   }, []);
 
   async function toggleAnalytics(next: boolean) {
@@ -60,6 +74,18 @@ export default function PrivacyScreen() {
   async function toggleCrashReports(next: boolean) {
     setCrashReportsOff(next);
     await setSentryOptOut(next);
+  }
+
+  async function updateAiAccess(attested: boolean) {
+    setSavingAiAccess(true);
+    try {
+      await setAiAdultAttestation(attested);
+      setAiAccess(await getAiAccessProfile());
+    } catch {
+      showAlert(t("Could not update AI access"), t("Try again."));
+    } finally {
+      setSavingAiAccess(false);
+    }
   }
 
   async function handleExport() {
@@ -184,6 +210,56 @@ export default function PrivacyScreen() {
 
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 32 }}>
         <View className="px-margin-mobile gap-md">
+          <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
+            <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
+              {t("Gemini AI access (18+)")}
+            </Text>
+            <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+              {t(
+                "Lagan sends only the habit and progress context needed for an AI feature to Google Gemini. AI can be inaccurate and is not medical advice. We record your 18+ confirmation, not your birth date.",
+              )}
+            </Text>
+            {aiAccess?.state === "feature_disabled" ? (
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("All Gemini features are currently disabled.")}
+              </Text>
+            ) : null}
+            <TouchableOpacity
+              className={`rounded-full py-sm items-center ${
+                hasCurrentAiAttestation ? "bg-error-container" : "bg-primary"
+              }`}
+              accessibilityRole="button"
+              accessibilityLabel={
+                savingAiAccess
+                  ? t("Saving...")
+                  : hasCurrentAiAttestation
+                    ? t("Revoke AI access")
+                    : t("I confirm I am 18 or older")
+              }
+              accessibilityState={{ disabled: savingAiAccess }}
+              onPress={() => {
+                if (!savingAiAccess) void updateAiAccess(!hasCurrentAiAttestation);
+              }}
+            >
+              <Text
+                className={`text-label-lg font-semibold ${
+                  hasCurrentAiAttestation ? "text-on-error-container" : "text-on-primary"
+                }`}
+              >
+                {savingAiAccess
+                  ? t("Saving...")
+                  : hasCurrentAiAttestation
+                    ? t("Revoke AI access")
+                    : t("I confirm I am 18 or older")}
+              </Text>
+            </TouchableOpacity>
+            {hasCurrentAiAttestation ? (
+              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                {t("Revoking immediately switches AI features back to deterministic fallbacks.")}
+              </Text>
+            ) : null}
+          </View>
+
           <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
             <View className="flex-row items-center justify-between">
               <View className="flex-1 mr-md">

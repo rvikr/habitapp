@@ -22,7 +22,15 @@ const HABIT_TYPES = new Set([
   "cooking",
   "custom",
 ]);
-const METRIC_TYPES = new Set(["volume_ml", "steps", "hours", "pages", "minutes", "distance_km", "boolean"]);
+const METRIC_TYPES = new Set([
+  "volume_ml",
+  "steps",
+  "hours",
+  "pages",
+  "minutes",
+  "distance_km",
+  "boolean",
+]);
 const REMINDER_STRATEGIES = new Set(["interval", "conditional_interval"]);
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -61,7 +69,9 @@ type SanitizedSmartReminderContext = {
 export function sanitizeSmartReminderContexts(
   input: unknown,
 ): SanitizedSmartReminderContext[] | null {
-  if (!Array.isArray(input) || input.length < 1 || input.length > MAX_CONTEXTS) return null;
+  if (
+    !Array.isArray(input) || input.length < 1 || input.length > MAX_CONTEXTS
+  ) return null;
 
   const contexts: SanitizedSmartReminderContext[] = [];
   for (const item of input) {
@@ -70,7 +80,9 @@ export function sanitizeSmartReminderContexts(
     contexts.push(context);
   }
 
-  return serializedByteLength(contexts) <= MAX_SERIALIZED_BYTES ? contexts : null;
+  return serializedByteLength(contexts) <= MAX_SERIALIZED_BYTES
+    ? contexts
+    : null;
 }
 
 function cleanContext(item: unknown): SanitizedSmartReminderContext | null {
@@ -82,7 +94,10 @@ function cleanContext(item: unknown): SanitizedSmartReminderContext | null {
   const strategy = enumValue(item.strategy, REMINDER_STRATEGIES);
   const currentTime = cleanTime(item.currentTime);
   const progress = cleanProgress(item.progress);
-  if (!habitId || !habitName || !habitType || !metricType || !strategy || !currentTime || !progress) {
+  if (
+    !habitId || !habitName || !habitType || !metricType || !strategy ||
+    !currentTime || !progress
+  ) {
     return null;
   }
 
@@ -94,7 +109,7 @@ function cleanContext(item: unknown): SanitizedSmartReminderContext | null {
     strategy,
     intervalMinutes: cleanNumber(item.intervalMinutes, 1, 24 * 60, true),
     target: cleanNumber(item.target, 0, 1_000_000, false),
-    unit: typeof item.unit === "string" ? item.unit.trim().slice(0, 16) || null : null,
+    unit: cleanText(item.unit, 16),
     progress,
     completions: cleanCompletions(item.completions),
     manualTimes: cleanTimeArray(item.manualTimes),
@@ -148,7 +163,9 @@ function cleanReminderDays(value: unknown): number[] {
   const days: number[] = [];
   const seen = new Set<number>();
   for (const item of value) {
-    if (!Number.isInteger(item) || item < 0 || item > 6 || seen.has(item)) continue;
+    if (!Number.isInteger(item) || item < 0 || item > 6 || seen.has(item)) {
+      continue;
+    }
     seen.add(item);
     days.push(item);
     if (days.length >= 7) break;
@@ -158,7 +175,10 @@ function cleanReminderDays(value: unknown): number[] {
 
 function cleanText(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
-  const cleaned = value.replace(/\s+/g, " ").trim();
+  const cleaned = value
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!cleaned || cleaned.length > maxLength) return null;
   return cleaned;
 }

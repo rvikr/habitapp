@@ -163,7 +163,7 @@ revoke execute on function public.consume_ai_quota(uuid, text, integer, integer)
 revoke execute on function public.consume_ai_quota(uuid, text, integer, integer) from authenticated;
 grant execute on function public.consume_ai_quota(uuid, text, integer, integer) to service_role;
 
--- Weekly cron schedule (Mondays 09:00 UTC) — requires pg_cron + pg_net extensions
+-- Hourly catch-up cron schedule — requires pg_cron + pg_net extensions
 -- and two Vault secrets: 'progress_report_url' and 'progress_report_cron_secret'.
 -- The edge function authenticates cron callers by comparing X-Cron-Secret to the env
 -- var PROGRESS_REPORT_CRON_SECRET. Run once per environment, e.g.:
@@ -179,7 +179,7 @@ grant execute on function public.consume_ai_quota(uuid, text, integer, integer) 
 --
 --   select cron.schedule(
 --     'weekly-progress-reports',
---     '0 9 * * 1',
+--     '0 * * * *',
 --     $cron$
 --       select net.http_post(
 --         url     := (select decrypted_secret from vault.decrypted_secrets where name = 'progress_report_url'),

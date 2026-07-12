@@ -177,6 +177,9 @@ async function runScenario(browser, options) {
         body: JSON.stringify({ enabled: false, rollout_percentage: 0 }),
       });
     }
+    if (req.method() === "POST" && url.pathname.endsWith("/rest/v1/rpc/set_profile_time_zone")) {
+      return route.fulfill({ status: 200, headers, body: JSON.stringify("UTC") });
+    }
     if (req.method() === "GET" && url.pathname.includes("/rest/v1/profiles")) {
       profileCalls.push(call);
       return route.fulfill({

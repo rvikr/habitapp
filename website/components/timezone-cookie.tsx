@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 export default function TimezoneCookie() {
   const router = useRouter();
@@ -9,6 +10,15 @@ export default function TimezoneCookie() {
   useEffect(() => {
     const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!timeZone) return;
+    const supabase = createClient();
+    void supabase.auth.getUser().then(async ({ data }) => {
+      const userId = data.user?.id;
+      if (!userId) return;
+      const syncKey = `lagan_profile_timezone_v1:${userId}`;
+      if (window.localStorage.getItem(syncKey) === timeZone) return;
+      const { error } = await supabase.rpc("set_profile_time_zone", { p_time_zone: timeZone });
+      if (!error) window.localStorage.setItem(syncKey, timeZone);
+    });
     const encoded = encodeURIComponent(timeZone);
     const current = document.cookie
       .split("; ")

@@ -37,7 +37,9 @@ type SanitizedRoutineAnswers = {
   waterBaseline?: string | null;
 };
 
-export function sanitizeRoutineAnswers(value: unknown): SanitizedRoutineAnswers | null {
+export function sanitizeRoutineAnswers(
+  value: unknown,
+): SanitizedRoutineAnswers | null {
   if (!isRecord(value)) return null;
   if (Object.keys(value).some((key) => !ALLOWED_KEYS.has(key))) return null;
 
@@ -47,7 +49,9 @@ export function sanitizeRoutineAnswers(value: unknown): SanitizedRoutineAnswers 
   const workload = enumValue(value.workload, WORKLOAD_LEVELS);
   const stress = enumValue(value.stress, STRESS_LEVELS);
   const fitnessLevel = enumValue(value.fitnessLevel, FITNESS_LEVELS);
-  if (!goals || !lifestyle || !sleep || !workload || !stress || !fitnessLevel) return null;
+  if (!goals || !lifestyle || !sleep || !workload || !stress || !fitnessLevel) {
+    return null;
+  }
 
   const age = optionalNumber(value.age, 13, 100, true);
   const heightCm = optionalNumber(value.heightCm, 100, 250, true);
@@ -78,16 +82,23 @@ export function sanitizeRoutineAnswers(value: unknown): SanitizedRoutineAnswers 
   if (hasOwn(value, "stepsBaseline")) sanitized.stepsBaseline = stepsBaseline;
   if (hasOwn(value, "waterBaseline")) sanitized.waterBaseline = waterBaseline;
 
-  return serializedByteLength(sanitized) <= MAX_SERIALIZED_BYTES ? sanitized : null;
+  return serializedByteLength(sanitized) <= MAX_SERIALIZED_BYTES
+    ? sanitized
+    : null;
 }
 
 function sanitizeGoals(value: unknown): string[] | null {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_GOALS) return null;
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_GOALS) {
+    return null;
+  }
   const goals: string[] = [];
   const seen = new Set<string>();
   for (const item of value) {
     if (typeof item !== "string") return null;
-    const goal = item.replace(/\s+/g, " ").trim();
+    const goal = item
+      .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     if (!goal || goal.length > MAX_GOAL_LENGTH) return null;
     const key = goal.toLowerCase();
     if (seen.has(key)) continue;
@@ -114,7 +125,10 @@ function enumValue(value: unknown, allowed: Set<string>): string | null {
   return typeof value === "string" && allowed.has(value) ? value : null;
 }
 
-function optionalEnum(value: unknown, allowed: Set<string>): string | null | undefined {
+function optionalEnum(
+  value: unknown,
+  allowed: Set<string>,
+): string | null | undefined {
   if (value == null) return null;
   return typeof value === "string" && allowed.has(value) ? value : undefined;
 }

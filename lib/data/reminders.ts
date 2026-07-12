@@ -20,6 +20,7 @@ import {
 } from "../coach/coach";
 import { resolveCoachMessage } from "../coach/coach-ai";
 import { getAiSuggestionsEnabled } from "../services/feature-flags";
+import { AI_DISCLOSURE_VERSION } from "../services/ai-access";
 import {
   learnedSmartReminderTimesForDay,
   type SmartReminderDecisionContext,
@@ -117,7 +118,7 @@ export async function getReminderSchedule(
     supabase
       .from("profiles")
       .select(
-        "coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at",
+        "coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at, ai_adult_attested_at, ai_disclosure_version",
       )
       .eq("user_id", user.id)
       .maybeSingle(),
@@ -165,7 +166,12 @@ export async function getReminderSchedule(
   const now = new Date();
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
   const proAccess = resolveProAccess(profile as ProAccessProfile | null, now);
-  const aiCoachEnabled = proAccess.hasPro && (await getAiSuggestionsEnabled());
+  const aiCoachEnabled = Boolean(
+    proAccess.hasPro &&
+    profile?.ai_adult_attested_at &&
+    profile?.ai_disclosure_version === AI_DISCLOSURE_VERSION &&
+    (await getAiSuggestionsEnabled()),
+  );
 
   // Compute each habit's top local coach signal once, then allow a background AI
   // refresh for only the highest-priority few (see MAX_COACH_MESSAGE_REFRESH) so

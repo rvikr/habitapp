@@ -38,7 +38,7 @@ export default function PrivacyPage() {
   return (
     <LegalShell
       title="Privacy Policy"
-      updated="Last updated: 4 June 2026"
+      updated="Last updated: 12 July 2026"
       toc={SECTIONS}
       intro={
         <p>
@@ -124,13 +124,24 @@ export default function PrivacyPage() {
         <p>
           Lagan uses Google Gemini through server-side Supabase Edge Functions for AI-powered
           habit coaching, routine refinement, smart reminders, habit validation, and weekly
-          reports. We send only the data reasonably needed for the specific AI feature. We do
-          not send passwords, payment card data, or raw store payment details to the AI model.
+          reports. These features require you to attest that you are 18 or older. We store the
+          attestation time and disclosure version, but do not store your birth date.
+        </p>
+        <p>
+          We send only the data reasonably needed for the specific AI feature through our paid
+          Gemini service. We do not send passwords, payment card data, or raw store payment
+          details to the AI model. AI telemetry contains structured outcomes and performance
+          data, not prompts, responses, habit names, or health samples.
         </p>
         <p>
           AI outputs may be inaccurate or incomplete. Lagan validates and limits many AI
           responses before showing them, but AI features are not medical, legal, financial, or
           professional advice.
+        </p>
+        <p>
+          You can revoke AI access at any time from Settings, then Privacy &amp; Data. Revocation
+          immediately stops new Gemini processing for your account and returns affected features
+          to deterministic fallbacks.
         </p>
       </LegalSection>
 
@@ -239,6 +250,10 @@ export default function PrivacyPage() {
           <li>
             <strong className="text-on-surface">Control notifications</strong> in Lagan
             reminder settings and your device notification settings.
+          </li>
+          <li>
+            <strong className="text-on-surface">Control AI processing</strong> by confirming
+            or revoking AI access from Settings, then Privacy &amp; Data.
           </li>
           <li>
             <strong className="text-on-surface">Contact us</strong> at{" "}

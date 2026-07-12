@@ -1,6 +1,7 @@
 import { coachMessageIsSafeForSignal, type CoachSignal } from "./coach.ts";
 import { isRateLimited, retryAfterMsFromRateLimit } from "./ai-rate-limit.ts";
 import { createLimiter } from "../utils/concurrency-limiter.ts";
+import { readAiCacheEpoch } from "./ai-cache-epoch.ts";
 
 type CoachMessageStorage = {
   getItem(key: string): Promise<string | null>;
@@ -55,8 +56,9 @@ export async function resolveCoachMessage(
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const negativeTtlMs = options.negativeTtlMs ?? DEFAULT_NEGATIVE_TTL_MS;
   const cooldownMs = options.cooldownMs ?? DEFAULT_COOLDOWN_MS;
-  const key = coachMessageCacheKey(signal);
   const storage = options.storage ?? (await defaultStorage());
+  const cacheEpoch = await readAiCacheEpoch(storage);
+  const key = coachMessageCacheKey(signal, now, cacheEpoch);
 
   const cached = await readCachedMessage(storage, key, now, ttlMs, negativeTtlMs);
   // Negative-cache entries contain the deterministic fallback. Trust that
@@ -113,9 +115,40 @@ export async function resolveCoachMessage(
 }
 
 export function coachMessageCacheKey(
-  signal: Pick<CoachSignal, "kind" | "habitId" | "tone" | "suggestedValue">,
+  signal: Pick<
+    CoachSignal,
+    "kind" | "habitId" | "tone" | "suggestedValue" | "progressPct" | "message"
+  >,
+  now = new Date(),
+  cacheEpoch = "0",
 ): string {
-  return `habbit:coach-message:${signal.kind}:${signal.habitId}:${signal.tone}:${signal.suggestedValue ?? ""}`;
+  const progress = Math.max(0, Math.min(100, Math.round(signal.progressPct ?? 0)));
+  const progressBucket = Math.floor(progress / 10) * 10;
+  const localDate = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+  return [
+    "habbit:coach-message:v2",
+    localDate,
+    cacheEpoch,
+    signal.kind,
+    signal.habitId,
+    signal.tone,
+    signal.suggestedValue ?? "",
+    progressBucket,
+    fingerprint(signal.message),
+  ].join(":");
+}
+
+function fingerprint(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 async function readCachedMessage(

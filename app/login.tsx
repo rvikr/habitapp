@@ -41,6 +41,9 @@ const LOGIN_COLORS = {
   field: "#252528",
   fieldBorder: "#343438",
 };
+const PRIVACY_POLICY_URL =
+  process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || "https://lagan.health/privacy";
+const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || "https://lagan.health/terms";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -486,16 +489,25 @@ export default function LoginScreen() {
             {/* Footer */}
             <View className="mt-xxl items-center gap-sm">
               <View className="flex-row items-center gap-md">
-                {process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ? (
-                  <TouchableOpacity
-                    accessibilityRole="link"
-                    onPress={() => Linking.openURL(process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL!)}
-                  >
-                    <Text className="text-label-sm" style={{ color: LOGIN_COLORS.muted }}>
-                      {t("Privacy Policy")}
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
+                <TouchableOpacity
+                  accessibilityRole="link"
+                  onPress={() => Linking.openURL(TERMS_URL)}
+                >
+                  <Text className="text-label-sm" style={{ color: LOGIN_COLORS.muted }}>
+                    {t("Terms of Use")}
+                  </Text>
+                </TouchableOpacity>
+                <Text className="text-label-sm" style={{ color: LOGIN_COLORS.subtle }}>
+                  ·
+                </Text>
+                <TouchableOpacity
+                  accessibilityRole="link"
+                  onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+                >
+                  <Text className="text-label-sm" style={{ color: LOGIN_COLORS.muted }}>
+                    {t("Privacy Policy")}
+                  </Text>
+                </TouchableOpacity>
                 <Text className="text-label-sm" style={{ color: LOGIN_COLORS.subtle }}>
                   ·
                 </Text>

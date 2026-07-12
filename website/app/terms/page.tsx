@@ -33,7 +33,7 @@ export default function TermsPage() {
   return (
     <LegalShell
       title="Terms & Conditions"
-      updated="Last updated: 4 June 2026"
+      updated="Last updated: 12 July 2026"
       toc={SECTIONS}
       intro={
         <p>
@@ -60,6 +60,11 @@ export default function TermsPage() {
           You must be at least 13 years old, or the minimum digital-consent age in your country,
           to use Lagan. If you are under the age of majority where you live, you may use Lagan
           only with permission from a parent or legal guardian.
+        </p>
+        <p>
+          AI features are available only to users who attest that they are 18 or older. We do
+          not ask for or store a birth date for this purpose. You can revoke that attestation in
+          Settings at any time; Lagan then uses non-AI fallbacks.
         </p>
         <p>
           You are responsible for keeping your account credentials secure and for activity under
@@ -108,6 +113,11 @@ export default function TermsPage() {
         <p>
           You are responsible for deciding whether to follow an AI suggestion. Do not rely on AI
           outputs for medical, emergency, legal, financial, or other professional decisions.
+        </p>
+        <p>
+          AI features require an explicit 18+ attestation and may be disabled globally or when
+          our approved paid AI service is unavailable. Revoking AI access does not affect core
+          habit tracking.
         </p>
       </LegalSection>
 

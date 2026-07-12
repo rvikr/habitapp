@@ -21,7 +21,7 @@ export default async function SettingsPage() {
   const [{ data: profile }, stats] = await Promise.all([
     supabase
       .from("profiles")
-      .select("display_name")
+      .select("display_name, ai_adult_attested_at, ai_disclosure_version")
       .eq("user_id", user.id)
       .maybeSingle(),
     getStats(),
@@ -71,6 +71,8 @@ export default async function SettingsPage() {
         displayName={displayName}
         email={user.email ?? ""}
         usesPassword={hasPasswordIdentity(user)}
+        aiAdultAttestedAt={(profile?.ai_adult_attested_at as string | null | undefined) ?? null}
+        aiDisclosureVersion={(profile?.ai_disclosure_version as string | null | undefined) ?? null}
       />
     </div>
   );

@@ -37,6 +37,7 @@ import { sanitizeAnalyticsPath } from "@/lib/activation/analytics";
 import { registerAppServiceWorker } from "@/lib/platform/sw-register";
 import { logOutRevenueCat, syncRevenueCatSubscription } from "@/lib/subscription/revenuecat";
 import { clearHomeWidgetSnapshot } from "@/lib/widgets/home-widget";
+import { syncProfileTimeZone } from "@/lib/services/ai-access";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -77,6 +78,7 @@ function AuthGuard({ onReady }: { onReady: () => void }) {
       if (session?.user?.id) {
         identifyAnalytics(session.user.id);
         void syncRevenueCatSubscription(session.user.id);
+        void syncProfileTimeZone();
       } else {
         resetAnalytics();
         void logOutRevenueCat();

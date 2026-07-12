@@ -55,6 +55,7 @@ async function setup(page, session) {
     if (path.includes('/auth/v1/user')) return route.fulfill({ status: 200, headers, body: JSON.stringify(session.user) });
     if (path.includes('/rest/v1/rpc/get_completion_dates')) return route.fulfill({ status: 200, headers, body: '[]' });
     if (path.includes('/rest/v1/feature_flags')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ enabled: false }) });
+    if (path.endsWith('/rest/v1/rpc/set_profile_time_zone')) return route.fulfill({ status: 200, headers, body: JSON.stringify('UTC') });
     if (path.includes('/rest/v1/profiles')) return route.fulfill({ status: 200, headers, body: JSON.stringify({ display_name: null, coach_tone: 'friendly', is_pro: false, pro_trial_ends_at: null, revenuecat_entitlement_active: false, pro_expires_at: null }) });
     if (path.includes('/rest/v1/habit_completions')) return route.fulfill({ status: 200, headers, body: req.method() === 'HEAD' ? '' : '[]' });
     if (path.includes('/rest/v1/habits')) {

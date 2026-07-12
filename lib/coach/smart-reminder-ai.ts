@@ -1,5 +1,6 @@
 import { localDateKey } from "../utils/date.ts";
 import { isRateLimited, retryAfterMsFromRateLimit } from "./ai-rate-limit.ts";
+import { readAiCacheEpoch } from "./ai-cache-epoch.ts";
 import {
   maxSmartReminderCount,
   sanitizeSmartReminderPlanTimes,
@@ -51,7 +52,8 @@ export async function resolveAiSmartReminderPlans(
   const ttlMs = options.ttlMs ?? DEFAULT_CACHE_TTL_MS;
   const cooldownMs = options.cooldownMs ?? DEFAULT_COOLDOWN_MS;
   const storage = options.storage ?? (await defaultStorage());
-  const key = smartReminderPlansCacheKey(contexts, now);
+  const cacheEpoch = await readAiCacheEpoch(storage);
+  const key = smartReminderPlansCacheKey(contexts, now, cacheEpoch);
   const cached = await readCachedPlans(storage, key, contexts, now, ttlMs);
   if (cached) return cached;
 
@@ -65,6 +67,7 @@ export async function resolveAiSmartReminderPlans(
     now,
     storage,
     cooldownMs,
+    cacheEpoch,
   });
   inflightInvocations.set(key, invocation);
   try {
@@ -80,6 +83,7 @@ async function resolveFreshAiSmartReminderPlans(
     now: Date;
     storage?: SmartReminderStorage;
     cooldownMs: number;
+    cacheEpoch: string;
   },
 ): Promise<Map<string, Date[]>> {
   const resolved = new Map<string, Date[]>();
@@ -88,7 +92,9 @@ async function resolveFreshAiSmartReminderPlans(
     const response = await (options.invoke ?? invokeSmartReminderPlans)(contexts);
     const plans = sanitizeAiSmartReminderPlans(response, contexts, options.now);
     for (const plan of plans) resolved.set(plan.habitId, plan.times);
-    if (plans.length > 0) await writeCachedPlans(options.storage, contexts, options.now, plans);
+    if (plans.length > 0) {
+      await writeCachedPlans(options.storage, contexts, options.now, plans, options.cacheEpoch);
+    }
   } catch (error) {
     if (isRateLimited(error)) {
       const retryAfterMs = await retryAfterMsFromRateLimit(error);
@@ -128,7 +134,11 @@ export function sanitizeAiSmartReminderPlans(
   return plans;
 }
 
-function smartReminderPlansCacheKey(contexts: SmartReminderDecisionContext[], now: Date): string {
+function smartReminderPlansCacheKey(
+  contexts: SmartReminderDecisionContext[],
+  now: Date,
+  cacheEpoch: string,
+): string {
   const dateKey = localDateKey(now);
   const fingerprint = stableStringify(
     contexts
@@ -160,7 +170,7 @@ function smartReminderPlansCacheKey(contexts: SmartReminderDecisionContext[], no
       .sort((a, b) => a.habitId.localeCompare(b.habitId)),
   );
 
-  return `${CACHE_PREFIX}:${CACHE_VERSION}:plans:${dateKey}:${hashString(fingerprint)}`;
+  return `${CACHE_PREFIX}:${CACHE_VERSION}:${cacheEpoch}:plans:${dateKey}:${hashString(fingerprint)}`;
 }
 
 async function readCachedPlans(
@@ -195,6 +205,7 @@ async function writeCachedPlans(
   contexts: SmartReminderDecisionContext[],
   now: Date,
   plans: AiSmartReminderPlan[],
+  cacheEpoch: string,
 ): Promise<void> {
   if (!storage) return;
   const value: CachedSmartReminderPlans = {
@@ -204,7 +215,10 @@ async function writeCachedPlans(
       times: plan.times.map(timeString),
     })),
   };
-  await storage.setItem(smartReminderPlansCacheKey(contexts, now), JSON.stringify(value));
+  await storage.setItem(
+    smartReminderPlansCacheKey(contexts, now, cacheEpoch),
+    JSON.stringify(value),
+  );
 }
 
 async function isCoolingDown(
