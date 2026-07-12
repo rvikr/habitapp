@@ -241,14 +241,39 @@ Manual deploy from a dev machine: `gcloud builds submit --config cloudbuild.yaml
   calls service-role-only database functions installed by the migrations. There is no manual or
   client-callable leaderboard RPC to install.
 - Edge Functions: [`supabase/functions/`](supabase/functions/) — `coach-message`,
-  `coach-push`, `delete-account`, `habit-routine`, `leaderboard`, `smart-reminders`,
-  `sync-subscription`, and `revenuecat-webhook`. Deploy with
-  `supabase functions deploy <name> --project-ref <ref>`.
+  `coach-push`, `delete-account`, `habit-routine`, `leaderboard`, `progress-report`,
+  `smart-reminders`, `sync-subscription`, `validate-habit`, and `revenuecat-webhook`.
+  Deploy with `supabase functions deploy <name> --project-ref <ref>` — deploys are
+  manual (not CI), so redeploy a function after editing its source. The AI functions
+  (`coach-message`, `coach-push`, `habit-routine`, `progress-report`,
+  `smart-reminders`, `validate-habit`) all need the `GEMINI_API_KEY` secret and the
+  `ai_suggestions` feature flag enabled.
   `coach-push` is cron-driven and needs the `COACH_PUSH_CRON_SECRET` secret,
   `coach_push_url`/`coach_push_cron_secret` vault entries, a
   `cron.schedule('coach-push', '*/15 * * * *', …)` job, and the `coach_push`
   feature flag enabled (see the header of
   [`supabase/functions/coach-push/index.ts`](supabase/functions/coach-push/index.ts)).
+- `progress-report` (weekly AI summaries) is cron-driven and needs the
+  `PROGRESS_REPORT_CRON_SECRET` secret (optional overrides: `GEMINI_REPORT_MODEL`,
+  `PROGRESS_REPORT_BATCH_SIZE`, `PROGRESS_REPORT_CONCURRENCY`,
+  `PROGRESS_REPORT_MIN_INTERVAL_MS`, `PROGRESS_REPORT_DEADLINE_MS`), the
+  `progress_report_url`/`progress_report_cron_secret` vault entries, and a
+  `cron.schedule('weekly-progress-reports', '0 9 * * 1', …)` job — ready-to-run
+  SQL lives in the header comment of
+  [`supabase/migrations/0019_weekly_progress_reports.sql`](supabase/migrations/0019_weekly_progress_reports.sql).
+  Validating a deployment (read-only, via `supabase db query --linked`):
+  - job exists: `select jobname, schedule from cron.job where jobname = 'weekly-progress-reports';`
+  - recent output: `select week_start, count(*) from weekly_progress_reports group by 1 order by 1 desc limit 4;`
+  - manual batch: POST `{"mode":"cron-batch"}` to the function URL with the
+    `x-cron-secret` header; the response reports
+    `processed`/`written`/`skipped`/`failed`/`remaining`/`deadlineReached`.
+
+  A batch fetches at most 200 Pro users and processes ~100 inside its 120 s
+  deadline, and the weekly schedule never revisits a past week. If a run ends
+  with `deadlineReached: true` or nonzero `remaining`, re-invoke `cron-batch`
+  manually within the same week — re-runs are idempotent and skip users who
+  already have that week's report.
+
 - Pro subscriptions use RevenueCat entitlement `pro` with Google Play product
   ids `rc_49_1m` (monthly) and `rc_499_12m` (annual), attached to the _current_
   offering's monthly/annual package slots. Set `REVENUECAT_SECRET_API_KEY` and

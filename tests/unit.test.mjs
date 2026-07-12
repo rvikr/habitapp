@@ -131,6 +131,10 @@ import {
 import * as clientCoach from "../lib/coach/coach.ts";
 import * as serverCoach from "../supabase/functions/_shared/coach-signals.ts";
 import { resolveCoachMessage } from "../lib/coach/coach-ai.ts";
+import {
+  clearHabitValidationRemoteState,
+  validateHabitRemote,
+} from "../lib/habits/validate-remote.ts";
 import { dismissCoachCard, isCoachCardDismissed } from "../lib/coach/coach-card-dismissal.ts";
 import { generateContent, parseRetryDelayMs } from "../supabase/functions/_shared/gemini.ts";
 import { createLimiter } from "../lib/utils/concurrency-limiter.ts";
@@ -7226,6 +7230,118 @@ test("AI coach message cools down after a 429 and stops invoking", async () => {
   assert.equal(first, signal.message);
   assert.equal(second, signal.message);
   assert.equal(calls, 1);
+});
+
+const remoteValidationInput = {
+  name: "Water",
+  description: null,
+  unit: "ml",
+  target: 2000,
+  habitType: "water_intake",
+  metricType: "volume_ml",
+};
+
+test("remote habit validation caches definitive verdicts per fingerprint", async () => {
+  clearHabitValidationRemoteState();
+  const now = new Date(2026, 6, 6, 9, 0);
+  let calls = 0;
+  const invoke = async () => {
+    calls++;
+    return {
+      status: "warn",
+      category: "unhealthy",
+      message: "That is a lot of water.",
+      suggestion: { target: 2500 },
+      source: "gemini",
+    };
+  };
+
+  const first = await validateHabitRemote(remoteValidationInput, { invoke, now });
+  const second = await validateHabitRemote(remoteValidationInput, {
+    invoke,
+    now: new Date(now.getTime() + 60_000),
+  });
+  assert.equal(first.status, "warn");
+  assert.deepEqual(second, first);
+  assert.equal(calls, 1);
+
+  // A different fingerprint misses the cache.
+  await validateHabitRemote({ ...remoteValidationInput, target: 3000 }, { invoke, now });
+  assert.equal(calls, 2);
+
+  // Expired entries are re-fetched.
+  await validateHabitRemote(remoteValidationInput, {
+    invoke,
+    now: new Date(now.getTime() + 25 * 60 * 60 * 1000),
+  });
+  assert.equal(calls, 3);
+  clearHabitValidationRemoteState();
+});
+
+test("remote habit validation fails open and cools down after provider failures", async () => {
+  clearHabitValidationRemoteState();
+  const now = new Date(2026, 6, 6, 9, 0);
+  let calls = 0;
+  const invoke = async () => {
+    calls++;
+    throw new Error("offline");
+  };
+
+  const first = await validateHabitRemote(remoteValidationInput, { invoke, now });
+  assert.equal(first.status, "ok");
+  assert.equal(first.source, "gemini_unavailable");
+  assert.equal(calls, 1);
+
+  // The cooldown suppresses further calls, even for other habits.
+  const second = await validateHabitRemote(
+    { ...remoteValidationInput, name: "Run" },
+    { invoke, now: new Date(now.getTime() + 30_000) },
+  );
+  assert.equal(second.status, "ok");
+  assert.equal(calls, 1);
+
+  // After the cooldown expires, calls resume.
+  await validateHabitRemote(remoteValidationInput, {
+    invoke,
+    now: new Date(now.getTime() + 3 * 60_000),
+  });
+  assert.equal(calls, 2);
+  clearHabitValidationRemoteState();
+});
+
+test("remote habit validation never caches server-side gemini fail-opens", async () => {
+  clearHabitValidationRemoteState();
+  const now = new Date(2026, 6, 6, 9, 0);
+  let calls = 0;
+  const invoke = async () => {
+    calls++;
+    return {
+      status: "ok",
+      category: null,
+      message: null,
+      suggestion: null,
+      source: "gemini_unavailable",
+    };
+  };
+
+  const first = await validateHabitRemote(remoteValidationInput, { invoke, now });
+  assert.equal(first.source, "gemini_unavailable");
+  assert.equal(calls, 1);
+
+  // The fail-open starts a cooldown instead of populating the cache.
+  await validateHabitRemote(remoteValidationInput, {
+    invoke,
+    now: new Date(now.getTime() + 30_000),
+  });
+  assert.equal(calls, 1);
+
+  // After the cooldown the same habit is retried rather than served from cache.
+  await validateHabitRemote(remoteValidationInput, {
+    invoke,
+    now: new Date(now.getTime() + 3 * 60_000),
+  });
+  assert.equal(calls, 2);
+  clearHabitValidationRemoteState();
 });
 
 test("AI coach message negative-caches empty output to avoid re-invoking", async () => {

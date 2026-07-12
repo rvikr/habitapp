@@ -32,8 +32,10 @@ const PROGRESS_REPORT_MIN_INTERVAL_MS = Math.max(
   Number(Deno.env.get("PROGRESS_REPORT_MIN_INTERVAL_MS") ?? 1200),
 );
 // Stop scheduling new users past this elapsed wall-clock so the function exits
-// cleanly before the platform limit; remaining users are picked up on the next
-// (idempotent) cron run.
+// cleanly before the platform limit. The weekly cron does NOT finish a partial
+// week — its next scheduled run targets the following week — so when a run ends
+// with deadlineReached or nonzero remaining, re-invoke cron-batch manually
+// within the same week (idempotent; see README "Backend (Supabase)").
 const BATCH_DEADLINE_MS = Math.max(1000, Number(Deno.env.get("PROGRESS_REPORT_DEADLINE_MS") ?? 120000));
 
 // Returns an async gate shared across the worker pool: it resolves immediately
@@ -357,8 +359,11 @@ async function runCronBatch(admin: AdminClient) {
 
   // Bounded-concurrency worker pool: workers pull from a shared cursor until the
   // queue drains or the wall-clock deadline is reached. generateForUser is
-  // idempotent (skips users whose report already exists), so a partial run is
-  // safely completed by the next cron invocation.
+  // idempotent (skips users whose report already exists), so re-invoking
+  // cron-batch manually within the same week safely completes a partial run.
+  // The next scheduled weekly run computes a NEW target week and never revisits
+  // this one, and users beyond the MAX_BATCH_USERS fetch limit above are not
+  // reached at all — see the README "Backend (Supabase)" ops note.
   let cursor = 0;
   let deadlineReached = false;
   const gate = createMinIntervalGate(PROGRESS_REPORT_MIN_INTERVAL_MS);
