@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Footer from "@/components/ui/footer";
+import LaunchPromoModal from "@/components/ui/launch-promo-modal";
 import MarketingNav from "@/components/ui/marketing-nav";
 import PhoneMockup from "@/components/ui/phone-mockup";
 import { Pill } from "@/components/ui/pill";
 import ScrollAnimations from "@/components/ui/scroll-animations";
 import { Eyebrow, Section, SectionHeading } from "@/components/ui/section";
-import { SITE_URL, WEB_APP_URL } from "@/lib/site";
+import { PLAY_STORE_URL, SITE_URL, WEB_APP_URL } from "@/lib/site";
 
 const DESCRIPTION =
-  "Lagan is an AI habit tracker. Build daily routines, track streaks, and get AI coaching — free in the web app, with the Android app in beta on Google Play.";
+  "Lagan is an AI habit tracker. Build daily routines, track streaks, and get AI coaching — free in the web app, with the Android app on Google Play.";
 
 export const metadata: Metadata = {
   title: { absolute: "Lagan — AI Habit Tracker & Coach for Android and Web" },
@@ -73,7 +74,7 @@ const steps = [
     step: "01",
     title: "Open Lagan",
     description:
-      "Start free in the web app — no install needed. Android users can join the beta on Google Play.",
+      "Start free in the web app — no install needed — or download the Android app on Google Play.",
   },
   {
     step: "02",
@@ -96,17 +97,17 @@ const faqs = [
   {
     question: "Is Lagan free?",
     answer:
-      "Yes. Lagan is free to use in the web app and the Android beta. Advanced AI features may become part of Lagan Pro later.",
+      "Yes. Lagan is free to use in the web app and the Android app. Advanced AI features are part of Lagan Pro, with 50% off the yearly plan during our launch.",
   },
   {
     question: "Which platforms does Lagan support?",
     answer:
-      "Lagan works in any modern browser — on desktop and iPhone — at lagan.health/app. The Android app is in beta on Google Play, and a native iOS app is planned.",
+      "Lagan works in any modern browser — on desktop and iPhone — at lagan.health/app. The Android app is available on Google Play, and a native iOS app is coming soon.",
   },
   {
     question: "Is Lagan on Google Play?",
     answer:
-      "The Lagan Android app is currently in beta testing on Google Play. Until the public listing is live, you can use the full web app for free.",
+      "Yes — download the Lagan Android app from Google Play. You can also use the full web app for free in any modern browser.",
   },
   {
     question: "How does the AI coaching in Lagan work?",
@@ -324,6 +325,7 @@ export default function LandingPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(appJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <ScrollAnimations />
+      <LaunchPromoModal />
 
       <MarketingNav
         links={[
@@ -380,9 +382,9 @@ export default function LandingPage() {
               className="hero-rise mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
               style={{ animationDelay: "0.35s" }}
             >
-              <Button href={WEB_APP_URL} external className="w-full sm:w-auto">
-                <GlobeIcon />
-                Use the web app
+              <Button href={PLAY_STORE_URL} external className="w-full sm:w-auto">
+                <GooglePlayIcon />
+                Use Android
               </Button>
               <Button
                 href={WEB_APP_URL}
@@ -390,20 +392,20 @@ export default function LandingPage() {
                 variant="outline"
                 className="w-full sm:w-auto"
               >
-                <PhoneIcon />
-                Use on iOS
+                <GlobeIcon />
+                Use the web app
               </Button>
               <span className="inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-outline-variant px-5 py-3 text-base font-bold text-on-surface-variant sm:w-auto">
-                <GooglePlayIcon />
-                Android beta — coming to Google Play
+                <PhoneIcon />
+                iOS — coming soon
               </span>
             </div>
             <p
               className="hero-rise mt-4 text-sm font-medium text-on-surface-variant/70"
               style={{ animationDelay: "0.45s" }}
             >
-              The Android app is in beta on Google Play. iPhone and desktop users can use
-              the full web app today.
+              Download the Android app on Google Play, or start free in the web app on iPhone and
+              desktop. A native iOS app is coming soon.
             </p>
           </div>
 
@@ -530,17 +532,17 @@ export default function LandingPage() {
               Track daily habits, see progress clearly, and let AI guide your next small improvement.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button href={WEB_APP_URL} external>
+              <Button href={PLAY_STORE_URL} external>
+                <GooglePlayIcon />
+                Use Android
+              </Button>
+              <Button href={WEB_APP_URL} external variant="outline">
                 <GlobeIcon />
                 Use the web app
               </Button>
-              <Button href={WEB_APP_URL} external variant="outline">
-                <PhoneIcon />
-                Use on iOS
-              </Button>
               <span className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-outline-variant px-5 py-3 text-base font-bold text-on-surface-variant">
-                <GooglePlayIcon />
-                Android beta — coming to Google Play
+                <PhoneIcon />
+                iOS — coming soon
               </span>
             </div>
           </div>

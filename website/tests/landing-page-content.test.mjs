@@ -4,15 +4,19 @@ import { test } from "node:test";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-test("homepage is a Lagan-branded landing page with a web-app-first CTA", () => {
+test("homepage is a Lagan-branded landing page with web and Android CTAs", () => {
   assert.match(pageSource, /Lagan — build better habits/);
   assert.match(pageSource, /Lagan is an AI habit tracker/);
   assert.match(pageSource, /Use the web app/);
-  // While the Play listing is in closed testing it 404s publicly — the page
-  // must mention the beta without linking to the dead listing.
-  assert.match(pageSource, /Android beta — coming to Google Play/);
-  assert.doesNotMatch(pageSource, /href=\{PLAY_STORE_URL\}/);
+  // The Android app is live on Google Play — CTAs link to the listing via the
+  // shared PLAY_STORE_URL constant (never a hardcoded play.google.com literal).
+  assert.match(pageSource, /Use Android/);
+  assert.match(pageSource, /href=\{PLAY_STORE_URL\}/);
   assert.doesNotMatch(pageSource, /play\.google\.com/);
+});
+
+test("homepage surfaces the launch promo modal", () => {
+  assert.match(pageSource, /<LaunchPromoModal\s*\/>/);
 });
 
 test("homepage includes the required feature and how-it-works sections", () => {
@@ -37,8 +41,8 @@ test("homepage renders an FAQ section backed by FAQPage JSON-LD", () => {
   assert.match(pageSource, /id="faq"/);
 });
 
-test("homepage offers iOS and website users a web app path", () => {
-  assert.match(pageSource, /Use on iOS/);
+test("homepage marks iOS coming soon and offers a web app path", () => {
+  assert.match(pageSource, /iOS — coming soon/);
   assert.match(pageSource, /from "@\/lib\/site"/);
   assert.match(pageSource, /href=\{WEB_APP_URL\}/);
 });

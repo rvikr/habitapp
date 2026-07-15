@@ -4,6 +4,7 @@ import type { Insights } from "@/lib/habits";
 import { addDateKeyDays, dateKeyInTimeZone, dayIndexForDateKey } from "@/lib/date";
 import { getRequestTimeZone } from "@/lib/request-timezone";
 import HabitList from "@/components/HabitList";
+import AppOnlyBanner from "@/components/app-only-banner";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -97,13 +98,16 @@ export default async function DashboardPage() {
             </h1>
             <p className="text-on-surface-variant text-base mt-1">
               {total === 0
-                ? "Add your first habit to get started."
+                ? "Add habits in the Lagan app — your progress shows up here."
                 : done === total
                 ? "All habits complete — amazing work! 🎉"
                 : `${done} of ${total} habits complete. Keep going!`}
             </p>
           </div>
         </div>
+
+        {/* View-only notice — habits are managed in the app */}
+        <AppOnlyBanner />
 
         {/* Progress + streak bento */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">

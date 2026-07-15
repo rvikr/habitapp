@@ -4,9 +4,9 @@ export const SITE_URL = "https://lagan.health";
 export const WEB_APP_URL = "/app";
 
 /**
- * The Play listing 404s for non-testers while the app is in closed testing.
- * Do not link this from public pages until the open-testing/production
- * listing is live — then swap the landing CTAs back to it.
+ * Public Google Play listing for the Android app. Linked from the landing CTAs
+ * and the launch promo. Ensure the listing is in open testing or production
+ * before advertising — a closed-testing listing 404s for non-testers.
  */
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
 
