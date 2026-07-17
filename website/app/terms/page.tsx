@@ -25,15 +25,16 @@ const SECTIONS = [
   "14. Changes to these Terms",
   "15. Disclaimers",
   "16. Limitation of liability",
-  "17. Governing law and disputes",
-  "18. Contact us",
+  "17. Consumer rights and region-specific terms",
+  "18. Governing law and disputes",
+  "19. Contact us",
 ];
 
 export default function TermsPage() {
   return (
     <LegalShell
       title="Terms & Conditions"
-      updated="Last updated: 12 July 2026"
+      updated="Last updated: 16 July 2026"
       toc={SECTIONS}
       intro={
         <p>
@@ -298,16 +299,75 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="17. Governing law and disputes">
+      <LegalSection title="17. Consumer rights and region-specific terms">
+        <p>
+          <strong className="text-on-surface">Mandatory consumer rights.</strong> Lagan is
+          available worldwide. Nothing in these Terms limits or excludes any statutory consumer
+          rights that apply where you live, and where local law grants you stronger protections,
+          those protections apply.
+        </p>
+        <p>
+          <strong className="text-on-surface">EEA and UK right of withdrawal.</strong> If you
+          are a consumer in the European Economic Area or the United Kingdom, you generally have
+          a 14-day right to withdraw from purchases of digital content. Because Lagan Pro and any
+          paid digital content are purchased through, and delivered immediately by, the Apple App
+          Store or Google Play, you expressly request immediate access on purchase and
+          acknowledge that the withdrawal period may end once access begins. Cancellation,
+          renewal, and refunds are handled by the applicable store under its policies and your
+          statutory rights.
+        </p>
+        <p>
+          <strong className="text-on-surface">EU online dispute resolution.</strong> The
+          European Commission provides an online dispute resolution platform at{" "}
+          <a
+            href="https://ec.europa.eu/consumers/odr"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary font-semibold hover:underline"
+          >
+            ec.europa.eu/consumers/odr
+          </a>
+          . We are not obliged to and generally do not participate in dispute resolution before
+          a consumer arbitration board, but we aim to resolve concerns directly with you at{" "}
+          <a href="mailto:support@lagan.health" className="text-primary font-semibold hover:underline">
+            support@lagan.health
+          </a>.
+        </p>
+        <p>
+          <strong className="text-on-surface">Apple App Store.</strong> If you download or use
+          Lagan on an Apple device, these Terms are between you and Lagan only, not Apple. Apple
+          is not responsible for the app or its content, and Apple&apos;s standard Licensed
+          Application End User License Agreement and Media Services terms also apply. Apple and
+          its subsidiaries are third-party beneficiaries of these Terms and may enforce them
+          against you.
+        </p>
+        <p>
+          <strong className="text-on-surface">United States.</strong> Some US states do not
+          allow certain warranty exclusions or liability limitations, so parts of the Disclaimers
+          and Limitation of Liability sections may not apply to you. California residents and
+          residents of other states with comprehensive privacy laws also have the rights
+          described in our{" "}
+          <Link href="/privacy" className="text-primary font-semibold hover:underline">
+            Privacy Policy
+          </Link>.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="18. Governing law and disputes">
         <p>
           These Terms are governed by the laws that apply to Lagan Health in its principal
           place of business, excluding conflict-of-law rules, unless mandatory consumer laws
           where you live require otherwise. Where permitted by law, disputes must be brought in
           the courts with jurisdiction over Lagan Health&apos;s principal place of business.
         </p>
+        <p>
+          If you are a consumer resident in the EEA or the UK, you also benefit from the
+          mandatory provisions of the law of your country of residence, and you may bring
+          proceedings in the courts of that country.
+        </p>
       </LegalSection>
 
-      <LegalSection title="18. Contact us">
+      <LegalSection title="19. Contact us">
         <p>
           Questions about these Terms can be sent to{" "}
           <a href="mailto:support@lagan.health" className="text-primary font-semibold hover:underline">

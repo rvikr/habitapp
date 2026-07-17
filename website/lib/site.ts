@@ -10,8 +10,16 @@ export const WEB_APP_URL = "/app";
  */
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
 
+/**
+ * Official Instagram profile. Shown in the footer and used for the
+ * Organization JSON-LD `sameAs`. The handle is rendered in the UI; the URL is
+ * the canonical (lowercase) profile link.
+ */
+export const INSTAGRAM_URL = "https://www.instagram.com/lagan.health/";
+export const INSTAGRAM_HANDLE = "@lagan.health";
+
 /** Brand profiles for Organization JSON-LD `sameAs`. */
-export const SOCIAL_PROFILE_URLS: string[] = ["https://www.instagram.com/lagan.health/"];
+export const SOCIAL_PROFILE_URLS: string[] = [INSTAGRAM_URL];
 
 /** Google Search Console "HTML tag" token; leave empty when verifying via DNS instead. */
 export const GOOGLE_SITE_VERIFICATION = "";

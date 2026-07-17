@@ -13,16 +13,18 @@ const SECTIONS = [
   "2. Health data commitments",
   "3. How we use data",
   "4. AI processing",
-  "5. Cookies and local storage",
-  "6. Sharing and public features",
-  "7. Third-party services",
-  "8. Data retention and deletion",
-  "9. Your choices and rights",
-  "10. International transfers",
-  "11. Children",
-  "12. Security",
-  "13. Changes to this policy",
-  "14. Contact",
+  "5. Legal bases for processing (EEA, UK & Switzerland)",
+  "6. Cookies and local storage",
+  "7. Sharing and public features",
+  "8. Third-party services",
+  "9. Data retention and deletion",
+  "10. Your choices and rights",
+  "11. Regional privacy rights",
+  "12. International data transfers",
+  "13. Children",
+  "14. Security",
+  "15. Changes to this policy",
+  "16. Contact",
 ];
 
 function Service({ name, purpose }: { name: string; purpose: string }) {
@@ -38,13 +40,15 @@ export default function PrivacyPage() {
   return (
     <LegalShell
       title="Privacy Policy"
-      updated="Last updated: 12 July 2026"
+      updated="Last updated: 16 July 2026"
       toc={SECTIONS}
       intro={
         <p>
           Lagan (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) provides a habit
           tracking app and website. This policy explains what personal data we collect, why
-          we use it, when we share it, and the choices you have.
+          we use it, when we share it, and the choices you have. It applies worldwide, and
+          the region-specific sections below add rights and disclosures for users in
+          particular countries and states.
         </p>
       }
     >
@@ -139,13 +143,50 @@ export default function PrivacyPage() {
           professional advice.
         </p>
         <p>
-          You can revoke AI access at any time from Settings, then Privacy &amp; Data. Revocation
-          immediately stops new Gemini processing for your account and returns affected features
-          to deterministic fallbacks.
+          AI features provide suggestions only. We do not use AI to make decisions that produce
+          legal effects about you or that similarly significantly affect you without human
+          involvement. You can revoke AI access at any time from Settings, then Privacy &amp;
+          Data. Revocation immediately stops new Gemini processing for your account and returns
+          affected features to deterministic fallbacks.
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Cookies and local storage">
+      <LegalSection title="5. Legal bases for processing (EEA, UK & Switzerland)">
+        <p>
+          If you are in the European Economic Area (EEA), the United Kingdom, or Switzerland,
+          Lagan Health is the controller of your personal data, and we process it on the
+          following legal bases:
+        </p>
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            <strong className="text-on-surface">Performance of a contract</strong> — to create
+            and secure your account and provide the habit tracking, subscriptions, and features
+            you request.
+          </li>
+          <li>
+            <strong className="text-on-surface">Consent</strong> — for health and sensor data,
+            AI processing (your 18+ attestation), optional product analytics and crash
+            reporting, push notifications, and any marketing messages. You can withdraw consent
+            at any time without affecting processing already carried out.
+          </li>
+          <li>
+            <strong className="text-on-surface">Legitimate interests</strong> — to keep the
+            service secure, prevent fraud and abuse, debug and improve features, and understand
+            how Lagan is used, balanced against your rights and freedoms.
+          </li>
+          <li>
+            <strong className="text-on-surface">Legal obligation</strong> — to comply with
+            applicable law and with tax, accounting, and store-policy audit requirements.
+          </li>
+        </ul>
+        <p>
+          Health data is treated as a special category of personal data, and we process it only
+          with your explicit consent for the features you enable, or where otherwise permitted
+          by law.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="6. Cookies and local storage">
         <p>
           On the website, we use Supabase authentication cookies to keep you signed in and a
           timezone cookie named{" "}
@@ -156,9 +197,14 @@ export default function PrivacyPage() {
           secure storage for session state, opt-out preferences, tracking preferences, and
           similar app settings.
         </p>
+        <p>
+          These cookies and identifiers are strictly necessary to sign you in and show correct
+          dates, or are used for the optional analytics and crash reporting you can turn off in
+          Settings. We do not use advertising cookies or cross-site tracking for ads.
+        </p>
       </LegalSection>
 
-      <LegalSection title="6. Sharing and public features">
+      <LegalSection title="7. Sharing and public features">
         <p>
           We share data with service providers only to operate Lagan, process subscriptions,
           deliver notifications, provide AI features, monitor reliability, support users, and
@@ -172,7 +218,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="7. Third-party services">
+      <LegalSection title="8. Third-party services">
         <div className="space-y-2">
           <Service
             name="Supabase"
@@ -210,7 +256,7 @@ export default function PrivacyPage() {
         </div>
       </LegalSection>
 
-      <LegalSection title="8. Data retention and deletion">
+      <LegalSection title="9. Data retention and deletion">
         <p>
           We keep account and app data while your account is active or as needed to provide the
           service. When your account deletion request completes, we delete your authentication
@@ -225,7 +271,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Your choices and rights">
+      <LegalSection title="10. Your choices and rights">
         <p>Depending on your location, you may have rights to access, correct, export, object to, or delete personal data. You can:</p>
         <ul className="list-disc pl-5 space-y-1">
           <li>
@@ -262,26 +308,100 @@ export default function PrivacyPage() {
             </a>.
           </li>
         </ul>
-      </LegalSection>
-
-      <LegalSection title="10. International transfers">
         <p>
-          Lagan and its service providers may process data in countries other than where you
-          live. Where required, we rely on appropriate legal safeguards and service-provider
-          terms for these transfers.
+          We will respond to rights requests within the timeframe required by applicable law. We
+          may need to verify your identity before acting on a request, and we will not
+          discriminate against you for exercising your rights.
         </p>
       </LegalSection>
 
-      <LegalSection title="11. Children">
+      <LegalSection title="11. Regional privacy rights">
+        <p>
+          In addition to the choices above, you may have extra rights depending on where you
+          live. Where regional law grants stronger rights, those rights apply.
+        </p>
+        <p>
+          <strong className="text-on-surface">EEA, UK &amp; Switzerland (GDPR / UK GDPR).</strong>{" "}
+          You have the right to access, rectify, erase, restrict, or object to the processing of
+          your personal data, the right to data portability, and the right to withdraw consent
+          at any time. You can also lodge a complaint with your local data protection
+          supervisory authority — in the UK, the Information Commissioner&apos;s Office (ICO);
+          in Switzerland, the Federal Data Protection and Information Commissioner (FDPIC); and
+          in the EEA, your national authority. We would appreciate the chance to address your
+          concerns at{" "}
+          <a href="mailto:privacy@lagan.health" className="text-primary font-semibold hover:underline">
+            privacy@lagan.health
+          </a>{" "}
+          before you do so.
+        </p>
+        <p>
+          <strong className="text-on-surface">California (CCPA / CPRA).</strong> In the past 12
+          months we have collected the following categories of personal information: identifiers
+          (such as email and account IDs); commercial information (subscription status);
+          internet or network activity (app and diagnostic events); and health-related
+          information you choose to provide or connect. We collect it from you and your device
+          for the business purposes described in this policy. We do{" "}
+          <strong className="text-on-surface">not sell or share</strong> personal information as
+          those terms are defined under the CPRA, and we have not done so in the past 12 months.
+          We do not use or disclose sensitive personal information beyond the purposes permitted
+          by the CPRA, and we do not use it to infer characteristics about you. You have the
+          right to know, access, delete, and correct your personal information, and the right not
+          to receive discriminatory treatment for exercising these rights. You may use an
+          authorized agent to submit a request. Under California&apos;s &quot;Shine the
+          Light&quot; law, we do not disclose personal information to third parties for their own
+          direct marketing.
+        </p>
+        <p>
+          <strong className="text-on-surface">Other US states.</strong> If you are a resident of
+          Virginia, Colorado, Connecticut, Utah, Texas, Oregon, Montana, or another state with a
+          comprehensive privacy law, you have rights to confirm, access, correct, delete, and
+          obtain a portable copy of your personal data, and to opt out of targeted advertising,
+          the sale of personal data, and profiling that produces legal or similarly significant
+          effects. We do not sell personal data, serve targeted advertising, or carry out such
+          profiling. If we decline a request, you may appeal by emailing{" "}
+          <a href="mailto:privacy@lagan.health" className="text-primary font-semibold hover:underline">
+            privacy@lagan.health
+          </a>{" "}
+          with &quot;Appeal&quot; in the subject line.
+        </p>
+        <p>
+          <strong className="text-on-surface">Brazil, Canada, Australia &amp; other regions.</strong>{" "}
+          If you are protected by Brazil&apos;s LGPD, Canada&apos;s PIPEDA, Australia&apos;s
+          Privacy Act, or a similar law, you have the corresponding rights to access, correct,
+          delete, and obtain information about the processing of your personal data, and to
+          complain to your national regulator. Contact us at{" "}
+          <a href="mailto:privacy@lagan.health" className="text-primary font-semibold hover:underline">
+            privacy@lagan.health
+          </a>{" "}
+          to exercise these rights.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="12. International data transfers">
+        <p>
+          Lagan and its service providers may process and store data in the United States and
+          other countries whose data-protection laws differ from those where you live.
+        </p>
+        <p>
+          Where we transfer personal data out of the EEA, the UK, or Switzerland, we rely on
+          appropriate safeguards, such as the European Commission&apos;s Standard Contractual
+          Clauses, the UK International Data Transfer Addendum, and adequacy decisions where
+          available, together with our service providers&apos; data-processing terms. You can
+          contact us for more information about these safeguards.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="13. Children">
         <p>
           Lagan is not directed to children under 13 or the minimum digital-consent age in your
-          jurisdiction. We do not knowingly collect personal data from children. If you believe a
-          child has provided data to Lagan, contact us and we will take appropriate steps to
-          delete it.
+          jurisdiction (for example, up to 16 in parts of the EEA). We do not knowingly collect
+          personal data from children below the applicable age, and AI features are limited to
+          users who attest they are 18 or older. If you believe a child has provided data to
+          Lagan, contact us and we will take appropriate steps to delete it.
         </p>
       </LegalSection>
 
-      <LegalSection title="12. Security">
+      <LegalSection title="14. Security">
         <p>
           We use technical and organizational safeguards designed to protect personal data,
           including encrypted transport, access controls, row-level database protections, and
@@ -290,7 +410,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="13. Changes to this policy">
+      <LegalSection title="15. Changes to this policy">
         <p>
           We may update this policy from time to time. When we do, we will update the
           &quot;Last updated&quot; date. For material changes, we may also provide notice by
@@ -298,7 +418,7 @@ export default function PrivacyPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="14. Contact">
+      <LegalSection title="16. Contact">
         <p>
           For privacy questions or requests, email{" "}
           <a href="mailto:privacy@lagan.health" className="text-primary font-semibold hover:underline">
