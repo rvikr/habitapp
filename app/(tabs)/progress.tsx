@@ -488,7 +488,7 @@ export default function ProgressScreen() {
         </View>
         {/* Sleep Section */}
         {loaded &&
-          (!sleepEnabled ? (
+          (Platform.OS !== "web" && !sleepEnabled ? (
             <View className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface-container rounded-xl p-lg items-center gap-sm">
               <MaterialCommunityIcons name="sleep" size={32} color="#3EBB7F" />
               <Text

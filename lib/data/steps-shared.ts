@@ -3,6 +3,39 @@ export function normalizeStepCount(value: unknown): number {
   return Math.max(0, Math.floor(Number.isFinite(numeric) ? numeric : 0));
 }
 
+export function stepSyncIdentity(habitSyncKey: string, dateKey: string): string {
+  return `${habitSyncKey}:${dateKey}`;
+}
+
+export type WatchedStepResolution =
+  | { kind: "rollover" }
+  | { kind: "unchanged"; total: number }
+  | { kind: "updated"; total: number };
+
+export function resolveWatchedStepTotal(input: {
+  sessionDate: string;
+  currentDate: string;
+  baseline: number;
+  lastTotal: number;
+  sessionSteps: number;
+}): WatchedStepResolution {
+  if (input.sessionDate !== input.currentDate) return { kind: "rollover" };
+  const total = Math.max(
+    normalizeStepCount(input.lastTotal),
+    normalizeStepCount(input.baseline) + normalizeStepCount(input.sessionSteps),
+  );
+  return total > normalizeStepCount(input.lastTotal)
+    ? { kind: "updated", total }
+    : { kind: "unchanged", total };
+}
+
+export function shouldStartAutomaticStepSync(
+  activeIdentity: string | null,
+  nextIdentity: string,
+): boolean {
+  return activeIdentity !== nextIdentity;
+}
+
 // Whether automatic pedometer/Health step counts should sync into this habit.
 // When metric_type is known we trust it exclusively: a step count must never be
 // written into a non-steps habit (e.g. a distance "Walk" with unit "km", which

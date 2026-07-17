@@ -123,19 +123,26 @@ async function readHealthConnectRecentSleep(): Promise<SleepReadSnapshot> {
   try {
     const windows = sleepLookbackWindows(SLEEP_SYNC_LOOKBACK_DAYS);
     for (const [index, window] of windows.entries()) {
-      const result = await mod.readRecords("SleepSession", {
-        timeRangeFilter: {
-          operator: "between",
-          startTime: window.startTime,
-          endTime: window.endTime,
-        },
-        ascendingOrder: true,
-        pageSize: 100,
-      });
+      const timeRangeFilter = {
+        operator: "between" as const,
+        startTime: window.startTime,
+        endTime: window.endTime,
+      };
+      const [result, aggregate] = await Promise.all([
+        mod.readRecords("SleepSession", {
+          timeRangeFilter,
+          ascendingOrder: true,
+          pageSize: 100,
+        }),
+        mod.aggregateRecord({ recordType: "SleepSession", timeRangeFilter }).catch(() => null),
+      ]);
       const records = Array.isArray((result as { records?: unknown[] }).records)
         ? (result as { records: unknown[] }).records
         : result;
-      const entry = normalizeHealthConnectSleepSessions(records);
+      const entry = normalizeHealthConnectSleepSessions(records, {
+        canonicalDurationSeconds: aggregate?.SLEEP_DURATION_TOTAL,
+        sourceOrigins: aggregate?.dataOrigins,
+      });
       if (entry)
         return { status: "granted" as const, entry, checkedWindows: windows.slice(0, index + 1) };
     }

@@ -131,6 +131,7 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Step tracking": "स्टेप ट्रैकिंग",
   "Auto-sync steps from your device pedometer.": "अपने डिवाइस पेडोमीटर से स्टेप अपने-आप सिंक करें.",
   "Sleep tracking": "नींद ट्रैकिंग",
+  "Mobile app required": "मोबाइल ऐप ज़रूरी है",
   "Auto-sync sleep from Health Connect or Apple Health.":
     "Health Connect या Apple Health से नींद अपने-आप सिंक करें.",
   "Allow health access to enable sleep tracking.":

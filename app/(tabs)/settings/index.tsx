@@ -101,6 +101,38 @@ function TrackingToggleRow({
   );
 }
 
+function TrackingInfoRow({
+  icon,
+  label,
+  description,
+}: {
+  icon: string;
+  label: string;
+  description: string;
+}) {
+  const { t } = useLanguage();
+  return (
+    <View
+      className="flex-row items-center px-md py-sm bg-surface-container dark:bg-d-surface-container rounded-xl mb-xs"
+      accessibilityLabel={`${label}. ${t("Mobile app required")}. ${description}`}
+    >
+      <MaterialCommunityIcons name={icon as any} size={20} color="#F26B1F" />
+      <View className="flex-1 ml-md">
+        <Text className="text-body-md text-on-surface dark:text-d-on-surface">{label}</Text>
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+          {description}
+        </Text>
+      </View>
+      <View className="items-end ml-sm">
+        <MaterialCommunityIcons name="cellphone" size={18} color="#8F8A82" />
+        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+          {t("Mobile app required")}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { colorScheme, toggle } = useTheme();
@@ -315,28 +347,39 @@ export default function SettingsScreen() {
           <Text className="text-label-lg text-on-surface-variant dark:text-d-on-surface-variant mb-sm">
             {t("TRACKING")}
           </Text>
-          <TrackingToggleRow
-            icon="walk"
-            label={t("Step tracking")}
-            description={
-              Platform.OS === "web"
-                ? t("Auto-sync needs the Lagan mobile app. On web, log steps manually.")
-                : t("Auto-sync steps from your device pedometer.")
-            }
-            value={stepsEnabled}
-            onValueChange={handleStepToggle}
-          />
-          <TrackingToggleRow
-            icon="sleep"
-            label={t("Sleep tracking")}
-            description={
-              Platform.OS === "web"
-                ? t("Auto-sync needs the Lagan mobile app. Synced sleep still shows here.")
-                : t("Auto-sync sleep from Health Connect or Apple Health.")
-            }
-            value={sleepEnabled}
-            onValueChange={handleSleepToggle}
-          />
+          {Platform.OS === "web" ? (
+            <>
+              <TrackingInfoRow
+                icon="walk"
+                label={t("Step tracking")}
+                description={t("Auto-sync needs the Lagan mobile app. On web, log steps manually.")}
+              />
+              <TrackingInfoRow
+                icon="sleep"
+                label={t("Sleep tracking")}
+                description={t(
+                  "Auto-sync needs the Lagan mobile app. Synced sleep still shows here.",
+                )}
+              />
+            </>
+          ) : (
+            <>
+              <TrackingToggleRow
+                icon="walk"
+                label={t("Step tracking")}
+                description={t("Auto-sync steps from your device pedometer.")}
+                value={stepsEnabled}
+                onValueChange={handleStepToggle}
+              />
+              <TrackingToggleRow
+                icon="sleep"
+                label={t("Sleep tracking")}
+                description={t("Auto-sync sleep from Health Connect or Apple Health.")}
+                value={sleepEnabled}
+                onValueChange={handleSleepToggle}
+              />
+            </>
+          )}
         </View>
 
         {/* Account */}

@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { Platform } from "react-native";
 import { getItem, setItem } from "@/lib/platform/storage";
 
 const STEP_KEY = "habbit:tracking:steps";
@@ -35,7 +36,7 @@ function parseStored(value: string | null): boolean | null {
 }
 
 export function TrackingPreferencesProvider({ children }: { children: ReactNode }) {
-  const [stepsEnabled, setStepsEnabledState] = useState(true);
+  const [stepsEnabled, setStepsEnabledState] = useState(Platform.OS !== "web");
   const [sleepEnabled, setSleepEnabledState] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -43,6 +44,12 @@ export function TrackingPreferencesProvider({ children }: { children: ReactNode 
     let mounted = true;
     Promise.all([getItem(STEP_KEY), getItem(SLEEP_KEY)]).then(([rawSteps, rawSleep]) => {
       if (!mounted) return;
+      if (Platform.OS === "web") {
+        setStepsEnabledState(false);
+        setSleepEnabledState(false);
+        setHydrated(true);
+        return;
+      }
       const steps = parseStored(rawSteps);
       const sleep = parseStored(rawSleep);
       if (steps !== null) setStepsEnabledState(steps);
@@ -55,13 +62,15 @@ export function TrackingPreferencesProvider({ children }: { children: ReactNode 
   }, []);
 
   const setStepsEnabled = useCallback((value: boolean) => {
-    setStepsEnabledState(value);
-    setItem(STEP_KEY, value ? "on" : "off");
+    const enabled = Platform.OS === "web" ? false : value;
+    setStepsEnabledState(enabled);
+    setItem(STEP_KEY, enabled ? "on" : "off");
   }, []);
 
   const setSleepEnabled = useCallback((value: boolean) => {
-    setSleepEnabledState(value);
-    setItem(SLEEP_KEY, value ? "on" : "off");
+    const enabled = Platform.OS === "web" ? false : value;
+    setSleepEnabledState(enabled);
+    setItem(SLEEP_KEY, enabled ? "on" : "off");
   }, []);
 
   const value = useMemo(

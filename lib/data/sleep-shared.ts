@@ -81,6 +81,23 @@ type HealthKitSleepSample = {
   endTime?: string | Date;
   value?: number;
   uuid?: string;
+  sourceRevision?: {
+    source?: { bundleIdentifier?: string; name?: string };
+  };
+};
+
+type SleepInterval = {
+  start: Date;
+  end: Date;
+};
+
+type StagedSleepInterval = SleepInterval & {
+  stage: keyof SleepStageMinutes;
+};
+
+export type HealthConnectSleepNormalizationOptions = {
+  canonicalDurationSeconds?: number | null;
+  sourceOrigins?: string[] | null;
 };
 
 const DEFAULT_SLEEP_TARGET_MINUTES = 8 * 60;
@@ -214,51 +231,119 @@ function addStageMinutes(stages: SleepStageMinutes, key: keyof SleepStageMinutes
   stages[key] = Math.round((stages[key] ?? 0) + minutes);
 }
 
+function mergeIntervals(intervals: SleepInterval[]): SleepInterval[] {
+  const sorted = intervals
+    .filter((interval) => interval.end.getTime() > interval.start.getTime())
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+  const merged: SleepInterval[] = [];
+
+  for (const interval of sorted) {
+    const previous = merged[merged.length - 1];
+    if (!previous || interval.start.getTime() > previous.end.getTime()) {
+      merged.push({ start: interval.start, end: interval.end });
+      continue;
+    }
+    if (interval.end.getTime() > previous.end.getTime()) previous.end = interval.end;
+  }
+
+  return merged;
+}
+
+function intervalTotalMinutes(intervals: SleepInterval[]): number {
+  return mergeIntervals(intervals).reduce(
+    (total, interval) => total + minutesBetween(interval.start, interval.end),
+    0,
+  );
+}
+
+function normalizedStageMinutes(intervals: StagedSleepInterval[]): {
+  stageMinutes: SleepStageMinutes | null;
+  ambiguous: boolean;
+} {
+  const byStage = new Map<keyof SleepStageMinutes, SleepInterval[]>();
+  for (const interval of intervals) {
+    const existing = byStage.get(interval.stage) ?? [];
+    existing.push(interval);
+    byStage.set(interval.stage, existing);
+  }
+
+  const mergedByStage = new Map<keyof SleepStageMinutes, SleepInterval[]>();
+  for (const [stage, stageIntervals] of byStage) {
+    mergedByStage.set(stage, mergeIntervals(stageIntervals));
+  }
+
+  const stages = [...mergedByStage.entries()];
+  for (let leftIndex = 0; leftIndex < stages.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < stages.length; rightIndex += 1) {
+      for (const left of stages[leftIndex][1]) {
+        for (const right of stages[rightIndex][1]) {
+          if (
+            left.start.getTime() < right.end.getTime() &&
+            right.start.getTime() < left.end.getTime()
+          ) {
+            return { stageMinutes: null, ambiguous: true };
+          }
+        }
+      }
+    }
+  }
+
+  const totals: SleepStageMinutes = {};
+  for (const [stage, stageIntervals] of mergedByStage) {
+    addStageMinutes(totals, stage, intervalTotalMinutes(stageIntervals));
+  }
+  return { stageMinutes: hasStageMinutes(totals) ? totals : null, ambiguous: false };
+}
+
 function hasStageMinutes(stages: SleepStageMinutes): boolean {
   return Object.values(stages).some((value) => typeof value === "number" && value > 0);
 }
 
-function stageMinutesFromHealthConnect(
+function stageKeyFromHealthConnectValue(value: number | undefined): keyof SleepStageMinutes | null {
+  switch (value) {
+    case 1:
+    case 7:
+      return "awake";
+    case 2:
+      return "asleep";
+    case 3:
+      return "outOfBed";
+    case 4:
+      return "core";
+    case 5:
+      return "deep";
+    case 6:
+      return "rem";
+    default:
+      return null;
+  }
+}
+
+function healthConnectStageIntervals(
   stages: HealthConnectSleepStage[] | undefined,
-): SleepStageMinutes | null {
-  const totals: SleepStageMinutes = {};
+): StagedSleepInterval[] {
+  const intervals: StagedSleepInterval[] = [];
   for (const stage of stages ?? []) {
     const start = parseDate(stage.startTime);
     const end = parseDate(stage.endTime);
     if (!start || !end) continue;
-    const minutes = minutesBetween(start, end);
-    switch (stage.stage) {
-      case 3:
-        addStageMinutes(totals, "outOfBed", minutes);
-        break;
-      case 4:
-        addStageMinutes(totals, "deep", minutes);
-        break;
-      case 5:
-        addStageMinutes(totals, "rem", minutes);
-        break;
-      case 6:
-        addStageMinutes(totals, "awake", minutes);
-        break;
-      case 1:
-      case 2:
-      default:
-        addStageMinutes(totals, "asleep", minutes);
-        break;
-    }
+    const stageKey = stageKeyFromHealthConnectValue(stage.stage);
+    if (!stageKey || end.getTime() <= start.getTime()) continue;
+    intervals.push({ start, end, stage: stageKey });
   }
-  return hasStageMinutes(totals) ? totals : null;
+  return intervals;
 }
 
 export function normalizeHealthConnectSleepSessions(
   sessions: unknown,
+  options: HealthConnectSleepNormalizationOptions = {},
 ): NormalizedSleepEntry | null {
   if (!Array.isArray(sessions) || sessions.length === 0) return null;
 
   let earliest: Date | null = null;
   let latest: Date | null = null;
-  let durationMinutes = 0;
-  const stageTotals: SleepStageMinutes = {};
+  const sessionIntervals: SleepInterval[] = [];
+  const stageIntervals: StagedSleepInterval[] = [];
 
   for (const session of sessions as HealthConnectSleepSession[]) {
     const start = parseDate(session.startTime);
@@ -266,25 +351,29 @@ export function normalizeHealthConnectSleepSessions(
     if (!start || !end) continue;
     earliest = !earliest || start.getTime() < earliest.getTime() ? start : earliest;
     latest = !latest || end.getTime() > latest.getTime() ? end : latest;
-    durationMinutes += minutesBetween(start, end);
-
-    const stageMinutes = stageMinutesFromHealthConnect(session.stages);
-    for (const [key, value] of Object.entries(stageMinutes ?? {}) as [
-      keyof SleepStageMinutes,
-      number,
-    ][]) {
-      addStageMinutes(stageTotals, key, value);
-    }
+    sessionIntervals.push({ start, end });
+    stageIntervals.push(...healthConnectStageIntervals(session.stages));
   }
 
+  const aggregateSeconds = Number(options.canonicalDurationSeconds);
+  const usesAggregate = Number.isFinite(aggregateSeconds) && aggregateSeconds > 0;
+  const durationMinutes = usesAggregate
+    ? Math.max(1, Math.round(aggregateSeconds / 60))
+    : intervalTotalMinutes(sessionIntervals);
+  const normalizedStages = normalizedStageMinutes(stageIntervals);
   if (!latest || durationMinutes <= 0) return null;
   return {
     sleepDate: sleepDateForWakeTime(latest),
     durationMinutes,
     startTime: earliest?.toISOString() ?? null,
     endTime: latest.toISOString(),
-    stageMinutes: hasStageMinutes(stageTotals) ? stageTotals : null,
-    sourceMetadata: { recordCount: sessions.length },
+    stageMinutes: normalizedStages.stageMinutes,
+    sourceMetadata: {
+      recordCount: sessions.length,
+      durationStrategy: usesAggregate ? "healthConnectAggregate" : "mergedSessionIntervals",
+      sourceOrigins: [...new Set(options.sourceOrigins ?? [])].sort(),
+      stageDataAmbiguous: normalizedStages.ambiguous,
+    },
   };
 }
 
@@ -312,36 +401,42 @@ export function normalizeHealthKitSleepSamples(samples: unknown): NormalizedSlee
 
   let earliest: Date | null = null;
   let latest: Date | null = null;
-  let durationMinutes = 0;
-  const stageTotals: SleepStageMinutes = {};
+  const asleepIntervals: SleepInterval[] = [];
+  const stageIntervals: StagedSleepInterval[] = [];
+  const sourceOrigins = new Set<string>();
 
   for (const sample of samples as HealthKitSleepSample[]) {
     const start = parseDate(sample.startDate ?? sample.startTime);
     const end = parseDate(sample.endDate ?? sample.endTime);
     if (!start || !end) continue;
-    earliest = !earliest || start.getTime() < earliest.getTime() ? start : earliest;
-    latest = !latest || end.getTime() > latest.getTime() ? end : latest;
-
-    const minutes = minutesBetween(start, end);
     const stageKey = sleepStageKeyFromHealthKitValue(sample.value);
-    if (stageKey === "awake") {
-      addStageMinutes(stageTotals, "awake", minutes);
-      continue;
-    }
     if (!stageKey) continue;
-
-    durationMinutes += minutes;
-    addStageMinutes(stageTotals, stageKey, minutes);
+    if (end.getTime() <= start.getTime()) continue;
+    stageIntervals.push({ start, end, stage: stageKey });
+    if (stageKey !== "awake") {
+      asleepIntervals.push({ start, end });
+      earliest = !earliest || start.getTime() < earliest.getTime() ? start : earliest;
+      latest = !latest || end.getTime() > latest.getTime() ? end : latest;
+    }
+    const origin = sample.sourceRevision?.source?.bundleIdentifier;
+    if (origin) sourceOrigins.add(origin);
   }
 
+  const durationMinutes = intervalTotalMinutes(asleepIntervals);
+  const normalizedStages = normalizedStageMinutes(stageIntervals);
   if (!latest || durationMinutes <= 0) return null;
   return {
     sleepDate: sleepDateForWakeTime(latest),
     durationMinutes,
     startTime: earliest?.toISOString() ?? null,
     endTime: latest.toISOString(),
-    stageMinutes: hasStageMinutes(stageTotals) ? stageTotals : null,
-    sourceMetadata: { sampleCount: samples.length },
+    stageMinutes: normalizedStages.stageMinutes,
+    sourceMetadata: {
+      sampleCount: samples.length,
+      durationStrategy: "mergedAsleepIntervals",
+      sourceOrigins: [...sourceOrigins].sort(),
+      stageDataAmbiguous: normalizedStages.ambiguous,
+    },
   };
 }
 

@@ -82,6 +82,9 @@ import {
   isStepHabit,
   normalizeHealthConnectStepAggregate,
   normalizeStepCount,
+  resolveWatchedStepTotal,
+  shouldStartAutomaticStepSync,
+  stepSyncIdentity,
 } from "../lib/data/steps-shared.ts";
 import {
   buildHomeWidgetSnapshot,
@@ -1991,6 +1994,12 @@ test("web surfaces explain that auto-tracking needs the mobile app with a get-th
   const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
   assert.match(settingsScreen, /You can still log sleep manually on web/);
   assert.match(settingsScreen, /Auto-sync needs the Lagan mobile app/);
+  assert.match(settingsScreen, /Platform\.OS === "web"[\s\S]*?<TrackingInfoRow/);
+  assert.match(settingsScreen, /Mobile app required/);
+
+  const trackingProvider = readFileSync("components/tracking-preferences-provider.tsx", "utf8");
+  assert.match(trackingProvider, /Platform\.OS === "web" \? false : value/);
+  assert.match(progressScreen, /Platform\.OS !== "web" && !sleepEnabled/);
 });
 
 test("store-facing support and legal links have production build defaults", () => {
@@ -4916,6 +4925,72 @@ test("health connect step aggregate normalization returns integer totals", () =>
   assert.equal(normalizeHealthConnectStepAggregate(null), null);
 });
 
+test("step sync identity suppresses snapshot reload loops but changes at midnight", () => {
+  const today = stepSyncIdentity("habit:steps:8000", "2026-05-14");
+  assert.equal(shouldStartAutomaticStepSync(null, today), true);
+  assert.equal(shouldStartAutomaticStepSync(today, today), false);
+  assert.equal(
+    shouldStartAutomaticStepSync(today, stepSyncIdentity("habit:steps:8000", "2026-05-15")),
+    true,
+  );
+});
+
+test("watched steps remain monotonic and require a fresh snapshot after midnight", () => {
+  assert.deepEqual(
+    resolveWatchedStepTotal({
+      sessionDate: "2026-05-14",
+      currentDate: "2026-05-14",
+      baseline: 4000,
+      lastTotal: 4250,
+      sessionSteps: 500,
+    }),
+    { kind: "updated", total: 4500 },
+  );
+  assert.deepEqual(
+    resolveWatchedStepTotal({
+      sessionDate: "2026-05-14",
+      currentDate: "2026-05-14",
+      baseline: 4000,
+      lastTotal: 4500,
+      sessionSteps: 100,
+    }),
+    { kind: "unchanged", total: 4500 },
+  );
+  assert.deepEqual(
+    resolveWatchedStepTotal({
+      sessionDate: "2026-05-14",
+      currentDate: "2026-05-15",
+      baseline: 4000,
+      lastTotal: 4500,
+      sessionSteps: 600,
+    }),
+    { kind: "rollover" },
+  );
+  assert.deepEqual(
+    resolveWatchedStepTotal({
+      sessionDate: "2026-05-14",
+      currentDate: "2026-05-14",
+      baseline: 0,
+      lastTotal: 0,
+      sessionSteps: 0,
+    }),
+    { kind: "unchanged", total: 0 },
+  );
+});
+
+test("dashboard step coordinator guards sync and clears revoked permission state", () => {
+  const source = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(source, /if \(stepSyncInFlightRef\.current\) return false/);
+  assert.match(source, /permission !== "granted"[\s\S]*?clearStepTrackingSession\(\)/);
+  assert.match(source, /if \(!snapshot\.canWatch\)[\s\S]*?removeStepWatcher\(\)/);
+  assert.match(source, /stepTrackingIdentityRef\.current = identity/);
+  assert.match(source, /syncStepHabit\(habit, false, true, true\)/);
+  assert.match(
+    source,
+    /const onRefresh = useCallback\([\s\S]*?await syncStepHabit\(stepHabit, false, true\)/,
+  );
+});
+
 function sleepEntry(id, sleepDate, score, durationMinutes) {
   return {
     id,
@@ -5023,9 +5098,78 @@ test("health connect sleep sessions normalize duration and stages", () => {
 
   assert.equal(normalized?.sleepDate, "2026-05-14");
   assert.equal(normalized?.durationMinutes, 480);
-  assert.equal(normalized?.stageMinutes?.deep, 90);
-  assert.equal(normalized?.stageMinutes?.rem, 120);
-  assert.equal(normalized?.stageMinutes?.asleep, 270);
+  assert.equal(normalized?.stageMinutes?.core, 90);
+  assert.equal(normalized?.stageMinutes?.deep, 120);
+  assert.equal(normalized?.stageMinutes?.awake, 270);
+});
+
+test("health connect sleep normalization maps every stage constant", () => {
+  const start = new Date("2026-05-13T22:00:00.000Z");
+  const stages = Array.from({ length: 8 }, (_, stage) => ({
+    startTime: new Date(start.getTime() + stage * 10 * 60000).toISOString(),
+    endTime: new Date(start.getTime() + (stage + 1) * 10 * 60000).toISOString(),
+    stage,
+  }));
+  const normalized = normalizeHealthConnectSleepSessions([
+    { startTime: stages[0].startTime, endTime: stages[7].endTime, stages },
+  ]);
+
+  assert.deepEqual(normalized?.stageMinutes, {
+    awake: 20,
+    asleep: 10,
+    outOfBed: 10,
+    core: 10,
+    deep: 10,
+    rem: 10,
+  });
+});
+
+test("health connect sleep uses aggregate duration and deduplicates raw sessions", () => {
+  const sessions = [
+    { startTime: "2026-05-13T22:00:00.000Z", endTime: "2026-05-14T06:00:00.000Z" },
+    { startTime: "2026-05-13T23:00:00.000Z", endTime: "2026-05-14T07:00:00.000Z" },
+  ];
+  const fallback = normalizeHealthConnectSleepSessions(sessions);
+  const aggregate = normalizeHealthConnectSleepSessions(sessions, {
+    canonicalDurationSeconds: 8 * 60 * 60,
+    sourceOrigins: ["watch.app", "phone.app", "watch.app"],
+  });
+
+  assert.equal(fallback?.durationMinutes, 540);
+  assert.equal(aggregate?.durationMinutes, 480);
+  assert.deepEqual(aggregate?.sourceMetadata, {
+    recordCount: 2,
+    durationStrategy: "healthConnectAggregate",
+    sourceOrigins: ["phone.app", "watch.app"],
+    stageDataAmbiguous: false,
+  });
+});
+
+test("sleep stage normalization merges duplicates and drops conflicting detail", () => {
+  const duplicateCore = {
+    startTime: "2026-05-13T22:00:00.000Z",
+    endTime: "2026-05-14T06:00:00.000Z",
+    stage: 4,
+  };
+  const deduped = normalizeHealthConnectSleepSessions([
+    {
+      startTime: duplicateCore.startTime,
+      endTime: duplicateCore.endTime,
+      stages: [duplicateCore, duplicateCore],
+    },
+  ]);
+  const ambiguous = normalizeHealthConnectSleepSessions([
+    {
+      startTime: duplicateCore.startTime,
+      endTime: duplicateCore.endTime,
+      stages: [duplicateCore, { ...duplicateCore, stage: 5 }],
+    },
+  ]);
+
+  assert.deepEqual(deduped?.stageMinutes, { core: 480 });
+  assert.equal(deduped?.sourceMetadata.stageDataAmbiguous, false);
+  assert.equal(ambiguous?.stageMinutes, null);
+  assert.equal(ambiguous?.sourceMetadata.stageDataAmbiguous, true);
 });
 
 test("healthkit sleep samples count asleep categories and ignore in-bed/awake", () => {
@@ -5041,6 +5185,28 @@ test("healthkit sleep samples count asleep categories and ignore in-bed/awake", 
   assert.equal(normalized?.stageMinutes?.core, 180);
   assert.equal(normalized?.stageMinutes?.rem, 240);
   assert.equal(normalized?.stageMinutes?.awake, 30);
+});
+
+test("healthkit duration merges duplicate sources and rejects conflicting stages", () => {
+  const core = {
+    startDate: "2026-05-13T22:30:00.000Z",
+    endDate: "2026-05-14T06:30:00.000Z",
+    value: 3,
+    sourceRevision: { source: { bundleIdentifier: "watch.app" } },
+  };
+  const duplicate = {
+    ...core,
+    sourceRevision: { source: { bundleIdentifier: "sleep.app" } },
+  };
+  const deduped = normalizeHealthKitSleepSamples([core, duplicate]);
+  const ambiguous = normalizeHealthKitSleepSamples([core, { ...duplicate, value: 4 }]);
+
+  assert.equal(deduped?.durationMinutes, 480);
+  assert.deepEqual(deduped?.stageMinutes, { core: 480 });
+  assert.deepEqual(deduped?.sourceMetadata.sourceOrigins, ["sleep.app", "watch.app"]);
+  assert.equal(ambiguous?.durationMinutes, 480);
+  assert.equal(ambiguous?.stageMinutes, null);
+  assert.equal(ambiguous?.sourceMetadata.stageDataAmbiguous, true);
 });
 
 test("sleep score is duration-first with neutral consistency and stage points", () => {

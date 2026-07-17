@@ -67,8 +67,14 @@ import { trackActivationEvent } from "@/lib/services/analytics";
 import { syncHomeWidgetFromDashboard } from "@/lib/widgets/home-widget";
 import { buildWidgetUpcomingInput } from "@/lib/widgets/widget-upcoming";
 import type { WidgetTrendDay } from "@/lib/widgets/widget-trend";
-import { isStepHabit } from "@/lib/data/steps-shared";
+import {
+  isStepHabit,
+  resolveWatchedStepTotal,
+  shouldStartAutomaticStepSync,
+  stepSyncIdentity,
+} from "@/lib/data/steps-shared";
 import { nowMarkerIndex, orderHabitsForTimeline } from "@/lib/utils/timeline";
+import { localDateKey } from "@/lib/utils/date";
 import { GET_APP_URL } from "@/lib/constants";
 import {
   getStepPermissionStatus,
@@ -174,10 +180,14 @@ export default function DashboardScreen() {
   const stepSubscriptionRef = useRef<StepSubscription | null>(null);
   const stepTrackingHabitIdRef = useRef<string | null>(null);
   const stepTrackingHabitSyncKeyRef = useRef<string | null>(null);
+  const stepTrackingIdentityRef = useRef<string | null>(null);
+  const stepTrackingDateRef = useRef<string | null>(null);
   const stepBaseRef = useRef(0);
   const lastStepValueRef = useRef(0);
   const lastStepSaveAtRef = useRef(0);
   const stepSavingRef = useRef(false);
+  const stepSyncInFlightRef = useRef(false);
+  const stepRolloverRef = useRef<(habit: Habit) => void>(() => {});
   const checkInFlightRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -329,12 +339,20 @@ export default function DashboardScreen() {
     if (data && !showWelcomeBanner) setShowWelcome(false);
   }, [data, showWelcomeBanner]);
 
-  const stopStepWatcher = useCallback(() => {
+  const removeStepWatcher = useCallback(() => {
     stepSubscriptionRef.current?.remove();
     stepSubscriptionRef.current = null;
+  }, []);
+
+  const clearStepTrackingSession = useCallback(() => {
+    removeStepWatcher();
     stepTrackingHabitIdRef.current = null;
     stepTrackingHabitSyncKeyRef.current = null;
-  }, []);
+    stepTrackingIdentityRef.current = null;
+    stepTrackingDateRef.current = null;
+    stepBaseRef.current = 0;
+    lastStepValueRef.current = 0;
+  }, [removeStepWatcher]);
 
   useFocusEffect(
     useCallback(() => {
@@ -343,15 +361,12 @@ export default function DashboardScreen() {
           (item) => item.id === stepTrackingHabitIdRef.current,
         );
         const steps = lastStepValueRef.current;
-        if (habit && steps > 0) {
+        if (habit && steps > 0 && stepTrackingDateRef.current === localDateKey()) {
           void raiseCompletionValue(habit.id, steps, "Synced from step counter");
         }
-        stepSubscriptionRef.current?.remove();
-        stepSubscriptionRef.current = null;
-        stepTrackingHabitIdRef.current = null;
-        stepTrackingHabitSyncKeyRef.current = null;
+        clearStepTrackingSession();
       };
-    }, []),
+    }, [clearStepTrackingSession]),
   );
 
   const updateLocalStepProgress = useCallback((habit: Habit, value: number) => {
@@ -400,124 +415,165 @@ export default function DashboardScreen() {
   );
 
   const syncStepHabit = useCallback(
-    async (habit: Habit, shouldRequestPermission: boolean, forcePersist = true) => {
+    async (
+      habit: Habit,
+      shouldRequestPermission: boolean,
+      forcePersist = true,
+      ignoreSavedValue = false,
+    ) => {
+      if (stepSyncInFlightRef.current) return false;
+      stepSyncInFlightRef.current = true;
       setStepTracking((current) => ({
         ...current,
         status: current.status === "tracking" ? "syncing" : "checking",
       }));
 
-      const available = await isStepTrackingAvailable();
-      if (!available) {
-        stopStepWatcher();
-        setStepTracking({ status: "unsupported", lastSyncedAt: null });
-        return false;
-      }
+      try {
+        const available = await isStepTrackingAvailable();
+        if (!available) {
+          clearStepTrackingSession();
+          setStepTracking({ status: "unsupported", lastSyncedAt: null });
+          return false;
+        }
 
-      let permission = await getStepPermissionStatus();
-      if (permission !== "granted" && shouldRequestPermission) {
-        permission = await requestStepPermission();
-      }
+        let permission = await getStepPermissionStatus();
+        if (permission !== "granted" && shouldRequestPermission) {
+          permission = await requestStepPermission();
+        }
 
-      if (permission !== "granted") {
-        stopStepWatcher();
-        setStepTracking({
-          status:
-            permission === "providerUpdateRequired"
-              ? "providerUpdateRequired"
-              : permission === "unavailable"
-                ? "unsupported"
-                : permission === "denied"
-                  ? "denied"
-                  : "needsPermission",
-          lastSyncedAt: null,
+        if (permission !== "granted") {
+          clearStepTrackingSession();
+          setStepTracking({
+            status:
+              permission === "providerUpdateRequired"
+                ? "providerUpdateRequired"
+                : permission === "unavailable"
+                  ? "unsupported"
+                  : permission === "denied"
+                    ? "denied"
+                    : "needsPermission",
+            lastSyncedAt: null,
+          });
+          return false;
+        }
+
+        const savedValue = ignoreSavedValue
+          ? 0
+          : (dataRef.current?.todayProgress.get(habit.id)?.current ?? 0);
+        const snapshot = await getTodayStepSnapshot();
+        if (snapshot.status === "providerUpdateRequired") {
+          clearStepTrackingSession();
+          setStepTracking({ status: "providerUpdateRequired", lastSyncedAt: null });
+          return false;
+        }
+        if (snapshot.status === "unavailable" && snapshot.source !== "pedometer") {
+          clearStepTrackingSession();
+          setStepTracking({ status: "unsupported", lastSyncedAt: null });
+          return false;
+        }
+        if (snapshot.status !== "granted") {
+          clearStepTrackingSession();
+          setStepTracking({
+            status: snapshot.status === "denied" ? "denied" : "needsPermission",
+            lastSyncedAt: null,
+          });
+          return false;
+        }
+
+        const syncDate = localDateKey();
+        const habitKey = stepHabitSyncKey ?? habit.id;
+        const identity = stepSyncIdentity(habitKey, syncDate);
+        const baseline = Math.max(savedValue, snapshot.steps ?? 0);
+        stepBaseRef.current = baseline;
+        lastStepValueRef.current = baseline;
+        stepTrackingHabitIdRef.current = habit.id;
+        stepTrackingHabitSyncKeyRef.current = stepHabitSyncKey;
+        stepTrackingIdentityRef.current = identity;
+        stepTrackingDateRef.current = syncDate;
+
+        if (baseline > 0) {
+          updateLocalStepProgress(habit, baseline);
+          await persistStepCount(habit, baseline, forcePersist);
+        }
+
+        if (!snapshot.canWatch) {
+          removeStepWatcher();
+          setStepTracking({ status: "synced", lastSyncedAt: Date.now() });
+          return true;
+        }
+
+        removeStepWatcher();
+        const subscription = watchStepCount((sessionSteps) => {
+          const resolution = resolveWatchedStepTotal({
+            sessionDate: stepTrackingDateRef.current ?? syncDate,
+            currentDate: localDateKey(),
+            baseline: stepBaseRef.current,
+            lastTotal: lastStepValueRef.current,
+            sessionSteps,
+          });
+          if (resolution.kind === "rollover") {
+            clearStepTrackingSession();
+            lastStepSaveAtRef.current = 0;
+            stepRolloverRef.current(habit);
+            return;
+          }
+          if (resolution.kind === "unchanged") return;
+          lastStepValueRef.current = resolution.total;
+          updateLocalStepProgress(habit, resolution.total);
+          void persistStepCount(habit, resolution.total);
         });
-        return false;
-      }
 
-      const savedValue = dataRef.current?.todayProgress.get(habit.id)?.current ?? 0;
-      const snapshot = await getTodayStepSnapshot();
-      if (snapshot.status === "providerUpdateRequired") {
-        stopStepWatcher();
-        setStepTracking({ status: "providerUpdateRequired", lastSyncedAt: null });
-        return false;
-      }
-      if (snapshot.status === "unavailable" && snapshot.source !== "pedometer") {
-        stopStepWatcher();
-        setStepTracking({ status: "unsupported", lastSyncedAt: null });
-        return false;
-      }
-      if (snapshot.status !== "granted") {
-        stopStepWatcher();
-        setStepTracking({
-          status: snapshot.status === "denied" ? "denied" : "needsPermission",
-          lastSyncedAt: null,
-        });
-        return false;
-      }
+        if (!subscription) {
+          clearStepTrackingSession();
+          setStepTracking({
+            status: "error",
+            lastSyncedAt: lastStepSaveAtRef.current || null,
+            error: "Could not start step tracking.",
+          });
+          return false;
+        }
 
-      const baseline = Math.max(savedValue, snapshot.steps ?? 0);
-      stepBaseRef.current = baseline;
-      lastStepValueRef.current = baseline;
-      stepTrackingHabitIdRef.current = habit.id;
-      stepTrackingHabitSyncKeyRef.current = stepHabitSyncKey;
-
-      if (baseline > 0) {
-        updateLocalStepProgress(habit, baseline);
-        await persistStepCount(habit, baseline, forcePersist);
-      }
-
-      if (!snapshot.canWatch) {
-        stopStepWatcher();
-        setStepTracking({ status: "synced", lastSyncedAt: Date.now() });
+        stepSubscriptionRef.current = subscription;
+        setStepTracking((current) => ({ status: "tracking", lastSyncedAt: current.lastSyncedAt }));
         return true;
+      } finally {
+        stepSyncInFlightRef.current = false;
       }
-
-      stepSubscriptionRef.current?.remove();
-      const subscription = watchStepCount((sessionSteps) => {
-        const totalSteps = Math.max(lastStepValueRef.current, stepBaseRef.current + sessionSteps);
-        if (totalSteps <= lastStepValueRef.current) return;
-        lastStepValueRef.current = totalSteps;
-        updateLocalStepProgress(habit, totalSteps);
-        void persistStepCount(habit, totalSteps);
-      });
-
-      if (!subscription) {
-        setStepTracking({
-          status: "error",
-          lastSyncedAt: lastStepSaveAtRef.current || null,
-          error: "Could not start step tracking.",
-        });
-        return false;
-      }
-
-      stepSubscriptionRef.current = subscription;
-      setStepTracking((current) => ({ status: "tracking", lastSyncedAt: current.lastSyncedAt }));
-      return true;
     },
-    [persistStepCount, stepHabitSyncKey, stopStepWatcher, updateLocalStepProgress],
+    [
+      clearStepTrackingSession,
+      persistStepCount,
+      removeStepWatcher,
+      stepHabitSyncKey,
+      updateLocalStepProgress,
+    ],
   );
+
+  useEffect(() => {
+    stepRolloverRef.current = (habit) => {
+      void load({ force: true }).then(() => syncStepHabit(habit, false, true, true));
+    };
+    return () => {
+      stepRolloverRef.current = () => {};
+    };
+  }, [load, syncStepHabit]);
 
   useEffect(() => {
     if (!trackingHydrated) return;
     if (!stepHabit || !stepTrackingEnabled) {
-      stopStepWatcher();
+      clearStepTrackingSession();
       setStepTracking({ status: "idle", lastSyncedAt: null });
       return;
     }
 
-    if (
-      stepTrackingHabitIdRef.current === stepHabit.id &&
-      stepTrackingHabitSyncKeyRef.current === stepHabitSyncKey &&
-      stepSubscriptionRef.current
-    ) {
-      return;
-    }
+    const identity = stepSyncIdentity(stepHabitSyncKey ?? stepHabit.id, localDateKey());
+    if (!shouldStartAutomaticStepSync(stepTrackingIdentityRef.current, identity)) return;
     void syncStepHabit(stepHabit, false, true);
   }, [
     stepHabit,
     stepHabitSyncKey,
     stepTrackingEnabled,
-    stopStepWatcher,
+    clearStepTrackingSession,
     syncStepHabit,
     trackingHydrated,
   ]);
