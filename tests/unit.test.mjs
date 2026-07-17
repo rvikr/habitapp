@@ -2167,6 +2167,29 @@ test("sign-out clears the Android launcher widget snapshot", () => {
   assert.match(layoutSource, /void clearHomeWidgetSnapshot\(\)/);
 });
 
+test("app-icon badge tracks the remaining-habits-today count", () => {
+  // The badge rides the same outward sync as the home widget, using the
+  // snapshot's remainingCount, and clears alongside it on sign-out.
+  const widgetSource = readFileSync("lib/widgets/home-widget.ts", "utf8");
+  assert.match(widgetSource, /setAppBadgeCount\(snapshot\.remainingCount\)/);
+  assert.match(widgetSource, /clearAppBadge\(\)/);
+
+  // Both platform adapters expose the badge API so the platform-split import
+  // resolves on native and web.
+  const nativeAdapter = readFileSync("lib/platform/notifications.native.ts", "utf8");
+  assert.match(nativeAdapter, /export async function setAppBadgeCount/);
+  assert.match(nativeAdapter, /setBadgeCountAsync/);
+  const webAdapter = readFileSync("lib/platform/notifications.web.ts", "utf8");
+  assert.match(webAdapter, /export async function setAppBadgeCount/);
+  assert.match(webAdapter, /setAppBadge/);
+
+  // A "Mark done" tap while the app is closed decrements the badge directly,
+  // since the dashboard sync can't run to recompute it.
+  const schedulerSource = readFileSync("components/notification-scheduler.tsx", "utf8");
+  assert.match(schedulerSource, /getAppBadgeCount/);
+  assert.match(schedulerSource, /setAppBadgeCount\(current - 1\)/);
+});
+
 test("Supabase stale refresh token errors are recognized", () => {
   const error = new Error("Invalid Refresh Token: Refresh Token Not Found");
   assert.equal(isMissingRefreshTokenError(error), true);

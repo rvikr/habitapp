@@ -2,6 +2,7 @@ import {
   clearHomeWidgetSnapshot as clearHomeWidgetSnapshotFromPlatform,
   updateHomeWidgetSnapshot,
 } from "@/lib/platform/home-widget";
+import { clearAppBadge, setAppBadgeCount } from "@/lib/platform/notifications";
 
 import {
   buildHomeWidgetSnapshot,
@@ -56,6 +57,10 @@ export async function syncHomeWidgetFromDashboard(
   input: HomeWidgetDashboardSnapshot,
 ): Promise<void> {
   const snapshot = buildHomeWidgetSnapshot(input);
+  // The app-icon badge shows the same "remaining habits today" count as the
+  // widget, so it rides the same sync. Fire-and-forget: it must never block the
+  // widget update (setAppBadgeCount already swallows its own errors).
+  void setAppBadgeCount(snapshot.remainingCount);
   try {
     await updateHomeWidgetSnapshot(stringifyHomeWidgetSnapshot(snapshot));
   } catch {
@@ -64,6 +69,9 @@ export async function syncHomeWidgetFromDashboard(
 }
 
 export async function clearHomeWidgetSnapshot(): Promise<void> {
+  // Clear the icon badge alongside the widget (called on sign-out from both
+  // actions.signOut and the _layout auth listener).
+  void clearAppBadge();
   try {
     await clearHomeWidgetSnapshotFromPlatform();
   } catch {

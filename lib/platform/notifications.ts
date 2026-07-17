@@ -21,3 +21,6 @@ export declare function scheduleDateReminder(
 ): Promise<string>;
 export declare function cancelScheduledReminder(id: string): Promise<void>;
 export declare function cancelAllReminders(): Promise<void>;
+export declare function setAppBadgeCount(count: number): Promise<void>;
+export declare function getAppBadgeCount(): Promise<number>;
+export declare function clearAppBadge(): Promise<void>;

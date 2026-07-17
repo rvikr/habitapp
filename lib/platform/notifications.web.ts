@@ -113,3 +113,30 @@ export async function scheduleDateReminder(
 export async function cancelScheduledReminder(_id: string): Promise<void> {}
 
 export async function cancelAllReminders(): Promise<void> {}
+
+// App-icon badge via the Badging API, which only takes effect for installed
+// PWAs on supporting browsers. Feature-detected so it's a safe no-op elsewhere.
+export async function setAppBadgeCount(count: number): Promise<void> {
+  if (typeof navigator === "undefined" || !("setAppBadge" in navigator)) return;
+  try {
+    const n = Math.max(0, Math.floor(count));
+    if (n > 0) await navigator.setAppBadge(n);
+    else await navigator.clearAppBadge();
+  } catch {
+    // Badge is best-effort; never surface to callers.
+  }
+}
+
+// The Badging API has no getter, so callers can't read the current value on web.
+export async function getAppBadgeCount(): Promise<number> {
+  return 0;
+}
+
+export async function clearAppBadge(): Promise<void> {
+  if (typeof navigator === "undefined" || !("clearAppBadge" in navigator)) return;
+  try {
+    await navigator.clearAppBadge();
+  } catch {
+    // Badge is best-effort; never surface to callers.
+  }
+}

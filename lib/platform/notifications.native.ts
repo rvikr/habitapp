@@ -83,3 +83,27 @@ export async function cancelAllReminders(): Promise<void> {
 export async function cancelScheduledReminder(id: string): Promise<void> {
   await Notifications.cancelScheduledNotificationAsync(id);
 }
+
+// App-icon badge, managed as a semantic "remaining habits today" count. Kept
+// separate from delivered notifications (the handler sets shouldSetBadge:false)
+// so incoming reminders never double-count. No-ops silently if the user hasn't
+// granted the badge permission; Android numeric badges are launcher-dependent.
+export async function setAppBadgeCount(count: number): Promise<void> {
+  try {
+    await Notifications.setBadgeCountAsync(Math.max(0, Math.floor(count)));
+  } catch {
+    // Badge is best-effort; never surface to callers.
+  }
+}
+
+export async function getAppBadgeCount(): Promise<number> {
+  try {
+    return await Notifications.getBadgeCountAsync();
+  } catch {
+    return 0;
+  }
+}
+
+export async function clearAppBadge(): Promise<void> {
+  await setAppBadgeCount(0);
+}

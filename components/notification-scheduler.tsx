@@ -3,7 +3,12 @@ import { Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { syncScheduledReminders } from "@/lib/data/reminder-sync";
 import { toggleHabit } from "@/lib/data/actions";
-import { COMPLETE_ACTION_ID, registerNotificationCategories } from "@/lib/platform/notifications";
+import {
+  COMPLETE_ACTION_ID,
+  getAppBadgeCount,
+  registerNotificationCategories,
+  setAppBadgeCount,
+} from "@/lib/platform/notifications";
 import { getItem, setItem } from "@/lib/platform/storage";
 
 const HANDLED_ACTIONS_KEY = "habbit:handled-notification-actions";
@@ -57,6 +62,11 @@ export default function NotificationScheduler() {
             Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(
               () => {},
             );
+            // The app is backgrounded/killed here, so the dashboard sync that
+            // normally maintains the badge won't run. Decrement it directly so
+            // the "remaining today" count stays right until the next open.
+            const current = await getAppBadgeCount();
+            await setAppBadgeCount(current - 1);
           }
           return;
         }
