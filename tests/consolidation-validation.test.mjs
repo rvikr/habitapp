@@ -75,13 +75,3 @@ test("native suggested and widget check-ins pass validated habit metadata to the
     /logCompletionOnce\([\s\S]*?checkIn\.amount,[\s\S]*?undefined,[\s\S]*?validated\.habit[\s\S]*?\)/,
   );
 });
-
-test("website actions enforce the shared rules before an exact-once write", () => {
-  const actions = readFileSync("website/app/(app)/dashboard/actions.ts", "utf8");
-
-  assert.match(actions, /validateWebHabitTarget/);
-  assert.match(actions, /defaultWebLogValue/);
-  assert.match(actions, /validateWebCompletionPeriod/);
-  assert.match(actions, /validateWebLogValue/);
-  assert.match(actions, /select\("target, default_log_value, metric_type"\)/);
-});

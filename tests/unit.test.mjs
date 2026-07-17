@@ -429,7 +429,7 @@ test("landing web app CTAs use plain anchors and keep the header CTA mobile-hidd
   );
   assert.throws(() => assertApprovedAppCtas(`<Button href="/app">Open</Button>`), /external/);
   assert.doesNotThrow(() => assertApprovedAppCtas(`<a href="/app">Open</a>`));
-  assert.equal(appCtas.length, 5);
+  assert.equal(appCtas.length, 3);
 
   const headerCta =
     pageSource.match(
@@ -439,13 +439,20 @@ test("landing web app CTAs use plain anchors and keep the header CTA mobile-hidd
   assert.doesNotMatch(headerCta, /display:\s*"inline-flex"/);
 });
 
-test("website habit clicks refresh dashboard data and show action errors", () => {
+test("website habit list is a read-only progress view that points to the app", () => {
   const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
 
-  assert.match(habitList, /useRouter/);
-  assert.match(habitList, /router\.refresh\(\)/);
-  assert.match(habitList, /result\.ok/);
-  assert.match(habitList, /role="alert"/);
+  // The web dashboard is view-only: habits are added and logged in the app, so
+  // the list must not toggle server-side state or carry action affordances.
+  assert.doesNotMatch(habitList, /useRouter/);
+  assert.doesNotMatch(habitList, /router\.refresh\(\)/);
+  assert.doesNotMatch(habitList, /onClick/);
+  assert.doesNotMatch(habitList, /"use client"/);
+
+  // The empty state sends people to the Android app via the shared constant,
+  // never a hardcoded play.google.com literal.
+  assert.match(habitList, /href=\{PLAY_STORE_URL\}/);
+  assert.doesNotMatch(habitList, /play\.google\.com/);
 });
 
 test("website canonical suggestions require a positive default and keep legacy fill explicit", () => {
@@ -513,10 +520,9 @@ test("website check-in labels distinguish canonical partial logs from legacy com
   );
 });
 
-test("website check-ins are clamped, owner-scoped, and exact-once", () => {
+test("website dashboard surfaces completion progress through shared helpers", () => {
   assert.equal(existsSync("website/lib/habit-progress.ts"), true);
   const helper = readFileSync("website/lib/habit-progress.ts", "utf8");
-  const actions = readFileSync("website/app/(app)/dashboard/actions.ts", "utf8");
   const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
   const habits = readFileSync("website/lib/habits.ts", "utf8");
   const dashboard = readFileSync("website/app/(app)/dashboard/page.tsx", "utf8");
@@ -524,37 +530,16 @@ test("website check-ins are clamped, owner-scoped, and exact-once", () => {
   assert.match(helper, /export function completionIsDone/);
   assert.match(helper, /export function completedRowsFor/);
   assert.match(helper, /export function suggestedIncrement/);
-  assert.match(actions, /operationId: string/);
-  assert.match(actions, /isValidUuid\(operationId\)/);
-  assert.match(actions, /select\("target, default_log_value, metric_type"\)/);
-  assert.match(actions, /eq\("user_id", user\.id\)/);
-  assert.match(actions, /select\("value"\)/);
-  assert.match(actions, /resolveWebCheckInIncrement\(habit, currentValue\)/);
-  assert.match(actions, /rpc\("log_habit_completion_once"/);
-  assert.match(actions, /p_operation_id: operationId/);
-  assert.match(habitList, /crypto\.randomUUID\(\)/);
-  assert.match(habitList, /pendingRef\.current/);
-  assert.match(habitList, /operationForCompletionSubmission\(/);
-  assert.match(habitList, /operationRef\.current = operation/);
-  assert.match(habitList, /toggleHabit\(habit\.id, done, localDateKey\(\), operation\.id\)/);
-  assert.match(habitList, /operationRef\.current = null[\s\S]*?router\.refresh\(\)/);
-  assert.match(habitList, /habitCheckInActionLabel\(habit, currentValue, done\)/);
+  // The web dashboard is a read-only progress view; check-in writes moved out of
+  // the browser to the app and the log_habit_completion_once RPC, so the deleted
+  // dashboard actions must stay gone.
+  assert.equal(existsSync("website/app/(app)/dashboard/actions.ts"), false);
+  // Rows still render the current value against the habit's target and unit.
   assert.match(habitList, /currentValue[\s\S]*?target[\s\S]*?unit/);
   assert.match(habits, /completedRowsFor/);
   assert.match(habits, /get_completion_stats/);
   assert.match(habits, /todayValues/);
   assert.match(dashboard, /<HabitList[\s\S]*?todayValues=\{todayValues\}/);
-});
-
-test("website dashboard lets signed-in users add habits", () => {
-  const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
-  const actions = readFileSync("website/app/(app)/dashboard/actions.ts", "utf8");
-
-  assert.match(habitList, /Add habit/);
-  assert.doesNotMatch(habitList, /Open the mobile app to add your first habit/);
-  assert.match(actions, /export async function createHabit/);
-  assert.match(actions, /\.from\("habits"\)[\s\S]*\.insert\(/);
-  assert.match(actions, /default_log_value:[\s\S]*?defaultWebLogValue\(target\.value, "minutes"\)/);
 });
 
 test("Expo SDK patch dependencies match Expo install expectations", () => {
@@ -1630,7 +1615,7 @@ test("AI Edge Functions enforce Pro access before quota and Gemini calls", () =>
 
 test("RevenueCat Pro integration exposes sync webhook and product identifiers", () => {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
-  assert.equal(packageJson.dependencies["react-native-purchases"], "^10.1.2");
+  assert.equal(packageJson.dependencies["react-native-purchases"], "^10.4.2");
 
   const subscriptionShared = readFileSync("lib/subscription/revenuecat-shared.ts", "utf8");
   assert.match(subscriptionShared, /PRO_ENTITLEMENT_ID = "pro"/);

@@ -189,14 +189,6 @@ test("web action helper normalizes legacy fractional defaults before validation"
     ),
     1,
   );
-
-  const actions = readFileSync("website/app/(app)/dashboard/actions.ts", "utf8");
-  assert.match(actions, /resolveWebCheckInIncrement\(habit, currentValue\)/);
-  assert.match(
-    actions,
-    /if \(increment == null\) return \{ ok: false, error:/,
-    "an unloggable legacy row must not report a silent success",
-  );
 });
 
 test("native form validates canonical targets but submits the selected display-unit value", () => {
