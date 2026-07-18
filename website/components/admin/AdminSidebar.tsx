@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { href: "/admin",            icon: "dashboard",          label: "Overview"   },
@@ -15,6 +17,25 @@ const NAV = [
 
 export default function AdminSidebar({ email }: { email: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [signingOut, setSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+
+  async function handleLogout() {
+    if (signingOut) return;
+    setSigningOut(true);
+    setLogoutError("");
+
+    const { error } = await createClient().auth.signOut({ scope: "local" });
+    if (error) {
+      setLogoutError("Could not log out. Please try again.");
+      setSigningOut(false);
+      return;
+    }
+
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <>
@@ -27,10 +48,24 @@ export default function AdminSidebar({ email }: { email: string }) {
           </div>
           <span className="font-extrabold text-sm text-white">Lagan Admin</span>
         </Link>
-        <Link href="/" className="text-xs font-bold text-on-surface-variant">
-          Site
-        </Link>
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={signingOut}
+          className="text-xs font-bold text-on-surface-variant transition-colors hover:text-white disabled:opacity-60"
+        >
+          {signingOut ? "Logging out…" : "Log out"}
+        </button>
       </header>
+
+      {logoutError && (
+        <p
+          role="alert"
+          className="fixed right-4 top-16 z-50 rounded-lg border border-error/30 bg-surface-container-high px-4 py-2 text-xs font-semibold text-error"
+        >
+          {logoutError}
+        </p>
+      )}
 
       <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-outline-variant bg-surface-container-low px-1 py-1.5 lg:hidden">
         {NAV.map(({ href, icon, label }) => {
@@ -104,13 +139,15 @@ export default function AdminSidebar({ email }: { email: string }) {
 
       {/* Footer */}
       <div className="p-3 border-t border-outline-variant space-y-1">
-        <Link
-          href="/"
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={signingOut}
           className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-on-surface-variant hover:text-white hover:bg-surface-container-high text-sm font-medium transition-all"
         >
-          <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Back to site
-        </Link>
+          <span className="material-symbols-outlined text-[18px]">logout</span>
+          {signingOut ? "Logging out…" : "Log out"}
+        </button>
         <div className="flex items-center gap-2.5 px-3 py-2">
           <div className="w-7 h-7 rounded-full bg-primary/25 flex items-center justify-center flex-shrink-0">
             <span className="text-primary text-xs font-extrabold">

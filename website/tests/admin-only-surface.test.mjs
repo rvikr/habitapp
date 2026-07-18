@@ -23,6 +23,17 @@ test("login is admin-only and does not expose signup or password recovery", () =
   assert.doesNotMatch(source, /resetPasswordForEmail|signUp|Forgot password/);
 });
 
+test("admin navigation exposes logout instead of a back-to-site shortcut", () => {
+  const source = readFileSync(
+    new URL("../components/admin/AdminSidebar.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /auth\.signOut\(\{ scope: "local" \}\)/);
+  assert.match(source, /router\.replace\("\/login"\)/);
+  assert.match(source, /Log out/);
+  assert.doesNotMatch(source, /Back to site|>\s*Site\s*</);
+});
+
 test("public deletion page always offers PWA and email request paths", () => {
   const source = readFileSync(
     new URL("../app/account-deletion/page.tsx", import.meta.url),
