@@ -5,8 +5,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { supabase } from "@/lib/supabase/client";
-import { AUTH_CALLBACK_PATH, parseAuthCallbackUrl } from "@/lib/auth/auth-redirect";
+import {
+  AUTH_CALLBACK_PATH,
+  isAppEmailOtpType,
+  parseAuthCallbackUrl,
+} from "@/lib/auth/auth-redirect";
 import { authCallbackUrlFromParams } from "@/lib/auth/auth-callback-params";
+import { authCallbackErrorMessage } from "@/lib/auth/auth-callback-error";
 import { clearDataCache } from "@/lib/data/cache";
 import {
   AUTH_CALLBACK_AUTHENTICATED_BODY,
@@ -94,8 +99,16 @@ export default function AuthCallbackScreen() {
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(parsed.code);
         if (exchangeError) throw exchangeError;
         clearDataCache();
+      } else if (parsed.tokenHash && isAppEmailOtpType(parsed.type)) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          type: parsed.type,
+          token_hash: parsed.tokenHash,
+        });
+        if (verifyError) throw verifyError;
+        clearDataCache();
+        scrubConsumedTokenFromBrowserUrl();
       } else {
-        throw new Error("Missing authentication code.");
+        throw new Error("Missing authentication code or token.");
       }
 
       const { data: sessionData } = await supabase.auth.getSession();
@@ -144,7 +157,7 @@ export default function AuthCallbackScreen() {
         });
       }
       if (mountedRef.current) {
-        setError(callbackErrorMessage(e));
+        setError(authCallbackErrorMessage(e));
         setStatus("error");
       }
     });
@@ -221,16 +234,14 @@ function browserLocationUrl(): string | null {
   return window.location.href || null;
 }
 
-// With PKCE, exchangeCodeForSession needs the code_verifier saved on the device
-// that started the flow. Opening the link on a different device/browser fails
-// with a "code verifier" error — surface actionable guidance instead of the raw
-// backend string. Returns a translation key.
-function callbackErrorMessage(e: unknown): string {
-  const raw = e instanceof Error ? e.message : typeof e === "string" ? e : "";
-  if (/code[\s_]?verifier/i.test(raw)) {
-    return "Open this link on the same device and browser where you requested it, or go back and request a new email.";
-  }
-  return raw || "Could not complete authentication.";
+// The token is single-use, but remove it promptly so browser history, copied
+// URLs, and later client-side telemetry cannot retain the credential.
+function scrubConsumedTokenFromBrowserUrl() {
+  if (Platform.OS !== "web" || typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("token_hash")) return;
+  url.searchParams.delete("token_hash");
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function homeDestination(shouldWelcome: boolean) {

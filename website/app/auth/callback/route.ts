@@ -1,29 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
-
-function sanitizeNext(rawNext: string | null, origin: string): string {
-  const fallback = "/dashboard";
-  if (!rawNext) return fallback;
-  try {
-    const url = new URL(rawNext, origin);
-    if (url.origin !== origin) return fallback;
-    return url.pathname + url.search + url.hash;
-  } catch {
-    return fallback;
-  }
-}
+import { safeAdminNextPath } from "@/lib/auth-route-policy";
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  // A recovery link must always land on the set-new-password page, even if the
-  // `next` param is dropped by the mailer — the session alone is not enough,
-  // the user still has to choose a new password.
-  const next =
-    searchParams.get("type") === "recovery"
-      ? "/reset-password"
-      : sanitizeNext(searchParams.get("next"), origin);
+  const next = safeAdminNextPath(searchParams.get("next"));
 
   if (code) {
     const cookieStore = await cookies();
@@ -32,20 +15,24 @@ export async function GET(request: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() { return cookieStore.getAll(); },
+          getAll() {
+            return cookieStore.getAll();
+          },
           setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options as Parameters<typeof cookieStore.set>[2])
+              cookieStore.set(
+                name,
+                value,
+                options as Parameters<typeof cookieStore.set>[2],
+              ),
             );
           },
         },
-      }
+      },
     );
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
-    }
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`);

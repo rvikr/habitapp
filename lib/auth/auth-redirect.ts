@@ -17,10 +17,17 @@ export function authCallbackUrl(queryParams?: Record<string, string>) {
 
 export type ParsedAuthCallback = {
   code: string | null;
+  tokenHash: string | null;
   type: string | null;
   error: string | null;
   errorDescription: string | null;
 };
+
+export type AppEmailOtpType = "signup" | "recovery";
+
+export function isAppEmailOtpType(value: string | null): value is AppEmailOtpType {
+  return value === "signup" || value === "recovery";
+}
 
 export function parseAuthCallbackUrl(url: string): ParsedAuthCallback {
   const parsed = Linking.parse(url);
@@ -30,6 +37,7 @@ export function parseAuthCallbackUrl(url: string): ParsedAuthCallback {
 
   return {
     code: firstParam(allParams.code),
+    tokenHash: firstParam(allParams.token_hash),
     type: firstParam(allParams.type),
     error: firstParam(allParams.error),
     errorDescription: firstParam(allParams.error_description),

@@ -327,6 +327,10 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Missing authentication callback URL.":
     "प्रमाणीकरण लिंक अधूरा है. कृपया ईमेल वाला लिंक फिर से खोलें.",
   "Missing authentication code.": "प्रमाणीकरण कोड नहीं मिला. कृपया ईमेल वाला लिंक फिर से खोलें.",
+  "Missing authentication code or token.":
+    "प्रमाणीकरण कोड या टोकन नहीं मिला. कृपया ईमेल वाला लिंक फिर से खोलें.",
+  "This link has expired or was already used. Request a new email.":
+    "यह लिंक समाप्त हो गया है या पहले ही इस्तेमाल हो चुका है. नया ईमेल अनुरोध करें.",
   "Auth session missing!": "रीसेट सत्र नहीं मिला. कृपया अपने ईमेल से रीसेट लिंक फिर से खोलें.",
   "Congratulations, your email is confirmed!": "बधाई, आपका ईमेल कन्फर्म हो गया!",
   "You're signed in and ready to continue to Lagan.":
@@ -568,8 +572,8 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Could not complete request. Try again.": "अनुरोध पूरा नहीं हो सका. फिर कोशिश करें.",
   "An account with this email already exists. Try signing in instead.":
     "इस ईमेल से अकाउंट पहले से मौजूद है. इसके बजाय साइन इन करें.",
-  "Account created. Check your email to confirm it, then come back here to sign in.":
-    "अकाउंट बन गया. पुष्टि के लिए अपना ईमेल देखें, फिर यहां आकर साइन इन करें.",
+  "Account created. Check your email and tap the confirmation link to continue in Lagan.":
+    "अकाउंट बन गया. अपना ईमेल देखें और Lagan में आगे बढ़ने के लिए पुष्टिकरण लिंक पर टैप करें.",
   "Sign in": "साइन इन",
   or: "या",
   "Sign in with Google": "Google से साइन इन करें",

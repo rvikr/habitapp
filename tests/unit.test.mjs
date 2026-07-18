@@ -40,6 +40,10 @@ import {
 import { dashboardDisplayName } from "../lib/data/display-name.ts";
 import { buildLifeBalanceWheelSegments } from "../lib/coach/life-balance.ts";
 import { authCallbackUrlFromParams } from "../lib/auth/auth-callback-params.ts";
+import {
+  EXPIRED_AUTH_LINK_MESSAGE,
+  authCallbackErrorMessage,
+} from "../lib/auth/auth-callback-error.ts";
 import { buildWebAuthCallbackUrl } from "../lib/auth/auth-callback-url.ts";
 import {
   googleNativeAuthConfig,
@@ -161,22 +165,14 @@ import { createQueuedReminderSync } from "../lib/data/reminder-sync-queue.ts";
 import { CHUNK_SIZE, LargeSecureStore, splitChunks } from "../lib/platform/large-secure-store.ts";
 import { classifyStoredSession } from "../lib/supabase/session-storage.ts";
 import {
-  dateKeyInTimeZone,
-  isValidDateKey,
-  localDateKey as websiteLocalDateKey,
-} from "../website/lib/date.ts";
-import {
-  XP_PER_COMPLETION as WEBSITE_XP_PER_COMPLETION,
-  XP_PER_LEVEL as WEBSITE_XP_PER_LEVEL,
-} from "../website/lib/xp.ts";
-import {
   buildLoginRedirectPath,
   isAuthAwarePath,
   isLoginPath,
   isProtectedPath,
+  safeAdminNextPath,
 } from "../website/lib/auth-route-policy.ts";
+import { isAdminEmail } from "../website/lib/admin/access.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
-import * as websiteHabitProgress from "../website/lib/habit-progress.ts";
 
 const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
 
@@ -302,17 +298,10 @@ test("currentWeekStartKey returns the local Monday of the reference week", () =>
   assert.equal(currentWeekStartKey(new Date(2026, 6, 6, 0, 5)), "2026-07-06"); // next Monday flips the week
 });
 
-test("website date helpers preserve browser-local calendar days", () => {
-  const boundary = new Date("2026-01-01T23:30:00.000Z");
-  assert.equal(dateKeyInTimeZone(boundary, "UTC"), "2026-01-01");
-  assert.equal(dateKeyInTimeZone(boundary, "Asia/Kolkata"), "2026-01-02");
-  assert.equal(websiteLocalDateKey(new Date(2026, 0, 2, 23, 30)), "2026-01-02");
-});
-
 test("date key validation accepts only real yyyy-mm-dd calendar dates", () => {
-  assert.equal(isValidDateKey("2026-05-10"), true);
-  assert.equal(isValidDateKey("2026-02-30"), false);
-  assert.equal(isValidDateKey("05/10/2026"), false);
+  assert.equal(isValidAppDateKey("2026-05-10"), true);
+  assert.equal(isValidAppDateKey("2026-02-30"), false);
+  assert.equal(isValidAppDateKey("05/10/2026"), false);
 });
 
 test("localDateDaysAgo lands on Feb 29 in leap years and Feb 28 in non-leap years", () => {
@@ -365,11 +354,9 @@ test("streakFromDates counts an unbroken run across the new year", () => {
   assert.equal(streakFromDates(dates, newYearsDay), 3);
 });
 
-test("XP constants are canonical across app, website, and SQL", () => {
+test("XP constants are canonical across the app and SQL", () => {
   assert.equal(XP_PER_COMPLETION, 10);
   assert.equal(XP_PER_LEVEL, 500);
-  assert.equal(WEBSITE_XP_PER_COMPLETION, XP_PER_COMPLETION);
-  assert.equal(WEBSITE_XP_PER_LEVEL, XP_PER_LEVEL);
   assert.equal(xpForCompletions(11), 110);
   assert.equal(levelForXp(0), 1);
   assert.equal(levelForXp(500), 2);
@@ -383,36 +370,9 @@ test("XP constants are canonical across app, website, and SQL", () => {
   assert.match(sql, /\/ 500\) \+ 1\)::integer as level/);
 });
 
-test("landing web app CTAs use plain anchors and keep the header CTA mobile-hidden", () => {
+test("landing web app CTAs use plain anchors and expose the header CTA on mobile", () => {
   const pageSource = readFileSync("website/app/page.tsx", "utf8");
   const buttonSource = readFileSync("website/components/ui/button.tsx", "utf8");
-
-  function assertApprovedAppCtas(source) {
-    const hrefRefs =
-      source.match(
-        /\bhref\s*=\s*(?:\{[^}]*\bWEB_APP_URL\b[^}]*\}|\{\s*["']\/app["']\s*\}|["']\/app["'])/g,
-      ) ?? [];
-    const taggedRefs = [
-      ...source.matchAll(
-        /<([A-Za-z][\w.]*)\b[^>]*\bhref\s*=\s*(?:\{[^}]*\bWEB_APP_URL\b[^}]*\}|\{\s*["']\/app["']\s*\}|["']\/app["'])[^>]*>/g,
-      ),
-    ];
-    assert.ok(hrefRefs.length > 0, "expected at least one proxied web app CTA");
-    assert.equal(
-      taggedRefs.length,
-      hrefRefs.length,
-      "every WEB_APP_URL or literal /app href must belong to an inspected JSX tag",
-    );
-    for (const appCta of taggedRefs) {
-      const tagName = appCta[1];
-      if (tagName === "Button") {
-        assert.match(appCta[0], /(?:^|\s)external(?:=\{true\})?(?=\s|>)/);
-        continue;
-      }
-      assert.equal(tagName, "a", `unapproved proxied app CTA tag: ${tagName}`);
-    }
-    return taggedRefs.map((match) => match[0]);
-  }
 
   const externalBranch =
     buttonSource.match(
@@ -421,128 +381,18 @@ test("landing web app CTAs use plain anchors and keep the header CTA mobile-hidd
   assert.match(externalBranch, /<a href=\{props\.href\}/);
   assert.doesNotMatch(externalBranch, /<Link\b/);
 
-  const appCtas = assertApprovedAppCtas(pageSource);
-  assert.throws(
-    () => assertApprovedAppCtas(`<Link href={WEB_APP_URL}>Open</Link>`),
-    /unapproved proxied app CTA tag: Link/,
+  const appCtas = [...pageSource.matchAll(/<Button\b[^>]*href=\{WEB_APP_URL\}[^>]*>/g)].map(
+    (match) => match[0],
   );
-  assert.throws(
-    () => assertApprovedAppCtas(`<Link href={"/app"}>Open</Link>`),
-    /unapproved proxied app CTA tag: Link/,
-  );
-  assert.throws(() => assertApprovedAppCtas(`<Button href="/app">Open</Button>`), /external/);
-  assert.doesNotThrow(() => assertApprovedAppCtas(`<a href="/app">Open</a>`));
   assert.equal(appCtas.length, 3);
+  for (const appCta of appCtas) assert.match(appCta, /(?:^|\s)external(?=\s|>)/);
 
   const headerCta =
     pageSource.match(
       /<Button\s+[^>]*href=\{WEB_APP_URL\}[^>]*>[\s\S]*?Open the app[\s\S]*?<\/Button>/,
     )?.[0] ?? "";
-  assert.match(headerCta, /className="[^"]*\bhidden\b[^"]*\bsm:inline-flex\b/);
-  assert.doesNotMatch(headerCta, /display:\s*"inline-flex"/);
-});
-
-test("website habit list is a read-only progress view that points to the app", () => {
-  const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
-
-  // The web dashboard is view-only: habits are added and logged in the app, so
-  // the list must not toggle server-side state or carry action affordances.
-  assert.doesNotMatch(habitList, /useRouter/);
-  assert.doesNotMatch(habitList, /router\.refresh\(\)/);
-  assert.doesNotMatch(habitList, /onClick/);
-  assert.doesNotMatch(habitList, /"use client"/);
-
-  // The empty state sends people to the Android app via the shared constant,
-  // never a hardcoded play.google.com literal.
-  assert.match(habitList, /href=\{PLAY_STORE_URL\}/);
-  assert.doesNotMatch(habitList, /play\.google\.com/);
-});
-
-test("website canonical suggestions require a positive default and keep legacy fill explicit", () => {
-  assert.equal(typeof websiteHabitProgress.defaultLogValueForTarget, "function");
-  assert.equal(typeof websiteHabitProgress.legacyFillIncrement, "function");
-  const {
-    defaultLogValueForTarget,
-    legacyFillIncrement,
-    suggestedIncrement: websiteSuggestedIncrement,
-  } = websiteHabitProgress;
-  const canonicalHabit = {
-    name: "Read",
-    target: 100,
-    default_log_value: 25,
-    metric_type: "pages",
-    unit: "pages",
-  };
-
-  assert.equal(websiteSuggestedIncrement(canonicalHabit, 0), 25);
-  assert.equal(websiteSuggestedIncrement(canonicalHabit, 90), 10);
-  assert.equal(websiteSuggestedIncrement({ ...canonicalHabit, default_log_value: null }, 40), null);
-  assert.equal(websiteSuggestedIncrement({ ...canonicalHabit, default_log_value: 0 }, 40), null);
-  assert.equal(
-    websiteSuggestedIncrement(
-      { ...canonicalHabit, default_log_value: Number.POSITIVE_INFINITY },
-      40,
-    ),
-    null,
-  );
-  assert.equal(legacyFillIncrement({ ...canonicalHabit, default_log_value: null }, 40), 60);
-  assert.equal(
-    websiteSuggestedIncrement(
-      { ...canonicalHabit, target: 1000, default_log_value: 249.89999999999998 },
-      0,
-    ),
-    249,
-  );
-  assert.equal(defaultLogValueForTarget(100), 25);
-  assert.equal(defaultLogValueForTarget(5), 1.25);
-  assert.equal(defaultLogValueForTarget(0.02), 0.005);
-  assert.equal(defaultLogValueForTarget(null), null);
-});
-
-test("website check-in labels distinguish canonical partial logs from legacy completion fallback", () => {
-  assert.equal(typeof websiteHabitProgress.habitCheckInActionLabel, "function");
-  const { habitCheckInActionLabel } = websiteHabitProgress;
-  const habit = {
-    name: "Read",
-    target: 100,
-    default_log_value: 25,
-    metric_type: "pages",
-    unit: "pages",
-  };
-
-  assert.equal(habitCheckInActionLabel(habit, 40, false), "Log 25 pages for Read");
-  assert.equal(habitCheckInActionLabel(habit, 90, false), "Log 10 pages for Read");
-  assert.equal(
-    habitCheckInActionLabel({ ...habit, default_log_value: null }, 40, false),
-    "Mark Read complete",
-  );
-  assert.equal(habitCheckInActionLabel(habit, 100, true), "Mark Read incomplete");
-  assert.equal(
-    habitCheckInActionLabel({ ...habit, default_log_value: 24.899999999999998 }, 0, false),
-    "Log 24 pages for Read",
-  );
-});
-
-test("website dashboard surfaces completion progress through shared helpers", () => {
-  assert.equal(existsSync("website/lib/habit-progress.ts"), true);
-  const helper = readFileSync("website/lib/habit-progress.ts", "utf8");
-  const habitList = readFileSync("website/components/HabitList.tsx", "utf8");
-  const habits = readFileSync("website/lib/habits.ts", "utf8");
-  const dashboard = readFileSync("website/app/(app)/dashboard/page.tsx", "utf8");
-
-  assert.match(helper, /export function completionIsDone/);
-  assert.match(helper, /export function completedRowsFor/);
-  assert.match(helper, /export function suggestedIncrement/);
-  // The web dashboard is a read-only progress view; check-in writes moved out of
-  // the browser to the app and the log_habit_completion_once RPC, so the deleted
-  // dashboard actions must stay gone.
-  assert.equal(existsSync("website/app/(app)/dashboard/actions.ts"), false);
-  // Rows still render the current value against the habit's target and unit.
-  assert.match(habitList, /currentValue[\s\S]*?target[\s\S]*?unit/);
-  assert.match(habits, /completedRowsFor/);
-  assert.match(habits, /get_completion_stats/);
-  assert.match(habits, /todayValues/);
-  assert.match(dashboard, /<HabitList[\s\S]*?todayValues=\{todayValues\}/);
+  assert.doesNotMatch(headerCta, /\bhidden\b/);
+  assert.doesNotMatch(pageSource, />\s*Sign in\s*</);
 });
 
 test("Expo SDK patch dependencies match Expo install expectations", () => {
@@ -595,32 +445,12 @@ test("habit completion ownership is enforced at the database boundary", () => {
 
 test("habit dashboard queries include explicit user_id filters", () => {
   const appSource = readFileSync("lib/data/habits.ts", "utf8");
-  const websiteSource = readFileSync("website/lib/habits.ts", "utf8");
 
   const appTodayQuery =
     appSource.match(
       /supabase\s*\n\s*\.from\("habits"\)[\s\S]*?\.order\("created_at", \{ ascending: true \}\)/,
     )?.[0] ?? "";
   assert.match(appTodayQuery, /\.eq\("user_id", user\.id\)/);
-
-  const websiteTodayHabitQuery =
-    websiteSource.match(
-      /supabase\s*\n\s*\.from\("habits"\)[\s\S]*?\.order\("created_at", \{ ascending: true \}\)/,
-    )?.[0] ?? "";
-  assert.match(websiteTodayHabitQuery, /\.eq\("user_id", user\.id\)/);
-
-  const websiteTodayCompletionQuery =
-    websiteSource.match(
-      /supabase\s*\n\s*\.from\("habit_completions"\)[\s\S]*?\.eq\("completed_on"/,
-    )?.[0] ?? "";
-  assert.match(websiteTodayCompletionQuery, /\.eq\("user_id", user\.id\)/);
-
-  const websiteWeeklyFunction =
-    websiteSource.match(
-      /export async function getWeeklyCompletions\(\): Promise<HabitCompletion\[\]> \{[\s\S]*$/,
-    )?.[0] ?? "";
-  assert.match(websiteWeeklyFunction, /const user = await getCurrentUser\(supabase\)/);
-  assert.match(websiteWeeklyFunction, /\.eq\("user_id", user\.id\)/);
 });
 
 test("home widget snapshot clamps progress and formats launcher copy", () => {
@@ -1802,7 +1632,7 @@ test("external account deletion page is wired for Play Store compliance", () => 
   const websiteEnvExample = readFileSync("website/.env.local.example", "utf8");
   assert.match(
     websiteEnvExample,
-    /NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@your-domain\.example/,
+    /NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@lagan\.health/,
   );
 
   const privacyScreen = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
@@ -1812,21 +1642,15 @@ test("external account deletion page is wired for Play Store compliance", () => 
 
   const deletionPage = readFileSync("website/app/account-deletion/page.tsx", "utf8");
   assert.match(deletionPage, /Delete your Lagan account/);
-  assert.match(deletionPage, /\/login\?next=\/settings/);
+  assert.match(deletionPage, /href=\{WEB_APP_URL\}/);
   assert.match(deletionPage, /NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL/);
-
-  const settingsForm = readFileSync("website/app/(app)/settings/SettingsForm.tsx", "utf8");
-  assert.match(settingsForm, /deletePassword/);
-  assert.match(settingsForm, /signInWithPassword/);
-  assert.match(
-    settingsForm,
-    /functions\.invoke<\{ ok\?: boolean; error\?: string \}>\("delete-account"/,
-  );
-  assert.match(settingsForm, /\/account-deletion\?status=deleted/);
+  assert.match(deletionPage, /privacy@lagan\.health/);
+  assert.doesNotMatch(deletionPage, /\/login\?next=\/settings/);
 
   const loginForm = readFileSync("website/app/login/LoginForm.tsx", "utf8");
   assert.match(loginForm, /useSearchParams/);
-  assert.match(loginForm, /safeNextPath/);
+  assert.match(loginForm, /safeAdminNextPath/);
+  assert.doesNotMatch(loginForm, /resetPasswordForEmail|signUp/);
 });
 
 test("habit catalog is grouped by the configured categories", () => {
@@ -2220,25 +2044,19 @@ test("website auth route policy keeps public and proxied app paths out of auth m
     "/app/",
     "/app/dashboard",
     "/app/login/",
+    "/dashboard",
+    "/achievements",
+    "/leaderboard",
+    "/settings",
+    "/reset-password",
   ]) {
     assert.equal(isAuthAwarePath(pathname), false, `${pathname} should bypass auth middleware`);
     assert.equal(isProtectedPath(pathname), false, `${pathname} should not be protected`);
   }
 });
 
-test("website auth route policy protects website app areas and login", () => {
-  for (const pathname of [
-    "/dashboard",
-    "/dashboard/today",
-    "/achievements",
-    "/achievements/share",
-    "/leaderboard",
-    "/leaderboard/weekly",
-    "/settings",
-    "/settings/profile",
-    "/admin",
-    "/admin/users",
-  ]) {
+test("website auth route policy protects only admin areas and login", () => {
+  for (const pathname of ["/admin", "/admin/users"]) {
     assert.equal(isAuthAwarePath(pathname), true, `${pathname} should run auth middleware`);
     assert.equal(isProtectedPath(pathname), true, `${pathname} should be protected`);
   }
@@ -2248,12 +2066,17 @@ test("website auth route policy protects website app areas and login", () => {
   assert.equal(isProtectedPath("/login"), false);
 });
 
-test("website auth redirects preserve protected destination query strings", () => {
-  assert.equal(buildLoginRedirectPath("/dashboard", ""), "/login?next=%2Fdashboard");
+test("website admin redirects preserve safe destinations and reject other paths", () => {
+  assert.equal(buildLoginRedirectPath("/admin", ""), "/login?next=%2Fadmin");
   assert.equal(
-    buildLoginRedirectPath("/achievements", "?tab=earned"),
-    "/login?next=%2Fachievements%3Ftab%3Dearned",
+    buildLoginRedirectPath("/admin/users", "?tab=pro"),
+    "/login?next=%2Fadmin%2Fusers%3Ftab%3Dpro",
   );
+  assert.equal(safeAdminNextPath("/admin/users?tab=pro"), "/admin/users?tab=pro");
+  assert.equal(safeAdminNextPath("/privacy"), "/admin");
+  assert.equal(safeAdminNextPath("//evil.example/admin"), "/admin");
+  assert.equal(isAdminEmail("ADMIN@LAGAN.HEALTH", "admin@lagan.health"), true);
+  assert.equal(isAdminEmail("user@lagan.health", "admin@lagan.health"), false);
 });
 
 test("first-run auth backend errors are mapped to localized user copy", () => {
@@ -2319,8 +2142,9 @@ test("password validation errors are translated before display on auth screens",
 test("auth recovery errors are localized before display", () => {
   for (const message of [
     "Auth session missing!",
-    "Missing authentication code.",
+    "Missing authentication code or token.",
     "Missing authentication callback URL.",
+    EXPIRED_AUTH_LINK_MESSAGE,
   ]) {
     assert.notEqual(translate("hi", message), message);
   }
@@ -2331,9 +2155,22 @@ test("auth recovery errors are localized before display", () => {
   assert.match(resetPasswordSource, /text:\s*t\(authErrorMessageKey\(error\)\)/);
 
   const callbackSource = readFileSync("app/auth/callback.tsx", "utf8");
-  assert.match(callbackSource, /setError\(callbackErrorMessage\(e\)\)/);
+  assert.match(callbackSource, /setError\(authCallbackErrorMessage\(e\)\)/);
   assert.doesNotMatch(callbackSource, /\{error\}/);
   assert.match(callbackSource, /\{error \? t\(error\) : null\}/);
+
+  assert.equal(
+    authCallbackErrorMessage({ code: "otp_expired", message: "Email link is invalid" }),
+    EXPIRED_AUTH_LINK_MESSAGE,
+  );
+  assert.equal(
+    authCallbackErrorMessage(new Error("Token has expired or is invalid")),
+    EXPIRED_AUTH_LINK_MESSAGE,
+  );
+  assert.equal(
+    authCallbackErrorMessage(new Error("Invalid login credentials")),
+    "Invalid login credentials",
+  );
 });
 
 test("signup and email confirmation copy gives a clear next step", () => {
@@ -3128,12 +2965,19 @@ test("auth callback params can reconstruct a callback URL when native Linking ha
   });
 
   assert.equal(url, "/auth/callback?code=auth-code&state=first-state");
+
+  const otpUrl = authCallbackUrlFromParams("/auth/callback", {
+    token_hash: "hashed-token",
+    type: "recovery",
+  });
+  assert.equal(otpUrl, "/auth/callback?token_hash=hashed-token&type=recovery");
 });
 
 test("auth callback parser ignores unbound bearer tokens from query and fragment params", () => {
   const source = readFileSync("lib/auth/auth-redirect.ts", "utf8");
 
   assert.match(source, /code: firstParam\(allParams\.code\)/);
+  assert.match(source, /tokenHash: firstParam\(allParams\.token_hash\)/);
   assert.doesNotMatch(source, /access_token|refresh_token|accessToken|refreshToken/);
 });
 
@@ -3143,6 +2987,8 @@ test("auth callback completion paths do not install sessions from parsed bearer 
 
   assert.doesNotMatch(callbackScreen, /parsed\.accessToken|parsed\.refreshToken|setSession\(/);
   assert.doesNotMatch(nativeActions, /parsed\.accessToken|parsed\.refreshToken|setSession\(/);
+  assert.match(callbackScreen, /supabase\.auth\.verifyOtp/);
+  assert.match(callbackScreen, /isAppEmailOtpType\(parsed\.type\)/);
 });
 
 test("web auth callback URL keeps the Expo Router base path so the PWA handles OAuth", () => {
@@ -7784,13 +7630,6 @@ test("signup, Terms, and Privacy disclose the adult-only revocable AI processing
   );
   assert.match(privacy, /revoke AI access/);
   assert.match(privacy, /do not store your birth date/);
-});
-
-test("website timezone synchronization is scoped to the authenticated account", () => {
-  const source = readFileSync("website/components/timezone-cookie.tsx", "utf8");
-  assert.match(source, /supabase\.auth\.getUser\(\)/);
-  assert.match(source, /lagan_profile_timezone_v1:\$\{userId\}/);
-  assert.match(source, /getItem\(syncKey\) === timeZone/);
 });
 
 test("AI coach message uses cache before invoking generation", async () => {

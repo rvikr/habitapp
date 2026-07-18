@@ -5,15 +5,11 @@
   "Confirm signup" → Message body (Source). Suggested Subject: "Confirm your email".
 
   Same rationale as recovery.html: the link points at {{ .SiteURL }}/auth/confirm on our
-  own domain (redeemed by website/app/auth/confirm/route.ts via verifyOtp, type=signup),
-  not the raw <project>.supabase.co URL — this is what keeps Gmail from flagging it.
+  own domain, not the raw <project>.supabase.co URL. The route preserves the unconsumed
+  token and hands it to the native app or PWA selected by {{ .RedirectTo }}; Expo then
+  redeems it with verifyOtp. This supports cross-device browser fallback without PKCE.
 
-  CROSS-PLATFORM NOTE: this hardcodes the confirmation to the website, so mobile signups
-  confirm on lagan.health and then sign in from the app (matches SIGNUP_CONFIRMATION_MESSAGE
-  in lib/auth/auth-welcome.ts). If you need mobile to deep-link back into the app instead,
-  use Supabase's Custom Domain add-on with the default {{ .ConfirmationURL }} template.
-
-  Available variables: {{ .SiteURL }} {{ .TokenHash }} {{ .Email }} {{ .Token }}
+  Available variables: {{ .SiteURL }} {{ .RedirectTo }} {{ .TokenHash }} {{ .Email }} {{ .Token }}
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -32,7 +28,7 @@
             </tr>
             <tr>
               <td style="padding-bottom:24px;">
-                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/dashboard" style="display:inline-block;background:#F26B1F;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 28px;border-radius:10px;">Confirm email</a>
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;redirect_to={{ .RedirectTo }}" style="display:inline-block;background:#F26B1F;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 28px;border-radius:10px;">Confirm email</a>
               </td>
             </tr>
             <tr>
@@ -43,7 +39,7 @@
             <tr>
               <td style="font-size:13px;line-height:20px;color:#9ca3af;padding-top:16px;border-top:1px solid #eef0f2;">
                 Button not working? Copy and paste this link into your browser:<br>
-                <span style="color:#6b7280;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;next=/dashboard</span>
+                <span style="color:#6b7280;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=signup&amp;redirect_to={{ .RedirectTo }}</span>
               </td>
             </tr>
           </table>

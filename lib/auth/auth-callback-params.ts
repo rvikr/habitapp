@@ -7,6 +7,7 @@ const AUTH_PARAM_KEYS = new Set([
   "error_description",
   "refresh_token",
   "state",
+  "token_hash",
   "type",
 ]);
 

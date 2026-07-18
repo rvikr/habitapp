@@ -15,6 +15,18 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "*.supabase.co" },
     ],
   },
+  async headers() {
+    return [
+      {
+        source: "/auth/open-app",
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     // CLOUD_RUN_APP_URL: the full Cloud Run service URL (no trailing slash).
     // e.g. https://lagan-abcdefg-el.a.run.app

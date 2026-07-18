@@ -1,7 +1,7 @@
 export const PENDING_SIGNUP_EMAIL_KEY = "habbit:pending-signup-email";
 
 export const SIGNUP_CONFIRMATION_MESSAGE =
-  "Account created. Check your email to confirm it, then come back here to sign in.";
+  "Account created. Check your email and tap the confirmation link to continue in Lagan.";
 
 export const AUTH_CALLBACK_CONFIRMED_TITLE = "Congratulations, your email is confirmed!";
 export const AUTH_CALLBACK_AUTHENTICATED_BODY = "You're signed in and ready to continue to Lagan.";

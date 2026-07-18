@@ -334,21 +334,10 @@ export default function LandingPage() {
           { label: "FAQ", href: "#faq" },
         ]}
         actions={
-          <>
-            <Button href="/login" variant="ghost" size="md">
-              Sign in
-            </Button>
-            <Button
-              href={WEB_APP_URL}
-              external
-              variant="primary"
-              size="md"
-              className="hidden sm:inline-flex"
-            >
-              <GlobeIcon />
-              Open the app
-            </Button>
-          </>
+          <Button href={WEB_APP_URL} external variant="primary" size="md">
+            <GlobeIcon />
+            Open the app
+          </Button>
         }
       />
 

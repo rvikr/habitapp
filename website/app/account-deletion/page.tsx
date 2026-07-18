@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { LegalSection, LegalShell } from "@/components/ui/legal-page";
+import { WEB_APP_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Account deletion",
@@ -9,7 +10,13 @@ export const metadata: Metadata = {
   alternates: { canonical: "/account-deletion" },
 };
 
-const deletionEmail = process.env.NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL;
+const configuredDeletionEmail = process.env.NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL?.trim();
+const deletionEmail =
+  configuredDeletionEmail &&
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(configuredDeletionEmail) &&
+  !/@[^@]*\.example$/i.test(configuredDeletionEmail)
+    ? configuredDeletionEmail
+    : "privacy@lagan.health";
 
 function Icon({ name }: { name: string }) {
   return (
@@ -37,9 +44,7 @@ async function AccountDeletionContent({
 }) {
   const params = await searchParams;
   const deleted = params?.status === "deleted";
-  const mailTo = deletionEmail
-    ? `mailto:${deletionEmail}?subject=${encodeURIComponent("Delete my Lagan account")}&body=${encodeURIComponent("Please delete the Lagan account associated with this email address.")}`
-    : null;
+  const mailTo = `mailto:${deletionEmail}?subject=${encodeURIComponent("Delete my Lagan account")}&body=${encodeURIComponent("Please delete the Lagan account associated with this email address.")}`;
 
   return (
     <LegalShell
@@ -54,29 +59,27 @@ async function AccountDeletionContent({
       }
       intro={
         <p>
-          You can permanently delete your account and app data from the web or from the mobile
-          app. Deletion removes your profile, habits, completions, sleep entries, feedback
+          You can permanently delete your account and app data in Lagan or request deletion by
+          email. Deletion removes your profile, habits, completions, sleep entries, feedback
           linked to your account, and authentication account.
         </p>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <Button href="/login?next=/settings" className="w-full">
-          Sign in to delete account
+        <Button href={WEB_APP_URL} external className="w-full">
+          Open Lagan to delete account
         </Button>
-        {mailTo && (
-          <Button href={mailTo} external variant="outline" className="w-full">
-            Email deletion support
-          </Button>
-        )}
+        <Button href={mailTo} external variant="outline" className="w-full">
+          Email deletion support
+        </Button>
       </div>
 
       <div className="grid gap-5 md:grid-cols-3">
         {[
           {
             icon: "login",
-            title: "1. Sign in",
-            body: "Use the same email address as your Lagan account. The web settings page includes the deletion form.",
+            title: "1. Open Lagan",
+            body: "Open the Lagan app or browser app and sign in with the account you want to delete.",
           },
           {
             icon: "password",
@@ -99,10 +102,10 @@ async function AccountDeletionContent({
         ))}
       </div>
 
-      <LegalSection title="Mobile app option">
+      <LegalSection title="In-app option">
         <p>
-          In the Android app, open Settings, then Privacy &amp; Data, then Request account
-          deletion. You will be asked to confirm your password before the account is removed.
+          Open Settings, then Privacy &amp; Data, then Request account deletion. You will be asked
+          to confirm your password before the account is removed.
         </p>
       </LegalSection>
 

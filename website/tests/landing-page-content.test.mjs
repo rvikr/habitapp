@@ -47,6 +47,11 @@ test("homepage marks iOS coming soon and offers a web app path", () => {
   assert.match(pageSource, /href=\{WEB_APP_URL\}/);
 });
 
+test("homepage exposes the app without advertising website sign-in", () => {
+  assert.match(pageSource, /Open the app/);
+  assert.doesNotMatch(pageSource, /href="\/login"/);
+});
+
 test("homepage does not depend on dynamic Supabase stats", () => {
   assert.doesNotMatch(pageSource, /@supabase\/supabase-js/);
   assert.doesNotMatch(pageSource, /createClient/);

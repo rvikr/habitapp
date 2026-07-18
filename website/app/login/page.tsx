@@ -4,16 +4,16 @@ import LoginForm from "./LoginForm";
 import { LogoLockup } from "@/components/ui/logo";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "Admin sign in",
   robots: { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";
 
 const FEATURES = [
-  "Build habits with gentle consistency",
-  "Track streaks and earn chill time",
-  "AI Coach that understands your life",
+  "Manage users and access",
+  "Review system health and feedback",
+  "Control content and product settings",
 ];
 
 export default function LoginPage() {
@@ -32,16 +32,15 @@ export default function LoginPage() {
         {/* Middle content */}
         <div className="relative z-[1] max-w-[420px]">
           <p className="mb-4 font-display text-[13px] font-bold uppercase tracking-[0.12em] text-primary">
-            Habit Tracker
+            Administration
           </p>
           <h2 className="mb-4 font-display text-[clamp(32px,3.5vw,44px)] font-extrabold leading-[1.1] tracking-tight text-on-background">
-            Your habits,
+            Lagan Admin,
             <br />
-            <span className="text-primary">gently held.</span>
+            <span className="text-primary">one control center.</span>
           </h2>
           <p className="mb-10 text-base leading-relaxed text-on-surface-variant">
-            Build better routines with calm, intentional design. Track streaks,
-            earn chill time, and grow consistently.
+            Secure access to Lagan operations, user support, analytics, and content controls.
           </p>
 
           <div className="flex flex-col gap-4">

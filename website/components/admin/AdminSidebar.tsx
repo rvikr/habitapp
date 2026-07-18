@@ -27,8 +27,8 @@ export default function AdminSidebar({ email }: { email: string }) {
           </div>
           <span className="font-extrabold text-sm text-white">Lagan Admin</span>
         </Link>
-        <Link href="/dashboard" className="text-xs font-bold text-on-surface-variant">
-          App
+        <Link href="/" className="text-xs font-bold text-on-surface-variant">
+          Site
         </Link>
       </header>
 
@@ -105,11 +105,11 @@ export default function AdminSidebar({ email }: { email: string }) {
       {/* Footer */}
       <div className="p-3 border-t border-outline-variant space-y-1">
         <Link
-          href="/dashboard"
+          href="/"
           className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-on-surface-variant hover:text-white hover:bg-surface-container-high text-sm font-medium transition-all"
         >
           <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-          Back to App
+          Back to site
         </Link>
         <div className="flex items-center gap-2.5 px-3 py-2">
           <div className="w-7 h-7 rounded-full bg-primary/25 flex items-center justify-center flex-shrink-0">

@@ -1,10 +1,4 @@
-const PROTECTED_PATH_PREFIXES = [
-  "/dashboard",
-  "/achievements",
-  "/leaderboard",
-  "/settings",
-  "/admin",
-] as const;
+const PROTECTED_PATH_PREFIXES = ["/admin"] as const;
 
 function isPathOrChild(pathname: string, basePath: string): boolean {
   return pathname === basePath || pathname.startsWith(`${basePath}/`);
@@ -25,4 +19,10 @@ export function isAuthAwarePath(pathname: string): boolean {
 export function buildLoginRedirectPath(pathname: string, search: string): string {
   const params = new URLSearchParams({ next: `${pathname}${search}` });
   return `/login?${params.toString()}`;
+}
+
+export function safeAdminNextPath(value: string | null): string {
+  if (!value || (!isPathOrChild(value.split(/[?#]/, 1)[0], "/admin"))) return "/admin";
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("://")) return "/admin";
+  return value;
 }

@@ -8,11 +8,12 @@
   - The link points at {{ .SiteURL }}/auth/confirm (our own domain, lagan.health) via
     {{ .TokenHash }}, NOT the raw <project>.supabase.co/auth/v1/verify URL. A reset link
     whose domain matches the sender's domain is what stops Gmail's phishing ("dangerous")
-    banner. The link is redeemed by website/app/auth/confirm/route.ts (verifyOtp).
+    banner. The website route safely hands the unconsumed token to Lagan, where
+    the Expo app redeems it with verifyOtp.
   - Branded, non-sparse content + an explicit "ignore if you didn't request this" line are
     both signals legitimate reset emails carry and phishing ones usually don't.
 
-  Available variables: {{ .SiteURL }} {{ .TokenHash }} {{ .Email }} {{ .Token }}
+  Available variables: {{ .SiteURL }} {{ .RedirectTo }} {{ .TokenHash }} {{ .Email }} {{ .Token }}
 -->
 <!DOCTYPE html>
 <html lang="en">
@@ -31,7 +32,7 @@
             </tr>
             <tr>
               <td style="padding-bottom:24px;">
-                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/reset-password" style="display:inline-block;background:#F26B1F;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 28px;border-radius:10px;">Reset password</a>
+                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;redirect_to={{ .RedirectTo }}" style="display:inline-block;background:#F26B1F;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 28px;border-radius:10px;">Reset password</a>
               </td>
             </tr>
             <tr>
@@ -42,7 +43,7 @@
             <tr>
               <td style="font-size:13px;line-height:20px;color:#9ca3af;padding-top:16px;border-top:1px solid #eef0f2;">
                 Button not working? Copy and paste this link into your browser:<br>
-                <span style="color:#6b7280;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=/reset-password</span>
+                <span style="color:#6b7280;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;redirect_to={{ .RedirectTo }}</span>
               </td>
             </tr>
           </table>

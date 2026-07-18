@@ -56,15 +56,19 @@ environments.
 
 ### Supabase Auth redirects
 
-In Supabase Dashboard -> Authentication -> URL Configuration, add the native app redirect
-URL before testing Google sign-in in a production Android/iOS build:
+In Supabase Dashboard -> Authentication -> URL Configuration, add every exact callback used
+by the native app, PWA, and admin website:
 
 ```
 lagan://auth/callback
+lagan://auth/callback?type=recovery
+https://lagan.health/auth/callback
+https://lagan.health/app/auth/callback
+https://lagan.health/app/auth/callback?type=recovery
 ```
 
-Keep the production web callback URL, such as `https://your-domain.example/auth/callback`,
-in the same allow list if web auth is enabled.
+The marketing website has no user account area. `/login` and `/auth/callback` exist only for
+the protected admin console; user signup and recovery run in the native app or PWA.
 
 To prevent Google from showing the raw Supabase project URL on the "Sign in with Google"
 screen, configure a Supabase custom domain such as `auth.lagan.health`. After activation,
@@ -81,7 +85,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 ADMIN_EMAILS=admin@example.com,owner@example.com
-NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@your-domain.example
+NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@lagan.health
 ```
 
 The service-role key is server-only for the Next admin app. Never expose it through
@@ -117,14 +121,11 @@ Edge Function secrets (`supabase secrets set`): `RESEND_API_KEY`, `WELCOME_EMAIL
 `SUPPORT_NOTIFY_EMAIL=support@lagan.health`. Vault also holds `welcome_email_url` and
 `welcome_email_secret` for the welcome-email DB trigger.
 
-Auth redirect allow-list (Supabase Dashboard -> Authentication -> URL Configuration) must
-include the reset-password callbacks in addition to the entries above:
-
-```
-https://lagan.health/reset-password
-https://lagan.health/auth/callback
-https://lagan.health/app/auth/callback
-```
+Auth emails use the source-controlled templates in `supabase/templates`. Their own-domain
+links reach `/auth/confirm`, which passes the unconsumed `token_hash` to the requested native
+or PWA callback. Expo calls `verifyOtp`; missing, invalid, stale, and dev-client redirect
+targets safely fall back to the PWA. Deploy the compatible PWA/native JavaScript first, then
+the website handoff, then the redirect allow-list, and paste the updated templates last.
 
 ---
 

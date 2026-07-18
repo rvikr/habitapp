@@ -84,19 +84,21 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 - [ ] Add `play-service-account.json` locally or configure Google Play credentials in EAS before `eas submit -p android`
 - [x] Bundle ID / Android package set to `health.lagan.app`
 - [ ] Set production env vars in EAS: Supabase URL/key, privacy policy URL, Sentry DSN, and PostHog key/host
-- [ ] Add `lagan://auth/callback` to Supabase Auth -> URL Configuration -> Redirect URLs for Google sign-in
+- [ ] Add the exact native, PWA, recovery, and admin callbacks documented in README to Supabase Auth redirect URLs
 - [ ] Upgrade Supabase from Free if needed; custom domains require a paid plan/add-on
 - [ ] Configure and activate a Supabase custom domain such as `auth.lagan.health`
 - [ ] Add `https://auth.lagan.health/auth/v1/callback` to the Google OAuth client's authorized redirect URIs
 - [ ] After the custom domain is active, update `EXPO_PUBLIC_SUPABASE_URL` to `https://auth.lagan.health` in `.env.local`, EAS env, and web build env
 - [ ] Deploy the public account deletion page and set `EXPO_PUBLIC_ACCOUNT_DELETION_URL` to `https://your-domain/account-deletion`
-- [ ] Set `NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL` for the web account deletion page
+- [ ] Confirm the account deletion page renders `privacy@lagan.health` (the env override is optional)
 
 **Email deliverability (see README → Email setup):**
 
 - [ ] Add the Namecheap Private Email **DKIM** record (`default._domainkey.lagan.health`) — SPF/MX already point to Private Email
 - [ ] Enable Supabase **custom SMTP** (`mail.privateemail.com:587`, `support@lagan.health`) for auth emails, and raise the auth email rate limit
-- [ ] Add reset-password callbacks to the Auth redirect allow-list: `https://lagan.health/reset-password`, `https://lagan.health/auth/callback`, `https://lagan.health/app/auth/callback`
+- [ ] Publish the `token_hash` callback support to the production PWA and supported native runtime before changing email templates
+- [ ] Deploy the website handoff, then add all five exact Auth redirects from README, then re-paste both source-controlled email templates
+- [ ] Retain the old `/reset-password` allow-list entry until cutover passes and previously issued emails have expired
 - [ ] Set edge-function secret `SUPPORT_NOTIFY_EMAIL=support@lagan.health`; confirm `RESEND_API_KEY` + `WELCOME_EMAIL_SECRET` are set
 - [ ] Send a test signup + password reset and confirm both arrive (SPF/DKIM pass) and a reply reaches the `support@lagan.health` inbox
 - [ ] Verify the Play Console account deletion URL returns HTTP 200 without sign-in before submitting

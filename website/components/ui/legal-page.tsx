@@ -3,6 +3,7 @@ import { Button } from "./button";
 import Footer from "./footer";
 import MarketingNav from "./marketing-nav";
 import { Eyebrow } from "./section";
+import { WEB_APP_URL } from "@/lib/site";
 
 export function slugify(title: string) {
   return title
@@ -50,8 +51,8 @@ export function LegalShell({
     <main className="min-h-screen bg-background text-on-surface">
       <MarketingNav
         actions={
-          <Button href="/login" variant="ghost" size="md">
-            Sign in
+          <Button href={WEB_APP_URL} external variant="primary" size="md">
+            Open app
           </Button>
         }
       />

@@ -46,7 +46,7 @@ export async function resetPasswordForUser(email: string) {
       { auth: { persistSession: false, autoRefreshToken: false } },
     );
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${SITE_URL}/auth/callback?next=/reset-password`,
+      redirectTo: `${SITE_URL}/app/auth/callback?type=recovery`,
     });
     if (error) return { ok: false, error: error.message };
     await logAdminAction(auth.email, "reset_password", "user", email);

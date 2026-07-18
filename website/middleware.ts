@@ -6,6 +6,7 @@ import {
   isLoginPath,
   isProtectedPath,
 } from "./lib/auth-route-policy";
+import { isAdminEmail } from "./lib/admin/access";
 import { isMissingRefreshTokenError } from "./lib/supabase/auth-error";
 
 function isSupabaseAuthCookie(name: string): boolean {
@@ -82,14 +83,16 @@ export async function middleware(request: NextRequest) {
   );
 
   let hasVerifiedClaims = false;
+  let verifiedEmail: string | null = null;
   let shouldClearAuthCookies = false;
   try {
     const { data, error } = await supabase.auth.getClaims();
     if (error) {
       shouldClearAuthCookies = isMissingRefreshTokenError(error);
     } else {
-      const claims = data?.claims as { sub?: string } | null | undefined;
+      const claims = data?.claims as { sub?: string; email?: string } | null | undefined;
       hasVerifiedClaims = Boolean(claims?.sub);
+      verifiedEmail = claims?.email ?? null;
     }
   } catch (error) {
     shouldClearAuthCookies = isMissingRefreshTokenError(error);
@@ -100,6 +103,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const { pathname, search } = request.nextUrl;
+  const hasVerifiedAdmin = hasVerifiedClaims && isAdminEmail(verifiedEmail);
 
   if (!hasVerifiedClaims && isProtectedPath(pathname)) {
     const url = new URL(buildLoginRedirectPath(pathname, search), request.url);
@@ -108,10 +112,17 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Redirect logged-in users away from /login
-  if (hasVerifiedClaims && isLoginPath(pathname)) {
+  if (hasVerifiedClaims && !hasVerifiedAdmin && isProtectedPath(pathname)) {
+    const url = new URL("/login?error=not_authorized", request.url);
+    const response = NextResponse.redirect(url);
+    clearSupabaseAuthCookies(request, response);
+    return response;
+  }
+
+  // Only verified admins are redirected away from the admin sign-in page.
+  if (hasVerifiedAdmin && isLoginPath(pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = "/admin";
     url.search = "";
     url.hash = "";
     return NextResponse.redirect(url);
