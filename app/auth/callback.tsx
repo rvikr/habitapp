@@ -39,10 +39,17 @@ export default function AuthCallbackScreen() {
   // ref is cleared solely by the dedicated unmount effect, so the productive run can
   // always finish.
   const mountedRef = useRef(true);
+  const recoveryRoutedRef = useRef(false);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [shouldWelcome, setShouldWelcome] = useState(false);
   const [hasSession, setHasSession] = useState(false);
+
+  function goToResetPassword() {
+    if (recoveryRoutedRef.current) return;
+    recoveryRoutedRef.current = true;
+    router.replace("/reset-password" as never);
+  }
 
   async function trackSignupConfirmation(userId: string | null) {
     if (userId) identifyAnalytics(userId);
@@ -55,6 +62,18 @@ export default function AuthCallbackScreen() {
     return () => {
       mountedRef.current = false;
     };
+  }, []);
+
+  // Backstop: if the SDK surfaces a recovery session (e.g. via any flow that
+  // emits PASSWORD_RECOVERY), route to the set-new-password screen even if the
+  // callback URL never carried `type=recovery`. The primary signal is still the
+  // `type` param handled in finishAuth; this ref-guards against double navigation.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY" && mountedRef.current) goToResetPassword();
+    });
+    return () => sub.subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -91,7 +110,10 @@ export default function AuthCallbackScreen() {
       setHasSession(hasSession);
 
       if (parsed.type === "recovery") {
-        router.replace("/reset-password" as never);
+        if (!recoveryRoutedRef.current) {
+          recoveryRoutedRef.current = true;
+          router.replace("/reset-password" as never);
+        }
         return;
       }
 
@@ -122,7 +144,7 @@ export default function AuthCallbackScreen() {
         });
       }
       if (mountedRef.current) {
-        setError(e instanceof Error ? e.message : "Could not complete authentication.");
+        setError(callbackErrorMessage(e));
         setStatus("error");
       }
     });
@@ -197,6 +219,18 @@ export default function AuthCallbackScreen() {
 function browserLocationUrl(): string | null {
   if (Platform.OS !== "web" || typeof window === "undefined") return null;
   return window.location.href || null;
+}
+
+// With PKCE, exchangeCodeForSession needs the code_verifier saved on the device
+// that started the flow. Opening the link on a different device/browser fails
+// with a "code verifier" error — surface actionable guidance instead of the raw
+// backend string. Returns a translation key.
+function callbackErrorMessage(e: unknown): string {
+  const raw = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+  if (/code[\s_]?verifier/i.test(raw)) {
+    return "Open this link on the same device and browser where you requested it, or go back and request a new email.";
+  }
+  return raw || "Could not complete authentication.";
 }
 
 function homeDestination(shouldWelcome: boolean) {

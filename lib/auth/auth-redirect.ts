@@ -4,11 +4,15 @@ import { AUTH_CALLBACK_PATH, buildWebAuthCallbackUrl } from "./auth-callback-url
 
 export { AUTH_CALLBACK_PATH };
 
-export function authCallbackUrl() {
+export function authCallbackUrl(queryParams?: Record<string, string>) {
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    return buildWebAuthCallbackUrl(window.location.origin);
+    const url = new URL(buildWebAuthCallbackUrl(window.location.origin));
+    if (queryParams) {
+      for (const [key, value] of Object.entries(queryParams)) url.searchParams.set(key, value);
+    }
+    return url.toString();
   }
-  return Linking.createURL(AUTH_CALLBACK_PATH);
+  return Linking.createURL(AUTH_CALLBACK_PATH, queryParams ? { queryParams } : undefined);
 }
 
 export type ParsedAuthCallback = {

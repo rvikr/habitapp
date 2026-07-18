@@ -346,7 +346,23 @@ export async function resetPassword(email: string) {
   if (!isSupabaseConfigured()) return { error: configurationError() };
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: authCallbackUrl(),
+      // Mark the redirect as recovery ourselves so the callback always routes to
+      // the set-new-password screen — we don't rely on Supabase appending `type`.
+      redirectTo: authCallbackUrl({ type: "recovery" }),
+    });
+    return { error };
+  } catch {
+    return { error: networkError() };
+  }
+}
+
+export async function resendConfirmationEmail(email: string) {
+  if (!isSupabaseConfigured()) return { error: configurationError() };
+  try {
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: authCallbackUrl() },
     });
     return { error };
   } catch {

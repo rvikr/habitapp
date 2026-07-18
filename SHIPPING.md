@@ -91,6 +91,14 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 - [ ] After the custom domain is active, update `EXPO_PUBLIC_SUPABASE_URL` to `https://auth.lagan.health` in `.env.local`, EAS env, and web build env
 - [ ] Deploy the public account deletion page and set `EXPO_PUBLIC_ACCOUNT_DELETION_URL` to `https://your-domain/account-deletion`
 - [ ] Set `NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL` for the web account deletion page
+
+**Email deliverability (see README → Email setup):**
+
+- [ ] Add the Namecheap Private Email **DKIM** record (`default._domainkey.lagan.health`) — SPF/MX already point to Private Email
+- [ ] Enable Supabase **custom SMTP** (`mail.privateemail.com:587`, `support@lagan.health`) for auth emails, and raise the auth email rate limit
+- [ ] Add reset-password callbacks to the Auth redirect allow-list: `https://lagan.health/reset-password`, `https://lagan.health/auth/callback`, `https://lagan.health/app/auth/callback`
+- [ ] Set edge-function secret `SUPPORT_NOTIFY_EMAIL=support@lagan.health`; confirm `RESEND_API_KEY` + `WELCOME_EMAIL_SECRET` are set
+- [ ] Send a test signup + password reset and confirm both arrive (SPF/DKIM pass) and a reply reaches the `support@lagan.health` inbox
 - [ ] Verify the Play Console account deletion URL returns HTTP 200 without sign-in before submitting
 - [ ] Create a Play review test account and put the credentials in Play Console "App access"
 - [ ] Record a short reviewer video showing sign-in, Health Connect step/sleep sync, Privacy & Data, and account deletion

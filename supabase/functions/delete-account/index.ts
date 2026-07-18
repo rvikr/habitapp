@@ -17,6 +17,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const REAUTH_MAX_AGE_MS = Number(Deno.env.get("DELETE_ACCOUNT_REAUTH_MAX_AGE_SECONDS") ?? "600") * 1000;
+// Goodbye email is sent through Resend (same provider/sender as welcome-email).
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const GOODBYE_EMAIL_FROM = Deno.env.get("WELCOME_EMAIL_FROM") ?? "Lagan <hello@lagan.health>";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -36,6 +39,63 @@ function hasRecentSignIn(user: { last_sign_in_at?: string | null }): boolean {
   const signedInAt = Date.parse(user.last_sign_in_at ?? "");
   if (!Number.isFinite(signedInAt)) return false;
   return Date.now() - signedInAt <= REAUTH_MAX_AGE_MS;
+}
+
+function goodbyeHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:0;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:32px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;padding:40px 32px;">
+            <tr>
+              <td style="font-size:24px;font-weight:700;color:#111827;padding-bottom:16px;">Your account has been deleted</td>
+            </tr>
+            <tr>
+              <td style="font-size:16px;line-height:24px;color:#374151;padding-bottom:24px;">
+                We've permanently deleted your Lagan account and its data as requested. Thank you for the time you spent building habits with us — you're always welcome back.
+              </td>
+            </tr>
+            <tr>
+              <td style="font-size:14px;line-height:22px;color:#6b7280;">
+                If you didn't request this, reply to this email right away and we'll help.
+              </td>
+            </tr>
+          </table>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;padding:16px 32px;">
+            <tr>
+              <td style="font-size:12px;color:#9ca3af;text-align:center;">Lagan · Build better habits, one day at a time.</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+// Best-effort goodbye email — never blocks or fails the deletion.
+async function sendGoodbyeEmail(email: string | null): Promise<void> {
+  if (!RESEND_API_KEY || !email) return;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: GOODBYE_EMAIL_FROM,
+        to: email,
+        subject: "Your Lagan account has been deleted",
+        html: goodbyeHtml(),
+      }),
+    });
+    if (!res.ok) console.error(`Goodbye email failed (${res.status}):`, await res.text());
+  } catch (e) {
+    console.error("Goodbye email failed (non-fatal):", e);
+  }
 }
 
 serve(async (req) => {
@@ -110,6 +170,9 @@ serve(async (req) => {
       .eq("id", auditId);
     return json({ error: `Failed to delete auth user: ${authError.message}` }, 500);
   }
+
+  // Account is gone at this point — send the goodbye email (best-effort).
+  await sendGoodbyeEmail(user.email ?? null);
 
   const { error: completeError } = await admin
     .from("account_deletion_requests")

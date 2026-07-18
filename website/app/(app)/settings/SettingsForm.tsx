@@ -118,7 +118,7 @@ export default function SettingsForm({
     setPasswordLoading(true);
     setPasswordMsg("");
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${location.origin}/auth/callback`,
+      redirectTo: `${location.origin}/auth/callback?next=/reset-password`,
     });
     setPasswordLoading(false);
     setPasswordMsg(

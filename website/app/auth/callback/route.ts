@@ -17,7 +17,13 @@ function sanitizeNext(rawNext: string | null, origin: string): string {
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = sanitizeNext(searchParams.get("next"), origin);
+  // A recovery link must always land on the set-new-password page, even if the
+  // `next` param is dropped by the mailer — the session alone is not enough,
+  // the user still has to choose a new password.
+  const next =
+    searchParams.get("type") === "recovery"
+      ? "/reset-password"
+      : sanitizeNext(searchParams.get("next"), origin);
 
   if (code) {
     const cookieStore = await cookies();

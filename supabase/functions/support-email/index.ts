@@ -6,7 +6,7 @@
 //
 // Required secrets (set with `supabase secrets set`):
 //   RESEND_API_KEY        — same key used by welcome-email
-//   SUPPORT_NOTIFY_EMAIL  — destination inbox (defaults to royalkastle@gmail.com)
+//   SUPPORT_NOTIFY_EMAIL  — destination inbox (defaults to support@lagan.health)
 //   SUPPORT_EMAIL_FROM    — FROM address (defaults to "Lagan <hello@lagan.health>")
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -14,7 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const SUPPORT_NOTIFY_EMAIL = Deno.env.get("SUPPORT_NOTIFY_EMAIL") ?? "royalkastle@gmail.com";
+const SUPPORT_NOTIFY_EMAIL = Deno.env.get("SUPPORT_NOTIFY_EMAIL") ?? "support@lagan.health";
 const FROM_ADDRESS = Deno.env.get("SUPPORT_EMAIL_FROM") ?? "Lagan <hello@lagan.health>";
 
 // Mirrors FeedbackCategory in lib/utils/feedback.ts. Stored rows are still

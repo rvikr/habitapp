@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction } from "@/lib/admin/audit";
 import { requireAdmin } from "@/lib/admin/auth";
+import { SITE_URL } from "@/lib/site";
 
 export async function grantPro(userId: string) {
   const auth = await requireAdmin();
@@ -35,10 +37,16 @@ export async function resetPasswordForUser(email: string) {
   const auth = await requireAdmin();
   if (!auth.ok) return { ok: false, error: auth.error };
   try {
-    const admin = createAdminClient();
-    const { error } = await admin.auth.admin.generateLink({
-      type: "recovery",
-      email,
+    // A session-less anon client so this never touches the admin's own session.
+    // resetPasswordForEmail actually delivers the recovery email — unlike
+    // admin.generateLink, which only mints a link and sends nothing.
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${SITE_URL}/auth/callback?next=/reset-password`,
     });
     if (error) return { ok: false, error: error.message };
     await logAdminAction(auth.email, "reset_password", "user", email);

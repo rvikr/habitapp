@@ -106,8 +106,6 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "You can sign back in any time.": "आप कभी भी फिर से साइन इन कर सकते हैं.",
   Cancel: "रद्द करें",
   "Not configured": "कॉन्फिगर नहीं है",
-  "Set EXPO_PUBLIC_SUPPORT_EMAIL in your environment.":
-    "अपने environment में EXPO_PUBLIC_SUPPORT_EMAIL सेट करें.",
   "Set EXPO_PUBLIC_TERMS_URL in your environment.":
     "अपने environment में EXPO_PUBLIC_TERMS_URL सेट करें.",
   "Version {version}": "वर्जन {version}",
@@ -595,6 +593,18 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Confirm new password": "नया पासवर्ड कन्फर्म करें",
   "Updating...": "अपडेट हो रहा है...",
   "Update password": "पासवर्ड अपडेट करें",
+  "Checking your reset link...": "आपका रीसेट लिंक जांचा जा रहा है...",
+  "Reset link expired": "रीसेट लिंक की समय-सीमा समाप्त",
+  "This password reset link is invalid or has expired. Request a new one from the sign-in screen.":
+    "यह पासवर्ड रीसेट लिंक अमान्य है या समाप्त हो गया है. साइन-इन स्क्रीन से नया लिंक मांगें.",
+  "Didn't get the email?": "ईमेल नहीं मिला?",
+  "Resend confirmation email": "पुष्टिकरण ईमेल फिर से भेजें",
+  "Resending...": "फिर से भेजा जा रहा है...",
+  "Resend in {count}s": "{count} सेकंड में फिर से भेजें",
+  "Confirmation email resent. Check your inbox.":
+    "पुष्टिकरण ईमेल फिर से भेज दिया गया. अपना इनबॉक्स देखें.",
+  "Open this link on the same device and browser where you requested it, or go back and request a new email.":
+    "इस लिंक को उसी डिवाइस और ब्राउज़र में खोलें जहां से आपने इसे मांगा था, या वापस जाकर नया ईमेल मांगें.",
   "Goal: {target} {unit}": "लक्ष्य: {target} {unit}",
   "{count} day streak": "{count} दिन की स्ट्रीक",
   "Start your streak": "अपनी स्ट्रीक शुरू करें",

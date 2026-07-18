@@ -87,6 +87,45 @@ NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@your-domain.example
 The service-role key is server-only for the Next admin app. Never expose it through
 `NEXT_PUBLIC_*` variables.
 
+### Email setup
+
+Transactional email uses two senders on the `lagan.health` domain:
+
+- **Supabase Auth emails** (signup confirmation, password reset) — sent via **custom SMTP**
+  pointed at Namecheap Private Email. In Supabase Dashboard -> Authentication -> SMTP Settings:
+  host `mail.privateemail.com`, port `587` (STARTTLS), username `support@lagan.health`,
+  password = mailbox password, sender `hello@lagan.health`. Raise the auth email rate limit
+  above the built-in dev cap after enabling custom SMTP.
+- **Welcome + support-notification + account-deletion emails** — sent from Supabase Edge
+  Functions via **Resend** (`RESEND_API_KEY` secret), FROM `hello@lagan.health`.
+
+Mailboxes/aliases (Namecheap Private Email): `support@` is the real mailbox; `hello@` and
+`privacy@` are aliases that deliver into it. Support-form notifications go to
+`SUPPORT_NOTIFY_EMAIL` (default `support@lagan.health`).
+
+DNS records on `lagan.health` (set at the DNS host):
+
+```
+MX      mx1.privateemail.com / mx2.privateemail.com   (receiving)
+TXT     v=spf1 include:spf.privateemail.com ~all       (SPF)
+CNAME   default._domainkey  ->  Private Email DKIM      (add from the Namecheap panel)
+TXT     resend._domainkey   ->  Resend DKIM             (keep — Resend still sends)
+TXT     _dmarc              ->  v=DMARC1; p=none         (tighten to p=quarantine later)
+```
+
+Edge Function secrets (`supabase secrets set`): `RESEND_API_KEY`, `WELCOME_EMAIL_SECRET`,
+`SUPPORT_NOTIFY_EMAIL=support@lagan.health`. Vault also holds `welcome_email_url` and
+`welcome_email_secret` for the welcome-email DB trigger.
+
+Auth redirect allow-list (Supabase Dashboard -> Authentication -> URL Configuration) must
+include the reset-password callbacks in addition to the entries above:
+
+```
+https://lagan.health/reset-password
+https://lagan.health/auth/callback
+https://lagan.health/app/auth/callback
+```
+
 ---
 
 ## Project layout

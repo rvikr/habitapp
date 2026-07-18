@@ -14,7 +14,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { signIn, signUp, resetPassword, signInWithGoogle } from "@/lib/data/actions";
+import {
+  signIn,
+  signUp,
+  resetPassword,
+  resendConfirmationEmail,
+  signInWithGoogle,
+} from "@/lib/data/actions";
 import { validatePassword } from "@/lib/auth/password";
 import { authErrorMessageKey } from "@/lib/supabase/auth-error";
 import {
@@ -61,6 +67,9 @@ export default function LoginScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [showForgot, setShowForgot] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const emailInputRef = useRef<TextInput>(null);
   const pendingModeFocusRef = useRef(false);
@@ -89,6 +98,12 @@ export default function LoginScreen() {
   }, [params.reason, t, router]);
 
   useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setInterval(() => setResendCooldown((c) => (c <= 1 ? 0 : c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [resendCooldown]);
+
+  useEffect(() => {
     if (!pendingModeFocusRef.current) return;
     pendingModeFocusRef.current = false;
     const frame = requestAnimationFrame(() => {
@@ -112,6 +127,26 @@ export default function LoginScreen() {
     setConfirmPassword("");
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setPendingEmail(null);
+  }
+
+  async function handleResendConfirmation() {
+    if (!pendingEmail || resending || resendCooldown > 0) return;
+    setResending(true);
+    setError(null);
+    try {
+      const { error: e } = await resendConfirmationEmail(pendingEmail);
+      if (e) {
+        setError(t(authErrorMessageKey(e)));
+      } else {
+        setMessage(t("Confirmation email resent. Check your inbox."));
+        setResendCooldown(60);
+      }
+    } catch {
+      setError(t("Network error. Check your connection and try again."));
+    } finally {
+      setResending(false);
+    }
   }
 
   async function handleGoogleSignIn() {
@@ -198,6 +233,8 @@ export default function LoginScreen() {
           trackSignupFailure("duplicate_account", "submission");
         } else {
           await rememberPendingSignup(trimmedEmail).catch(() => {});
+          setPendingEmail(trimmedEmail);
+          setResendCooldown(60);
           setMessage(t(SIGNUP_CONFIRMATION_MESSAGE));
         }
       }
@@ -420,6 +457,29 @@ export default function LoginScreen() {
                   <Text className="text-on-secondary-container text-label-sm">{message}</Text>
                 </View>
               )}
+              {pendingEmail && (
+                <TouchableOpacity
+                  className="items-center py-xs"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: resending || resendCooldown > 0 }}
+                  disabled={resending || resendCooldown > 0}
+                  onPress={handleResendConfirmation}
+                >
+                  <Text
+                    className="text-label-sm font-semibold"
+                    style={{ color: LOGIN_COLORS.muted }}
+                  >
+                    {t("Didn't get the email?")}{" "}
+                    <Text className="text-primary">
+                      {resendCooldown > 0
+                        ? t("Resend in {count}s", { count: resendCooldown })
+                        : resending
+                          ? t("Resending...")
+                          : t("Resend confirmation email")}
+                    </Text>
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity
                 className="bg-primary rounded-full py-md items-center mt-xs"
@@ -541,6 +601,7 @@ function ForgotPasswordModal({
   const { t } = useLanguage();
   const [email, setEmail] = useState(initialEmail);
   const [sending, setSending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [feedback, setFeedback] = useState<{ text: string; type: "error" | "success" } | null>(
     null,
   );
@@ -552,8 +613,16 @@ function ForgotPasswordModal({
     }
   }, [visible, initialEmail]);
 
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => setCooldown((c) => (c <= 1 ? 0 : c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
+
+  const sendDisabled = sending || cooldown > 0;
+
   async function send() {
-    if (sending) return;
+    if (sendDisabled) return;
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
       setFeedback({ text: t("Email is required."), type: "error" });
@@ -567,8 +636,12 @@ function ForgotPasswordModal({
     setFeedback(null);
     try {
       const { error } = await resetPassword(trimmedEmail);
-      if (error) setFeedback({ text: t(authErrorMessageKey(error)), type: "error" });
-      else setFeedback({ text: t("Reset link sent. Check your email."), type: "success" });
+      if (error) {
+        setFeedback({ text: t(authErrorMessageKey(error)), type: "error" });
+      } else {
+        setFeedback({ text: t("Reset link sent. Check your email."), type: "success" });
+        setCooldown(60);
+      }
     } catch {
       setFeedback({
         text: t("Network error. Check your connection and try again."),
@@ -614,10 +687,17 @@ function ForgotPasswordModal({
           <TouchableOpacity
             className="bg-primary rounded-full py-sm items-center mt-sm"
             accessibilityRole="button"
+            accessibilityState={{ disabled: sendDisabled }}
+            disabled={sendDisabled}
             onPress={send}
+            style={{ opacity: sendDisabled ? 0.6 : 1 }}
           >
             <Text className="text-on-primary text-label-lg font-semibold">
-              {sending ? t("Sending...") : t("Send reset link")}
+              {cooldown > 0
+                ? t("Resend in {count}s", { count: cooldown })
+                : sending
+                  ? t("Sending...")
+                  : t("Send reset link")}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity

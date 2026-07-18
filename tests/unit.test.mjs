@@ -2327,13 +2327,11 @@ test("auth recovery errors are localized before display", () => {
 
   const resetPasswordSource = readFileSync("app/reset-password.tsx", "utf8");
   assert.doesNotMatch(resetPasswordSource, /text:\s*error\.message/);
-  assert.match(resetPasswordSource, /text:\s*t\(error\.message\)/);
+  // Backend errors are mapped to a known, translated key rather than shown raw.
+  assert.match(resetPasswordSource, /text:\s*t\(authErrorMessageKey\(error\)\)/);
 
   const callbackSource = readFileSync("app/auth/callback.tsx", "utf8");
-  assert.match(
-    callbackSource,
-    /setError\(e instanceof Error \? e\.message : "Could not complete authentication\."\)/,
-  );
+  assert.match(callbackSource, /setError\(callbackErrorMessage\(e\)\)/);
   assert.doesNotMatch(callbackSource, /\{error\}/);
   assert.match(callbackSource, /\{error \? t\(error\) : null\}/);
 });
