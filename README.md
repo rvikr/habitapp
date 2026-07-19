@@ -99,10 +99,10 @@ Already configured in this repo:
 
 Manual steps to activate:
 
-1. **Play Store builds (Android):** Play App Signing re-signs releases with Google's key.
-   In Play Console -> Test and release -> Setup -> App integrity -> App signing, copy the
-   "App signing key certificate" SHA-256 and set it in the website deployment's
-   `ANDROID_APP_LINK_SHA256_FINGERPRINTS` variable (comma-separated when keys rotate).
+1. **Play Store builds (Android):** the current EAS and Play App Signing SHA-256
+   certificates are source-controlled in the association route. No deployment variable is
+   required. If either signing key rotates, append the replacement through
+   `ANDROID_APP_LINK_SHA256_FINGERPRINTS` before publishing the newly signed build.
 2. **iOS:** set `APPLE_TEAM_ID` (the 10-character Apple Developer Team ID) on the website
    deployment, deploy, then rebuild the iOS app so the Associated Domains entitlement is
    provisioned. The AASA file must be live before the app is installed.
