@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "health.lagan.app",
+      "sha256_cert_fingerprints": [
+        "64:76:E6:6D:C8:EC:D8:D7:19:B9:0B:51:CF:A8:5D:2D:B7:23:38:1D:55:D2:14:7F:D1:39:70:AF:A4:E6:F8:FD"
+      ]
+    }
+  }
+]

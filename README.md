@@ -78,6 +78,40 @@ add this callback URL to the Google OAuth client in Google Cloud:
 https://auth.lagan.health/auth/v1/callback
 ```
 
+### App Links / Universal Links (email links open the app directly)
+
+Auth emails link to `https://lagan.health/auth/confirm`. With verified app links, tapping
+that link opens the installed app directly — no browser interstitial. Without the app (or
+before verification) the same link falls back to the website handoff, so nothing breaks.
+
+Already configured in this repo:
+
+- `app.json` — Android `intentFilters` for `https://lagan.health/auth/confirm` with
+  `autoVerify`, and iOS `associatedDomains: ["applinks:lagan.health"]`.
+- `app/auth/confirm.tsx` — native route mirroring the web path; forwards token params to
+  the auth callback screen.
+- `website/public/.well-known/assetlinks.json` — Android Digital Asset Links. Contains the
+  EAS keystore certificate (covers sideloaded preview/production APKs).
+- `website/app/api/apple-app-site-association/route.ts` — serves the Apple AASA file at
+  `/.well-known/apple-app-site-association`; inert (404) until `APPLE_TEAM_ID` is set.
+
+Manual steps to activate:
+
+1. **Play Store builds (Android):** Play App Signing re-signs releases with Google's key.
+   In Play Console -> Test and release -> Setup -> App integrity -> App signing, copy the
+   "App signing key certificate" SHA-256 and append it to `sha256_cert_fingerprints` in
+   `website/public/.well-known/assetlinks.json`. (The EAS keystore fingerprint already in
+   the file can be re-derived with `keytool -printcert -jarfile <apk>`.)
+2. **iOS:** set `APPLE_TEAM_ID` (the 10-character Apple Developer Team ID) on the website
+   deployment, deploy, then rebuild the iOS app so the Associated Domains entitlement is
+   provisioned. The AASA file must be live before the app is installed.
+3. **Deploy the website**, then rebuild + reinstall the Android app — Android fetches
+   `assetlinks.json` at install/update time.
+4. Verify on a device:
+   `adb shell pm get-app-links health.lagan.app` (state should be `verified`), then
+   `adb shell am start -a android.intent.action.VIEW -d "https://lagan.health/auth/confirm?token_hash=x&type=signup"`
+   should open the app, not the browser.
+
 `website/.env.local`:
 
 ```

@@ -2982,6 +2982,52 @@ test("auth callback parser ignores unbound bearer tokens from query and fragment
   assert.doesNotMatch(source, /access_token|refresh_token|accessToken|refreshToken/);
 });
 
+test("app links config keeps email links, native route, and asset links aligned", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8")).expo;
+
+  // Android: verified https intent filter for the email link path.
+  const intentFilters = appConfig.android.intentFilters ?? [];
+  const appLinkFilter = intentFilters.find((filter) =>
+    (filter.data ?? []).some(
+      (d) => d.scheme === "https" && d.host === "lagan.health" && d.pathPrefix === "/auth/confirm",
+    ),
+  );
+  assert.ok(appLinkFilter, "missing https://lagan.health/auth/confirm intent filter");
+  assert.equal(appLinkFilter.autoVerify, true);
+  assert.equal(appLinkFilter.action, "VIEW");
+  assert.deepEqual([...appLinkFilter.category].sort(), ["BROWSABLE", "DEFAULT"]);
+
+  // iOS: associated domain for the same host.
+  assert.ok(appConfig.ios.associatedDomains.includes("applinks:lagan.health"));
+
+  // The app must own the /auth/confirm path natively, mirroring the web route,
+  // and forward everything to the callback screen that understands the params.
+  const confirmRoute = readFileSync("app/auth/confirm.tsx", "utf8");
+  assert.match(confirmRoute, /useLocalSearchParams\(\)/);
+  assert.match(confirmRoute, /pathname: "\/auth\/callback", params/);
+
+  // Digital Asset Links must target the app's package with SHA-256 fingerprints.
+  const assetLinks = JSON.parse(readFileSync("website/public/.well-known/assetlinks.json", "utf8"));
+  const statement = assetLinks.find((s) => s.target?.package_name === appConfig.android.package);
+  assert.ok(statement, "assetlinks.json missing statement for the app package");
+  assert.ok(statement.relation.includes("delegate_permission/common.handle_all_urls"));
+  assert.ok(statement.target.sha256_cert_fingerprints.length >= 1);
+  for (const fingerprint of statement.target.sha256_cert_fingerprints) {
+    assert.match(fingerprint, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+  }
+
+  // The AASA route must stay inert without a team id and scope to the email path.
+  const aasaRoute = readFileSync("website/app/api/apple-app-site-association/route.ts", "utf8");
+  assert.match(aasaRoute, /APPLE_TEAM_ID/);
+  assert.match(aasaRoute, /status: 404/);
+  assert.match(aasaRoute, /\/auth\/confirm\*/);
+
+  // The rewrite that exposes the AASA file at Apple's required path.
+  const nextConfig = readFileSync("website/next.config.ts", "utf8");
+  assert.match(nextConfig, /source: "\/\.well-known\/apple-app-site-association"/);
+  assert.match(nextConfig, /destination: "\/api\/apple-app-site-association"/);
+});
+
 test("auth code exchanger runs one exchange per code across concurrent callers", async () => {
   const calls = [];
   const exchange = createAuthCodeExchanger(async (code) => {

@@ -28,12 +28,22 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
+    // Apple requires the AASA file at this exact dotted path with an
+    // application/json content type; the app router can't own dot-directories,
+    // so a route handler serves it (see app/api/apple-app-site-association).
+    const wellKnown = [
+      {
+        source: "/.well-known/apple-app-site-association",
+        destination: "/api/apple-app-site-association",
+      },
+    ];
     // CLOUD_RUN_APP_URL: the full Cloud Run service URL (no trailing slash).
     // e.g. https://lagan-abcdefg-el.a.run.app
     // The rewrite strips the /app prefix so nginx sees root-relative paths.
     const cloudRunUrl = process.env.CLOUD_RUN_APP_URL ?? "";
-    if (!cloudRunUrl) return [];
+    if (!cloudRunUrl) return wellKnown;
     return [
+      ...wellKnown,
       { source: "/app", destination: `${cloudRunUrl}/` },
       { source: "/app/:path*", destination: `${cloudRunUrl}/:path*` },
     ];

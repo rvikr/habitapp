@@ -25,6 +25,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "health.lagan.app",
       "buildNumber": "1",
+      "associatedDomains": ["applinks:lagan.health"],
       "infoPlist": {
         "NSUserNotificationsUsageDescription": "Lagan uses notifications to remind you about your habits.",
         "NSHealthShareUsageDescription": "Lagan reads sleep data from Apple Health to sync your sleep tracker and calculate your sleep score.",
@@ -50,6 +51,20 @@
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "intentFilters": [
+        {
+          "autoVerify": true,
+          "action": "VIEW",
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [
+            {
+              "scheme": "https",
+              "host": "lagan.health",
+              "pathPrefix": "/auth/confirm"
+            }
+          ]
+        }
       ]
     },
     "web": {
