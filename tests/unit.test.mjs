@@ -46,6 +46,7 @@ import {
 } from "../lib/auth/auth-callback-error.ts";
 import { buildWebAuthCallbackUrl } from "../lib/auth/auth-callback-url.ts";
 import { createAuthCodeExchanger } from "../lib/auth/auth-code-exchange.ts";
+import { pickAuthCallbackUrl } from "../lib/auth/auth-callback-select.ts";
 import {
   googleNativeAuthConfig,
   googleNativeAuthReady,
@@ -3000,11 +3001,11 @@ test("app links config keeps email links, native route, and asset links aligned"
   // iOS: associated domain for the same host.
   assert.ok(appConfig.ios.associatedDomains.includes("applinks:lagan.health"));
 
-  // The app must own the /auth/confirm path natively, mirroring the web route,
-  // and forward everything to the callback screen that understands the params.
+  // The app owns the /auth/confirm path natively by rendering the same screen as
+  // /auth/callback, so the launch URL's token is read straight from
+  // getInitialURL() rather than re-parsed (and possibly dropped) router params.
   const confirmRoute = readFileSync("app/auth/confirm.tsx", "utf8");
-  assert.match(confirmRoute, /useLocalSearchParams\(\)/);
-  assert.match(confirmRoute, /pathname: "\/auth\/callback", params/);
+  assert.match(confirmRoute, /export \{ default \} from "\.\/callback"/);
 
   // Digital Asset Links must target the app's package with SHA-256 fingerprints.
   const assetLinks = JSON.parse(readFileSync("website/public/.well-known/assetlinks.json", "utf8"));
@@ -3026,6 +3027,53 @@ test("app links config keeps email links, native route, and asset links aligned"
   const nextConfig = readFileSync("website/next.config.ts", "utf8");
   assert.match(nextConfig, /source: "\/\.well-known\/apple-app-site-association"/);
   assert.match(nextConfig, /destination: "\/api\/apple-app-site-association"/);
+});
+
+test("pickAuthCallbackUrl acts on the candidate that carries a credential", () => {
+  const parse = (url) => {
+    const query = new URL(url).searchParams;
+    return {
+      code: query.get("code"),
+      tokenHash: query.get("token_hash"),
+      error: query.get("error"),
+    };
+  };
+
+  // App Link case: useURL() resolved to a tokenless in-app URL, but the launch
+  // URL from getInitialURL() still carries the recovery token. The token wins.
+  assert.equal(
+    pickAuthCallbackUrl(
+      [
+        "lagan://auth/callback",
+        "https://lagan.health/auth/confirm?token_hash=pkce_x&type=recovery&redirect_to=lagan://auth/callback?type=recovery",
+      ],
+      parse,
+    ),
+    "https://lagan.health/auth/confirm?token_hash=pkce_x&type=recovery&redirect_to=lagan://auth/callback?type=recovery",
+  );
+
+  // OAuth code is honored the same way, past a leading null candidate.
+  assert.equal(
+    pickAuthCallbackUrl([null, "lagan://auth/callback?code=abc"], parse),
+    "lagan://auth/callback?code=abc",
+  );
+
+  // No credential anywhere → an error-bearing URL beats a bare one so the screen
+  // shows "link expired" instead of "missing authentication code or token".
+  assert.equal(
+    pickAuthCallbackUrl(
+      ["lagan://auth/callback", "lagan://auth/callback?error=access_denied"],
+      parse,
+    ),
+    "lagan://auth/callback?error=access_denied",
+  );
+
+  // Nothing useful → first non-empty candidate, for a coherent generic error.
+  assert.equal(
+    pickAuthCallbackUrl([null, "", "lagan://auth/callback"], parse),
+    "lagan://auth/callback",
+  );
+  assert.equal(pickAuthCallbackUrl([null, undefined, ""], parse), null);
 });
 
 test("auth code exchanger runs one exchange per code across concurrent callers", async () => {

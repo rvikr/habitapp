@@ -10,6 +10,7 @@ import {
   isAppEmailOtpType,
   parseAuthCallbackUrl,
 } from "@/lib/auth/auth-redirect";
+import { pickAuthCallbackUrl } from "@/lib/auth/auth-callback-select";
 import { authCallbackUrlFromParams } from "@/lib/auth/auth-callback-params";
 import { authCallbackErrorMessage } from "@/lib/auth/auth-callback-error";
 import { clearDataCache } from "@/lib/data/cache";
@@ -83,8 +84,14 @@ export default function AuthCallbackScreen() {
 
   useEffect(() => {
     async function finishAuth() {
-      const url =
-        currentUrl ?? (await Linking.getInitialURL()) ?? browserLocationUrl() ?? routeCallbackUrl;
+      // An App Link that opens the app at /auth/confirm can leave useURL() on a
+      // tokenless in-app URL while the token still lives in getInitialURL(); pick
+      // the candidate that actually carries a credential rather than the first
+      // non-null one. See pickAuthCallbackUrl.
+      const url = pickAuthCallbackUrl(
+        [currentUrl, await Linking.getInitialURL(), browserLocationUrl(), routeCallbackUrl],
+        parseAuthCallbackUrl,
+      );
       if (!url) throw new Error("Missing authentication callback URL.");
       if (handledUrlRef.current === url) return;
       handledUrlRef.current = url;
