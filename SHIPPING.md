@@ -84,7 +84,9 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 - [ ] Add `play-service-account.json` locally or configure Google Play credentials in EAS before `eas submit -p android`
 - [x] Bundle ID / Android package set to `health.lagan.app`
 - [ ] Set production env vars in EAS: Supabase URL/key, privacy policy URL, Sentry DSN, and PostHog key/host
+- [ ] Register every EAS/Play signing SHA-1 in the Google Android OAuth client, then keep `EXPO_PUBLIC_GOOGLE_NATIVE_ANDROID_AUTH=true` in the production EAS environment
 - [ ] Add the exact native, PWA, recovery, and admin callbacks documented in README to Supabase Auth redirect URLs
+- [ ] Set website `APPLE_TEAM_ID` and `ANDROID_APP_LINK_SHA256_FINGERPRINTS`; verify both `/.well-known` association endpoints return HTTP 200
 - [ ] Upgrade Supabase from Free if needed; custom domains require a paid plan/add-on
 - [ ] Configure and activate a Supabase custom domain such as `auth.lagan.health`
 - [ ] Add `https://auth.lagan.health/auth/v1/callback` to the Google OAuth client's authorized redirect URIs
@@ -97,7 +99,7 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 - [ ] Add the Namecheap Private Email **DKIM** record (`default._domainkey.lagan.health`) — SPF/MX already point to Private Email
 - [ ] Enable Supabase **custom SMTP** (`mail.privateemail.com:587`, `support@lagan.health`) for auth emails, and raise the auth email rate limit
 - [ ] Publish the `token_hash` callback support to the production PWA and supported native runtime before changing email templates
-- [ ] Deploy the website handoff, then add all five exact Auth redirects from README, then re-paste both source-controlled email templates
+- [ ] Deploy the website handoff, then run `npm run check:auth-remote` and `npm run sync:auth-remote` to publish the exact redirects and source-controlled templates
 - [ ] Retain the old `/reset-password` allow-list entry until cutover passes and previously issued emails have expired
 - [ ] Set edge-function secret `SUPPORT_NOTIFY_EMAIL=support@lagan.health`; confirm `RESEND_API_KEY` + `WELCOME_EMAIL_SECRET` are set
 - [ ] Send a test signup + password reset and confirm both arrive (SPF/DKIM pass) and a reply reaches the `support@lagan.health` inbox

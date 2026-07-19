@@ -6,7 +6,6 @@ import {
   isSupabaseConfigured,
   configurationError,
   clearLocalAuthSession,
-  exchangeAuthCode,
   getCurrentUser,
   markUserInitiatedSignOut,
 } from "../supabase/client";
@@ -16,6 +15,8 @@ import { track, resetAnalytics } from "../services/analytics";
 import { reportError } from "../services/sentry";
 import { getAiAccessProfile } from "../services/ai-access";
 import { authCallbackUrl, parseAuthCallbackUrl } from "../auth/auth-redirect";
+import { selectAuthCallbackPayload } from "../auth/auth-callback-coordinator";
+import { completeAuthCallback } from "../auth/auth-callback-completion";
 import {
   GOOGLE_NATIVE_ANDROID_AUTH_ENABLED,
   getGoogleNativeIdToken,
@@ -347,9 +348,9 @@ export async function resetPassword(email: string) {
   if (!isSupabaseConfigured()) return { error: configurationError() };
   try {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // Mark the redirect as recovery ourselves so the callback always routes to
-      // the set-new-password screen — we don't rely on Supabase appending `type`.
-      redirectTo: authCallbackUrl({ type: "recovery" }),
+      // The recovery email template carries type=recovery. Keep the redirect
+      // canonical so the template can distinguish native from PWA requests.
+      redirectTo: authCallbackUrl(),
     });
     return { error };
   } catch {
@@ -461,16 +462,27 @@ async function signInWithGoogleOAuth(): Promise<{ error: Error | null; cancelled
       return { error: null, cancelled: true };
     if (result.type !== "success") return { error: new Error("Authentication was not completed.") };
 
-    const parsed = parseAuthCallbackUrl(result.url);
-    if (parsed.error) return { error: new Error(parsed.errorDescription ?? parsed.error) };
+    const payload = selectAuthCallbackPayload([result.url], parseAuthCallbackUrl);
+    if (!payload) return { error: new Error("No authentication code received.") };
 
-    if (parsed.code) {
-      const { error: exchangeError } = await exchangeAuthCode(parsed.code);
-      if (!exchangeError) clearDataCache();
-      return { error: exchangeError as Error | null };
+    const outcome = await completeAuthCallback(payload);
+    if (outcome.status === "error") {
+      track("auth_callback_failed", {
+        platform: Platform.OS,
+        credential_kind: outcome.payload.kind,
+        failure_category: "oauth_completion",
+      });
+      return {
+        error: outcome.error instanceof Error ? outcome.error : new Error("Authentication failed."),
+      };
     }
-
-    return { error: new Error("No authentication code received.") };
+    track("auth_callback_completed", {
+      platform: Platform.OS,
+      credential_kind: outcome.payload.kind,
+      duplicate_suppressed: outcome.duplicateSuppressed,
+    });
+    clearDataCache();
+    return { error: null };
   } catch (err) {
     if (__DEV__) console.error("[Google OAuth] error:", err);
     return { error: err instanceof Error ? err : networkError() };

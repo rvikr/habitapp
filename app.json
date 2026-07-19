@@ -61,7 +61,7 @@
             {
               "scheme": "https",
               "host": "lagan.health",
-              "pathPrefix": "/auth/confirm"
+              "pathPrefix": "/auth/native-confirm"
             }
           ]
         }

@@ -80,18 +80,20 @@ https://auth.lagan.health/auth/v1/callback
 
 ### App Links / Universal Links (email links open the app directly)
 
-Auth emails link to `https://lagan.health/auth/confirm`. With verified app links, tapping
-that link opens the installed app directly — no browser interstitial. Without the app (or
-before verification) the same link falls back to the website handoff, so nothing breaks.
+Native auth emails link to `https://lagan.health/auth/native-confirm`; PWA emails link to
+`https://lagan.health/app/auth/callback`. Only the native path is claimed by App/Universal
+Links, so PWA-requested email always returns to the PWA when the native app is installed.
+The legacy `/auth/confirm` handoff remains available for already-sent emails and old builds.
 
 Already configured in this repo:
 
-- `app.json` — Android `intentFilters` for `https://lagan.health/auth/confirm` with
+- `app.json` — Android `intentFilters` for `https://lagan.health/auth/native-confirm` with
   `autoVerify`, and iOS `associatedDomains: ["applinks:lagan.health"]`.
-- `app/auth/confirm.tsx` — native route mirroring the web path; forwards token params to
+- `app/auth/native-confirm.tsx` — native route forwarding token params to
   the auth callback screen.
-- `website/public/.well-known/assetlinks.json` — Android Digital Asset Links. Contains the
-  EAS keystore certificate (covers sideloaded preview/production APKs).
+- `website/app/api/assetlinks/route.ts` — Android Digital Asset Links. Contains the current
+  EAS and Play App Signing certificates; optional rotated keys can be appended through
+  `ANDROID_APP_LINK_SHA256_FINGERPRINTS`.
 - `website/app/api/apple-app-site-association/route.ts` — serves the Apple AASA file at
   `/.well-known/apple-app-site-association`; inert (404) until `APPLE_TEAM_ID` is set.
 
@@ -99,9 +101,8 @@ Manual steps to activate:
 
 1. **Play Store builds (Android):** Play App Signing re-signs releases with Google's key.
    In Play Console -> Test and release -> Setup -> App integrity -> App signing, copy the
-   "App signing key certificate" SHA-256 and append it to `sha256_cert_fingerprints` in
-   `website/public/.well-known/assetlinks.json`. (The EAS keystore fingerprint already in
-   the file can be re-derived with `keytool -printcert -jarfile <apk>`.)
+   "App signing key certificate" SHA-256 and set it in the website deployment's
+   `ANDROID_APP_LINK_SHA256_FINGERPRINTS` variable (comma-separated when keys rotate).
 2. **iOS:** set `APPLE_TEAM_ID` (the 10-character Apple Developer Team ID) on the website
    deployment, deploy, then rebuild the iOS app so the Associated Domains entitlement is
    provisioned. The AASA file must be live before the app is installed.
@@ -109,7 +110,7 @@ Manual steps to activate:
    `assetlinks.json` at install/update time.
 4. Verify on a device:
    `adb shell pm get-app-links health.lagan.app` (state should be `verified`), then
-   `adb shell am start -a android.intent.action.VIEW -d "https://lagan.health/auth/confirm?token_hash=x&type=signup"`
+   `adb shell am start -a android.intent.action.VIEW -d "https://lagan.health/auth/native-confirm?token_hash=x&type=signup"`
    should open the app, not the browser.
 
 `website/.env.local`:
@@ -120,6 +121,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
 SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 ADMIN_EMAILS=admin@example.com,owner@example.com
 NEXT_PUBLIC_ACCOUNT_DELETION_CONTACT_EMAIL=privacy@lagan.health
+APPLE_TEAM_ID=<10-character-Apple-Team-ID>
+ANDROID_APP_LINK_SHA256_FINGERPRINTS=<Play-App-Signing-SHA-256>
 ```
 
 The service-role key is server-only for the Next admin app. Never expose it through
@@ -155,11 +158,11 @@ Edge Function secrets (`supabase secrets set`): `RESEND_API_KEY`, `WELCOME_EMAIL
 `SUPPORT_NOTIFY_EMAIL=support@lagan.health`. Vault also holds `welcome_email_url` and
 `welcome_email_secret` for the welcome-email DB trigger.
 
-Auth emails use the source-controlled templates in `supabase/templates`. Their own-domain
-links reach `/auth/confirm`, which passes the unconsumed `token_hash` to the requested native
-or PWA callback. Expo calls `verifyOtp`; missing, invalid, stale, and dev-client redirect
-targets safely fall back to the PWA. Deploy the compatible PWA/native JavaScript first, then
-the website handoff, then the redirect allow-list, and paste the updated templates last.
+Auth emails use the source-controlled templates in `supabase/templates`. Run
+`npm run check:auth-remote` to detect hosted template/redirect drift and
+`npm run sync:auth-remote` to apply it with `SUPABASE_ACCESS_TOKEN` and
+`SUPABASE_PROJECT_REF`. Deploy compatible PWA/native JavaScript first, then the website and
+association files, sync Supabase Auth, and rebuild native apps last.
 
 ---
 

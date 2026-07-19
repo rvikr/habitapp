@@ -1,6 +1,10 @@
 import { Platform } from "react-native";
 import * as Linking from "expo-linking";
-import { AUTH_CALLBACK_PATH, buildWebAuthCallbackUrl } from "./auth-callback-url";
+import {
+  AUTH_CALLBACK_PATH,
+  NATIVE_AUTH_CALLBACK_URL,
+  buildWebAuthCallbackUrl,
+} from "./auth-callback-url";
 
 export { AUTH_CALLBACK_PATH };
 
@@ -12,7 +16,11 @@ export function authCallbackUrl(queryParams?: Record<string, string>) {
     }
     return url.toString();
   }
-  return Linking.createURL(AUTH_CALLBACK_PATH, queryParams ? { queryParams } : undefined);
+  const url = new URL(NATIVE_AUTH_CALLBACK_URL);
+  if (queryParams) {
+    for (const [key, value] of Object.entries(queryParams)) url.searchParams.set(key, value);
+  }
+  return url.toString();
 }
 
 export type ParsedAuthCallback = {

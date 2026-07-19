@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
     // so a route handler serves it (see app/api/apple-app-site-association).
     const wellKnown = [
       {
+        source: "/.well-known/assetlinks.json",
+        destination: "/api/assetlinks",
+      },
+      {
         source: "/.well-known/apple-app-site-association",
         destination: "/api/apple-app-site-association",
       },

@@ -164,6 +164,7 @@ function RootLayoutContent() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/native-confirm" options={{ headerShown: false }} />
       <Stack.Screen name="reset-password" options={{ headerShown: false, presentation: "card" }} />
       <Stack.Screen name="account-deletion" options={{ headerShown: false }} />
       <Stack.Screen name="pro" options={{ headerShown: false, presentation: "card" }} />

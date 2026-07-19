@@ -1,17 +1,18 @@
 export const AUTH_CALLBACK_PATH = "auth/callback";
+export const NATIVE_AUTH_CALLBACK_URL = "lagan://auth/callback";
 
 // Pure + dependency-free so it can be unit tested under the node test runner.
-// On web, `Linking.createURL` resolves the callback path against
-// `window.location.origin`, which omits the Expo Router base path ("/app") and
-// sends the OAuth redirect to the marketing site's callback instead of the PWA.
-// Reapply the base path the same way expo-router does (prefixed only outside
-// development, so localhost web dev stays at root).
+// The deployed PWA lives below /app. Derive the callback from its explicit
+// public URL rather than Expo's internal EXPO_BASE_URL build variable so the
+// redirect contract is identical in local builds, Cloud Build, and production.
 export function buildWebAuthCallbackUrl(
   origin: string,
-  baseUrl: string | undefined = process.env.EXPO_BASE_URL,
-  isDevelopment: boolean = process.env.NODE_ENV === "development",
+  appUrl: string | undefined = process.env.EXPO_PUBLIC_APP_URL,
 ): string {
-  const base =
-    !isDevelopment && baseUrl ? `/${baseUrl.replace(/^\/+/, "").replace(/\/+$/, "")}` : "";
-  return new URL(`${base}/${AUTH_CALLBACK_PATH}`, origin).toString();
+  const base = new URL(appUrl || origin, origin);
+  const appPath = appUrl ? base.pathname.replace(/\/+$/, "") : "";
+  base.pathname = `${appPath}/${AUTH_CALLBACK_PATH}`;
+  base.search = "";
+  base.hash = "";
+  return base.toString();
 }

@@ -1,9 +1,6 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
-const {
-  captureStableScreenshot,
-  prepareScreenshotPage,
-} = require("./screenshot-helper.cjs");
+const { captureStableScreenshot, prepareScreenshotPage } = require("./screenshot-helper.cjs");
 const {
   assertActivationAnalyticsSafe,
   installAnalyticsCollector,
@@ -104,6 +101,7 @@ async function runScenario(browser, options) {
     expectedAction,
     forbiddenActions,
     expectedTokenCalls,
+    expectedVerifyCalls = 0,
   } = options;
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -120,6 +118,7 @@ async function runScenario(browser, options) {
   const pageErrors = [];
   const requestFailures = [];
   const tokenCalls = [];
+  const verifyCalls = [];
   const userCalls = [];
   const syncSubscriptionCalls = [];
   const profileCalls = [];
@@ -160,6 +159,10 @@ async function runScenario(browser, options) {
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers });
     if (req.method() === "POST" && url.pathname.includes("/auth/v1/token")) {
       tokenCalls.push(call);
+      return route.fulfill({ status: 200, headers, body: JSON.stringify(session) });
+    }
+    if (req.method() === "POST" && url.pathname.includes("/auth/v1/verify")) {
+      verifyCalls.push(call);
       return route.fulfill({ status: 200, headers, body: JSON.stringify(session) });
     }
     if (req.method() === "GET" && url.pathname.includes("/auth/v1/user")) {
@@ -245,6 +248,11 @@ async function runScenario(browser, options) {
       `${label} expected ${expectedTokenCalls} PKCE token exchanges, got ${tokenCalls.length}`,
     );
   }
+  if (verifyCalls.length !== expectedVerifyCalls) {
+    throw new Error(
+      `${label} expected ${expectedVerifyCalls} token-hash verifications, got ${verifyCalls.length}`,
+    );
+  }
   if (unexpectedBackendCalls.length) {
     throw new Error(`${label} hit unexpected backend endpoints`);
   }
@@ -256,6 +264,7 @@ async function runScenario(browser, options) {
     label,
     snapshot: scenarioSnapshot,
     tokenCalls,
+    verifyCalls,
     userCalls,
     syncSubscriptionCalls,
     profileCalls,
@@ -274,6 +283,21 @@ async function runScenario(browser, options) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const scenarios = [];
+
+  scenarios.push(
+    await runScenario(browser, {
+      label: "token-hash-confirmed-once",
+      callbackPath: "/auth/callback?token_hash=first-run-token-hash&type=signup",
+      expectedCopy: [
+        "Congratulations, your email is confirmed!",
+        "You're signed in and ready to continue to Lagan.",
+      ],
+      expectedAction: "Continue to app",
+      forbiddenActions: ["Sign in", "Back to sign in"],
+      expectedTokenCalls: 0,
+      expectedVerifyCalls: 1,
+    }),
+  );
 
   scenarios.push(
     await runScenario(browser, {
@@ -309,7 +333,10 @@ async function runScenario(browser, options) {
       label: "callback-error",
       callbackPath:
         "/auth/callback?error=access_denied&error_description=Confirmation%20link%20expired&type=signup",
-      expectedCopy: ["Link could not be opened", "Confirmation link expired"],
+      expectedCopy: [
+        "Link could not be opened",
+        "This link has expired or was already used. Request a new email.",
+      ],
       expectedAction: "Back to sign in",
       forbiddenActions: ["Continue to app", "Sign in"],
       expectedTokenCalls: 0,

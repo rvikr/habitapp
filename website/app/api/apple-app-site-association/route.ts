@@ -19,7 +19,7 @@ export function GET() {
         details: [
           {
             appIDs: [`${APPLE_TEAM_ID}.${IOS_BUNDLE_ID}`],
-            components: [{ "/": "/auth/confirm*" }],
+            components: [{ "/": "/auth/native-confirm*" }],
           },
         ],
       },

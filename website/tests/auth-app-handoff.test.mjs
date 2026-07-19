@@ -67,3 +67,18 @@ test("PWA fallback construction preserves stale-email tokens", () => {
   assert.doesNotMatch(routeSource, /verifyOtp|createServerClient/);
   assert.match(routeSource, /NextResponse\.redirect\(target, 302\)/);
 });
+
+test("native-only email route preserves the legacy custom-scheme fallback", () => {
+  const routeSource = readFileSync(
+    new URL("../app/auth/native-confirm/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(routeSource, /export \{ GET \} from "\.\.\/confirm\/route"/);
+
+  const aasaSource = readFileSync(
+    new URL("../app/api/apple-app-site-association/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(aasaSource, /\/auth\/native-confirm\*/);
+  assert.doesNotMatch(aasaSource, /\/app\/auth\/callback/);
+});

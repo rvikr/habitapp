@@ -46,7 +46,10 @@ import {
 } from "../lib/auth/auth-callback-error.ts";
 import { buildWebAuthCallbackUrl } from "../lib/auth/auth-callback-url.ts";
 import { createAuthCodeExchanger } from "../lib/auth/auth-code-exchange.ts";
-import { pickAuthCallbackUrl } from "../lib/auth/auth-callback-select.ts";
+import {
+  createAuthCallbackCoordinator,
+  selectAuthCallbackPayload,
+} from "../lib/auth/auth-callback-coordinator.ts";
 import {
   googleNativeAuthConfig,
   googleNativeAuthReady,
@@ -2990,10 +2993,13 @@ test("app links config keeps email links, native route, and asset links aligned"
   const intentFilters = appConfig.android.intentFilters ?? [];
   const appLinkFilter = intentFilters.find((filter) =>
     (filter.data ?? []).some(
-      (d) => d.scheme === "https" && d.host === "lagan.health" && d.pathPrefix === "/auth/confirm",
+      (d) =>
+        d.scheme === "https" &&
+        d.host === "lagan.health" &&
+        d.pathPrefix === "/auth/native-confirm",
     ),
   );
-  assert.ok(appLinkFilter, "missing https://lagan.health/auth/confirm intent filter");
+  assert.ok(appLinkFilter, "missing native-only authentication App Link intent filter");
   assert.equal(appLinkFilter.autoVerify, true);
   assert.equal(appLinkFilter.action, "VIEW");
   assert.deepEqual([...appLinkFilter.category].sort(), ["BROWSABLE", "DEFAULT"]);
@@ -3006,74 +3012,136 @@ test("app links config keeps email links, native route, and asset links aligned"
   // getInitialURL() rather than re-parsed (and possibly dropped) router params.
   const confirmRoute = readFileSync("app/auth/confirm.tsx", "utf8");
   assert.match(confirmRoute, /export \{ default \} from "\.\/callback"/);
+  const nativeConfirmRoute = readFileSync("app/auth/native-confirm.tsx", "utf8");
+  assert.match(nativeConfirmRoute, /export \{ default \} from "\.\/callback"/);
 
   // Digital Asset Links must target the app's package with SHA-256 fingerprints.
-  const assetLinks = JSON.parse(readFileSync("website/public/.well-known/assetlinks.json", "utf8"));
-  const statement = assetLinks.find((s) => s.target?.package_name === appConfig.android.package);
-  assert.ok(statement, "assetlinks.json missing statement for the app package");
-  assert.ok(statement.relation.includes("delegate_permission/common.handle_all_urls"));
-  assert.ok(statement.target.sha256_cert_fingerprints.length >= 1);
-  for (const fingerprint of statement.target.sha256_cert_fingerprints) {
-    assert.match(fingerprint, /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
-  }
+  const assetLinksRoute = readFileSync("website/app/api/assetlinks/route.ts", "utf8");
+  assert.match(assetLinksRoute, /ANDROID_APP_LINK_SHA256_FINGERPRINTS/);
+  assert.match(assetLinksRoute, /PLAY_APP_SIGNING_FINGERPRINT/);
+  assert.match(assetLinksRoute, /health\.lagan\.app/);
+  assert.match(assetLinksRoute, /delegate_permission\/common\.handle_all_urls/);
 
   // The AASA route must stay inert without a team id and scope to the email path.
   const aasaRoute = readFileSync("website/app/api/apple-app-site-association/route.ts", "utf8");
   assert.match(aasaRoute, /APPLE_TEAM_ID/);
   assert.match(aasaRoute, /status: 404/);
-  assert.match(aasaRoute, /\/auth\/confirm\*/);
+  assert.match(aasaRoute, /\/auth\/native-confirm\*/);
 
   // The rewrite that exposes the AASA file at Apple's required path.
   const nextConfig = readFileSync("website/next.config.ts", "utf8");
+  assert.match(nextConfig, /source: "\/\.well-known\/assetlinks\.json"/);
   assert.match(nextConfig, /source: "\/\.well-known\/apple-app-site-association"/);
   assert.match(nextConfig, /destination: "\/api\/apple-app-site-association"/);
 });
 
-test("pickAuthCallbackUrl acts on the candidate that carries a credential", () => {
+test("auth email templates keep native and PWA callback ownership separate", () => {
+  for (const template of ["confirmation.html", "recovery.html"]) {
+    const source = readFileSync(`supabase/templates/${template}`, "utf8");
+    assert.match(source, /if eq \.RedirectTo "lagan:\/\/auth\/callback"/);
+    assert.match(source, /\/auth\/native-confirm\?token_hash=/);
+    assert.match(source, /\/app\/auth\/callback\?token_hash=/);
+  }
+
+  const actions = readFileSync("lib/data/actions.ts", "utf8");
+  assert.doesNotMatch(actions, /authCallbackUrl\(\{\s*type:\s*"recovery"/);
+});
+
+test("auth deployment config contains no stale hard-coded Supabase client key", () => {
+  const cloudBuild = readFileSync("cloudbuild.yaml", "utf8");
+  const eas = readFileSync("eas.json", "utf8");
+  assert.match(cloudBuild, /EXPO_PUBLIC_SUPABASE_URL=\$\{_SUPABASE_URL\}/);
+  assert.match(cloudBuild, /EXPO_PUBLIC_SUPABASE_ANON_KEY=\$\{_SUPABASE_ANON_KEY\}/);
+  assert.doesNotMatch(cloudBuild, /eyJhbGciOi/);
+  assert.doesNotMatch(eas, /eyJhbGciOi/);
+  assert.match(eas, /EXPO_PUBLIC_GOOGLE_NATIVE_ANDROID_AUTH/);
+
+  const dockerfile = readFileSync("Dockerfile", "utf8");
+  assert.match(dockerfile, /validate-auth-build-config\.mjs/);
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  assert.match(packageJson.scripts["eas-build-pre-install"], /--native/);
+});
+
+test("auth callback selection acts on the candidate that carries a credential", () => {
   const parse = (url) => {
     const query = new URL(url).searchParams;
     return {
       code: query.get("code"),
       tokenHash: query.get("token_hash"),
+      type: query.get("type"),
       error: query.get("error"),
+      errorDescription: query.get("error_description"),
     };
   };
 
   // App Link case: useURL() resolved to a tokenless in-app URL, but the launch
   // URL from getInitialURL() still carries the recovery token. The token wins.
-  assert.equal(
-    pickAuthCallbackUrl(
+  assert.deepEqual(
+    selectAuthCallbackPayload(
       [
         "lagan://auth/callback",
         "https://lagan.health/auth/confirm?token_hash=pkce_x&type=recovery&redirect_to=lagan://auth/callback?type=recovery",
       ],
       parse,
     ),
-    "https://lagan.health/auth/confirm?token_hash=pkce_x&type=recovery&redirect_to=lagan://auth/callback?type=recovery",
+    { kind: "email-otp", tokenHash: "pkce_x", type: "recovery" },
   );
 
   // OAuth code is honored the same way, past a leading null candidate.
-  assert.equal(
-    pickAuthCallbackUrl([null, "lagan://auth/callback?code=abc"], parse),
-    "lagan://auth/callback?code=abc",
-  );
+  assert.deepEqual(selectAuthCallbackPayload([null, "lagan://auth/callback?code=abc"], parse), {
+    kind: "oauth-code",
+    code: "abc",
+    type: null,
+  });
 
   // No credential anywhere → an error-bearing URL beats a bare one so the screen
   // shows "link expired" instead of "missing authentication code or token".
-  assert.equal(
-    pickAuthCallbackUrl(
+  assert.deepEqual(
+    selectAuthCallbackPayload(
       ["lagan://auth/callback", "lagan://auth/callback?error=access_denied"],
       parse,
     ),
-    "lagan://auth/callback?error=access_denied",
+    { kind: "provider-error", error: "access_denied", errorDescription: null, type: null },
   );
 
   // Nothing useful → first non-empty candidate, for a coherent generic error.
-  assert.equal(
-    pickAuthCallbackUrl([null, "", "lagan://auth/callback"], parse),
-    "lagan://auth/callback",
-  );
-  assert.equal(pickAuthCallbackUrl([null, undefined, ""], parse), null);
+  assert.equal(selectAuthCallbackPayload([null, "", "lagan://auth/callback"], parse), null);
+  assert.equal(selectAuthCallbackPayload([null, undefined, ""], parse), null);
+});
+
+test("auth callback coordinator redeems codes and token hashes exactly once", async () => {
+  const calls = { codes: [], tokens: [] };
+  const session = { user: { id: "user-id", email: "person@example.com" } };
+  const complete = createAuthCallbackCoordinator({
+    async exchangeCode(code) {
+      calls.codes.push(code);
+      return { error: null };
+    },
+    async verifyOtp(input) {
+      calls.tokens.push(input);
+      return { error: null };
+    },
+    async getSession() {
+      return { data: { session } };
+    },
+  });
+
+  const codePayload = { kind: "oauth-code", code: "same-code", type: null };
+  const [firstCode, duplicateCode] = await Promise.all([
+    complete(codePayload),
+    complete({ ...codePayload }),
+  ]);
+  assert.equal(firstCode.status, "success");
+  assert.equal(duplicateCode.status, "success");
+  assert.equal(duplicateCode.duplicateSuppressed, true);
+  assert.deepEqual(calls.codes, ["same-code"]);
+
+  const tokenPayload = { kind: "email-otp", tokenHash: "same-token", type: "signup" };
+  await complete(tokenPayload);
+  const duplicateToken = await complete({ ...tokenPayload });
+  assert.equal(duplicateToken.status, "success");
+  assert.equal(duplicateToken.duplicateSuppressed, true);
+  assert.deepEqual(calls.tokens, [{ token_hash: "same-token", type: "signup" }]);
 });
 
 test("auth code exchanger runs one exchange per code across concurrent callers", async () => {
@@ -3113,37 +3181,35 @@ test("auth code exchanger shares a failed result instead of retrying a consumed 
 test("auth callback completion paths do not install sessions from parsed bearer tokens", () => {
   const callbackScreen = readFileSync("app/auth/callback.tsx", "utf8");
   const nativeActions = readFileSync("lib/data/actions.ts", "utf8");
+  const completion = readFileSync("lib/auth/auth-callback-completion.ts", "utf8");
 
   assert.doesNotMatch(callbackScreen, /parsed\.accessToken|parsed\.refreshToken|setSession\(/);
   assert.doesNotMatch(nativeActions, /parsed\.accessToken|parsed\.refreshToken|setSession\(/);
-  assert.match(callbackScreen, /supabase\.auth\.verifyOtp/);
-  assert.match(callbackScreen, /isAppEmailOtpType\(parsed\.type\)/);
+  assert.match(callbackScreen, /completeAuthCallback\(payload\)/);
+  assert.match(nativeActions, /completeAuthCallback\(payload\)/);
+  assert.match(completion, /supabase\.auth\.verifyOtp/);
 });
 
 test("web auth callback URL keeps the Expo Router base path so the PWA handles OAuth", () => {
   // Production PWA served under /app: redirect must re-enter the PWA, not the
   // marketing site's root /auth/callback.
   assert.equal(
-    buildWebAuthCallbackUrl("https://lagan.health", "/app", false),
+    buildWebAuthCallbackUrl("https://lagan.health", "https://lagan.health/app"),
     "https://lagan.health/app/auth/callback",
   );
   // Dev web serves routes at root, so no base path is applied.
   assert.equal(
-    buildWebAuthCallbackUrl("http://localhost:8081", "/app", true),
+    buildWebAuthCallbackUrl("http://localhost:8081", undefined),
     "http://localhost:8081/auth/callback",
   );
   // No configured base path → plain origin-relative callback.
   assert.equal(
-    buildWebAuthCallbackUrl("https://lagan.health", undefined, false),
+    buildWebAuthCallbackUrl("https://lagan.health", undefined),
     "https://lagan.health/auth/callback",
   );
   // Stray leading/trailing slashes in the base path are normalized.
   assert.equal(
-    buildWebAuthCallbackUrl("https://lagan.health", "app/", false),
-    "https://lagan.health/app/auth/callback",
-  );
-  assert.equal(
-    buildWebAuthCallbackUrl("https://lagan.health", "/app/", false),
+    buildWebAuthCallbackUrl("https://lagan.health", "https://lagan.health/app/"),
     "https://lagan.health/app/auth/callback",
   );
 });

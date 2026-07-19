@@ -5,7 +5,7 @@
   "Reset Password" → Message body (Source). Keep the Subject as "Reset Your Password".
 
   Why this template (not the Supabase default):
-  - The link points at {{ .SiteURL }}/auth/confirm (our own domain, lagan.health) via
+  - Native links use /auth/native-confirm and PWA links use /app/auth/callback via
     {{ .TokenHash }}, NOT the raw <project>.supabase.co/auth/v1/verify URL. A reset link
     whose domain matches the sender's domain is what stops Gmail's phishing ("dangerous")
     banner. The website route safely hands the unconsumed token to Lagan, where
@@ -15,41 +15,123 @@
 
   Available variables: {{ .SiteURL }} {{ .RedirectTo }} {{ .TokenHash }} {{ .Email }} {{ .Token }}
 -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <body style="margin:0;padding:0;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:32px 0;">
+  <body
+    style="
+      margin: 0;
+      padding: 0;
+      background: #f6f7f9;
+      font-family:
+        -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Helvetica, Arial,
+        sans-serif;
+    "
+  >
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="background: #f6f7f9; padding: 32px 0"
+    >
       <tr>
         <td align="center">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;padding:40px 32px;">
+          <table
+            role="presentation"
+            width="100%"
+            cellpadding="0"
+            cellspacing="0"
+            style="max-width: 480px; background: #ffffff; border-radius: 16px; padding: 40px 32px"
+          >
             <tr>
-              <td style="font-size:24px;font-weight:700;color:#111827;padding-bottom:16px;">Reset your password</td>
-            </tr>
-            <tr>
-              <td style="font-size:16px;line-height:24px;color:#374151;padding-bottom:24px;">
-                We received a request to reset the password for your Lagan account (<strong>{{ .Email }}</strong>). Tap the button below to choose a new one.
+              <td style="font-size: 24px; font-weight: 700; color: #111827; padding-bottom: 16px">
+                Reset your password
               </td>
             </tr>
             <tr>
-              <td style="padding-bottom:24px;">
-                <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;redirect_to={{ .RedirectTo }}" style="display:inline-block;background:#F26B1F;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 28px;border-radius:10px;">Reset password</a>
+              <td style="font-size: 16px; line-height: 24px; color: #374151; padding-bottom: 24px">
+                We received a request to reset the password for your Lagan account (<strong
+                  >{{ .Email }}</strong
+                >). Tap the button below to choose a new one.
               </td>
             </tr>
             <tr>
-              <td style="font-size:14px;line-height:22px;color:#6b7280;padding-bottom:8px;">
-                This link expires in 60 minutes and can only be used once. If you didn't request a password reset, you can safely ignore this email — your password won't change.
+              <td style="padding-bottom: 24px">
+                {{ if eq .RedirectTo "lagan://auth/callback" }}
+                <a
+                  href="{{ .SiteURL }}/auth/native-confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;redirect_to=lagan%3A%2F%2Fauth%2Fcallback"
+                  style="
+                    display: inline-block;
+                    background: #f26b1f;
+                    color: #ffffff;
+                    text-decoration: none;
+                    font-size: 16px;
+                    font-weight: 600;
+                    padding: 14px 28px;
+                    border-radius: 10px;
+                  "
+                  >Reset password</a
+                >
+                {{ else }}
+                <a
+                  href="{{ .SiteURL }}/app/auth/callback?token_hash={{ .TokenHash }}&amp;type=recovery"
+                  style="
+                    display: inline-block;
+                    background: #f26b1f;
+                    color: #ffffff;
+                    text-decoration: none;
+                    font-size: 16px;
+                    font-weight: 600;
+                    padding: 14px 28px;
+                    border-radius: 10px;
+                  "
+                  >Reset password</a
+                >
+                {{ end }}
               </td>
             </tr>
             <tr>
-              <td style="font-size:13px;line-height:20px;color:#9ca3af;padding-top:16px;border-top:1px solid #eef0f2;">
-                Button not working? Copy and paste this link into your browser:<br>
-                <span style="color:#6b7280;word-break:break-all;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;redirect_to={{ .RedirectTo }}</span>
+              <td style="font-size: 14px; line-height: 22px; color: #6b7280; padding-bottom: 8px">
+                This link expires in 60 minutes and can only be used once. If you didn't request a
+                password reset, you can safely ignore this email — your password won't change.
+              </td>
+            </tr>
+            <tr>
+              <td
+                style="
+                  font-size: 13px;
+                  line-height: 20px;
+                  color: #9ca3af;
+                  padding-top: 16px;
+                  border-top: 1px solid #eef0f2;
+                "
+              >
+                Button not working? Copy and paste this link into your browser:<br />
+                {{ if eq .RedirectTo "lagan://auth/callback" }}
+                <span style="color: #6b7280; word-break: break-all"
+                  >{{ .SiteURL }}/auth/native-confirm?token_hash={{ .TokenHash
+                  }}&amp;type=recovery&amp;redirect_to=lagan%3A%2F%2Fauth%2Fcallback</span
+                >
+                {{ else }}
+                <span style="color: #6b7280; word-break: break-all"
+                  >{{ .SiteURL }}/app/auth/callback?token_hash={{ .TokenHash
+                  }}&amp;type=recovery</span
+                >
+                {{ end }}
               </td>
             </tr>
           </table>
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;padding:16px 32px;">
+          <table
+            role="presentation"
+            width="100%"
+            cellpadding="0"
+            cellspacing="0"
+            style="max-width: 480px; padding: 16px 32px"
+          >
             <tr>
-              <td style="font-size:12px;color:#9ca3af;text-align:center;">Lagan · Build better habits, one day at a time.</td>
+              <td style="font-size: 12px; color: #9ca3af; text-align: center">
+                Lagan · Build better habits, one day at a time.
+              </td>
             </tr>
           </table>
         </td>

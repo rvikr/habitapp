@@ -26,6 +26,7 @@ ENV EXPO_PUBLIC_SUPABASE_URL=$EXPO_PUBLIC_SUPABASE_URL \
     EXPO_PUBLIC_VAPID_PUBLIC_KEY=$EXPO_PUBLIC_VAPID_PUBLIC_KEY \
     EXPO_PUBLIC_APP_URL=$EXPO_PUBLIC_APP_URL
 
+RUN node scripts/validate-auth-build-config.mjs
 RUN npx expo export --platform web
 
 # Stage 2: serve with nginx

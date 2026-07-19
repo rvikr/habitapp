@@ -4,13 +4,10 @@ import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { exchangeAuthCode, supabase } from "@/lib/supabase/client";
-import {
-  AUTH_CALLBACK_PATH,
-  isAppEmailOtpType,
-  parseAuthCallbackUrl,
-} from "@/lib/auth/auth-redirect";
-import { pickAuthCallbackUrl } from "@/lib/auth/auth-callback-select";
+import { supabase } from "@/lib/supabase/client";
+import { AUTH_CALLBACK_PATH, parseAuthCallbackUrl } from "@/lib/auth/auth-redirect";
+import { selectAuthCallbackPayload } from "@/lib/auth/auth-callback-coordinator";
+import { completeAuthCallback } from "@/lib/auth/auth-callback-completion";
 import { authCallbackUrlFromParams } from "@/lib/auth/auth-callback-params";
 import { authCallbackErrorMessage } from "@/lib/auth/auth-callback-error";
 import { clearDataCache } from "@/lib/data/cache";
@@ -21,7 +18,7 @@ import {
   consumePendingSignupWelcome,
 } from "@/lib/auth/auth-welcome";
 import { useLanguage } from "@/components/language-provider";
-import { identifyAnalytics, trackActivationEvent } from "@/lib/services/analytics";
+import { identifyAnalytics, track, trackActivationEvent } from "@/lib/services/analytics";
 import { resolveActivationAnalyticsContext } from "@/lib/services/activation-analytics-context";
 import {
   categorizeSignupFailure,
@@ -35,15 +32,13 @@ export default function AuthCallbackScreen() {
   const { t } = useLanguage();
   const callbackParams = useLocalSearchParams();
   const routeCallbackUrl = authCallbackUrlFromParams(`/${AUTH_CALLBACK_PATH}`, callbackParams);
-  const currentUrl = Linking.useURL();
-  const handledUrlRef = useRef<string | null>(null);
+  const currentUrl = Linking.useLinkingURL();
+  const completionRef = useRef<Promise<void> | null>(null);
+  const terminalRef = useRef(false);
   const signupCallbackRef = useRef(false);
-  // Tracks real unmount only. On web, `Linking.useURL()` starts null then resolves
-  // to the page URL, re-running the effect below. A per-run `cancelled` flag would
-  // be flipped by that re-run's cleanup and suppress the state updates from the run
-  // that actually exchanged the code — leaving the screen stuck on the spinner. This
-  // ref is cleared solely by the dedicated unmount effect, so the productive run can
-  // always finish.
+  // Tracks real unmount only. Callback completion is independently guarded by
+  // completionRef/terminalRef so URL updates and browser history cleanup cannot
+  // start another one-time credential exchange.
   const mountedRef = useRef(true);
   const recoveryRoutedRef = useRef(false);
   const [status, setStatus] = useState<Status>("loading");
@@ -83,44 +78,35 @@ export default function AuthCallbackScreen() {
   }, []);
 
   useEffect(() => {
+    if (terminalRef.current || completionRef.current) return;
+
     async function finishAuth() {
-      // An App Link that opens the app at /auth/confirm can leave useURL() on a
-      // tokenless in-app URL while the token still lives in getInitialURL(); pick
-      // the candidate that actually carries a credential rather than the first
-      // non-null one. See pickAuthCallbackUrl.
-      const url = pickAuthCallbackUrl(
-        [currentUrl, await Linking.getInitialURL(), browserLocationUrl(), routeCallbackUrl],
-        parseAuthCallbackUrl,
-      );
-      if (!url) throw new Error("Missing authentication callback URL.");
-      if (handledUrlRef.current === url) return;
-      handledUrlRef.current = url;
-
-      const parsed = parseAuthCallbackUrl(url);
-      signupCallbackRef.current = parsed.type === "signup";
-      if (parsed.error) {
-        throw new Error(parsed.errorDescription ?? parsed.error);
+      const immediateUrls = [currentUrl, browserLocationUrl(), routeCallbackUrl];
+      let payload = selectAuthCallbackPayload(immediateUrls, parseAuthCallbackUrl);
+      if (!payload) {
+        payload = selectAuthCallbackPayload(
+          [...immediateUrls, await Linking.getInitialURL()],
+          parseAuthCallbackUrl,
+        );
       }
+      if (!payload) throw new Error("Missing authentication code or token.");
 
-      if (parsed.code) {
-        const { error: exchangeError } = await exchangeAuthCode(parsed.code);
-        if (exchangeError) throw exchangeError;
-        clearDataCache();
-        scrubConsumedTokenFromBrowserUrl();
-      } else if (parsed.tokenHash && isAppEmailOtpType(parsed.type)) {
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          type: parsed.type,
-          token_hash: parsed.tokenHash,
-        });
-        if (verifyError) throw verifyError;
-        clearDataCache();
-        scrubConsumedTokenFromBrowserUrl();
-      } else {
-        throw new Error("Missing authentication code or token.");
-      }
+      signupCallbackRef.current = payload.type === "signup";
+      const outcome = await completeAuthCallback(payload);
+      if (outcome.status === "error") throw outcome.error;
+      track("auth_callback_completed", {
+        platform: Platform.OS,
+        credential_kind: payload.kind,
+        duplicate_suppressed: outcome.duplicateSuppressed,
+      });
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const session = sessionData.session;
+      // From this point onward the screen is terminal. In particular, the web
+      // history cleanup below must never cause a tokenless URL to be processed.
+      terminalRef.current = true;
+      clearDataCache();
+      scrubConsumedTokenFromBrowserUrl();
+
+      const session = outcome.session;
       const hasSession = Boolean(session);
       const welcome = session?.user.email
         ? await consumePendingSignupWelcome(session.user.email).catch(() => false)
@@ -130,7 +116,7 @@ export default function AuthCallbackScreen() {
       setShouldWelcome(welcome);
       setHasSession(hasSession);
 
-      if (parsed.type === "recovery") {
+      if (payload.type === "recovery") {
         if (!recoveryRoutedRef.current) {
           recoveryRoutedRef.current = true;
           router.replace("/reset-password" as never);
@@ -143,7 +129,7 @@ export default function AuthCallbackScreen() {
       // returning-user logins establish a session with no pending-signup match and no
       // `type=signup`, so they must skip the success screen and land straight on home —
       // otherwise an existing user re-authenticating sees a bogus "email confirmed".
-      const isEmailConfirmation = welcome || parsed.type === "signup";
+      const isEmailConfirmation = welcome || payload.type === "signup";
       if (isEmailConfirmation) {
         void trackSignupConfirmation(session?.user.id ?? null).catch(() => {});
       }
@@ -156,7 +142,12 @@ export default function AuthCallbackScreen() {
       setStatus("success");
     }
 
-    finishAuth().catch((e) => {
+    const completion = finishAuth().catch((e) => {
+      terminalRef.current = true;
+      track("auth_callback_failed", {
+        platform: Platform.OS,
+        failure_category: categorizeSignupFailure(e),
+      });
       if (signupCallbackRef.current) {
         trackActivationEvent("signup_failed", unassignedActivationAnalyticsContext(Platform.OS), {
           method: "email",
@@ -169,6 +160,7 @@ export default function AuthCallbackScreen() {
         setStatus("error");
       }
     });
+    completionRef.current = completion;
   }, [currentUrl, routeCallbackUrl, router]);
 
   return (
