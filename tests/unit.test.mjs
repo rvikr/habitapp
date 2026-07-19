@@ -45,6 +45,7 @@ import {
   authCallbackErrorMessage,
 } from "../lib/auth/auth-callback-error.ts";
 import { buildWebAuthCallbackUrl } from "../lib/auth/auth-callback-url.ts";
+import { createAuthCodeExchanger } from "../lib/auth/auth-code-exchange.ts";
 import {
   googleNativeAuthConfig,
   googleNativeAuthReady,
@@ -2979,6 +2980,40 @@ test("auth callback parser ignores unbound bearer tokens from query and fragment
   assert.match(source, /code: firstParam\(allParams\.code\)/);
   assert.match(source, /tokenHash: firstParam\(allParams\.token_hash\)/);
   assert.doesNotMatch(source, /access_token|refresh_token|accessToken|refreshToken/);
+});
+
+test("auth code exchanger runs one exchange per code across concurrent callers", async () => {
+  const calls = [];
+  const exchange = createAuthCodeExchanger(async (code) => {
+    calls.push(code);
+    return { error: null, code };
+  });
+
+  // Native Android delivers the OAuth redirect to both openAuthSessionAsync and
+  // the deep-linked /auth/callback screen; both must share a single exchange.
+  const [first, second] = await Promise.all([exchange("code-a"), exchange("code-a")]);
+  assert.equal(first, second);
+  assert.deepEqual(calls, ["code-a"]);
+
+  await exchange("code-a");
+  assert.deepEqual(calls, ["code-a"]);
+
+  const other = await exchange("code-b");
+  assert.equal(other.code, "code-b");
+  assert.deepEqual(calls, ["code-a", "code-b"]);
+});
+
+test("auth code exchanger shares a failed result instead of retrying a consumed code", async () => {
+  let attempts = 0;
+  const exchange = createAuthCodeExchanger(async () => {
+    attempts += 1;
+    return { error: { message: "flow state not found" } };
+  });
+
+  const first = await exchange("code-a");
+  const second = await exchange("code-a");
+  assert.equal(second, first);
+  assert.equal(attempts, 1);
 });
 
 test("auth callback completion paths do not install sessions from parsed bearer tokens", () => {

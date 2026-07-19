@@ -4,7 +4,7 @@ import * as Linking from "expo-linking";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { supabase } from "@/lib/supabase/client";
+import { exchangeAuthCode, supabase } from "@/lib/supabase/client";
 import {
   AUTH_CALLBACK_PATH,
   isAppEmailOtpType,
@@ -96,9 +96,10 @@ export default function AuthCallbackScreen() {
       }
 
       if (parsed.code) {
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(parsed.code);
+        const { error: exchangeError } = await exchangeAuthCode(parsed.code);
         if (exchangeError) throw exchangeError;
         clearDataCache();
+        scrubConsumedTokenFromBrowserUrl();
       } else if (parsed.tokenHash && isAppEmailOtpType(parsed.type)) {
         const { error: verifyError } = await supabase.auth.verifyOtp({
           type: parsed.type,
@@ -234,13 +235,16 @@ function browserLocationUrl(): string | null {
   return window.location.href || null;
 }
 
-// The token is single-use, but remove it promptly so browser history, copied
-// URLs, and later client-side telemetry cannot retain the credential.
+// The code/token is single-use, but remove it promptly so browser history,
+// copied URLs, and later client-side telemetry cannot retain the credential —
+// and so a tab restore or reload of this screen doesn't re-run the consumed
+// exchange and show an error over an already-established session.
 function scrubConsumedTokenFromBrowserUrl() {
   if (Platform.OS !== "web" || typeof window === "undefined") return;
   const url = new URL(window.location.href);
-  if (!url.searchParams.has("token_hash")) return;
-  url.searchParams.delete("token_hash");
+  const consumed = ["code", "token_hash"].filter((key) => url.searchParams.has(key));
+  if (consumed.length === 0) return;
+  for (const key of consumed) url.searchParams.delete(key);
   window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
 }
 

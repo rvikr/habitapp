@@ -1,5 +1,6 @@
 import "../platform/webcrypto-polyfill";
 import { createClient as _createClient, type Session, type User } from "@supabase/supabase-js";
+import { createAuthCodeExchanger } from "../auth/auth-code-exchange";
 import { secureStorage } from "../platform/secure-storage";
 import { isMissingRefreshTokenError } from "./auth-error";
 import { classifyStoredSession } from "./session-storage";
@@ -97,6 +98,13 @@ export const supabase = _createClient(
       flowType: "pkce",
     },
   },
+);
+
+// Shared by the OAuth return path in lib/data/actions.ts and the /auth/callback
+// screen, which can both receive the same native redirect; see the factory for
+// why the exchange must be deduplicated per code.
+export const exchangeAuthCode = createAuthCodeExchanger((code: string) =>
+  supabase.auth.exchangeCodeForSession(code),
 );
 
 export function configurationError() {

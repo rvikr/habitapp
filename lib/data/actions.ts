@@ -6,6 +6,7 @@ import {
   isSupabaseConfigured,
   configurationError,
   clearLocalAuthSession,
+  exchangeAuthCode,
   getCurrentUser,
   markUserInitiatedSignOut,
 } from "../supabase/client";
@@ -464,7 +465,7 @@ async function signInWithGoogleOAuth(): Promise<{ error: Error | null; cancelled
     if (parsed.error) return { error: new Error(parsed.errorDescription ?? parsed.error) };
 
     if (parsed.code) {
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(parsed.code);
+      const { error: exchangeError } = await exchangeAuthCode(parsed.code);
       if (!exchangeError) clearDataCache();
       return { error: exchangeError as Error | null };
     }
