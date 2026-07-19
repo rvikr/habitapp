@@ -344,6 +344,8 @@ async function runTreatmentFirstLog(browser, results) {
   );
   await page.getByText("Settings", { exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/settings", { timeout: 30000 });
+  await page.getByRole("button", { name: "Manage subscription" }).waitFor({ timeout: 30000 });
+  await page.screenshot({ path: "tmp/subscription-settings.png", fullPage: true });
   await page.getByText("Today", { exact: true }).click();
   await page.waitForURL((url) => url.pathname === "/", { timeout: 30000 });
   await page.getByRole("button", { name: "Build my routine" }).waitFor({ timeout: 30000 });
@@ -393,12 +395,17 @@ async function runTreatmentEngaged(browser, results) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const results = [];
+  const settingsOnly = process.argv.includes("--settings-only");
   try {
-    await runControlPreValue(browser, results);
-    await runControlEngaged(browser, results);
-    await runTreatmentPreValue(browser, results);
-    await runTreatmentFirstLog(browser, results);
-    await runTreatmentEngaged(browser, results);
+    if (settingsOnly) {
+      await runTreatmentFirstLog(browser, results);
+    } else {
+      await runControlPreValue(browser, results);
+      await runControlEngaged(browser, results);
+      await runTreatmentPreValue(browser, results);
+      await runTreatmentFirstLog(browser, results);
+      await runTreatmentEngaged(browser, results);
+    }
   } finally {
     await browser.close();
   }

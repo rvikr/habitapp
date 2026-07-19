@@ -28,6 +28,7 @@ import {
   subscriptionStatusLabel,
   type ProAccessProfile,
 } from "@/lib/subscription/access";
+import { GOOGLE_PLAY_SUBSCRIPTIONS_URL } from "@/lib/subscription/revenuecat-shared";
 
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || "https://lagan.health/terms";
 const APP_VERSION = Constants.expoConfig?.version ?? "—";
@@ -391,6 +392,11 @@ export default function SettingsScreen() {
             icon="star-four-points"
             label={t("Lagan Pro")}
             onPress={() => router.push("/pro" as never)}
+          />
+          <SettingsRow
+            icon="credit-card-outline"
+            label={t("Manage subscription")}
+            onPress={() => Linking.openURL(GOOGLE_PLAY_SUBSCRIPTIONS_URL)}
           />
           <SettingsRow
             icon="bell"

@@ -36,6 +36,7 @@ const HI_TRANSLATIONS: Record<string, string> = {
   Language: "भाषा",
   ACCOUNT: "अकाउंट",
   Reminders: "रिमाइंडर",
+  "Manage subscription": "सब्सक्रिप्शन प्रबंधित करें",
   "AI Coach": "AI कोच",
   "Send Feedback": "फीडबैक भेजें",
   "Rate Lagan": "Lagan को रेट करें",
@@ -360,6 +361,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Purchases aren't supported in this app build.": "इस ऐप बिल्ड में खरीदारी सपोर्ट नहीं है.",
   "Subscription plans aren't set up for this app version yet. Please try again later.":
     "इस ऐप वर्शन के लिए सब्सक्रिप्शन प्लान अभी सेट नहीं हुए हैं. कृपया बाद में फिर कोशिश करें.",
+  "{days} days free, then {price} {period}": "{days} दिन मुफ़्त, फिर {price} {period}",
+  "Auto-renews. Cancel before the trial ends to avoid being charged.":
+    "यह अपने-आप नवीनीकृत होगा। शुल्क से बचने के लिए ट्रायल खत्म होने से पहले रद्द करें।",
+  "per month": "प्रति माह",
+  "per year": "प्रति वर्ष",
   "AI Coach is a Pro feature": "AI Coach एक Pro फीचर है",
   "Subscribe to Pro to unlock personalized AI coaching.":
     "पर्सनलाइज़्ड AI कोचिंग अनलॉक करने के लिए Pro सब्सक्राइब करें.",

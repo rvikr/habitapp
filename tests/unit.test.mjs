@@ -162,6 +162,9 @@ import {
 } from "../supabase/functions/progress-report/stats.ts";
 import * as subscriptionAccess from "../lib/subscription/access.ts";
 import {
+  GOOGLE_PLAY_SUBSCRIPTIONS_URL,
+  googlePlayRenewalPrice,
+  googlePlayTrialDays,
   isRevenueCatPurchaseCancelled,
   selectProPaywallPackages,
 } from "../lib/subscription/revenuecat-shared.ts";
@@ -1309,6 +1312,14 @@ test("subscription migration grants only new signups a seven day Pro trial", () 
   assert.doesNotMatch(sql, /update public\.profiles\s+set\s+pro_trial_started_at/i);
 });
 
+test("latest subscription migration moves future signups to store-managed trials", () => {
+  const sql = readFileSync("supabase/migrations/20260719180000_store_managed_trials.sql", "utf8");
+  assert.match(sql, /create or replace function public\.handle_new_user\(\)/i);
+  assert.match(sql, /insert into public\.profiles \(user_id\)/i);
+  assert.doesNotMatch(sql, /pro_trial_started_at|pro_trial_ends_at|interval '7 days'/i);
+  assert.doesNotMatch(sql, /update public\.profiles/i);
+});
+
 test("Pro access helper covers trial subscription and admin override states", () => {
   const now = new Date("2026-05-22T00:00:00.000Z");
   assert.deepEqual(
@@ -1456,7 +1467,7 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
   assert.equal(packageJson.dependencies["react-native-purchases"], "^10.4.2");
 
   const subscriptionShared = readFileSync("lib/subscription/revenuecat-shared.ts", "utf8");
-  assert.match(subscriptionShared, /PRO_ENTITLEMENT_ID = "pro"/);
+  assert.match(subscriptionShared, /PRO_ENTITLEMENT_ID = "Pro"/);
   assert.match(subscriptionShared, /PRO_MONTHLY_PRODUCT_ID = "rc_49_1m"/);
   assert.match(subscriptionShared, /PRO_ANNUAL_PRODUCT_ID = "rc_499_12m"/);
   assert.match(subscriptionShared, /selectProPaywallPackages/);
@@ -1509,8 +1520,8 @@ test("RevenueCat paywall package selection prefers configured package slots", ()
   const monthlySlot = { product: { identifier: "google_monthly:base" } };
   const annualSlot = { product: { identifier: "google_annual:base" } };
   // Google Play reports subscription identifiers as "productId:basePlanId".
-  const fallbackMonthly = { product: { identifier: "rc_49_1m:trial-7d" } };
-  const fallbackAnnual = { product: { identifier: "rc_499_12m" } };
+  const fallbackMonthly = { product: { identifier: "rc_49_1m:monthly-1m" } };
+  const fallbackAnnual = { product: { identifier: "rc_499_12m:annual-12m" } };
 
   assert.deepEqual(
     selectProPaywallPackages({
@@ -1537,6 +1548,32 @@ test("RevenueCat paywall package selection prefers configured package slots", ()
       available: true,
     },
   );
+});
+
+test("Google Play paywall helpers expose eligible trials and recurring prices", () => {
+  const eligibleProduct = {
+    priceString: "₹0.00",
+    defaultOption: {
+      freePhase: { billingPeriod: { unit: "DAY", value: 7 } },
+      fullPricePhase: { price: { formatted: "₹49.00" } },
+    },
+  };
+  assert.equal(googlePlayTrialDays(eligibleProduct), 7);
+  assert.equal(googlePlayRenewalPrice(eligibleProduct, "₹49"), "₹49.00");
+  assert.equal(googlePlayTrialDays({ defaultOption: { freePhase: null } }), null);
+  assert.equal(googlePlayRenewalPrice({ priceString: "₹499.00" }, "₹499"), "₹499.00");
+  assert.equal(googlePlayRenewalPrice(null, "₹499"), "₹499");
+  assert.match(GOOGLE_PLAY_SUBSCRIPTIONS_URL, /health\.lagan\.app/);
+});
+
+test("subscription surfaces disclose trials and link to Google Play management", () => {
+  const proScreen = readFileSync("app/pro.tsx", "utf8");
+  const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
+  assert.match(proScreen, /googlePlayTrialDays/);
+  assert.match(proScreen, /Auto-renews\. Cancel before the trial ends/);
+  assert.match(proScreen, /GOOGLE_PLAY_SUBSCRIPTIONS_URL/);
+  assert.match(settingsScreen, /GOOGLE_PLAY_SUBSCRIPTIONS_URL/);
+  assert.match(settingsScreen, /Manage subscription/);
 });
 
 test("RevenueCat purchase cancellation helper recognizes silent cancellation errors", () => {

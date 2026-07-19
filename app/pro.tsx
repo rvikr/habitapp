@@ -14,7 +14,10 @@ import {
   type ProPackagesUnavailableReason,
 } from "@/lib/subscription/revenuecat";
 import {
+  GOOGLE_PLAY_SUBSCRIPTIONS_URL,
   describeRevenueCatError,
+  googlePlayRenewalPrice,
+  googlePlayTrialDays,
   isRevenueCatPurchaseCancelled,
 } from "@/lib/subscription/revenuecat-shared";
 import { reportError } from "@/lib/services/sentry";
@@ -211,47 +214,64 @@ export default function ProScreen() {
                   period: "per year",
                   badge: "Save 15%",
                 },
-              ].map((item) => (
-                <TouchableOpacity
-                  key={item.label}
-                  className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
-                  accessibilityRole="button"
-                  accessibilityLabel={t("Buy {label}", { label: t(item.label) })}
-                  accessibilityState={{ disabled: Boolean(busy) }}
-                  onPress={() => {
-                    if (busy) return;
-                    return item.pack ? buy(item.pack, item.label) : showPlansUnavailable();
-                  }}
-                >
-                  <View className="w-11 h-11 rounded-full bg-primary-fixed items-center justify-center">
-                    <MaterialCommunityIcons name={item.icon as any} size={22} color="#F26B1F" />
-                  </View>
-                  <View className="flex-1">
-                    <View className="flex-row items-center gap-sm">
-                      <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
-                        {t(item.label)}
+              ].map((item) => {
+                const renewalPrice = googlePlayRenewalPrice(item.pack?.product, item.price);
+                const trialDays = googlePlayTrialDays(item.pack?.product);
+                const priceSummary = trialDays
+                  ? t("{days} days free, then {price} {period}", {
+                      days: trialDays,
+                      price: renewalPrice,
+                      period: t(item.period),
+                    })
+                  : `${renewalPrice} ${t(item.period)}`;
+
+                return (
+                  <TouchableOpacity
+                    key={item.label}
+                    className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md flex-row items-center gap-md"
+                    accessibilityRole="button"
+                    accessibilityLabel={t("Buy {label}", { label: t(item.label) })}
+                    accessibilityState={{ disabled: Boolean(busy) }}
+                    onPress={() => {
+                      if (busy) return;
+                      return item.pack ? buy(item.pack, item.label) : showPlansUnavailable();
+                    }}
+                  >
+                    <View className="w-11 h-11 rounded-full bg-primary-fixed items-center justify-center">
+                      <MaterialCommunityIcons name={item.icon as any} size={22} color="#F26B1F" />
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-sm">
+                        <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
+                          {t(item.label)}
+                        </Text>
+                        {item.badge && (
+                          <View className="bg-secondary-container rounded-full px-sm py-xs">
+                            <Text className="text-label-sm text-on-secondary-container font-semibold">
+                              {t(item.badge)}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                        {priceSummary}
                       </Text>
-                      {item.badge && (
-                        <View className="bg-secondary-container rounded-full px-sm py-xs">
-                          <Text className="text-label-sm text-on-secondary-container font-semibold">
-                            {t(item.badge)}
-                          </Text>
-                        </View>
+                      {trialDays && (
+                        <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs leading-5">
+                          {t("Auto-renews. Cancel before the trial ends to avoid being charged.")}
+                        </Text>
                       )}
                     </View>
-                    <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                      {(item.pack?.product.priceString ?? item.price) + " · " + t(item.period)}
-                    </Text>
-                  </View>
-                  {busy === item.label ? (
-                    <Text className="text-label-sm text-primary font-semibold">
-                      {t("Processing...")}
-                    </Text>
-                  ) : (
-                    <MaterialCommunityIcons name="chevron-right" size={22} color="#8F8A82" />
-                  )}
-                </TouchableOpacity>
-              ))}
+                    {busy === item.label ? (
+                      <Text className="text-label-sm text-primary font-semibold">
+                        {t("Processing...")}
+                      </Text>
+                    ) : (
+                      <MaterialCommunityIcons name="chevron-right" size={22} color="#8F8A82" />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -292,6 +312,16 @@ export default function ProScreen() {
                     "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
                   )}
                 </Text>
+                <TouchableOpacity
+                  className="self-center py-xs"
+                  onPress={() => Linking.openURL(GOOGLE_PLAY_SUBSCRIPTIONS_URL)}
+                  accessibilityRole="link"
+                  accessibilityLabel={t("Manage subscription")}
+                >
+                  <Text className="text-label-sm text-primary font-semibold">
+                    {t("Manage subscription")}
+                  </Text>
+                </TouchableOpacity>
               </>
             )}
             <View className="flex-row justify-center gap-md pt-xs">

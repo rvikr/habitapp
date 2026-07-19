@@ -6,7 +6,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const REVENUECAT_SECRET_API_KEY = Deno.env.get("REVENUECAT_SECRET_API_KEY");
-const PRO_ENTITLEMENT_ID = "pro";
+const PRO_ENTITLEMENT_ID = "Pro";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",

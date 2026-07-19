@@ -1,6 +1,42 @@
-export const PRO_ENTITLEMENT_ID = "pro";
+export const PRO_ENTITLEMENT_ID = "Pro";
 export const PRO_MONTHLY_PRODUCT_ID = "rc_49_1m";
 export const PRO_ANNUAL_PRODUCT_ID = "rc_499_12m";
+export const GOOGLE_PLAY_SUBSCRIPTIONS_URL =
+  "https://play.google.com/store/account/subscriptions?package=health.lagan.app";
+
+type GooglePlayProductLike = {
+  priceString?: string | null;
+  defaultOption?: {
+    freePhase?: {
+      billingPeriod?: { unit?: string | null; value?: number | null } | null;
+    } | null;
+    fullPricePhase?: {
+      price?: { formatted?: string | null } | null;
+    } | null;
+  } | null;
+};
+
+/** Returns the exact eligible Google Play trial length exposed by RevenueCat. */
+export function googlePlayTrialDays(
+  product: GooglePlayProductLike | null | undefined,
+): number | null {
+  const period = product?.defaultOption?.freePhase?.billingPeriod;
+  const value = period?.value;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  if (period?.unit === "DAY") return value;
+  if (period?.unit === "WEEK") return value * 7;
+  return null;
+}
+
+/** Uses the post-offer recurring price instead of a free/intro phase price. */
+export function googlePlayRenewalPrice(
+  product: GooglePlayProductLike | null | undefined,
+  fallback: string,
+): string {
+  return (
+    product?.defaultOption?.fullPricePhase?.price?.formatted || product?.priceString || fallback
+  );
+}
 
 type RevenueCatPackageLike = {
   product: {
