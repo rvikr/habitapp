@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Manrope } from "next/font/google";
-import { GOOGLE_SITE_VERIFICATION, SITE_URL, SOCIAL_PROFILE_URLS } from "@/lib/site";
+import { GOOGLE_SITE_VERIFICATION, PLAY_STORE_URL, SITE_URL, SOCIAL_PROFILE_URLS } from "@/lib/site";
+import { ORGANIZATION_ID } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/json-ld";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -99,10 +101,13 @@ export default function RootLayout({
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": ORGANIZATION_ID,
     name: "Lagan",
     url: SITE_URL,
     logo: `${SITE_URL}/icon-512.png`,
-    sameAs: SOCIAL_PROFILE_URLS,
+    description:
+      "Lagan makes an AI habit tracker for the web and Android that helps people build daily routines with coaching, streaks, and gentle reminders.",
+    sameAs: [...SOCIAL_PROFILE_URLS, PLAY_STORE_URL],
   };
 
   const websiteJsonLd = {
@@ -111,6 +116,7 @@ export default function RootLayout({
     name: "Lagan",
     alternateName: ["Lagan Habit Tracker", "Lagan App"],
     url: SITE_URL,
+    publisher: { "@id": ORGANIZATION_ID },
   };
 
   return (
@@ -122,14 +128,8 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
           rel="stylesheet"
         />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
-        />
+        <JsonLd data={orgJsonLd} />
+        <JsonLd data={websiteJsonLd} />
       </head>
       <body className="font-sans antialiased">{children}</body>
     </html>

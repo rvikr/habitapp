@@ -8,6 +8,8 @@ import PhoneMockup from "@/components/ui/phone-mockup";
 import { Pill } from "@/components/ui/pill";
 import ScrollAnimations from "@/components/ui/scroll-animations";
 import { Eyebrow, Section, SectionHeading } from "@/components/ui/section";
+import { JsonLd } from "@/components/seo/json-ld";
+import { LANDING_FAQS } from "@/lib/faqs";
 import { PLAY_STORE_URL, SITE_URL, WEB_APP_URL } from "@/lib/site";
 
 const DESCRIPTION =
@@ -85,34 +87,6 @@ const steps = [
     step: "03",
     title: "Track progress and improve with AI",
     description: "Log each day, review your progress, and use AI guidance to adjust.",
-  },
-];
-
-const faqs = [
-  {
-    question: "What is Lagan?",
-    answer:
-      "Lagan is an AI-powered habit tracker. You build daily routines on a simple timeline, check habits off as you go, and an AI coach reads your patterns to suggest the next small improvement.",
-  },
-  {
-    question: "Is Lagan free?",
-    answer:
-      "Yes. Lagan is free to use in the web app and the Android app. Advanced AI features are part of Lagan Pro, with 50% off the yearly plan during our launch.",
-  },
-  {
-    question: "Which platforms does Lagan support?",
-    answer:
-      "Lagan works in any modern browser — on desktop and iPhone — at lagan.health/app. The Android app is available on Google Play, and a native iOS app is coming soon.",
-  },
-  {
-    question: "Is Lagan on Google Play?",
-    answer:
-      "Yes — download the Lagan Android app from Google Play. You can also use the full web app for free in any modern browser.",
-  },
-  {
-    question: "How does the AI coaching in Lagan work?",
-    answer:
-      "Lagan's AI looks at your habits, streaks, and completion patterns, then suggests realistic next steps — when to schedule a habit, what to try after a missed day, and which routine to build next.",
   },
 ];
 
@@ -306,24 +280,18 @@ export default function LandingPage() {
     description: DESCRIPTION,
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     url: SITE_URL,
+    screenshot: `${SITE_URL}/og-image.png`,
+    installUrl: PLAY_STORE_URL,
+    sameAs: [PLAY_STORE_URL],
   };
 
-  const faqJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.question,
-      acceptedAnswer: { "@type": "Answer", text: faq.answer },
-    })),
-  };
+  // FAQPage JSON-LD intentionally lives only on /faq — one FAQPage per site.
 
   const storyVisuals = [SuggestionVisual, TrackingVisual, InsightsVisual];
 
   return (
     <main className="min-h-screen overflow-x-clip bg-background text-on-surface">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(appJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
+      <JsonLd data={appJsonLd} />
       <ScrollAnimations />
       <LaunchPromoModal />
 
@@ -332,6 +300,7 @@ export default function LandingPage() {
           { label: "Features", href: "#features" },
           { label: "How it works", href: "#how-it-works" },
           { label: "FAQ", href: "#faq" },
+          { label: "Blog", href: "/blog" },
         ]}
         actions={
           <Button href={WEB_APP_URL} external variant="primary" size="md">
@@ -497,7 +466,7 @@ export default function LandingPage() {
           <SectionHeading className="mt-3">Common questions about Lagan</SectionHeading>
         </div>
         <div className="stagger mt-12 grid gap-4 md:grid-cols-2">
-          {faqs.map((faq) => (
+          {LANDING_FAQS.map((faq) => (
             <Card key={faq.question} className="p-6">
               <h3 className="font-display text-lg font-bold tracking-tight text-on-background">
                 {faq.question}
@@ -506,6 +475,14 @@ export default function LandingPage() {
             </Card>
           ))}
         </div>
+        <p className="reveal-up mt-8">
+          <a
+            href="/faq"
+            className="text-sm font-bold text-primary underline-offset-4 transition-colors hover:text-on-background hover:underline"
+          >
+            See all questions →
+          </a>
+        </p>
       </Section>
 
       {/* ── Final CTA ────────────────────────────────────── */}

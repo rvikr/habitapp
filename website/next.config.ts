@@ -1,8 +1,11 @@
 import path from "path";
+import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  // Blog posts are .mdx files under content/blog, rendered via app/blog.
+  pageExtensions: ["ts", "tsx", "md", "mdx"],
   // The PWA's start_url is /app/ (trailing slash). Next's built-in
   // trailing-slash normalization would answer it with a 308, and a redirected
   // navigation response breaks the installed iOS PWA ("response served by
@@ -16,6 +19,10 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
+    // The /app PWA is auth-gated — keep it out of search/AI indexes. The shell
+    // also carries a robots meta tag, but that only ships with the next Cloud
+    // Run deploy; these headers cover the proxied responses immediately.
+    const appNoindex = [{ key: "X-Robots-Tag", value: "noindex" }];
     return [
       {
         source: "/auth/open-app",
@@ -25,6 +32,8 @@ const nextConfig: NextConfig = {
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
+      { source: "/app", headers: appNoindex },
+      { source: "/app/:path*", headers: appNoindex },
     ];
   },
   async rewrites() {
@@ -54,4 +63,6 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+const withMDX = createMDX({});
+
+export default withMDX(nextConfig);

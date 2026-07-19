@@ -22,11 +22,14 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Lagan" />
-    <link rel="canonical" href="https://lagan.health/" />
+    <!-- The app shell is auth-gated; the marketing site at lagan.health is the
+         indexable surface. No canonical — this page is not a variant of the
+         homepage. -->
+    <meta name="robots" content="noindex" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Lagan" />
-    <meta property="og:url" content="https://lagan.health/" />
+    <meta property="og:url" content="https://lagan.health/app/" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:title" content="Lagan — AI Habit Tracker &amp; Coach" />
     <meta property="og:description" content="Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and web." />

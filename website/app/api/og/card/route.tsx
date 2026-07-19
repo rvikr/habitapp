@@ -45,7 +45,12 @@ export async function GET(request: Request) {
   let subtitle: string;
   let accent: [string, string];
 
-  if (type === "rank") {
+  if (type === "article") {
+    // Blog post share card: title + optional subtitle, brand-orange accent.
+    tagline = (searchParams.get("title") ?? "Lagan Blog").slice(0, 120);
+    subtitle = (searchParams.get("subtitle") ?? "Guides from lagan.health/blog").slice(0, 160);
+    accent = TONE_GRADIENT.orange;
+  } else if (type === "rank") {
     const rank   = parseInt(searchParams.get("rank")   ?? "1",  10);
     const streak = parseInt(searchParams.get("streak") ?? "0",  10);
     const pct    = parseInt(searchParams.get("pct")    ?? "50", 10);

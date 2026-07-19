@@ -26,12 +26,15 @@ export default function Root({ children }: { children: React.ReactNode }) {
           content="AI habit tracker, AI habit coach, AI routine planner, AI smart reminders, habit tracker, daily habit app, streak tracker, routine tracker, habit builder, habit log, consistency tracker, goal tracker"
         />
         <meta name="application-name" content="Lagan" />
-        <link rel="canonical" href="https://lagan.health/" />
+        {/* The app shell is auth-gated; the marketing site at lagan.health is
+            the indexable surface. No canonical — this page is not a variant of
+            the homepage. */}
+        <meta name="robots" content="noindex" />
 
         {/* Open Graph */}
         <meta property="og:type" content="website" />
         <meta property="og:site_name" content="Lagan" />
-        <meta property="og:url" content="https://lagan.health/" />
+        <meta property="og:url" content="https://lagan.health/app/" />
         <meta property="og:locale" content="en_US" />
         <meta property="og:title" content="Lagan — AI Habit Tracker & Coach" />
         <meta

@@ -33,6 +33,15 @@ export default function Footer() {
           </a>
         </div>
         <nav className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium text-on-surface-variant">
+          <Link href="/faq" className="transition-colors hover:text-on-background">
+            FAQ
+          </Link>
+          <Link href="/about" className="transition-colors hover:text-on-background">
+            About
+          </Link>
+          <Link href="/blog" className="transition-colors hover:text-on-background">
+            Blog
+          </Link>
           <Link href="/privacy" className="transition-colors hover:text-on-background">
             Privacy
           </Link>

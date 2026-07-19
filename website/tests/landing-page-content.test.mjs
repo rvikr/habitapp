@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const faqsSource = readFileSync(new URL("../lib/faqs.ts", import.meta.url), "utf8");
+const faqPageSource = readFileSync(new URL("../app/faq/page.tsx", import.meta.url), "utf8");
 
 test("homepage is a Lagan-branded landing page with web and Android CTAs", () => {
   assert.match(pageSource, /Lagan — build better habits/);
@@ -34,11 +36,25 @@ test("homepage includes the required feature and how-it-works sections", () => {
   }
 });
 
-test("homepage renders an FAQ section backed by FAQPage JSON-LD", () => {
-  assert.match(pageSource, /"FAQPage"/);
-  assert.match(pageSource, /What is Lagan\?/);
-  assert.match(pageSource, /Is Lagan on Google Play\?/);
+test("homepage renders an FAQ section from the shared list and links to /faq", () => {
+  assert.match(pageSource, /LANDING_FAQS/);
+  assert.match(pageSource, /from "@\/lib\/faqs"/);
   assert.match(pageSource, /id="faq"/);
+  assert.match(pageSource, /href="\/faq"/);
+  // FAQPage JSON-LD lives only on /faq — one FAQPage per site.
+  assert.doesNotMatch(pageSource, /"FAQPage"/);
+});
+
+test("the FAQ content module answers the pinned questions", () => {
+  assert.match(faqsSource, /What is Lagan\?/);
+  assert.match(faqsSource, /Is Lagan on Google Play\?/);
+  assert.match(faqsSource, /What happens when I miss a day\?/);
+});
+
+test("/faq renders every FAQ with FAQPage JSON-LD", () => {
+  assert.match(faqPageSource, /faqPageJsonLd\(ALL_FAQS\)/);
+  assert.match(faqPageSource, /ALL_FAQS\.map/);
+  assert.match(faqPageSource, /canonical: "\/faq"/);
 });
 
 test("homepage marks iOS coming soon and offers a web app path", () => {
