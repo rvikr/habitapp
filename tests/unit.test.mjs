@@ -583,8 +583,10 @@ test("home widget exposes a safe check-in deep link and an exact-once route", as
   assert.match(route, /logCompletionOnce/);
   assert.match(route, /Crypto\.randomUUID\(\)/);
   assert.doesNotMatch(route, /params\.value/);
-  assert.match(route, /finish\(\)[\s\S]*?\.catch\(\(\) => undefined\)[\s\S]*?\.finally/);
-  assert.match(route, /\.finally\(\(\) => router\.replace\("\/" as never\)\)/);
+  // On success it redirects to the dashboard carrying the logged amount; on any
+  // failure it still redirects home. Either way the widget screen never sticks.
+  assert.match(route, /finish\(\)[\s\S]*?\.then\(\(toastParams\)[\s\S]*?router\.replace/);
+  assert.match(route, /\.catch\(\(\) => router\.replace\("\/" as never\)\)/);
   assert.match(qa, /force-validates the current owned habit online/i);
   assert.match(qa, /offline[\s\S]*?does not queue or guess a check-in[\s\S]*?Today/i);
   assert.match(plugin, /lagan_widget_check_in/);
@@ -6714,13 +6716,34 @@ test("partial quantity logs confirm with a lightweight toast, reserving confetti
   // its completion check.
   const detailSource = readFileSync("app/habits/[id]/index.tsx", "utf8");
   assert.match(detailSource, /const toast = useToast\(\)/);
-  const detailToastCalls = detailSource.match(/else showLogToast\(/g) ?? [];
+  const detailToastCalls = detailSource.match(/else\s+showLogToast\(/g) ?? [];
   assert.equal(detailToastCalls.length, 3, "expected all three detail log handlers to toast");
 });
 
 test("partial-log toast copy is localized in Hindi", () => {
   const label = "+{amount} {unit} logged";
   assert.notEqual(translate("hi", label), label);
+});
+
+test("home-screen widget logs carry their confirmation to the dashboard", () => {
+  // The widget screen redirects away immediately, so it hands the logged amount
+  // to the dashboard via params instead of showing nothing.
+  const widgetSource = readFileSync("app/widget/check-in.tsx", "utf8");
+  assert.match(widgetSource, /progressForHabit/);
+  assert.match(widgetSource, /loggedAmount:/);
+  assert.match(widgetSource, /loggedTotal: nextProgress\.label/);
+  assert.match(widgetSource, /loggedDone: nextProgress\.isDone \? "1" : ""/);
+  assert.match(widgetSource, /router\.replace\(\s*\(toastParams \?/);
+
+  // The dashboard consumes those params exactly once (guarded by a ref):
+  // confetti when the log completed the goal, otherwise the toast — then clears
+  // the params so a re-render/refocus can't replay it.
+  const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboardSource, /loggedAmount/);
+  assert.match(dashboardSource, /widgetToastHandledRef/);
+  assert.match(dashboardSource, /if \(loggedDone === "1"\)/);
+  assert.match(dashboardSource, /showRawLogToast\(loggedAmount/);
+  assert.match(dashboardSource, /router\.setParams\(\{/);
 });
 
 test("manual post-create conversion prefers the authoritative habit and safely falls back", async () => {

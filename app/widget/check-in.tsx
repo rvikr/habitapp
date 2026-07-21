@@ -8,6 +8,7 @@ import { logCompletionOnce } from "@/lib/data/actions";
 import { getHabit } from "@/lib/data/habits";
 import { localDateKey } from "@/lib/utils/date";
 import { widgetCheckInForValidatedState } from "@/lib/widgets/widget-check-in";
+import { formatAmount, progressForHabit } from "@/lib/coach/habit-intelligence";
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -23,28 +24,47 @@ export default function WidgetCheckInScreen() {
     if (handledRef.current) return;
     handledRef.current = true;
 
-    const finish = async () => {
+    const finish = async (): Promise<Record<string, string> | null> => {
       const habitId = firstParam(params.habitId)?.trim();
-      if (!habitId) return;
+      if (!habitId) return null;
 
       const validated = await getHabit(habitId, { force: true });
-      if (!validated.ok) return;
+      if (!validated.ok || !validated.habit) return null;
       const checkIn = widgetCheckInForValidatedState(validated, localDateKey());
-      if (!checkIn) return;
+      if (!checkIn) return null;
+      const habit = validated.habit;
 
-      await logCompletionOnce(
+      const result = await logCompletionOnce(
         checkIn.habitId,
         Crypto.randomUUID(),
         checkIn.amount,
         "Logged from widget",
         undefined,
-        validated.habit ?? undefined,
+        habit,
       );
+      if (!result.ok) return null;
+
+      // This screen redirects away immediately, so hand the log to the dashboard
+      // to show the same confirmation an in-app log gives.
+      const today = localDateKey();
+      const currentValue = progressForHabit(
+        habit,
+        validated.completions.find((completion) => completion.completed_on === today) ?? null,
+      ).current;
+      const nextProgress = progressForHabit(habit, { value: currentValue + checkIn.amount });
+      return {
+        loggedAmount: formatAmount(checkIn.amount),
+        loggedUnit: habit.unit ?? "",
+        loggedTotal: nextProgress.label,
+        loggedDone: nextProgress.isDone ? "1" : "",
+      };
     };
 
     void finish()
-      .catch(() => undefined)
-      .finally(() => router.replace("/" as never));
+      .then((toastParams) =>
+        router.replace((toastParams ? { pathname: "/", params: toastParams } : "/") as never),
+      )
+      .catch(() => router.replace("/" as never));
   }, [params.habitId, router]);
 
   return (

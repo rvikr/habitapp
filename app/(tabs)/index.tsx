@@ -163,7 +163,13 @@ export default function DashboardScreen() {
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncIssueRefreshToken, setSyncIssueRefreshToken] = useState(0);
-  const { newUser } = useLocalSearchParams<{ newUser?: string }>();
+  const { newUser, loggedAmount, loggedUnit, loggedTotal, loggedDone } = useLocalSearchParams<{
+    newUser?: string;
+    loggedAmount?: string;
+    loggedUnit?: string;
+    loggedTotal?: string;
+    loggedDone?: string;
+  }>();
   const [showWelcome, setShowWelcome] = useState(newUser === "1");
   const [sleepLogHabit, setSleepLogHabit] = useState<Habit | null>(null);
   const [logHabit, setLogHabit] = useState<Habit | null>(null);
@@ -192,6 +198,7 @@ export default function DashboardScreen() {
   const stepSyncInFlightRef = useRef(false);
   const stepRolloverRef = useRef<(habit: Habit) => void>(() => {});
   const checkInFlightRef = useRef(new Set<string>());
+  const widgetToastHandledRef = useRef(false);
 
   useEffect(() => {
     dataRef.current = data;
@@ -200,6 +207,39 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (newUser === "1") setShowWelcome(true);
   }, [newUser]);
+
+  // Builds and shows the partial-log confirmation toast. Shared by in-app taps
+  // (via showLogToast) and the home-screen widget redirect handler below.
+  const showRawLogToast = useCallback(
+    (amount: string | number, unit: string, total: string) => {
+      const message = t("+{amount} {unit} logged", { amount, unit })
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      toast(message, total);
+    },
+    [t, toast],
+  );
+
+  // A log fired from the home-screen widget lands here via router.replace with
+  // the logged amount in params — surface the same confirmation as an in-app
+  // log (confetti if it completed the goal, otherwise the toast), then clear the
+  // params so it fires exactly once.
+  useEffect(() => {
+    if (!loggedAmount || widgetToastHandledRef.current) return;
+    widgetToastHandledRef.current = true;
+    if (loggedDone === "1") {
+      celebrate();
+      recordCompletionAndMaybeReview();
+    } else {
+      showRawLogToast(loggedAmount, loggedUnit ?? "", loggedTotal ?? "");
+    }
+    router.setParams({
+      loggedAmount: undefined,
+      loggedUnit: undefined,
+      loggedTotal: undefined,
+      loggedDone: undefined,
+    });
+  }, [loggedAmount, loggedUnit, loggedTotal, loggedDone, showRawLogToast, celebrate, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -603,13 +643,7 @@ export default function DashboardScreen() {
   // A calm confirmation for a partial log that doesn't complete the goal —
   // confetti (celebrate) stays reserved for actually finishing the habit.
   function showLogToast(habit: Habit, loggedValue: number, nextProgress: HabitProgress) {
-    const message = t("+{amount} {unit} logged", {
-      amount: formatAmount(loggedValue),
-      unit: habit.unit ?? "",
-    })
-      .replace(/\s{2,}/g, " ")
-      .trim();
-    toast(message, nextProgress.label);
+    showRawLogToast(formatAmount(loggedValue), habit.unit ?? "", nextProgress.label);
   }
 
   async function handleToggle(habit: Habit) {

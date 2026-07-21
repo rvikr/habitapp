@@ -14,8 +14,11 @@ test("native suggested and widget check-ins pass validated habit metadata to the
     primaryCheckIn,
     /logCompletionOnce\([\s\S]*?suggestion\.value,[\s\S]*?undefined,[\s\S]*?habit[\s\S]*?\)/,
   );
+  // The habit passed to the action boundary is the freshly validated one
+  // (aliased as `habit = validated.habit`), not a guessed/stale object.
+  assert.match(widget, /const habit = validated\.habit/);
   assert.match(
     widget,
-    /logCompletionOnce\([\s\S]*?checkIn\.amount,[\s\S]*?undefined,[\s\S]*?validated\.habit[\s\S]*?\)/,
+    /logCompletionOnce\([\s\S]*?checkIn\.amount,[\s\S]*?undefined,[\s\S]*?habit[\s\S]*?\)/,
   );
 });
