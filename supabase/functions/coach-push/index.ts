@@ -46,6 +46,7 @@ import webPush from "https://esm.sh/web-push@3.6.7?bundle";
 import { signActionToken } from "../_shared/push-action-token.ts";
 import { enforceAiQuota, recordAiUsageEvent } from "../_shared/ai-guard.ts";
 import { generateContent } from "../_shared/gemini.ts";
+import { hasProAccess, type ProfileEntitlementRow } from "../_shared/pro-access.ts";
 import { isAllowedWebPushEndpoint } from "../_shared/web-push-endpoint.ts";
 import {
   buildCoachSignals,
@@ -420,10 +421,12 @@ Deno.serve(async (req) => {
       });
     if (insertError) continue;
 
-    const { data: hasPro } = await supabase.rpc("has_pro_access", {
-      p_user_id: userId,
-    });
-    const message = hasPro === true
+    const { data: proProfile } = await supabase
+      .from("profiles")
+      .select("is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    const message = hasProAccess(proProfile as ProfileEntitlementRow | null)
       ? ((await generatePersonalizedMessage(userId, top)) ?? top.message)
       : top.message;
 

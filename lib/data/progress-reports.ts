@@ -117,13 +117,17 @@ export function formatReportWeekRange(weekStart: string): string {
 
 function errorMessageForReason(reason: string | undefined): string | null {
   if (reason === "pro_required") return "Weekly reports are for Pro users.";
-  if (reason === "no_active_habits") {
-    return "Add at least one active habit before generating a weekly report.";
-  }
   if (reason === "quota_exceeded") return "Weekly report generation is busy. Try again later.";
   if (reason === "feature_disabled") return "Weekly report generation is temporarily unavailable.";
   if (reason === "provider_unavailable" || reason === "pro_guard_failed") {
     return "Weekly report generation is not available right now.";
+  }
+  if (
+    reason === "stats_query_failed" ||
+    reason === "existence_check_failed" ||
+    reason === "insert_failed"
+  ) {
+    return "We couldn't build your report just now. Please try again in a moment.";
   }
   return null;
 }

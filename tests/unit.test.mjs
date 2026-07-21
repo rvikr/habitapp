@@ -161,6 +161,7 @@ import {
   withUnit,
 } from "../supabase/functions/progress-report/stats.ts";
 import * as subscriptionAccess from "../lib/subscription/access.ts";
+import { hasProAccess } from "../supabase/functions/_shared/pro-access.ts";
 import {
   GOOGLE_PLAY_SUBSCRIPTIONS_URL,
   googlePlayRenewalPrice,
@@ -1390,6 +1391,50 @@ test("Pro access helper covers trial subscription and admin override states", ()
     "Trial",
   );
   assert.equal(subscriptionStatusLabel({}, now), "Free");
+});
+
+test("server hasProAccess mirrors has_pro_access() across entitlement states", () => {
+  const now = Date.parse("2026-05-22T00:00:00.000Z");
+  assert.equal(hasProAccess(null, now), false);
+  assert.equal(hasProAccess({}, now), false);
+  assert.equal(hasProAccess({ is_pro: true }, now), true);
+  // Trial boundary: the exact expiry instant is lapsed, one second later is active.
+  assert.equal(
+    hasProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-21T23:59:59.000Z" }, now),
+    false,
+  );
+  assert.equal(
+    hasProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-22T00:00:01.000Z" }, now),
+    true,
+  );
+  // RevenueCat: active with no expiry, active with a future expiry, lapsed, inactive.
+  assert.equal(
+    hasProAccess({ is_pro: false, revenuecat_entitlement_active: true, pro_expires_at: null }, now),
+    true,
+  );
+  assert.equal(
+    hasProAccess(
+      {
+        is_pro: false,
+        revenuecat_entitlement_active: true,
+        pro_expires_at: "2026-06-01T00:00:00.000Z",
+      },
+      now,
+    ),
+    true,
+  );
+  assert.equal(
+    hasProAccess(
+      {
+        is_pro: false,
+        revenuecat_entitlement_active: true,
+        pro_expires_at: "2026-05-01T00:00:00.000Z",
+      },
+      now,
+    ),
+    false,
+  );
+  assert.equal(hasProAccess({ is_pro: false, revenuecat_entitlement_active: false }, now), false);
 });
 
 test("trial helpers expose rounded days left and session banner visibility", () => {
