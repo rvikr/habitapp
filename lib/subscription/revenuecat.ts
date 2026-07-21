@@ -111,6 +111,12 @@ export async function getProPackages(): Promise<{
 export async function purchaseProPackage(pack: PurchasesPackage): Promise<ProAccess> {
   const user = await getCurrentUser();
   if (!user) throw new Error("You need to sign in again.");
+  // Never start a fresh purchase for someone who already has Pro. Admin comps and
+  // app-managed trials grant access without a store subscription, so Google Play has
+  // nothing to block and would charge them again. Return their current access instead
+  // — this guards every caller, not just the paywall UI.
+  const current = await getCurrentProAccess();
+  if (current.hasPro) return current;
   const module = await purchasesModule();
   if (!module) throw new Error("Subscriptions are not available on this device.");
   await configureRevenueCat(user.id);

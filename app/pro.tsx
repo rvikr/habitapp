@@ -21,7 +21,7 @@ import {
   isRevenueCatPurchaseCancelled,
 } from "@/lib/subscription/revenuecat-shared";
 import { reportError } from "@/lib/services/sentry";
-import type { ProAccess } from "@/lib/subscription/access";
+import { canOfferProPurchase, type ProAccess } from "@/lib/subscription/access";
 
 type PaywallPackage = Awaited<ReturnType<typeof getProPackages>>["monthly"];
 
@@ -41,6 +41,11 @@ export default function ProScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [planIssue, setPlanIssue] = useState<PlanIssue | null>(null);
   const canPurchaseInApp = Platform.OS === "android";
+  const isPro = access?.hasPro ?? false;
+  // Only surface a fresh purchase once entitlement has loaded and the user is not
+  // already Pro, so admin comps / trials / active subscribers are never offered a
+  // re-subscribe (which Google Play would charge for). See canOfferProPurchase.
+  const canOfferPurchase = canPurchaseInApp && !loading && canOfferProPurchase(access);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +75,10 @@ export default function ProScreen() {
   }, [load]);
 
   async function buy(pack: NonNullable<PaywallPackage>, label: string) {
+    // Belt-and-suspenders: never start a purchase while Pro is already active, even
+    // if a stale render slipped a buy control through. Pro users manage plans in the
+    // store instead.
+    if (access?.hasPro) return;
     setBusy(label);
     try {
       const nextAccess = await purchaseProPackage(pack);
@@ -167,7 +176,7 @@ export default function ProScreen() {
               <MaterialCommunityIcons name="star-four-points" size={28} color="#fff" />
             </View>
             <Text className="text-display-sm text-on-background dark:text-d-on-background">
-              {t("Unlock Pro")}
+              {isPro ? t("You're on Pro") : t("Unlock Pro")}
             </Text>
             <Text className="text-body-md text-on-surface-variant dark:text-d-on-surface-variant">
               {t(
@@ -181,7 +190,7 @@ export default function ProScreen() {
             )}
           </View>
 
-          {!canPurchaseInApp ? (
+          {isPro ? null : !canPurchaseInApp ? (
             <View className="bg-surface-container dark:bg-d-surface-container rounded-xl p-md gap-sm">
               <View className="flex-row items-center gap-sm">
                 <MaterialCommunityIcons name="cellphone" size={22} color="#F26B1F" />
@@ -195,7 +204,7 @@ export default function ProScreen() {
                 )}
               </Text>
             </View>
-          ) : (
+          ) : !canOfferPurchase ? null : (
             <View className="gap-sm">
               {[
                 {

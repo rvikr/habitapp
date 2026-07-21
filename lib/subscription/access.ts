@@ -77,6 +77,19 @@ export function resolveProAccess(
   return { hasPro: false, source: "free", expiresAt: null, trialDaysLeft: null, trialEndedAt };
 }
 
+/**
+ * A brand-new in-app purchase may only be offered when the user does not already
+ * have Pro. Admin comps (`is_pro`) and app-managed trials grant `hasPro` without a
+ * real store subscription, so Google Play has nothing to block and would charge the
+ * user again for access they already hold. Pro users change plans through the store
+ * (Manage subscription) instead of re-subscribing. Callers that render during an
+ * in-flight load should also gate on their loading state so buy controls never flash
+ * before entitlement is known.
+ */
+export function canOfferProPurchase(access: ProAccess | null | undefined): boolean {
+  return !access?.hasPro;
+}
+
 export function shouldShowTrialSubscriptionBanner(
   access: ProAccess | null | undefined,
   dismissedForSession: boolean,

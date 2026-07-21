@@ -183,7 +183,7 @@ import {
 import { isAdminEmail } from "../website/lib/admin/access.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
 
-const { resolveProAccess, subscriptionStatusLabel } = subscriptionAccess;
+const { resolveProAccess, subscriptionStatusLabel, canOfferProPurchase } = subscriptionAccess;
 
 let testChain = Promise.resolve();
 
@@ -1393,6 +1393,40 @@ test("Pro access helper covers trial subscription and admin override states", ()
   assert.equal(subscriptionStatusLabel({}, now), "Free");
 });
 
+test("canOfferProPurchase blocks a fresh purchase whenever Pro is active", () => {
+  const now = new Date("2026-05-22T00:00:00.000Z");
+  // Free (or missing) profile — a fresh purchase is allowed.
+  assert.equal(canOfferProPurchase(resolveProAccess(null, now)), true);
+  assert.equal(canOfferProPurchase(resolveProAccess({ is_pro: false }, now)), true);
+  assert.equal(
+    canOfferProPurchase(
+      resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-21T23:59:59.000Z" }, now),
+    ),
+    true,
+  );
+  // Every Pro source blocks a re-subscribe: admin comp, active trial, active subscription.
+  assert.equal(canOfferProPurchase(resolveProAccess({ is_pro: true }, now)), false);
+  assert.equal(
+    canOfferProPurchase(
+      resolveProAccess({ is_pro: false, pro_trial_ends_at: "2026-05-29T00:00:00.000Z" }, now),
+    ),
+    false,
+  );
+  assert.equal(
+    canOfferProPurchase(
+      resolveProAccess(
+        {
+          is_pro: false,
+          revenuecat_entitlement_active: true,
+          pro_expires_at: "2026-06-01T00:00:00.000Z",
+        },
+        now,
+      ),
+    ),
+    false,
+  );
+});
+
 test("server hasProAccess mirrors has_pro_access() across entitlement states", () => {
   const now = Date.parse("2026-05-22T00:00:00.000Z");
   assert.equal(hasProAccess(null, now), false);
@@ -1554,9 +1588,16 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
 test("Pro purchase UI is Android-only for this release", () => {
   const proScreen = readFileSync("app/pro.tsx", "utf8");
   assert.match(proScreen, /const canPurchaseInApp = Platform\.OS === "android";/);
-  assert.match(proScreen, /\{!canPurchaseInApp \? \(/);
+  assert.match(proScreen, /\{isPro \? null : !canPurchaseInApp \? \(/);
   assert.match(proScreen, /\{loading && canPurchaseInApp &&/);
   assert.match(proScreen, /\{canPurchaseInApp && \(/);
+  // Regression: already-Pro users must never be offered a fresh purchase (no
+  // re-subscribe / double-charge). Gate the buy cards on entitlement + a buy() guard.
+  assert.match(
+    proScreen,
+    /const canOfferPurchase = canPurchaseInApp && !loading && canOfferProPurchase\(access\);/,
+  );
+  assert.match(proScreen, /if \(access\?\.hasPro\) return;/);
   assert.doesNotMatch(proScreen, /Apple ID/);
   assert.doesNotMatch(proScreen, /Manage or cancel: App Store/);
 });
