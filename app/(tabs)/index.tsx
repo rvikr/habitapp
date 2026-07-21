@@ -22,6 +22,7 @@ import HabitSyncIssueBanner from "@/components/habit-sync-issue-banner";
 import type { StreaksMap } from "@/lib/data/habits";
 import { useActivation } from "@/components/activation-provider";
 import { useCelebrate } from "@/components/celebration";
+import { useToast } from "@/components/toast";
 import { useTheme } from "@/components/theme-provider";
 import { recordCompletionAndMaybeReview } from "@/lib/platform/store-review";
 import {
@@ -48,6 +49,7 @@ import { useLanguage } from "@/components/language-provider";
 import { useTrackingPreferences } from "@/components/tracking-preferences-provider";
 import type { Habit } from "@/types/db";
 import {
+  formatAmount,
   isQuantityHabit,
   progressForHabit,
   suggestedCheckInForHabit,
@@ -135,6 +137,7 @@ export default function DashboardScreen() {
     activation.stage,
   );
   const celebrate = useCelebrate();
+  const toast = useToast();
   const { colorScheme } = useTheme();
   const { language, t } = useLanguage();
   const { stepsEnabled: stepTrackingEnabled, hydrated: trackingHydrated } =
@@ -597,6 +600,18 @@ export default function DashboardScreen() {
     setRefreshing(false);
   }, [load, stepHabit, stepTrackingEnabled, stepTracking.status, syncStepHabit]);
 
+  // A calm confirmation for a partial log that doesn't complete the goal —
+  // confetti (celebrate) stays reserved for actually finishing the habit.
+  function showLogToast(habit: Habit, loggedValue: number, nextProgress: HabitProgress) {
+    const message = t("+{amount} {unit} logged", {
+      amount: formatAmount(loggedValue),
+      unit: habit.unit ?? "",
+    })
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    toast(message, nextProgress.label);
+  }
+
   async function handleToggle(habit: Habit) {
     if (!data) return;
     if (isStepHabit(habit) && stepTrackingEnabled) {
@@ -666,6 +681,8 @@ export default function DashboardScreen() {
         if (nextProgress.isDone) {
           celebrate();
           recordCompletionAndMaybeReview();
+        } else {
+          showLogToast(habit, suggestion.value, nextProgress);
         }
         if (!result.queued) load({ force: true });
         return;
@@ -737,10 +754,13 @@ export default function DashboardScreen() {
     if (!result.ok) return result;
     setLogHabit(null);
     // The exact-once RPC adds incrementally, so today's new total is prev + value.
+    const nowProgress = progressForHabit(logHabit, { value: prevValue + value });
     const nowDone = target != null && target > 0 ? prevValue + value >= target : true;
     if (!wasDone && nowDone) {
       celebrate();
       recordCompletionAndMaybeReview();
+    } else {
+      showLogToast(logHabit, value, nowProgress);
     }
     if (!result.queued) load({ force: true });
     return { ok: true as const };

@@ -8,6 +8,7 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabit, streakFor, longestStreakFor, getHabitCoachInsight } from "@/lib/data/habits";
 import { toggleHabit, deleteHabit, logCompletionOnce } from "@/lib/data/actions";
 import { useCelebrate } from "@/components/celebration";
+import { useToast } from "@/components/toast";
 import CoachCard from "@/components/coach-card";
 import type { CoachSignal } from "@/lib/coach/coach";
 import { getCurrentProAccess } from "@/lib/subscription/revenuecat";
@@ -22,6 +23,7 @@ import {
   isQuantityHabit,
   progressForHabit,
   suggestedCheckInForHabit,
+  type HabitProgress,
 } from "@/lib/coach/habit-intelligence";
 import { useLanguage } from "@/components/language-provider";
 import { useTheme } from "@/components/theme-provider";
@@ -34,6 +36,7 @@ export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const celebrate = useCelebrate();
+  const toast = useToast();
   const handleBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace("/");
@@ -89,6 +92,18 @@ export default function HabitDetailScreen() {
   const streak = habit ? streakFor(habit, completions) : 0;
   const longestStreak = habit ? longestStreakFor(habit, completions) : 0;
 
+  // A calm confirmation for a partial log that doesn't complete the goal —
+  // confetti (celebrate) stays reserved for actually finishing the habit.
+  function showLogToast(loggedHabit: Habit, loggedValue: number, nextProgress: HabitProgress) {
+    const message = t("+{amount} {unit} logged", {
+      amount: formatAmount(loggedValue),
+      unit: loggedHabit.unit ?? "",
+    })
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    toast(message, nextProgress.label);
+  }
+
   async function handleToggle() {
     if (!habit || toggling) return;
     // Quantity habits can't be finished in one tap — open the log sheet instead.
@@ -119,18 +134,12 @@ export default function HabitDetailScreen() {
 
   async function handleLog(value: number, note: string, operationId: string) {
     if (!habit) return { ok: false, error: t("Habit not loaded.") };
-    const result = await logCompletionOnce(
-      habit.id,
-      operationId,
-      value,
-      note,
-      undefined,
-      habit,
-    );
+    const result = await logCompletionOnce(habit.id, operationId, value, note, undefined, habit);
     if (!result.ok) return result;
     setShowLogPrompt(false);
     const nextProgress = progressForHabit(habit, { value: (progress?.current ?? 0) + value });
     if (nextProgress.isDone) celebrate();
+    else showLogToast(habit, value, nextProgress);
     if (!result.queued) load({ force: true });
     return result;
   }
@@ -176,6 +185,8 @@ export default function HabitDetailScreen() {
         ];
       });
       if (checkInSuggestion.completesGoal) celebrate();
+      else
+        showLogToast(habit, checkInSuggestion.value, progressForHabit(habit, { value: nextValue }));
       if (!result.queued) load({ force: true });
     } finally {
       quickLogInFlightRef.current = false;
@@ -231,6 +242,7 @@ export default function HabitDetailScreen() {
         });
         const nextProgress = progressForHabit(habit, { value: nextValue });
         if (nextProgress.isDone) celebrate();
+        else showLogToast(habit, liveSuggestion.value, nextProgress);
         if (!result.queued) load({ force: true });
         return;
       } finally {

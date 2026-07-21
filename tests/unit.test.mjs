@@ -6682,6 +6682,47 @@ test("wizard confirmation enters the shared first-log flow before any notificati
   assert.doesNotMatch(source, /setNeedsNotifPrimer|getPermissionStatus\(\)/);
 });
 
+test("partial quantity logs confirm with a lightweight toast, reserving confetti for completion", () => {
+  // A reusable, non-blocking toast primitive exists and is distinct from the
+  // confetti celebration: softer haptic, no ConfettiCannon.
+  const toastPath = "components/toast.tsx";
+  assert.equal(existsSync(toastPath), true, "expected a reusable Toast component");
+  const toastSource = readFileSync(toastPath, "utf8");
+  assert.match(toastSource, /export function ToastProvider/);
+  assert.match(toastSource, /export function useToast/);
+  assert.match(toastSource, /import \{ impact \} from "@\/lib\/platform\/haptics"/);
+  assert.match(toastSource, /impact\(\)/);
+  assert.doesNotMatch(toastSource, /ConfettiCannon/);
+  assert.doesNotMatch(toastSource, /\bsuccess\(/);
+  assert.match(toastSource, /accessibilityLiveRegion="polite"/);
+  // Non-blocking: pointerEvents in the style object (never the deprecated prop).
+  assert.match(toastSource, /pointerEvents: "none"/);
+  assert.doesNotMatch(toastSource, /pointerEvents=/);
+
+  // Mounted app-wide so useToast works from any screen.
+  assert.match(readFileSync("app/_layout.tsx", "utf8"), /<ToastProvider>/);
+
+  // Dashboard: both partial-log paths toast, while celebrate() stays gated on
+  // reaching the goal.
+  const dashboardSource = readFileSync("app/(tabs)/index.tsx", "utf8");
+  assert.match(dashboardSource, /const toast = useToast\(\)/);
+  assert.match(dashboardSource, /showLogToast\(habit, suggestion\.value/);
+  assert.match(dashboardSource, /showLogToast\(logHabit, value/);
+  assert.match(dashboardSource, /if \(nextProgress\.isDone\) \{\s*celebrate\(\);/);
+
+  // Detail screen: each of the three partial-log handlers toasts in the else of
+  // its completion check.
+  const detailSource = readFileSync("app/habits/[id]/index.tsx", "utf8");
+  assert.match(detailSource, /const toast = useToast\(\)/);
+  const detailToastCalls = detailSource.match(/else showLogToast\(/g) ?? [];
+  assert.equal(detailToastCalls.length, 3, "expected all three detail log handlers to toast");
+});
+
+test("partial-log toast copy is localized in Hindi", () => {
+  const label = "+{amount} {unit} logged";
+  assert.notEqual(translate("hi", label), label);
+});
+
 test("manual post-create conversion prefers the authoritative habit and safely falls back", async () => {
   const module = await import("../lib/coach/post-onboarding.ts");
   assert.equal(

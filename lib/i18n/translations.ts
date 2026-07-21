@@ -774,6 +774,7 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "You completed {name}.": "आपने {name} पूरा किया।",
   "Daily goal: {target} {unit}": "दैनिक लक्ष्य: {target} {unit}",
   "Log {amount} {unit}": "{amount} {unit} लॉग करें",
+  "+{amount} {unit} logged": "+{amount} {unit} लॉग किया",
   "Logging...": "लॉग हो रहा है...",
   "Logging check-in...": "चेक-इन लॉग हो रहा है...",
   "Could not complete habit": "आदत पूरी नहीं हो सकी",
