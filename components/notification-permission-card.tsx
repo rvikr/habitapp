@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useFocusEffect } from "expo-router";
-import { Linking, Platform, View, Text, TouchableOpacity } from "react-native";
+import { AppState, Linking, Platform, View, Text, TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { requestPermission, getPermissionStatus } from "@/lib/platform/notifications";
 import { getItem } from "@/lib/platform/storage";
@@ -35,21 +35,41 @@ export default function NotificationPermissionCard({
   const [suppressed, setSuppressed] = useState(false);
   const [permissionChecked, setPermissionChecked] = useState(false);
   const shownRef = useRef(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    let cancelled = false;
-    void getPermissionStatus()
-      .then((nextStatus) => {
-        if (!cancelled) setStatus(nextStatus);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setPermissionChecked(true);
-      });
+    mountedRef.current = true;
     return () => {
-      cancelled = true;
+      mountedRef.current = false;
     };
   }, []);
+
+  const refreshStatus = useCallback(async () => {
+    try {
+      const nextStatus = await getPermissionStatus();
+      if (mountedRef.current) setStatus(nextStatus);
+    } catch {
+      // ignore — keep last known status
+    } finally {
+      if (mountedRef.current) setPermissionChecked(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshStatus();
+  }, [refreshStatus]);
+
+  // Re-check the OS permission whenever the app returns to the foreground. The
+  // "denied" branch deep-links to device Settings; coming back is a
+  // background→foreground (AppState "active") transition — not a remount or a
+  // navigation focus event — so without this the granted state stays stale and
+  // the banner lingers until the next app restart.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") void refreshStatus();
+    });
+    return () => sub.remove();
+  }, [refreshStatus]);
 
   useFocusEffect(
     useCallback(() => {

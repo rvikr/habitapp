@@ -29,9 +29,11 @@ import { useTrackingPreferences } from "@/components/tracking-preferences-provid
 import {
   getSleepDashboardData,
   syncLastNightSleep,
+  requestSleepPermission,
   type SleepDashboardData,
 } from "@/lib/platform/sleep";
 import { summarizeSleepRange, type SleepTrendRange } from "@/lib/data/sleep-shared";
+import { showAlert } from "@/lib/platform/alert";
 import { localDateKey, addLocalDays } from "@/lib/utils/date";
 import { GET_APP_URL } from "@/lib/constants";
 
@@ -57,7 +59,7 @@ function scoreTone(score: number | null | undefined, t: (s: string) => string): 
 export default function ProgressScreen() {
   const { t, language } = useLanguage();
   const { colorScheme } = useTheme();
-  const { sleepEnabled, hydrated: trackingHydrated } = useTrackingPreferences();
+  const { sleepEnabled, setSleepEnabled, hydrated: trackingHydrated } = useTrackingPreferences();
   const [stats, setStats] = useState<StatsData>(null);
   const [consistencyDays, setConsistencyDays] = useState<DayConsistency[]>([]);
   const [lifeSegments, setLifeSegments] = useState<LifeBalanceSegment[]>([]);
@@ -111,6 +113,28 @@ export default function ProgressScreen() {
     }
     setRefreshing(false);
   }, [load, sleepEnabled, trackingHydrated]);
+
+  // Mirrors Settings' sleep toggle: request Health permission, and only enable
+  // tracking on grant. On success, kick an immediate sync so stats appear here
+  // without waiting for the next focus.
+  const handleEnableSleep = useCallback(async () => {
+    const status = await requestSleepPermission();
+    if (status === "granted") {
+      setSleepEnabled(true);
+      lastSleepSyncAt.current = Date.now();
+      syncLastNightSleep({ requestPermission: false })
+        .then(() => load({ force: true }))
+        .catch(() => {});
+      return;
+    }
+    const message =
+      status === "unavailable"
+        ? t("Sleep sync isn't available on this device.")
+        : status === "providerUpdateRequired"
+          ? t("Update Health Connect to enable sleep tracking.")
+          : t("Allow health access to enable sleep tracking.");
+    showAlert(t("Sleep tracking"), message);
+  }, [load, setSleepEnabled, t]);
 
   const level = stats?.level ?? 1;
   const xp = stats?.xp ?? 0;
@@ -489,18 +513,25 @@ export default function ProgressScreen() {
         {/* Sleep Section */}
         {loaded &&
           (Platform.OS !== "web" && !sleepEnabled ? (
-            <View className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface-container rounded-xl p-lg items-center gap-sm">
-              <MaterialCommunityIcons name="sleep" size={32} color="#3EBB7F" />
-              <Text
-                className="text-body-md text-on-surface dark:text-d-on-surface font-semibold text-center"
-                style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
-              >
-                {t("Sleep tracking is off")}
-              </Text>
-              <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
-                {t("Turn on sleep tracking in Settings to see your score and trends here.")}
-              </Text>
-            </View>
+            <TouchableOpacity
+              onPress={handleEnableSleep}
+              className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md"
+              accessibilityRole="button"
+              accessibilityLabel={t("Enable sleep tracking")}
+            >
+              <MaterialCommunityIcons name="sleep" size={24} color="#3EBB7F" />
+              <View className="flex-1">
+                <Text className="text-body-sm text-on-background dark:text-d-on-background font-semibold">
+                  {t("Enable sleep tracking")}
+                </Text>
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                  {t(
+                    "Sync sleep from Health Connect or Apple Health to see your score and trends here.",
+                  )}
+                </Text>
+              </View>
+              <Text className="text-primary text-label-lg font-semibold">{t("Enable")}</Text>
+            </TouchableOpacity>
           ) : (
             <>
               {/* Sleep Score Overview */}

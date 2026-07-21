@@ -2920,6 +2920,23 @@ test("first-run dashboard greets users before prompting for notifications", () =
   );
 });
 
+test("notification permission card re-checks status when app returns to foreground", () => {
+  const card = readFileSync("components/notification-permission-card.tsx", "utf8");
+  // The device-Settings round trip is a background→foreground transition, not a
+  // remount or navigation focus — so the banner must re-read the OS permission
+  // on AppState "active" or it lingers until the app restarts.
+  assert.match(card, /AppState\.addEventListener\(\s*["']change["']/);
+  assert.match(card, /next === ["']active["']/);
+  assert.match(card, /getPermissionStatus\(\)/);
+});
+
+test("progress tab offers an inline enable-sleep-tracking action", () => {
+  const source = readFileSync("app/(tabs)/progress.tsx", "utf8");
+  assert.match(source, /t\("Enable sleep tracking"\)/);
+  assert.match(source, /requestSleepPermission\(\)/);
+  assert.match(source, /setSleepEnabled\(true\)/);
+});
+
 test("first-run dashboard uses a neutral greeting before the user sets a profile name", () => {
   assert.equal(
     dashboardDisplayName({
