@@ -100,6 +100,7 @@
         }
       ],
       "./plugins/with-lagan-widget",
+      "./plugins/with-lagan-android-release",
       "expo-health-connect",
       [
         "@kingstinct/react-native-healthkit",
@@ -115,7 +116,9 @@
           "android": {
             "minSdkVersion": 26,
             "compileSdkVersion": 36,
-            "targetSdkVersion": 36
+            "targetSdkVersion": 36,
+            "enableMinifyInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
           }
         }
       ],
@@ -136,7 +139,10 @@
         {
           "organization": "habbitapp",
           "project": "javascript-react",
-          "url": "https://sentry.io/"
+          "url": "https://sentry.io/",
+          "experimental_android": {
+            "enableAndroidGradlePlugin": true
+          }
         }
       ],
       "expo-localization",
