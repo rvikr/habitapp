@@ -2,11 +2,9 @@ const fs = require("fs");
 const path = require("path");
 const {
   AndroidConfig,
-  WarningAggregator,
   createRunOncePlugin,
   withAndroidManifest,
   withDangerousMod,
-  withProjectBuildGradle,
 } = require("@expo/config-plugins");
 
 const { getMainActivityOrThrow } = AndroidConfig.Manifest;
@@ -14,14 +12,14 @@ const { getMainActivityOrThrow } = AndroidConfig.Manifest;
 const TAG = "with-lagan-android-release";
 const PROGUARD_MARKER = "# BEGIN lagan-proguard-rules";
 const PROGUARD_END_MARKER = "# END lagan-proguard-rules";
-const MATERIAL_MARKER = "// BEGIN lagan-material-force";
-const MATERIAL_END_MARKER = "// END lagan-material-force";
 
-// react-native-screens 4.16.0 pulls com.google.android.material:material:1.12.0, which still calls
-// Window.setStatusBarColor / setNavigationBarColor from BottomSheetDialog, SheetDialog and
-// EdgeToEdgeUtils. Those calls are deprecated in Android 15 and are flagged by Play Console.
-// 1.13.x drops them. Forced rather than added as a dependency so the transitive graph stays intact.
-const MATERIAL_VERSION = "1.13.0";
+// NOTE: Do not try to force com.google.android.material:material past 1.12.x here.
+// Material 1.13+ drops the Android 15 deprecated Window.setStatusBarColor /
+// setNavigationBarColor calls that Play Console flags in BottomSheetDialog, SheetDialog and
+// EdgeToEdgeUtils — but it also removes R.attr.colorError, which react-native-screens 4.16.0
+// references in TabsHostAppearanceApplicator.kt. Forcing 1.13.0 fails the build at
+// :react-native-screens:compileReleaseKotlin with "Unresolved reference 'colorError'".
+// Those advisories clear with an Expo SDK upgrade, not a Material bump.
 
 function stripManagedBlock(contents, beginMarker, endMarker) {
   const begin = contents.indexOf(beginMarker);
@@ -61,46 +59,6 @@ function withLaganProguardRules(config) {
 }
 
 /**
- * Force com.google.android.material:material to a version without the Android 15 deprecated
- * window colour APIs.
- *
- * Appends a standalone `allprojects` block instead of editing the existing one: Gradle allows
- * repeating it, and @sentry/react-native's plugin also rewrites this file.
- */
-function withMaterialVersionForce(config) {
-  return withProjectBuildGradle(config, (config) => {
-    if (config.modResults.language !== "groovy") {
-      WarningAggregator.addWarningAndroid(
-        TAG,
-        `Cannot force com.google.android.material:material:${MATERIAL_VERSION} — android/build.gradle is not Groovy. The Android 15 deprecated window API warnings from Material will remain.`,
-      );
-      return config;
-    }
-
-    const base = stripManagedBlock(
-      config.modResults.contents,
-      MATERIAL_MARKER,
-      MATERIAL_END_MARKER,
-    ).trimEnd();
-
-    config.modResults.contents = `${base}
-
-${MATERIAL_MARKER}
-allprojects {
-  configurations.all {
-    resolutionStrategy {
-      force 'com.google.android.material:material:${MATERIAL_VERSION}'
-    }
-  }
-}
-${MATERIAL_END_MARKER}
-`;
-
-    return config;
-  });
-}
-
-/**
  * Mark MainActivity resizeable so tablets, foldables and Chrome OS get adaptive multi-window
  * behaviour.
  *
@@ -117,7 +75,6 @@ function withResizeableMainActivity(config) {
 
 const withLaganAndroidRelease = (config) => {
   config = withLaganProguardRules(config);
-  config = withMaterialVersionForce(config);
   config = withResizeableMainActivity(config);
   return config;
 };

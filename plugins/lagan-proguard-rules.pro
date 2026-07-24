@@ -35,6 +35,11 @@
 -keep class com.swmansion.rnscreens.** { *; }
 -keep class com.th3rdwave.safeareacontext.** { *; }
 
+# react-native-nitro-modules registers hybrid objects across JNI and declares no consumer rules.
+# Pulled in transitively by @kingstinct/react-native-healthkit and still compiled on Android
+# even though HealthKit itself is iOS-only.
+-keep class com.margelo.nitro.** { *; }
+
 # --- Billing and telemetry ----------------------------------------------------
 # Defensive: a silent strip on either path is expensive to diagnose in production.
 -keep class com.revenuecat.purchases.** { *; }

@@ -158,12 +158,17 @@ EAS. Never hand-edit generated Gradle or manifest files; the change will be lost
   `useWindowDimensions`.
 - **Residual "deprecated window API" advisories are expected and are not app bugs.** Play Console
   will keep listing `com.facebook.react.modules.statusbar.StatusBarModule`,
-  `com.facebook.react.views.view.WindowUtilKt` and `com.swmansion.rnscreens.ScreenWindowTraits`.
-  Those call sites are inside React Native 0.81.5 and react-native-screens 4.16.0 bytecode, both
-  pinned by Expo SDK 54, and clear only with an SDK 55 / RN 0.82 upgrade. The app itself sets no
-  status- or navigation-bar colours (`<StatusBar style>` only), edge-to-edge is forced on by SDK 54,
-  and `targetSdkVersion` is 36. The Material-owned entries (`BottomSheetDialog`, `SheetDialog`,
-  `EdgeToEdgeUtils`) are already cleared by the `material:1.13.0` force in the plugin.
+  `com.facebook.react.views.view.WindowUtilKt`, `com.swmansion.rnscreens.ScreenWindowTraits`, and
+  the Material entries (`BottomSheetDialog`, `SheetDialog`, `EdgeToEdgeUtils`). Every one of those
+  call sites is inside React Native 0.81.5, react-native-screens 4.16.0, or Material 1.12.0
+  bytecode — all pinned by Expo SDK 54 — and they clear only with an SDK 55 / RN 0.82 upgrade. The
+  app itself sets no status- or navigation-bar colours (`<StatusBar style>` only), edge-to-edge is
+  forced on by SDK 54, and `targetSdkVersion` is 36.
+- **Do not try to force Material past 1.12.x to clear those advisories.** It was tried and it fails
+  the build: 1.13+ removes `R.attr.colorError`, which react-native-screens 4.16.0 references in
+  `TabsHostAppearanceApplicator.kt`, so `:react-native-screens:compileReleaseKotlin` dies with
+  "Unresolved reference 'colorError'". No Material version both drops the deprecated window calls
+  and keeps `colorError`. See the note at the top of `plugins/with-lagan-android-release.js`.
 
 ---
 
