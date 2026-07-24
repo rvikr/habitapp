@@ -149,9 +149,15 @@ EAS. Never hand-edit generated Gradle or manifest files; the change will be lost
   appended to `android/app/proguard-rules.pro` at prebuild. Note that `expo-notifications` ships
   keep rules but does **not** declare `consumerProguardFiles`, so its rule is replicated by hand —
   do not delete it, or habit reminders can break in release builds only.
-- **Sentry deobfuscation.** `experimental_android.enableAndroidGradlePlugin` is enabled so the R8
-  mapping file is uploaded. This depends on `SENTRY_AUTH_TOKEN` being set in the production EAS
-  profile. Without it, native stack traces arrive obfuscated.
+- **Sentry native stack traces are obfuscated, deliberately.** The R8 mapping file is _not_ uploaded:
+  `experimental_android.enableAndroidGradlePlugin` is off, so the Sentry Android Gradle Plugin is
+  never applied. Enabling it once failed the production build at
+  `:app:uploadSentryProguardMappingsRelease`, because the `production` profile does not set
+  `SENTRY_DISABLE_AUTO_UPLOAD`, so the upload runs and needs a real token. JavaScript errors are
+  unaffected — those use source maps on a separate path.
+  Before re-enabling it, **confirm the EAS secret actually exists** with `npx eas-cli secret:list`.
+  The `"SENTRY_AUTH_TOKEN": "$SENTRY_AUTH_TOKEN"` line in `eas.json` is a _reference_ to a secret,
+  not evidence one is configured. Ship it as its own build, never batched with other native changes.
 - **MainActivity is `resizeableActivity="true"` but still portrait-locked.** The portrait lock comes
   from the top-level `orientation` key in `app.json`, which is shared with iOS. Unlocking landscape
   needs a real QA pass over all screens first — only `components/pro-comparison.tsx` currently reads

@@ -139,10 +139,7 @@
         {
           "organization": "habbitapp",
           "project": "javascript-react",
-          "url": "https://sentry.io/",
-          "experimental_android": {
-            "enableAndroidGradlePlugin": true
-          }
+          "url": "https://sentry.io/"
         }
       ],
       "expo-localization",
