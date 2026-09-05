@@ -14,13 +14,20 @@ if (!nativeBuild) {
   }
 }
 
-if (
-  nativeBuild &&
-  process.env.EAS_BUILD_PROFILE === "production" &&
-  (process.env.EXPO_PUBLIC_GOOGLE_NATIVE_ANDROID_AUTH !== "true" ||
-    !process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID)
-) {
-  throw new Error("Production native Google Sign-In configuration is incomplete.");
+if (nativeBuild && process.env.EAS_BUILD_PROFILE === "production") {
+  const platform = process.env.EAS_BUILD_PLATFORM;
+  if (!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) {
+    throw new Error("Production native Google Sign-In configuration is incomplete.");
+  }
+  if (platform === "android" && process.env.EXPO_PUBLIC_GOOGLE_NATIVE_ANDROID_AUTH !== "true") {
+    throw new Error("Production Android Google Sign-In configuration is incomplete.");
+  }
+  if (platform === "ios" && !process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY) {
+    throw new Error("Production iOS RevenueCat configuration is incomplete.");
+  }
+  if (platform === "android" && !process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY) {
+    throw new Error("Production Android RevenueCat configuration is incomplete.");
+  }
 }
 
 const response = await fetch(`${supabaseUrl}/auth/v1/settings`, {

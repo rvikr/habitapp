@@ -1,0 +1,35 @@
+.claude/settings.local.json
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Expo local state and generated native projects
+.expo/
+expo-env.d.ts
+/android/
+/ios/
+modules/lagan-widget/android/.gradle/
+
+# Local environment and logs; production values come from EAS environments
+.env
+.env.local
+.env*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local test, screenshot, and downloaded build artifacts
+tmp/
+
+# Tooling and editor state
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.worktrees/
+.stitch-design/

@@ -37,18 +37,27 @@ const HI_TRANSLATIONS: Record<string, string> = {
   ACCOUNT: "अकाउंट",
   Reminders: "रिमाइंडर",
   "Manage subscription": "सब्सक्रिप्शन प्रबंधित करें",
+  "Apple ID": "Apple ID",
+  "Google Play": "Google Play",
+  "Manage or cancel in your Apple ID subscription settings.":
+    "अपने Apple ID की सब्सक्रिप्शन सेटिंग्स में प्रबंधित या रद्द करें.",
+  "{introPrice} for the first year, then {price} {period}":
+    "पहले साल के लिए {introPrice}, फिर {price} {period}",
+  "Intro price {introPrice}, then {price} {period}":
+    "शुरुआती कीमत {introPrice}, फिर {price} {period}",
+  "Save 50%": "50% बचाएं",
   "AI Coach": "AI कोच",
   "Send Feedback": "फीडबैक भेजें",
   "Rate Lagan": "Lagan को रेट करें",
   "Contact Support": "सपोर्ट से संपर्क करें",
   Security: "सुरक्षा",
   "Privacy & Data": "प्राइवेसी और डेटा",
-  "Analytics opt-out": "एनालिटिक्स ऑप्ट-आउट",
-  "Stops product analytics events on this device.":
-    "इस डिवाइस पर प्रोडक्ट एनालिटिक्स इवेंट बंद करता है.",
-  "Crash reporting opt-out": "क्रैश रिपोर्टिंग ऑप्ट-आउट",
-  "Stops crash reports from being sent from this device.":
-    "इस डिवाइस से क्रैश रिपोर्ट भेजना बंद करता है.",
+  "Share product analytics": "प्रोडक्ट एनालिटिक्स साझा करें",
+  "Disabled by default. Share anonymous usage events to help improve Lagan.":
+    "डिफ़ॉल्ट रूप से बंद। Lagan को बेहतर बनाने में मदद के लिए गुमनाम उपयोग इवेंट साझा करें।",
+  "Share crash reports": "क्रैश रिपोर्ट साझा करें",
+  "Disabled by default. Share crash diagnostics to help us fix problems.":
+    "डिफ़ॉल्ट रूप से बंद। समस्याएँ ठीक करने में हमारी मदद के लिए क्रैश डायग्नोस्टिक्स साझा करें।",
   "View my data export": "मेरा डेटा एक्सपोर्ट देखें",
   "Privacy policy": "प्राइवेसी पॉलिसी",
   "Account deletion page": "अकाउंट डिलीशन पेज",
@@ -64,6 +73,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Confirm it's you": "अपनी पहचान कन्फर्म करें",
   "Sign in with Google again to confirm, then we'll delete your account.":
     "कन्फर्म करने के लिए Google से फिर साइन इन करें, फिर हम आपका अकाउंट हटा देंगे.",
+  "Sign in with {provider} again to confirm, then we'll delete your account.":
+    "कन्फर्म करने के लिए {provider} से फिर साइन इन करें, फिर हम आपका अकाउंट हटा देंगे.",
+  "Continue with {provider}": "{provider} के साथ जारी रखें",
+  "You signed in to a different account. No account was deleted.":
+    "आपने किसी दूसरे अकाउंट में साइन इन किया. कोई अकाउंट नहीं हटाया गया.",
   "Could not confirm": "कन्फर्म नहीं हो सका",
   "Could not delete account": "अकाउंट हटाया नहीं जा सका",
   "Password required": "पासवर्ड जरूरी है",
@@ -81,6 +95,8 @@ const HI_TRANSLATIONS: Record<string, string> = {
     "स्टोर में सबमिट करने से पहले EXPO_PUBLIC_ACCOUNT_DELETION_URL सेट करें.",
   "You signed in with Google, so there is no password to confirm. We may ask you to sign in with Google again before deleting.":
     "आपने Google से साइन इन किया है, इसलिए कन्फर्म करने के लिए पासवर्ड नहीं है. हटाने से पहले हम आपसे Google से फिर साइन इन करने को कह सकते हैं.",
+  "You signed in with {provider}, so there is no password to confirm. We may ask you to sign in with {provider} again before deleting.":
+    "आपने {provider} से साइन इन किया है, इसलिए कन्फर्म करने के लिए पासवर्ड नहीं है. हटाने से पहले हम आपसे {provider} से फिर साइन इन करने को कह सकते हैं.",
   "Allow notifications to receive habit reminders.":
     "आदत रिमाइंडर पाने के लिए नोटिफिकेशन की अनुमति दें.",
   "Allow notifications": "नोटिफिकेशन की अनुमति दें",

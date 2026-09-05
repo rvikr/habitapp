@@ -93,19 +93,54 @@ export async function getProPackages(): Promise<{
   monthly: PurchasesPackage | null;
   annual: PurchasesPackage | null;
   available: boolean;
+  eligibleTrialProductIds: string[];
   reason?: ProPackagesUnavailableReason;
 }> {
   const user = await getCurrentUser();
-  if (!user) return { monthly: null, annual: null, available: false, reason: "signed-out" };
+  if (!user)
+    return {
+      monthly: null,
+      annual: null,
+      available: false,
+      eligibleTrialProductIds: [],
+      reason: "signed-out",
+    };
   const module = await purchasesModule();
-  if (!module) return { monthly: null, annual: null, available: false, reason: "unsupported" };
+  if (!module)
+    return {
+      monthly: null,
+      annual: null,
+      available: false,
+      eligibleTrialProductIds: [],
+      reason: "unsupported",
+    };
   await configureRevenueCat(user.id);
 
   // getOfferings failures propagate so the paywall can log and surface them.
   const offerings = await module.default.getOfferings();
   const selected = selectProPaywallPackages(offerings.current);
-  if (!selected.monthly && !selected.annual) return { ...selected, reason: "empty-offering" };
-  return selected;
+  if (!selected.monthly && !selected.annual)
+    return { ...selected, eligibleTrialProductIds: [], reason: "empty-offering" };
+
+  let eligibleTrialProductIds: string[] = [];
+  if (Platform.OS === "ios") {
+    const productIds = [selected.monthly, selected.annual]
+      .filter((pack): pack is PurchasesPackage => Boolean(pack))
+      .map((pack) => pack.product.identifier);
+    try {
+      const eligibility = await module.default.checkTrialOrIntroductoryPriceEligibility(productIds);
+      eligibleTrialProductIds = productIds.filter(
+        (productId) =>
+          eligibility[productId]?.status ===
+          module.INTRO_ELIGIBILITY_STATUS.INTRO_ELIGIBILITY_STATUS_ELIGIBLE,
+      );
+    } catch (error) {
+      reportError(error instanceof Error ? error : new Error(String(error)), {
+        context: "revenuecat-trial-eligibility",
+      });
+    }
+  }
+  return { ...selected, eligibleTrialProductIds };
 }
 
 export async function purchaseProPackage(pack: PurchasesPackage): Promise<ProAccess> {

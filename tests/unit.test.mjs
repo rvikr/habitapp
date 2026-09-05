@@ -19,7 +19,8 @@ import {
   xpInLevel,
 } from "../lib/coach/xp.ts";
 import { validatePassword } from "../lib/auth/password.ts";
-import { hasPasswordIdentity, hasRecentSignIn } from "../lib/auth/identity.ts";
+import { hasPasswordIdentity, hasRecentSignIn, oauthReauthProvider } from "../lib/auth/identity.ts";
+import { appleFullNameMetadata, isAppleAuthCancellationError } from "../lib/auth/apple.ts";
 import {
   AUTH_CALLBACK_AUTHENTICATED_BODY,
   AUTH_CALLBACK_CONFIRMED_TITLE,
@@ -163,9 +164,13 @@ import {
 import * as subscriptionAccess from "../lib/subscription/access.ts";
 import { hasProAccess } from "../supabase/functions/_shared/pro-access.ts";
 import {
+  APP_STORE_SUBSCRIPTIONS_URL,
   GOOGLE_PLAY_SUBSCRIPTIONS_URL,
   googlePlayRenewalPrice,
   googlePlayTrialDays,
+  storePaidIntroOffer,
+  storeRenewalPrice,
+  storeTrialDays,
   isRevenueCatPurchaseCancelled,
   selectProPaywallPackages,
 } from "../lib/subscription/revenuecat-shared.ts";
@@ -406,12 +411,13 @@ test("landing web app CTAs use plain anchors and expose the header CTA on mobile
 
 test("Expo SDK patch dependencies match Expo install expectations", () => {
   const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
-  assert.equal(packageJson.dependencies.expo, "~54.0.35");
-  assert.equal(packageJson.dependencies["expo-file-system"], "~19.0.23");
+  assert.equal(packageJson.dependencies.expo, "~54.0.37");
+  assert.equal(packageJson.dependencies["expo-constants"], "~18.0.14");
+  assert.equal(packageJson.dependencies["expo-file-system"], "~19.0.24");
   assert.equal(packageJson.dependencies["expo-font"], "~14.0.12");
   assert.equal(packageJson.dependencies["expo-localization"], "~17.0.9");
   assert.equal(packageJson.dependencies["expo-router"], "~6.0.24");
-  assert.equal(packageJson.dependencies["expo-updates"], "~29.0.18");
+  assert.equal(packageJson.dependencies["expo-updates"], "~29.0.20");
 });
 
 test("Supabase advisor hardening migration is source-controlled", () => {
@@ -1587,9 +1593,12 @@ test("RevenueCat Pro integration exposes sync webhook and product identifiers", 
   }
 });
 
-test("Pro purchase UI is Android-only for this release", () => {
+test("Pro purchase UI supports both native stores", () => {
   const proScreen = readFileSync("app/pro.tsx", "utf8");
-  assert.match(proScreen, /const canPurchaseInApp = Platform\.OS === "android";/);
+  assert.match(
+    proScreen,
+    /const canPurchaseInApp = Platform\.OS === "android" \|\| Platform\.OS === "ios";/,
+  );
   assert.match(proScreen, /\{isPro \? null : !canPurchaseInApp \? \(/);
   assert.match(proScreen, /\{loading && canPurchaseInApp &&/);
   assert.match(proScreen, /\{canPurchaseInApp && \(/);
@@ -1600,8 +1609,8 @@ test("Pro purchase UI is Android-only for this release", () => {
     /const canOfferPurchase = canPurchaseInApp && !loading && canOfferProPurchase\(access\);/,
   );
   assert.match(proScreen, /if \(access\?\.hasPro\) return;/);
-  assert.doesNotMatch(proScreen, /Apple ID/);
-  assert.doesNotMatch(proScreen, /Manage or cancel: App Store/);
+  assert.match(proScreen, /Apple ID/);
+  assert.match(proScreen, /APP_STORE_SUBSCRIPTIONS_URL/);
 });
 
 test("RevenueCat paywall package selection prefers configured package slots", () => {
@@ -1651,13 +1660,63 @@ test("Google Play paywall helpers expose eligible trials and recurring prices", 
   assert.equal(googlePlayTrialDays({ defaultOption: { freePhase: null } }), null);
   assert.equal(googlePlayRenewalPrice({ priceString: "₹499.00" }, "₹499"), "₹499.00");
   assert.equal(googlePlayRenewalPrice(null, "₹499"), "₹499");
+  const appleTrialProduct = {
+    priceString: "₹49.00",
+    introPrice: {
+      price: 0,
+      cycles: 1,
+      periodUnit: "WEEK",
+      periodNumberOfUnits: 1,
+    },
+  };
+  assert.equal(storeTrialDays(appleTrialProduct, true), 7);
+  assert.equal(storeTrialDays(appleTrialProduct, false), null);
+  assert.equal(storeRenewalPrice(appleTrialProduct, "₹49"), "₹49.00");
+  const applePaidIntroProduct = {
+    priceString: "₹499.00",
+    introPrice: {
+      price: 249,
+      priceString: "₹249.00",
+      cycles: 1,
+      periodUnit: "YEAR",
+      periodNumberOfUnits: 1,
+    },
+  };
+  assert.deepEqual(storePaidIntroOffer(applePaidIntroProduct, true), {
+    priceString: "₹249.00",
+    cycles: 1,
+    periodUnit: "YEAR",
+    periodNumberOfUnits: 1,
+  });
+  assert.equal(storePaidIntroOffer(applePaidIntroProduct, false), null);
+  assert.equal(storePaidIntroOffer(appleTrialProduct, true), null);
+  assert.deepEqual(
+    storePaidIntroOffer({
+      defaultOption: {
+        introPhase: {
+          price: { formatted: "₹249.00" },
+          billingPeriod: { unit: "YEAR", value: 1 },
+          billingCycleCount: 1,
+        },
+      },
+    }),
+    {
+      priceString: "₹249.00",
+      cycles: 1,
+      periodUnit: "YEAR",
+      periodNumberOfUnits: 1,
+    },
+  );
+  assert.match(APP_STORE_SUBSCRIPTIONS_URL, /apps\.apple\.com\/account\/subscriptions/);
   assert.match(GOOGLE_PLAY_SUBSCRIPTIONS_URL, /health\.lagan\.app/);
 });
 
 test("subscription surfaces disclose trials and link to Google Play management", () => {
   const proScreen = readFileSync("app/pro.tsx", "utf8");
   const settingsScreen = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
-  assert.match(proScreen, /googlePlayTrialDays/);
+  assert.match(proScreen, /storeTrialDays/);
+  assert.match(proScreen, /storePaidIntroOffer/);
+  assert.match(proScreen, /for the first year, then/);
   assert.match(proScreen, /Auto-renews\. Cancel before the trial ends/);
   assert.match(proScreen, /GOOGLE_PLAY_SUBSCRIPTIONS_URL/);
   assert.match(settingsScreen, /GOOGLE_PLAY_SUBSCRIPTIONS_URL/);
@@ -1684,24 +1743,33 @@ test("reminder schedule habit queries are explicitly scoped to the current user"
   }
 });
 
-test("Sentry crash reporting honors the privacy opt-out", () => {
+test("Sentry crash reporting is opt-in and honors the privacy control", () => {
   const sentrySource = readFileSync("lib/services/sentry.ts", "utf8");
   assert.match(sentrySource, /SENTRY_OPT_OUT_KEY/);
   assert.match(sentrySource, /export async function isSentryOptedOut/);
   assert.match(sentrySource, /export async function setSentryOptOut/);
   assert.match(sentrySource, /optedOut = await readOptOut\(\)/);
+  assert.match(sentrySource, /let optedOut = true;/);
+  assert.match(sentrySource, /getItem\(SENTRY_OPT_OUT_KEY\)\) !== "false"/);
   assert.match(sentrySource, /if \(optedOut \|\| !initialized \|\| !SentryRef\) return;/);
 
   const privacyScreen = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
   assert.match(privacyScreen, /isSentryOptedOut/);
   assert.match(privacyScreen, /setSentryOptOut/);
-  assert.match(privacyScreen, /Crash reporting opt-out/);
+  assert.match(privacyScreen, /Share crash reports/);
+  assert.match(privacyScreen, /setSentryOptOut\(!next\)/);
 });
 
-test("analytics does not initialize external tracking during development", () => {
+test("analytics is opt-in and does not initialize external tracking during development", () => {
   const analyticsSource = readFileSync("lib/services/analytics.ts", "utf8");
+  assert.match(analyticsSource, /let optedOut = true;/);
+  assert.match(analyticsSource, /getItem\(ANALYTICS_OPT_OUT_KEY\)\) !== "false"/);
   assert.match(analyticsSource, /if \(initialized \|\| !KEY \|\| optedOut \|\| __DEV__\) return;/);
   assert.match(analyticsSource, /if \(__DEV__\) console\.log\("\[track\]"/);
+
+  const privacyScreen = readFileSync("app/(tabs)/settings/privacy.tsx", "utf8");
+  assert.match(privacyScreen, /Share product analytics/);
+  assert.match(privacyScreen, /setAnalyticsOptOut\(!next\)/);
 });
 
 test("app UI avoids React Native Web deprecated shadow and pointerEvents props", () => {
@@ -2511,10 +2579,10 @@ test("late first-run surfaces localize alerts and use text busy states", () => {
   for (const label of [
     "Go back",
     "Privacy & Data",
-    "Analytics opt-out",
-    "Stops product analytics events on this device.",
-    "Crash reporting opt-out",
-    "Stops crash reports from being sent from this device.",
+    "Share product analytics",
+    "Disabled by default. Share anonymous usage events to help improve Lagan.",
+    "Share crash reports",
+    "Disabled by default. Share crash diagnostics to help us fix problems.",
     "View my data export",
     "Privacy policy",
     "Account deletion page",
@@ -8877,6 +8945,83 @@ test("hasPasswordIdentity detects email identities and OAuth-only accounts", () 
   assert.equal(hasPasswordIdentity({ app_metadata: { provider: "email" } }), true);
   assert.equal(hasPasswordIdentity({}), false);
   assert.equal(hasPasswordIdentity(null), false);
+});
+
+test("OAuth account deletion selects the user's actual provider", () => {
+  assert.equal(
+    oauthReauthProvider({
+      identities: [{ provider: "apple" }],
+      app_metadata: { provider: "apple", providers: ["apple"] },
+    }),
+    "apple",
+  );
+  assert.equal(
+    oauthReauthProvider({
+      identities: [{ provider: "google" }],
+      app_metadata: { provider: "google", providers: ["google"] },
+    }),
+    "google",
+  );
+  assert.equal(oauthReauthProvider({ identities: [{ provider: "email" }] }), null);
+});
+
+test("Apple auth helpers handle cancellation and one-time name metadata", () => {
+  assert.equal(isAppleAuthCancellationError({ code: "ERR_REQUEST_CANCELED" }), true);
+  assert.equal(isAppleAuthCancellationError(new Error("cancelled")), false);
+  assert.deepEqual(
+    appleFullNameMetadata({ givenName: " Ravi ", middleName: null, familyName: " Kumar " }),
+    { full_name: "Ravi Kumar", given_name: "Ravi", family_name: "Kumar" },
+  );
+  assert.equal(appleFullNameMetadata({ givenName: null, familyName: null }), null);
+});
+
+test("iOS production config and login include native Sign in with Apple", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+  const loginSource = readFileSync("app/login.tsx", "utf8");
+  const actionSource = readFileSync("lib/data/actions.ts", "utf8");
+
+  assert.equal(appConfig.expo.ios.usesAppleSignIn, true);
+  assert.ok(appConfig.expo.plugins.includes("expo-apple-authentication"));
+  assert.ok(packageJson.dependencies["expo-apple-authentication"]);
+  assert.match(loginSource, /AppleAuthenticationButton/);
+  assert.match(actionSource, /provider:\s*["']apple["']/);
+  assert.match(actionSource, /CryptoDigestAlgorithm\.SHA256/);
+  const validator = readFileSync("scripts/validate-auth-build-config.mjs", "utf8");
+  assert.match(validator, /EAS_BUILD_PLATFORM/);
+  assert.match(validator, /EXPO_PUBLIC_REVENUECAT_IOS_API_KEY/);
+});
+
+test("iOS privacy manifest declares app-owned collection without tracking", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+  const manifest = appConfig.expo.ios.privacyManifests;
+  const collected = manifest.NSPrivacyCollectedDataTypes;
+  const declaredTypes = new Set(collected.map((entry) => entry.NSPrivacyCollectedDataType));
+
+  assert.equal(manifest.NSPrivacyTracking, false);
+  for (const expected of [
+    "NSPrivacyCollectedDataTypeName",
+    "NSPrivacyCollectedDataTypeEmailAddress",
+    "NSPrivacyCollectedDataTypeHealth",
+    "NSPrivacyCollectedDataTypeFitness",
+    "NSPrivacyCollectedDataTypeOtherUserContent",
+    "NSPrivacyCollectedDataTypeCustomerSupport",
+    "NSPrivacyCollectedDataTypeUserID",
+    "NSPrivacyCollectedDataTypeDeviceID",
+    "NSPrivacyCollectedDataTypeCoarseLocation",
+    "NSPrivacyCollectedDataTypePurchaseHistory",
+    "NSPrivacyCollectedDataTypeProductInteraction",
+    "NSPrivacyCollectedDataTypeCrashData",
+    "NSPrivacyCollectedDataTypePerformanceData",
+    "NSPrivacyCollectedDataTypeOtherDiagnosticData",
+  ]) {
+    assert.ok(declaredTypes.has(expected), `${expected} is declared`);
+  }
+  for (const entry of collected) {
+    assert.equal(entry.NSPrivacyCollectedDataTypeTracking, false);
+    assert.equal(entry.NSPrivacyCollectedDataTypeLinked, true);
+    assert.ok(entry.NSPrivacyCollectedDataTypePurposes.length > 0);
+  }
 });
 
 test("hasRecentSignIn honors the re-auth window and rejects garbage timestamps", () => {

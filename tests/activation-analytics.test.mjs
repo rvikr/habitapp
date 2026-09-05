@@ -126,6 +126,15 @@ test("allowed analytics keys still reject unsafe or malformed values", () => {
   );
 });
 
+test("signup analytics accepts Apple without exposing identity data", () => {
+  const event = buildActivationAnalyticsEvent("signup_submitted", assigned, {
+    method: "apple",
+    email: "private@privaterelay.appleid.com",
+  });
+  assert.equal(event.properties.method, "apple");
+  assert.equal("email" in event.properties, false);
+});
+
 test("every approved funnel event uses the same common schema", () => {
   for (const name of [
     "activation_exposed",

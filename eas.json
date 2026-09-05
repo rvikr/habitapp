@@ -44,5 +44,12 @@
         "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_SHTWKRBPEQvAxbTmohWtozNXMNd"
       }
     }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6808705929"
+      }
+    }
   }
 }

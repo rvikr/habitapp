@@ -3,6 +3,7 @@ export const PRO_MONTHLY_PRODUCT_ID = "rc_49_1m";
 export const PRO_ANNUAL_PRODUCT_ID = "rc_499_12m";
 export const GOOGLE_PLAY_SUBSCRIPTIONS_URL =
   "https://play.google.com/store/account/subscriptions?package=health.lagan.app";
+export const APP_STORE_SUBSCRIPTIONS_URL = "https://apps.apple.com/account/subscriptions";
 
 type GooglePlayProductLike = {
   priceString?: string | null;
@@ -10,10 +11,33 @@ type GooglePlayProductLike = {
     freePhase?: {
       billingPeriod?: { unit?: string | null; value?: number | null } | null;
     } | null;
+    introPhase?: {
+      price?: { formatted?: string | null } | null;
+      billingPeriod?: { unit?: string | null; value?: number | null } | null;
+      billingCycleCount?: number | null;
+    } | null;
     fullPricePhase?: {
       price?: { formatted?: string | null } | null;
     } | null;
   } | null;
+};
+
+type AppleProductLike = {
+  priceString?: string | null;
+  introPrice?: {
+    price?: number | null;
+    priceString?: string | null;
+    cycles?: number | null;
+    periodUnit?: string | null;
+    periodNumberOfUnits?: number | null;
+  } | null;
+};
+
+export type StorePaidIntroOffer = {
+  priceString: string;
+  cycles: number;
+  periodUnit: string;
+  periodNumberOfUnits: number;
 };
 
 /** Returns the exact eligible Google Play trial length exposed by RevenueCat. */
@@ -36,6 +60,87 @@ export function googlePlayRenewalPrice(
   return (
     product?.defaultOption?.fullPricePhase?.price?.formatted || product?.priceString || fallback
   );
+}
+
+/** Returns an eligible free-trial length for either supported store. */
+export function storeTrialDays(
+  product: (GooglePlayProductLike & AppleProductLike) | null | undefined,
+  appleIntroEligible = false,
+): number | null {
+  const googleDays = googlePlayTrialDays(product);
+  if (googleDays) return googleDays;
+
+  const intro = product?.introPrice;
+  if (!appleIntroEligible || !intro || intro.price !== 0) return null;
+  const units = intro.periodNumberOfUnits;
+  const cycles = intro.cycles;
+  if (
+    typeof units !== "number" ||
+    !Number.isFinite(units) ||
+    units <= 0 ||
+    typeof cycles !== "number" ||
+    !Number.isFinite(cycles) ||
+    cycles <= 0
+  ) {
+    return null;
+  }
+  if (intro.periodUnit === "DAY") return units * cycles;
+  if (intro.periodUnit === "WEEK") return units * cycles * 7;
+  return null;
+}
+
+/** Returns an eligible paid Apple introductory offer using the store-localized price. */
+export function storePaidIntroOffer(
+  product: (GooglePlayProductLike & AppleProductLike) | null | undefined,
+  appleIntroEligible = false,
+): StorePaidIntroOffer | null {
+  const googleIntro = product?.defaultOption?.introPhase;
+  const googlePrice = googleIntro?.price?.formatted;
+  const googlePeriod = googleIntro?.billingPeriod;
+  if (
+    googlePrice &&
+    googlePeriod?.unit &&
+    typeof googlePeriod.value === "number" &&
+    googlePeriod.value > 0
+  ) {
+    return {
+      priceString: googlePrice,
+      cycles: googleIntro.billingCycleCount ?? 1,
+      periodUnit: googlePeriod.unit,
+      periodNumberOfUnits: googlePeriod.value,
+    };
+  }
+
+  const intro = product?.introPrice;
+  if (
+    !appleIntroEligible ||
+    !intro ||
+    typeof intro.price !== "number" ||
+    intro.price <= 0 ||
+    !intro.priceString ||
+    typeof intro.cycles !== "number" ||
+    intro.cycles <= 0 ||
+    !intro.periodUnit ||
+    typeof intro.periodNumberOfUnits !== "number" ||
+    intro.periodNumberOfUnits <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    priceString: intro.priceString,
+    cycles: intro.cycles,
+    periodUnit: intro.periodUnit,
+    periodNumberOfUnits: intro.periodNumberOfUnits,
+  };
+}
+
+/** Uses the recurring store price instead of a free/introductory phase price. */
+export function storeRenewalPrice(
+  product: (GooglePlayProductLike & AppleProductLike) | null | undefined,
+  fallback: string,
+): string {
+  return googlePlayRenewalPrice(product, fallback);
 }
 
 type RevenueCatPackageLike = {

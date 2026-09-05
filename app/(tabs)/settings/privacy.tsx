@@ -13,8 +13,17 @@ import { showAlert } from "@/lib/platform/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { requestAccountDeletion, signInWithGoogle } from "@/lib/data/actions";
-import { hasPasswordIdentity } from "@/lib/auth/identity";
+import {
+  requestAccountDeletion,
+  signInWithApple,
+  signInWithGoogle,
+  signOut,
+} from "@/lib/data/actions";
+import {
+  hasPasswordIdentity,
+  oauthReauthProvider,
+  type OAuthReauthProvider,
+} from "@/lib/auth/identity";
 import { getCurrentUser } from "@/lib/supabase/client";
 import { exportMyData } from "@/lib/utils/privacy";
 import { isAnalyticsOptedOut, setAnalyticsOptOut } from "@/lib/services/analytics";
@@ -35,14 +44,15 @@ const ACCOUNT_DELETION_URL =
 export default function PrivacyScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const [analyticsOff, setAnalyticsOff] = useState(false);
-  const [crashReportsOff, setCrashReportsOff] = useState(false);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+  const [crashReportsEnabled, setCrashReportsEnabled] = useState(false);
   const [reason, setReason] = useState("");
   const [deletePassword, setDeletePassword] = useState("");
   const [savingDeletion, setSavingDeletion] = useState(false);
   // Assume a password account until the user loads; OAuth-only accounts
-  // confirm deletion with a fresh Google sign-in instead of a password.
+  // confirm deletion with a fresh provider sign-in instead of a password.
   const [usesPassword, setUsesPassword] = useState(true);
+  const [oauthProvider, setOauthProvider] = useState<OAuthReauthProvider>("google");
   const [exporting, setExporting] = useState(false);
   const [exportText, setExportText] = useState<string | null>(null);
   const [aiAccess, setAiAccess] = useState<AiAccessProfile | null>(null);
@@ -54,12 +64,15 @@ export default function PrivacyScreen() {
   useEffect(() => {
     Promise.all([isAnalyticsOptedOut(), isSentryOptedOut()]).then(
       ([analyticsOptedOut, sentryOptedOut]) => {
-        setAnalyticsOff(analyticsOptedOut);
-        setCrashReportsOff(sentryOptedOut);
+        setAnalyticsEnabled(!analyticsOptedOut);
+        setCrashReportsEnabled(!sentryOptedOut);
       },
     );
     getCurrentUser().then((user) => {
-      if (user) setUsesPassword(hasPasswordIdentity(user));
+      if (user) {
+        setUsesPassword(hasPasswordIdentity(user));
+        setOauthProvider(oauthReauthProvider(user) ?? "google");
+      }
     });
     getAiAccessProfile()
       .then(setAiAccess)
@@ -67,13 +80,13 @@ export default function PrivacyScreen() {
   }, []);
 
   async function toggleAnalytics(next: boolean) {
-    setAnalyticsOff(next);
-    await setAnalyticsOptOut(next);
+    setAnalyticsEnabled(next);
+    await setAnalyticsOptOut(!next);
   }
 
   async function toggleCrashReports(next: boolean) {
-    setCrashReportsOff(next);
-    await setSentryOptOut(next);
+    setCrashReportsEnabled(next);
+    await setSentryOptOut(!next);
   }
 
   async function updateAiAccess(attested: boolean) {
@@ -110,21 +123,37 @@ export default function PrivacyScreen() {
       return;
     }
     if (result.needsReauth) {
+      const provider = result.reauthProvider ?? oauthProvider;
+      const providerName = provider === "apple" ? "Apple" : "Google";
       // OAuth-only account with a stale session: confirm identity with a
-      // fresh Google sign-in, then retry. On web this may redirect the page;
+      // fresh provider sign-in, then retry. On web this may redirect the page;
       // after returning, tapping "Request deletion" again completes it.
       showAlert(
         t("Confirm it's you"),
-        t("Sign in with Google again to confirm, then we'll delete your account."),
+        t("Sign in with {provider} again to confirm, then we'll delete your account.", {
+          provider: providerName,
+        }),
         [
           { text: t("Cancel"), style: "cancel" },
           {
-            text: t("Continue with Google"),
+            text: t("Continue with {provider}", { provider: providerName }),
             onPress: async () => {
-              const { error, cancelled } = await signInWithGoogle();
+              const expectedUser = await getCurrentUser();
+              const { error, cancelled } =
+                provider === "apple" ? await signInWithApple() : await signInWithGoogle();
               if (cancelled) return;
               if (error) {
                 showAlert(t("Could not confirm"), t(error.message ?? "Try again."));
+                return;
+              }
+              const confirmedUser = await getCurrentUser();
+              if (!expectedUser || confirmedUser?.id !== expectedUser.id) {
+                await signOut();
+                showAlert(
+                  t("Could not confirm"),
+                  t("You signed in to a different account. No account was deleted."),
+                );
+                router.replace("/login");
                 return;
               }
               setSavingDeletion(true);
@@ -264,14 +293,14 @@ export default function PrivacyScreen() {
             <View className="flex-row items-center justify-between">
               <View className="flex-1 mr-md">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {t("Analytics opt-out")}
+                  {t("Share product analytics")}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {t("Stops product analytics events on this device.")}
+                  {t("Disabled by default. Share anonymous usage events to help improve Lagan.")}
                 </Text>
               </View>
               <Switch
-                value={analyticsOff}
+                value={analyticsEnabled}
                 onValueChange={toggleAnalytics}
                 trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
                 thumbColor="#fff"
@@ -283,14 +312,14 @@ export default function PrivacyScreen() {
             <View className="flex-row items-center justify-between">
               <View className="flex-1 mr-md">
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold">
-                  {t("Crash reporting opt-out")}
+                  {t("Share crash reports")}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
-                  {t("Stops crash reports from being sent from this device.")}
+                  {t("Disabled by default. Share crash diagnostics to help us fix problems.")}
                 </Text>
               </View>
               <Switch
-                value={crashReportsOff}
+                value={crashReportsEnabled}
                 onValueChange={toggleCrashReports}
                 trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
                 thumbColor="#fff"
@@ -371,7 +400,8 @@ export default function PrivacyScreen() {
             ) : (
               <Text className="text-label-sm text-on-error-container">
                 {t(
-                  "You signed in with Google, so there is no password to confirm. We may ask you to sign in with Google again before deleting.",
+                  "You signed in with {provider}, so there is no password to confirm. We may ask you to sign in with {provider} again before deleting.",
+                  { provider: oauthProvider === "apple" ? "Apple" : "Google" },
                 )}
               </Text>
             )}

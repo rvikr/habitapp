@@ -28,7 +28,10 @@ import {
   subscriptionStatusLabel,
   type ProAccessProfile,
 } from "@/lib/subscription/access";
-import { GOOGLE_PLAY_SUBSCRIPTIONS_URL } from "@/lib/subscription/revenuecat-shared";
+import {
+  APP_STORE_SUBSCRIPTIONS_URL,
+  GOOGLE_PLAY_SUBSCRIPTIONS_URL,
+} from "@/lib/subscription/revenuecat-shared";
 
 const TERMS_URL = process.env.EXPO_PUBLIC_TERMS_URL || "https://lagan.health/terms";
 const APP_VERSION = Constants.expoConfig?.version ?? "—";
@@ -396,7 +399,11 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="credit-card-outline"
             label={t("Manage subscription")}
-            onPress={() => Linking.openURL(GOOGLE_PLAY_SUBSCRIPTIONS_URL)}
+            onPress={() =>
+              Linking.openURL(
+                Platform.OS === "ios" ? APP_STORE_SUBSCRIPTIONS_URL : GOOGLE_PLAY_SUBSCRIPTIONS_URL,
+              )
+            }
           />
           <SettingsRow
             icon="bell"

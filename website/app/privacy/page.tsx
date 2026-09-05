@@ -199,8 +199,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           These cookies and identifiers are strictly necessary to sign you in and show correct
-          dates, or are used for the optional analytics and crash reporting you can turn off in
-          Settings. We do not use advertising cookies or cross-site tracking for ads.
+          dates, or are used for analytics and crash reporting that are disabled by default and
+          can be enabled or disabled in Settings. We do not use advertising cookies or cross-site
+          tracking for ads.
         </p>
       </LegalSection>
 
@@ -234,11 +235,11 @@ export default function PrivacyPage() {
           />
           <Service
             name="PostHog"
-            purpose="Product analytics events. We do not intentionally send habit names, notes, email addresses, or health samples in analytics events. You can opt out in Settings."
+            purpose="Optional product analytics events, disabled by default. We do not intentionally send habit names, notes, email addresses, or health samples in analytics events. You can enable or disable sharing in Settings."
           />
           <Service
             name="Sentry"
-            purpose="Crash reporting and error monitoring. You can opt out of crash reporting in Settings."
+            purpose="Optional crash reporting and error monitoring, disabled by default. You can enable or disable sharing in Settings."
           />
           <Service
             name="Google Cloud / Firebase Cloud Messaging"
@@ -286,8 +287,8 @@ export default function PrivacyPage() {
             </Link>.
           </li>
           <li>
-            <strong className="text-on-surface">Opt out of analytics and crash reporting</strong>{" "}
-            from Settings, then Privacy &amp; Data.
+            <strong className="text-on-surface">Control analytics and crash reporting</strong>{" "}
+            from Settings, then Privacy &amp; Data. Both are disabled by default.
           </li>
           <li>
             <strong className="text-on-surface">Control health permissions</strong> in Android

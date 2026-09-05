@@ -12,12 +12,36 @@ type IdentityUser = {
   app_metadata?: { provider?: string | null; providers?: unknown } | null;
 };
 
+export type OAuthReauthProvider = "apple" | "google";
+
 export function hasPasswordIdentity(user: IdentityUser | null | undefined): boolean {
   if (!user) return false;
   if (user.identities?.some((identity) => identity?.provider === "email")) return true;
   const providers = user.app_metadata?.providers;
   if (Array.isArray(providers) && providers.includes("email")) return true;
   return user.app_metadata?.provider === "email";
+}
+
+export function oauthReauthProvider(
+  user: IdentityUser | null | undefined,
+): OAuthReauthProvider | null {
+  if (!user || hasPasswordIdentity(user)) return null;
+  const identityProviders = new Set(
+    user.identities?.map((identity) => identity?.provider).filter(Boolean) ?? [],
+  );
+  const primary = user.app_metadata?.provider;
+  if ((primary === "apple" || primary === "google") && identityProviders.has(primary)) {
+    return primary;
+  }
+  if (identityProviders.has("apple")) return "apple";
+  if (identityProviders.has("google")) return "google";
+
+  const providers = user.app_metadata?.providers;
+  if (Array.isArray(providers)) {
+    if (providers.includes("apple")) return "apple";
+    if (providers.includes("google")) return "google";
+  }
+  return primary === "apple" || primary === "google" ? primary : null;
 }
 
 export function hasRecentSignIn(

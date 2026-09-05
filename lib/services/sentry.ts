@@ -10,7 +10,9 @@ export const SENTRY_OPT_OUT_KEY = "habbit:sentry-opt-out";
 
 let initialized = false;
 let SentryRef: typeof import("@sentry/react-native") | null = null;
-let optedOut = false;
+// Privacy-first default: crash diagnostics stay local until the user
+// explicitly enables sharing in Settings. A stored "false" records that opt-in.
+let optedOut = true;
 
 export async function initSentry(): Promise<void> {
   optedOut = await readOptOut();
@@ -60,5 +62,5 @@ export async function setSentryOptOut(next: boolean): Promise<void> {
 
 async function readOptOut(): Promise<boolean> {
   const { getItem } = await import("../platform/storage");
-  return (await getItem(SENTRY_OPT_OUT_KEY)) === "true";
+  return (await getItem(SENTRY_OPT_OUT_KEY)) !== "false";
 }

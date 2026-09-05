@@ -14,11 +14,13 @@ import {
   type ProPackagesUnavailableReason,
 } from "@/lib/subscription/revenuecat";
 import {
+  APP_STORE_SUBSCRIPTIONS_URL,
   GOOGLE_PLAY_SUBSCRIPTIONS_URL,
   describeRevenueCatError,
-  googlePlayRenewalPrice,
-  googlePlayTrialDays,
   isRevenueCatPurchaseCancelled,
+  storePaidIntroOffer,
+  storeRenewalPrice,
+  storeTrialDays,
 } from "@/lib/subscription/revenuecat-shared";
 import { reportError } from "@/lib/services/sentry";
 import { canOfferProPurchase, type ProAccess } from "@/lib/subscription/access";
@@ -37,20 +39,26 @@ export default function ProScreen() {
   const [access, setAccess] = useState<ProAccess | null>(null);
   const [monthly, setMonthly] = useState<PaywallPackage>(null);
   const [annual, setAnnual] = useState<PaywallPackage>(null);
+  const [eligibleTrialProductIds, setEligibleTrialProductIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [planIssue, setPlanIssue] = useState<PlanIssue | null>(null);
-  const canPurchaseInApp = Platform.OS === "android";
+  const canPurchaseInApp = Platform.OS === "android" || Platform.OS === "ios";
   const isPro = access?.hasPro ?? false;
   // Only surface a fresh purchase once entitlement has loaded and the user is not
   // already Pro, so admin comps / trials / active subscribers are never offered a
-  // re-subscribe (which Google Play would charge for). See canOfferProPurchase.
+  // re-subscribe (which the store would charge for). See canOfferProPurchase.
   const canOfferPurchase = canPurchaseInApp && !loading && canOfferProPurchase(access);
 
   const load = useCallback(async () => {
     setLoading(true);
     let failure: PlanIssue | null = null;
-    const empty = { monthly: null, annual: null, available: false } as const;
+    const empty = {
+      monthly: null,
+      annual: null,
+      available: false,
+      eligibleTrialProductIds: [] as string[],
+    } as const;
     const [currentAccess, packages] = await Promise.all([
       getCurrentProAccess(),
       canPurchaseInApp
@@ -64,6 +72,7 @@ export default function ProScreen() {
     setAccess(currentAccess);
     setMonthly(packages.monthly);
     setAnnual(packages.annual);
+    setEligibleTrialProductIds(packages.eligibleTrialProductIds);
     setPlanIssue(
       failure ?? ("reason" in packages && packages.reason ? { kind: packages.reason } : null),
     );
@@ -195,12 +204,12 @@ export default function ProScreen() {
               <View className="flex-row items-center gap-sm">
                 <MaterialCommunityIcons name="cellphone" size={22} color="#F26B1F" />
                 <Text className="text-body-md text-on-surface dark:text-d-on-surface font-semibold flex-1">
-                  {t("Subscribe on Android")}
+                  {t("Subscribe on App")}
                 </Text>
               </View>
               <Text className="text-body-sm text-on-surface-variant dark:text-d-on-surface-variant leading-5">
                 {t(
-                  "Pro subscriptions are available in the Android app for now. If you already subscribed, your Pro access is active here automatically.",
+                  "Pro subscriptions are available in the Android and iOS apps. If you already subscribed, your Pro access is active here automatically.",
                 )}
               </Text>
             </View>
@@ -224,15 +233,38 @@ export default function ProScreen() {
                   badge: "Save 15%",
                 },
               ].map((item) => {
-                const renewalPrice = googlePlayRenewalPrice(item.pack?.product, item.price);
-                const trialDays = googlePlayTrialDays(item.pack?.product);
-                const priceSummary = trialDays
-                  ? t("{days} days free, then {price} {period}", {
-                      days: trialDays,
-                      price: renewalPrice,
-                      period: t(item.period),
-                    })
-                  : `${renewalPrice} ${t(item.period)}`;
+                const productId = item.pack?.product.identifier;
+                const renewalPrice = storeRenewalPrice(item.pack?.product, item.price);
+                const trialDays = storeTrialDays(
+                  item.pack?.product,
+                  Boolean(productId && eligibleTrialProductIds.includes(productId)),
+                );
+                const paidIntroOffer = storePaidIntroOffer(
+                  item.pack?.product,
+                  Boolean(productId && eligibleTrialProductIds.includes(productId)),
+                );
+                const isOneYearIntro =
+                  paidIntroOffer?.periodUnit === "YEAR" &&
+                  paidIntroOffer.periodNumberOfUnits * paidIntroOffer.cycles === 1;
+                const priceSummary = paidIntroOffer
+                  ? isOneYearIntro
+                    ? t("{introPrice} for the first year, then {price} {period}", {
+                        introPrice: paidIntroOffer.priceString,
+                        price: renewalPrice,
+                        period: t(item.period),
+                      })
+                    : t("Intro price {introPrice}, then {price} {period}", {
+                        introPrice: paidIntroOffer.priceString,
+                        price: renewalPrice,
+                        period: t(item.period),
+                      })
+                  : trialDays
+                    ? t("{days} days free, then {price} {period}", {
+                        days: trialDays,
+                        price: renewalPrice,
+                        period: t(item.period),
+                      })
+                    : `${renewalPrice} ${t(item.period)}`;
 
                 return (
                   <TouchableOpacity
@@ -254,10 +286,10 @@ export default function ProScreen() {
                         <Text className="text-body-lg text-on-surface dark:text-d-on-surface font-semibold">
                           {t(item.label)}
                         </Text>
-                        {item.badge && (
+                        {(paidIntroOffer || item.badge) && (
                           <View className="bg-secondary-container rounded-full px-sm py-xs">
                             <Text className="text-label-sm text-on-secondary-container font-semibold">
-                              {t(item.badge)}
+                              {t(paidIntroOffer ? "Save 50%" : item.badge!)}
                             </Text>
                           </View>
                         )}
@@ -312,18 +344,26 @@ export default function ProScreen() {
                   {t(
                     "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. Payment is charged to your {store} account at confirmation of purchase.",
                     {
-                      store: t("Google Play"),
+                      store: t(Platform.OS === "ios" ? "Apple ID" : "Google Play"),
                     },
                   )}
                 </Text>
                 <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center leading-5">
-                  {t(
-                    "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
-                  )}
+                  {Platform.OS === "ios"
+                    ? t("Manage or cancel in your Apple ID subscription settings.")
+                    : t(
+                        "Manage or cancel: Google Play → your profile → Payments & subscriptions → Subscriptions.",
+                      )}
                 </Text>
                 <TouchableOpacity
                   className="self-center py-xs"
-                  onPress={() => Linking.openURL(GOOGLE_PLAY_SUBSCRIPTIONS_URL)}
+                  onPress={() =>
+                    Linking.openURL(
+                      Platform.OS === "ios"
+                        ? APP_STORE_SUBSCRIPTIONS_URL
+                        : GOOGLE_PLAY_SUBSCRIPTIONS_URL,
+                    )
+                  }
                   accessibilityRole="link"
                   accessibilityLabel={t("Manage subscription")}
                 >

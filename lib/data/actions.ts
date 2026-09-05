@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import Constants from "expo-constants";
+import * as Crypto from "expo-crypto";
 import {
   supabase,
   isSupabaseConfigured,
@@ -27,7 +28,13 @@ import {
   isGoogleNativeCancellationError,
   isGoogleNativeDeveloperError,
 } from "../auth/google-native";
-import { hasPasswordIdentity, hasRecentSignIn } from "../auth/identity";
+import {
+  hasPasswordIdentity,
+  hasRecentSignIn,
+  oauthReauthProvider,
+  type OAuthReauthProvider,
+} from "../auth/identity";
+import { appleFullNameMetadata, isAppleAuthCancellationError } from "../auth/apple";
 import { enqueueCompletionOp, flushPendingCompletions, isNetworkFailure } from "./completion-queue";
 import { clearDataCache } from "./cache";
 import { clearHomeWidgetSnapshot } from "../widgets/home-widget";
@@ -401,6 +408,53 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
   }
 
   return signInWithGoogleOAuth();
+}
+
+export async function signInWithApple(): Promise<{ error: Error | null; cancelled?: boolean }> {
+  if (!isSupabaseConfigured()) return { error: configurationError() as unknown as Error };
+  if (Platform.OS !== "ios") return { error: new Error("Sign in with Apple is unavailable.") };
+
+  try {
+    const AppleAuthentication = await import("expo-apple-authentication");
+    if (!(await AppleAuthentication.isAvailableAsync())) {
+      return { error: new Error("Sign in with Apple is unavailable.") };
+    }
+
+    const rawNonce = Crypto.randomUUID();
+    const hashedNonce = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      rawNonce,
+    );
+    const state = Crypto.randomUUID();
+    const credential = await AppleAuthentication.signInAsync({
+      nonce: hashedNonce,
+      state,
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    if (credential.state !== state)
+      return { error: new Error("Apple authentication state mismatch.") };
+    if (!credential.identityToken) return { error: new Error("No Apple identity token received.") };
+
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: credential.identityToken,
+      nonce: rawNonce,
+    });
+    if (error) return { error: error as Error };
+
+    const nameMetadata = appleFullNameMetadata(credential.fullName);
+    if (nameMetadata && !data.user?.user_metadata?.full_name) {
+      await supabase.auth.updateUser({ data: nameMetadata });
+    }
+    clearDataCache();
+    return { error: null };
+  } catch (error) {
+    if (isAppleAuthCancellationError(error)) return { error: null, cancelled: true };
+    return { error: error instanceof Error ? error : new Error("Sign in with Apple failed.") };
+  }
 }
 
 async function signInWithNativeGoogle(): Promise<{ error: Error | null; cancelled?: boolean }> {
@@ -1189,7 +1243,7 @@ export async function updatePassword(newPassword: string) {
 export async function requestAccountDeletion(
   reason?: string,
   password?: string,
-): Promise<ActionResult & { needsReauth?: boolean }> {
+): Promise<ActionResult & { needsReauth?: boolean; reauthProvider?: OAuthReauthProvider }> {
   const user = await getUser();
   if (!user) return notSignedIn();
   const email = user.email?.trim();
@@ -1208,10 +1262,15 @@ export async function requestAccountDeletion(
       // OAuth-only account: no password exists, and the delete-account edge
       // function requires a recent sign-in. Tell the UI to run the provider
       // sign-in flow, then call this again.
+      const reauthProvider = oauthReauthProvider(user);
       return {
         ok: false,
         needsReauth: true,
-        error: "Confirm it's you by signing in with Google again.",
+        reauthProvider: reauthProvider ?? undefined,
+        error:
+          reauthProvider === "apple"
+            ? "Confirm it's you by signing in with Apple again."
+            : "Confirm it's you by signing in with Google again.",
       };
     }
 

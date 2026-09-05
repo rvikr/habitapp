@@ -67,7 +67,7 @@ Suggested tools: Figma (free), Icon Kitchen (https://icon.kitchen) for adaptive 
 - ✅ TypeScript clean (`npx tsc --noEmit`)
 - ✅ `eas.json` exists; submit credentials are intentionally not committed
 - ✅ `app.json` configured with bundleId, package, version, buildNumber, versionCode
-- ✅ iOS privacy strings (NSUserNotificationsUsageDescription, NSUserTrackingUsageDescription)
+- ✅ iOS privacy strings for notifications, Apple Health, and Motion & Fitness
 - ✅ Android permissions minimised + blocked list
 - ✅ Health Connect permissions limited to `READ_STEPS` and `READ_SLEEP`
 - ✅ Health Connect privacy-policy/rationale activity wired through `plugins/with-health-connect-rationale.js`
@@ -192,8 +192,9 @@ EAS. Never hand-edit generated Gradle or manifest files; the change will be lost
 - **GDPR / CCPA**: privacy policy must list the data you collect (email, habit logs, device
   identifiers via PostHog/Sentry). Provide a delete-account flow if collecting personal data
   in the EU/CA — Supabase makes this easy via `supabase.auth.admin.deleteUser`.
-- **Apple App Tracking Transparency**: PostHog uses IDFA on iOS — `NSUserTrackingUsageDescription`
-  is set in `app.json`. The OS prompt appears on first launch.
+- **Apple App Tracking Transparency**: Lagan uses PostHog for first-party product analytics but
+  does not access IDFA or track users across other companies' apps or websites. Do not add
+  `NSUserTrackingUsageDescription` unless the app later implements tracking that requires ATT.
 - **Children's privacy (COPPA)**: don't market the app to under-13s without consent flow.
 - **Data Safety form (Play Store)**: declare what you collect (email, app usage). Be honest —
   Google audits this.
@@ -236,13 +237,22 @@ Use this worksheet when completing **Policy > App content** in Play Console.
 
 ## 8. Pricing & monetization
 
-The app currently has no purchase flow. If you add IAP later:
+Lagan Pro has a native purchase and restore flow on both iOS and Android through
+RevenueCat (`react-native-purchases`).
 
-- Lagan Pro uses RevenueCat (`react-native-purchases`) with entitlement `pro`
-  and Google Play product ids `rc_49_1m` (monthly) / `rc_499_12m` (annual).
-- Set `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`,
-  `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, `REVENUECAT_SECRET_API_KEY`, and
-  `REVENUECAT_WEBHOOK_AUTH_TOKEN` before release.
-- Apple takes 30% (15% for under $1M/yr revenue)
-- Google takes 30% (15% for first $1M/yr per developer)
-- Subscriptions need server-side validation — Supabase Edge Functions can verify receipts.
+- RevenueCat entitlement: `Pro` (case-sensitive).
+- Store product IDs on both platforms: `rc_49_1m` (monthly) and
+  `rc_499_12m` (annual).
+- India prices: ₹49/month and ₹499/year. Both plans offer an eligible new
+  subscriber a 7-day introductory trial.
+- Production builds require the platform-appropriate public SDK key:
+  `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` or
+  `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`.
+- RevenueCat webhook processing and the authenticated `sync-subscription`
+  function provide server-side entitlement synchronization.
+- Keep purchase, restore-purchases, cancellation, and subscription-management
+  links working on both stores before every release.
+- For the first iOS release, add the `Lagan Pro` subscription group and both
+  subscriptions to the same App Review submission as the new app version.
+- Store listing, paywall, trial, and promotional pricing copy must match the
+  offers that are actually configured for each storefront.

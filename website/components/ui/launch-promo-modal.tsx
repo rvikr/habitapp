@@ -148,8 +148,8 @@ export default function LaunchPromoModal() {
             50% off Lagan Pro
           </h2>
           <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-            For our launch, get the yearly plan at half price. Unlock every AI feature and keep
-            your streak coached all year.
+            Eligible new annual subscribers get the first year at half price. Unlock every AI
+            feature and keep your streak coached all year.
           </p>
 
           {/* Price */}
@@ -197,8 +197,8 @@ export default function LaunchPromoModal() {
           </button>
 
           <p className="mt-4 text-center text-xs leading-5 text-outline">
-            Billed yearly through Google Play. Auto-renews at the regular price; cancel anytime.
-            Launch pricing for a limited time.
+            Billed yearly through Google Play. Renews at {ORIGINAL_PRICE}/year unless cancelled.
+            Launch pricing is available for a limited time.
           </p>
         </div>
       </div>

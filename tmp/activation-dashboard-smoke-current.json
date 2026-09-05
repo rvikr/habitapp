@@ -1,0 +1,412 @@
+[
+  {
+    "scenario": "control-pre-value",
+    "url": "http://localhost:8083/habits/wizard",
+    "onboardingKey": "habbit:onboarding-complete:00000000-0000-4000-8000-000000000060",
+    "unexpectedRequests": [
+      {
+        "method": "POST",
+        "url": "https://ehcqgoymkmljwoveisbl.supabase.co/rest/v1/rpc/get_completion_stats"
+      }
+    ],
+    "pageErrors": [],
+    "analyticsCollector": {
+      "events": [
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 2,
+            "rollout_percentage": 0,
+            "activation_stage": "pre_value",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 2,
+            "rollout_percentage": 0,
+            "activation_stage": "pre_value",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "notification_prompt_shown",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 2,
+            "rollout_percentage": 0,
+            "activation_stage": "pre_value",
+            "platform": "web",
+            "surface": "dashboard"
+          }
+        },
+        {
+          "name": "routine_started",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 2,
+            "rollout_percentage": 0,
+            "activation_stage": "pre_value",
+            "platform": "web",
+            "flow": "control",
+            "step_count": 8
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/habits/wizard"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "control-engaged",
+    "url": "http://localhost:8083/leaderboard",
+    "onboardingKey": "habbit:onboarding-complete:00000000-0000-4000-8000-000000000061",
+    "unexpectedRequests": [
+      {
+        "method": "POST",
+        "url": "https://ehcqgoymkmljwoveisbl.supabase.co/rest/v1/rpc/get_completion_stats"
+      }
+    ],
+    "pageErrors": [],
+    "analyticsCollector": {
+      "events": [
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 21,
+            "rollout_percentage": 0,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 21,
+            "rollout_percentage": 0,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "notification_prompt_shown",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 21,
+            "rollout_percentage": 0,
+            "activation_stage": "engaged",
+            "platform": "web",
+            "surface": "dashboard"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/leaderboard"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 21,
+            "rollout_percentage": 0,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "control",
+            "activation_bucket": 21,
+            "rollout_percentage": 0,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "treatment-pre-value",
+    "url": "http://localhost:8083/pro",
+    "onboardingKey": "habbit:onboarding-complete:00000000-0000-4000-8000-000000000062",
+    "unexpectedRequests": [
+      {
+        "method": "POST",
+        "url": "https://ehcqgoymkmljwoveisbl.supabase.co/rest/v1/rpc/get_completion_stats"
+      },
+      {
+        "method": "POST",
+        "url": "https://ehcqgoymkmljwoveisbl.supabase.co/rest/v1/rpc/get_completion_stats"
+      }
+    ],
+    "pageErrors": [],
+    "analyticsCollector": {
+      "events": [
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 64,
+            "rollout_percentage": 100,
+            "activation_stage": "pre_value",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 64,
+            "rollout_percentage": 100,
+            "activation_stage": "pre_value",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/achievements"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 64,
+            "rollout_percentage": 100,
+            "activation_stage": "pre_value",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 64,
+            "rollout_percentage": 100,
+            "activation_stage": "pre_value",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/pro"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "treatment-first-log",
+    "url": "http://localhost:8083/",
+    "onboardingKey": "habbit:onboarding-complete:00000000-0000-4000-8000-000000000063",
+    "unexpectedRequests": [
+      {
+        "method": "POST",
+        "url": "https://ehcqgoymkmljwoveisbl.supabase.co/rest/v1/rpc/get_completion_stats"
+      }
+    ],
+    "pageErrors": [],
+    "analyticsCollector": {
+      "events": [
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 83,
+            "rollout_percentage": 100,
+            "activation_stage": "first_log",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 83,
+            "rollout_percentage": 100,
+            "activation_stage": "first_log",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "notification_prompt_shown",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 83,
+            "rollout_percentage": 100,
+            "activation_stage": "first_log",
+            "platform": "web",
+            "surface": "dashboard"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/settings"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/leaderboard"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 83,
+            "rollout_percentage": 100,
+            "activation_stage": "first_log",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 83,
+            "rollout_percentage": 100,
+            "activation_stage": "first_log",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "scenario": "treatment-engaged",
+    "url": "http://localhost:8083/leaderboard",
+    "onboardingKey": "habbit:onboarding-complete:00000000-0000-4000-8000-000000000064",
+    "unexpectedRequests": [
+      {
+        "method": "POST",
+        "url": "https://ehcqgoymkmljwoveisbl.supabase.co/rest/v1/rpc/get_completion_stats"
+      }
+    ],
+    "pageErrors": [],
+    "analyticsCollector": {
+      "events": [
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 26,
+            "rollout_percentage": 100,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 26,
+            "rollout_percentage": 100,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "notification_prompt_shown",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 26,
+            "rollout_percentage": 100,
+            "activation_stage": "engaged",
+            "platform": "web",
+            "surface": "dashboard"
+          }
+        },
+        {
+          "name": "screen_viewed",
+          "properties": {
+            "screen": "/leaderboard"
+          }
+        },
+        {
+          "name": "activation_exposed",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 26,
+            "rollout_percentage": 100,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        },
+        {
+          "name": "activation_entry",
+          "properties": {
+            "activation_variant": "activation_v2",
+            "activation_bucket": 26,
+            "rollout_percentage": 100,
+            "activation_stage": "engaged",
+            "platform": "web"
+          }
+        }
+      ]
+    }
+  }
+]

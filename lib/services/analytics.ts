@@ -24,7 +24,9 @@ type PostHogClient = {
   reset: () => void;
 };
 let client: PostHogClient | null = null;
-let optedOut = false;
+// Privacy-first default: no analytics leaves the device until the user
+// explicitly enables it in Settings. A stored "false" records that opt-in.
+let optedOut = true;
 const analyticsBuffer = createAnalyticsBuffer(50);
 
 export async function initAnalytics(): Promise<void> {
@@ -110,5 +112,5 @@ export async function setAnalyticsOptOut(next: boolean): Promise<void> {
 
 async function readOptOut(): Promise<boolean> {
   const { getItem } = await import("../platform/storage");
-  return (await getItem(ANALYTICS_OPT_OUT_KEY)) === "true";
+  return (await getItem(ANALYTICS_OPT_OUT_KEY)) !== "false";
 }

@@ -363,12 +363,14 @@ async function scrollControlIntoLiveViewport(page, locator, label) {
   }
   releaseDelayedSignupResponse();
   await page
-    .getByText("अकाउंट बन गया. पुष्टि के लिए अपना ईमेल देखें, फिर यहां आकर साइन इन करें.")
+    .getByText(
+      "अकाउंट बन गया. अपना ईमेल देखें और Lagan में आगे बढ़ने के लिए पुष्टिकरण लिंक पर टैप करें.",
+    )
     .waitFor({ timeout: 10000 });
   const signupSuccessText = await snapshot(page, "hindi-signup-success", snapshots);
   if (
     !signupSuccessText.includes(
-      "अकाउंट बन गया. पुष्टि के लिए अपना ईमेल देखें, फिर यहां आकर साइन इन करें.",
+      "अकाउंट बन गया. अपना ईमेल देखें और Lagan में आगे बढ़ने के लिए पुष्टिकरण लिंक पर टैप करें.",
     )
   ) {
     throw new Error("Hindi signup success confirmation did not render");

@@ -1,0 +1,75 @@
+{
+  "insertCount": 1,
+  "completionRpcCount": 1,
+  "submittedPayload": {
+    "user_id": "00000000-0000-4000-8000-000000000005",
+    "name": "Drink Water",
+    "description": "Stay hydrated throughout the day.",
+    "icon": "water_drop",
+    "color": "secondary",
+    "unit": "ml",
+    "target": 100,
+    "reminders_enabled": true,
+    "reminder_times": [],
+    "reminder_days": [0, 1, 2, 3, 4, 5, 6],
+    "habit_type": "water_intake",
+    "metric_type": "volume_ml",
+    "visual_type": "water_bottle",
+    "reminder_strategy": "interval",
+    "reminder_interval_minutes": 120,
+    "default_log_value": 100
+  },
+  "authoritativeHabit": {
+    "id": "treatment-manual-authoritative",
+    "user_id": "00000000-0000-4000-8000-000000000005",
+    "name": "Saved Drink Water",
+    "description": "Stay hydrated throughout the day.",
+    "icon": "water_drop",
+    "color": "secondary",
+    "unit": "ml",
+    "target": 80,
+    "reminder_time": null,
+    "reminder_times": [],
+    "reminder_days": [0, 1, 2, 3, 4, 5, 6],
+    "reminders_enabled": true,
+    "habit_type": "water_intake",
+    "metric_type": "volume_ml",
+    "visual_type": "water_bottle",
+    "reminder_strategy": "interval",
+    "reminder_interval_minutes": 120,
+    "default_log_value": 20,
+    "archived_at": null,
+    "created_at": "2026-09-05T11:52:37.832Z"
+  },
+  "completionValue": 20,
+  "storedMarker": "1",
+  "snapshots": [
+    {
+      "label": "collapsed",
+      "url": "http://localhost:8083/habits/new",
+      "text": "󰁍\nNew Habit\nNAME\nDESCRIPTION (optional)\nTarget: 2000 ml\nReminders: on\nAdvanced\nv\nCreate habit"
+    },
+    {
+      "label": "advanced",
+      "url": "http://localhost:8083/habits/new",
+      "text": "󰁍\nNew Habit\nNAME\nDESCRIPTION (optional)\nTarget: 100 ml\nReminders: on\nAdvanced\n^\nICON\n󰖌\n󰑮\n󰖃\n󱓷\n󱅻\n󱞁\n󰇦\n󰖔\n󰐂\n󰉚\n󰦡\n󰅴\n󱂜\n󰖄\n󰋑\n󰌪\n󰌪\nCOLOR\nEmber\nSage\nAmber\nNeutral\nUNIT\nTARGET\nSMART METRIC\nVolume\nUnit: ml\nWater volume is saved in ml.\nv\nSmart Reminders\nFires automatically based on your habit — stops once you log it for the day.\nUp to 7 smart reminders per day.\nCUSTOM OVERRIDE TIMES (optional)\n07:00\n08:00\n12:00\n16:00\n20:00\n22:00\nAdd\nREPEAT ON\nSu\nMo\nTu\nWe\nTh\nFr\nSa\nMerge similar habits\nCombine this with an existing habit when it looks like the same goal.\nCreate habit"
+    },
+    {
+      "label": "first-log",
+      "url": "http://localhost:8083/habits/new",
+      "text": "Let's log your first habit together\nTap below to log 20 ml for Saved Drink Water. That's your first step.\n󰖌\nSaved Drink Water\nFirst log: +20 ml\nDaily goal: 80 ml\nLog 20 ml\nSkip for now"
+    },
+    {
+      "label": "first-step",
+      "url": "http://localhost:8083/habits/new",
+      "text": "󱁖\nFirst Step\nYou logged 20 ml for Saved Drink Water.\n󰖌\nSaved Drink Water\nFirst log: +20 ml\nDaily goal: 80 ml\nContinue"
+    },
+    {
+      "label": "dashboard",
+      "url": "http://localhost:8083/",
+      "text": "SATURDAY, SEPTEMBER 5\nHey, there\n󰐕\n󰗡\nDone\n0 / 1\nProgress\n0%\n󰅐\nNext\nSaved Drink Water\nTODAY'S TIMELINE\n󰖌\nSaved Drink Water\n20 / 80 ml\n󰐕\nAdd habit\n󰋜\n󰋜\nToday\n󰒓\n󰒓\nSettings"
+    }
+  ],
+  "pageErrors": [],
+  "unexpectedBackendCalls": []
+}

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import AntDesign from "@expo/vector-icons/AntDesign";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
@@ -19,6 +20,7 @@ import {
   signUp,
   resetPassword,
   resendConfirmationEmail,
+  signInWithApple,
   signInWithGoogle,
 } from "@/lib/data/actions";
 import { validatePassword } from "@/lib/auth/password";
@@ -63,6 +65,8 @@ export default function LoginScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -74,13 +78,13 @@ export default function LoginScreen() {
   const emailInputRef = useRef<TextInput>(null);
   const pendingModeFocusRef = useRef(false);
   const authInFlightRef = useRef(false);
-  const authLoading = loading || googleLoading;
+  const authLoading = loading || googleLoading || appleLoading;
   const signupAnalyticsContext = unassignedActivationAnalyticsContext(Platform.OS);
 
   function trackSignupFailure(
     failureCategory: SignupFailureCategory,
     failureStage: "validation" | "submission",
-    method: "email" | "google" = "email",
+    method: "email" | "google" | "apple" = "email",
   ) {
     trackActivationEvent("signup_failed", signupAnalyticsContext, {
       method,
@@ -88,6 +92,13 @@ export default function LoginScreen() {
       failure_stage: failureStage,
     });
   }
+
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    AppleAuthentication.isAvailableAsync()
+      .then(setAppleAvailable)
+      .catch(() => setAppleAvailable(false));
+  }, []);
 
   useEffect(() => {
     if (params.reason === "expired") {
@@ -177,6 +188,37 @@ export default function LoginScreen() {
     } finally {
       authInFlightRef.current = false;
       setGoogleLoading(false);
+    }
+  }
+
+  async function handleAppleSignIn() {
+    if (authLoading || authInFlightRef.current) return;
+    const isSignupAttempt = mode === "signup";
+    if (isSignupAttempt) {
+      trackActivationEvent("signup_submitted", signupAnalyticsContext, { method: "apple" });
+    }
+    authInFlightRef.current = true;
+    setAppleLoading(true);
+    setError(null);
+    setMessage(null);
+    setNotice(null);
+    try {
+      const { error: e, cancelled } = await signInWithApple();
+      if (cancelled) return;
+      if (e) {
+        setError(t(authErrorMessageKey(e)));
+        if (isSignupAttempt) {
+          trackSignupFailure(categorizeSignupFailure(e), "submission", "apple");
+        }
+      }
+    } catch (submissionError) {
+      setError(t("Network error. Check your connection and try again."));
+      if (isSignupAttempt) {
+        trackSignupFailure(categorizeSignupFailure(submissionError), "submission", "apple");
+      }
+    } finally {
+      authInFlightRef.current = false;
+      setAppleLoading(false);
     }
   }
 
@@ -512,6 +554,23 @@ export default function LoginScreen() {
                   style={{ backgroundColor: "rgba(255, 255, 255, 0.14)" }}
                 />
               </View>
+
+              {appleAvailable ? (
+                <View
+                  style={{
+                    pointerEvents: authLoading ? "none" : "auto",
+                    opacity: authLoading && !appleLoading ? 0.55 : 1,
+                  }}
+                >
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                    cornerRadius={28}
+                    style={{ width: "100%", height: 56 }}
+                    onPress={handleAppleSignIn}
+                  />
+                </View>
+              ) : null}
 
               <TouchableOpacity
                 className="flex-row items-center justify-center gap-sm rounded-full py-md"

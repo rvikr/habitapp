@@ -76,7 +76,7 @@ const SAFE_VARIANTS = ["control", "activation_v2", "unassigned"] as const;
 const SAFE_STAGES = ["pre_value", "first_log", "engaged", "unassigned"] as const;
 const SAFE_PLATFORMS = ["ios", "android", "web", "windows", "macos", "unknown"] as const;
 const SAFE_STRING_PROPERTY_VALUES: Record<string, readonly string[]> = {
-  method: ["email", "google"],
+  method: ["email", "google", "apple"],
   flow: ["control", "quick_start", "manual"],
   step_id: [
     "goals",
