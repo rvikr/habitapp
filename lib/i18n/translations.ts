@@ -549,6 +549,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   "Rate {value} out of 5": "{value} / 5 रेट करें",
   "Edit leaderboard profile": "लीडरबोर्ड प्रोफाइल एडिट करें",
   "Share your rank": "अपनी रैंक शेयर करें",
+  "Steps Trend": "कदमों का ट्रेंड",
+  "Show {days} day steps trend": "{days} दिन का कदमों का ट्रेंड दिखाएं",
+  "Step data is not available for the last {days} days.":
+    "पिछले {days} दिनों के लिए कदमों का डेटा उपलब्ध नहीं है।",
+  "{steps} steps on {date}": "{date} को {steps} कदम",
   "Show {days} day sleep trend": "{days} दिन का नींद ट्रेंड दिखाएं",
   "Share badge {name}": "{name} बैज शेयर करें",
   "Your Card": "आपका कार्ड",

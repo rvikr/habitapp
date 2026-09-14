@@ -98,6 +98,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import health.lagan.widget.WidgetActionScheduler
@@ -126,6 +127,16 @@ class LaganWidgetProvider : AppWidgetProvider() {
     }
   }
 
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    appWidgetManager: AppWidgetManager,
+    appWidgetId: Int,
+    newOptions: Bundle,
+  ) {
+    super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+    updateWidget(context, appWidgetManager, appWidgetId)
+  }
+
   companion object {
     private const val PREFS_NAME = "lagan_widget"
     private const val SNAPSHOT_KEY = "snapshot_json"
@@ -134,6 +145,8 @@ class LaganWidgetProvider : AppWidgetProvider() {
     private const val ACTION_CHECK_IN = "health.lagan.widget.CHECK_IN"
     private const val EXTRA_HABIT_ID = "habit_id"
     private const val EXTRA_HABIT_NAME = "habit_name"
+
+    private enum class LayoutMode { COMPACT, REGULAR }
 
     // Zero-padded "HH:MM"; anything else in an upcoming entry means "no time".
     private val TIME_REGEX = Regex("""\\d{2}:\\d{2}""")
@@ -159,6 +172,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
       widgetId: Int,
     ) {
       val snapshot = readSnapshot(context)
+      val layoutMode = layoutMode(manager, widgetId)
       val now = Calendar.getInstance()
       val nowDateKey = String.format(
         Locale.US,
@@ -185,10 +199,36 @@ class LaganWidgetProvider : AppWidgetProvider() {
         if (isStale) {
           bindStaleDay(this, context, snapshot)
         } else {
-          bindToday(this, context, snapshot, nowHHMM)
+          bindToday(this, context, snapshot, nowHHMM, layoutMode)
         }
+        applyLayoutMode(this, layoutMode)
       }
       manager.updateAppWidget(widgetId, views)
+    }
+
+    private fun layoutMode(manager: AppWidgetManager, widgetId: Int): LayoutMode {
+      val options = manager.getAppWidgetOptions(widgetId)
+      val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 160)
+      val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 200)
+      return if (height < 190 || width < 200) LayoutMode.COMPACT else LayoutMode.REGULAR
+    }
+
+    private fun applyLayoutMode(views: RemoteViews, mode: LayoutMode) {
+      // The legacy coach/trend/footer rows made the resizable widget overflow.
+      // Keep the same essential hierarchy as iOS and let compact widgets drop
+      // only the next-habit line; steps, rank, status, and the action remain.
+      views.setViewVisibility(R.id.lagan_widget_coach, View.GONE)
+      views.setViewVisibility(R.id.lagan_widget_trend_row, View.GONE)
+      views.setViewVisibility(R.id.lagan_widget_streak, View.GONE)
+      views.setViewVisibility(R.id.lagan_widget_updated, View.GONE)
+      views.setInt(
+        R.id.lagan_widget_completion,
+        "setMaxLines",
+        if (mode == LayoutMode.COMPACT) 1 else 2,
+      )
+      if (mode == LayoutMode.COMPACT) {
+        views.setViewVisibility(R.id.lagan_widget_next_habit, View.GONE)
+      }
     }
 
     private fun bindStaleDay(views: RemoteViews, context: Context, snapshot: WidgetSnapshot) {
@@ -203,6 +243,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
         setTextViewText(R.id.lagan_widget_streak, snapshot.staleLabels.streakLabel)
         setViewVisibility(R.id.lagan_widget_steps, View.GONE)
         setViewVisibility(R.id.lagan_widget_rank, View.GONE)
+        setViewVisibility(R.id.lagan_widget_meta_row, View.GONE)
         setViewVisibility(R.id.lagan_widget_action_status, View.GONE)
         setTextViewText(R.id.lagan_widget_check_in, snapshot.staleLabels.checkInLabel)
         setOnClickPendingIntent(R.id.lagan_widget_check_in, openAppPendingIntent(context))
@@ -214,6 +255,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
       context: Context,
       snapshot: WidgetSnapshot,
       nowHHMM: String,
+      layoutMode: LayoutMode,
     ) {
       // Advance the "Next:" line as reminder times pass; fall back to the
       // labels synced by the app when the snapshot predates schema v2.
@@ -256,22 +298,44 @@ class LaganWidgetProvider : AppWidgetProvider() {
         setProgressBar(R.id.lagan_widget_progress, 100, snapshot.progressPercent, false)
         setTextViewText(R.id.lagan_widget_streak, snapshot.streakLabel)
         if (snapshot.stepsCount != null) {
-          setTextViewText(R.id.lagan_widget_steps, String.format(Locale.US, "%,d steps today", snapshot.stepsCount))
+          setTextViewText(
+            R.id.lagan_widget_steps,
+            if (layoutMode == LayoutMode.COMPACT)
+              String.format(Locale.US, "%,d steps", snapshot.stepsCount)
+            else
+              String.format(Locale.US, "%,d steps today", snapshot.stepsCount),
+          )
           setViewVisibility(R.id.lagan_widget_steps, View.VISIBLE)
         } else {
           setViewVisibility(R.id.lagan_widget_steps, View.GONE)
         }
         when (snapshot.leaderboardStatus) {
           "ranked" -> {
-            setTextViewText(R.id.lagan_widget_rank, "All-time rank #" + snapshot.leaderboardRank)
+            setTextViewText(
+              R.id.lagan_widget_rank,
+              if (layoutMode == LayoutMode.COMPACT)
+                "All-time #" + snapshot.leaderboardRank
+              else
+                "All-time rank #" + snapshot.leaderboardRank,
+            )
             setViewVisibility(R.id.lagan_widget_rank, View.VISIBLE)
           }
           "not_joined" -> {
-            setTextViewText(R.id.lagan_widget_rank, "Join leaderboard in Lagan")
+            setTextViewText(
+              R.id.lagan_widget_rank,
+              if (layoutMode == LayoutMode.COMPACT) "Join leaderboard" else "Join leaderboard in Lagan",
+            )
             setViewVisibility(R.id.lagan_widget_rank, View.VISIBLE)
           }
           else -> setViewVisibility(R.id.lagan_widget_rank, View.GONE)
         }
+        setViewVisibility(
+          R.id.lagan_widget_meta_row,
+          if (snapshot.stepsCount != null || snapshot.leaderboardStatus == "ranked" || snapshot.leaderboardStatus == "not_joined")
+            View.VISIBLE
+          else
+            View.GONE,
+        )
         setTextViewText(R.id.lagan_widget_action_status, snapshot.actionMessage)
         setViewVisibility(
           R.id.lagan_widget_action_status,
@@ -576,26 +640,45 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:orientation="vertical"
-  android:padding="16dp"
+  android:padding="12dp"
+  android:theme="@style/LaganWidgetTheme"
   android:background="@drawable/lagan_widget_background">
 
-  <TextView
-    android:id="@+id/lagan_widget_title"
+  <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:text="Today"
-    android:textColor="@color/lagan_widget_primary"
-    android:textSize="14sp"
-    android:textStyle="bold" />
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <TextView
+      android:id="@+id/lagan_widget_title"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:text="Today"
+      android:textColor="@color/lagan_widget_primary"
+      android:textSize="13sp"
+      android:textStyle="bold" />
+
+    <TextView
+      android:id="@+id/lagan_widget_level"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="Lagan"
+      android:textColor="@color/lagan_widget_secondary"
+      android:textSize="11sp"
+      android:textStyle="bold"
+      android:maxLines="1" />
+  </LinearLayout>
 
   <TextView
     android:id="@+id/lagan_widget_completion"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="6dp"
+    android:layout_marginTop="4dp"
     android:text="Open Lagan to start"
     android:textColor="@color/lagan_widget_primary"
-    android:textSize="18sp"
+    android:textSize="17sp"
     android:textStyle="bold"
     android:maxLines="2" />
 
@@ -603,7 +686,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:id="@+id/lagan_widget_next_habit"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="4dp"
+    android:layout_marginTop="3dp"
     android:text=""
     android:textColor="@color/lagan_widget_primary"
     android:textSize="13sp"
@@ -629,7 +712,7 @@ ${WIDGET_TREND_ROW_XML}
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="8dp"
+    android:layout_marginTop="6dp"
     android:gravity="center_vertical"
     android:orientation="horizontal">
 
@@ -655,32 +738,12 @@ ${WIDGET_TREND_ROW_XML}
       android:textStyle="bold" />
   </LinearLayout>
 
-  <LinearLayout
+  <TextView
+    android:id="@+id/lagan_widget_streak"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="8dp"
-    android:orientation="horizontal">
-
-    <TextView
-      android:id="@+id/lagan_widget_streak"
-      android:layout_width="0dp"
-      android:layout_height="wrap_content"
-      android:layout_weight="1"
-      android:text="Sign in to sync"
-      android:textColor="@color/lagan_widget_secondary"
-      android:textSize="12sp"
-      android:maxLines="1" />
-
-    <TextView
-      android:id="@+id/lagan_widget_level"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:text="Lagan"
-      android:textColor="@color/lagan_widget_secondary"
-      android:textSize="12sp"
-      android:textStyle="bold"
-      android:maxLines="1" />
-  </LinearLayout>
+    android:text="Sign in to sync"
+    android:visibility="gone" />
 
   <TextView
     android:id="@+id/lagan_widget_updated"
@@ -690,12 +753,15 @@ ${WIDGET_TREND_ROW_XML}
     android:text=""
     android:textColor="@color/lagan_widget_muted"
     android:textSize="10sp"
-    android:maxLines="1" />
+    android:maxLines="1"
+    android:visibility="gone" />
 
   <LinearLayout
+    android:id="@+id/lagan_widget_meta_row"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="4dp"
+    android:layout_marginTop="5dp"
+    android:gravity="center_vertical"
     android:orientation="horizontal">
 
     <TextView
@@ -706,6 +772,7 @@ ${WIDGET_TREND_ROW_XML}
       android:textColor="@color/lagan_widget_secondary"
       android:textSize="11sp"
       android:maxLines="1"
+      android:ellipsize="end"
       android:visibility="gone" />
 
     <TextView
@@ -722,7 +789,7 @@ ${WIDGET_TREND_ROW_XML}
     android:id="@+id/lagan_widget_action_status"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="4dp"
+    android:layout_marginTop="3dp"
     android:textColor="@color/lagan_widget_success"
     android:textSize="11sp"
     android:textStyle="bold"
@@ -730,11 +797,17 @@ ${WIDGET_TREND_ROW_XML}
     android:ellipsize="end"
     android:visibility="gone" />
 
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:orientation="vertical" />
+
   <TextView
     android:id="@+id/lagan_widget_check_in"
     android:layout_width="match_parent"
-    android:layout_height="36dp"
-    android:layout_marginTop="10dp"
+    android:layout_height="34dp"
+    android:layout_marginTop="6dp"
     android:background="@drawable/lagan_widget_button_background"
     android:gravity="center"
     android:text="Open Lagan"
@@ -809,6 +882,17 @@ const WIDGET_COLORS_NIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
   <color name="lagan_widget_secondary">#D9C9BF</color>
   <color name="lagan_widget_muted">#B8A59A</color>
   <color name="lagan_widget_success">#72D6A0</color>
+</resources>
+`;
+
+const WIDGET_STYLES_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <style name="LaganWidgetTheme" parent="@android:style/Theme.DeviceDefault.DayNight">
+    <item name="android:colorBackground">@color/lagan_widget_background</item>
+    <item name="android:textColorPrimary">@color/lagan_widget_primary</item>
+    <item name="android:textColorSecondary">@color/lagan_widget_secondary</item>
+    <item name="android:colorAccent">#F26B1F</item>
+  </style>
 </resources>
 `;
 
@@ -952,6 +1036,7 @@ const withLaganWidget = (config) => {
       writeFile(path.join(resRoot, "xml", "lagan_widget_info.xml"), WIDGET_INFO_XML);
       writeFile(path.join(resRoot, "values", "lagan_widget_strings.xml"), WIDGET_STRINGS_XML);
       writeFile(path.join(resRoot, "values", "lagan_widget_colors.xml"), WIDGET_COLORS_XML);
+      writeFile(path.join(resRoot, "values", "lagan_widget_styles.xml"), WIDGET_STYLES_XML);
       writeFile(
         path.join(resRoot, "values-night", "lagan_widget_colors.xml"),
         WIDGET_COLORS_NIGHT_XML,
@@ -964,4 +1049,4 @@ const withLaganWidget = (config) => {
   return withLaganIosWidget(config);
 };
 
-module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "2.0.0");
+module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "2.1.0");

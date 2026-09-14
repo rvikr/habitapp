@@ -33,6 +33,13 @@ import {
   type SleepDashboardData,
 } from "@/lib/platform/sleep";
 import { summarizeSleepRange, type SleepTrendRange } from "@/lib/data/sleep-shared";
+import {
+  EMPTY_PROGRESS_TRENDS,
+  mergeSleepTrendEntries,
+  summarizeStepTrend,
+  type ProgressTrendInputs,
+  type TrendRange,
+} from "@/lib/data/progress-trends";
 import { showAlert } from "@/lib/platform/alert";
 import { localDateKey, addLocalDays } from "@/lib/utils/date";
 import { GET_APP_URL } from "@/lib/constants";
@@ -64,6 +71,8 @@ export default function ProgressScreen() {
   const [consistencyDays, setConsistencyDays] = useState<DayConsistency[]>([]);
   const [lifeSegments, setLifeSegments] = useState<LifeBalanceSegment[]>([]);
   const [sleepData, setSleepData] = useState<SleepDashboardData | null>(null);
+  const [progressTrends, setProgressTrends] = useState<ProgressTrendInputs>(EMPTY_PROGRESS_TRENDS);
+  const [stepRange, setStepRange] = useState<TrendRange>(7);
   const [sleepRange, setSleepRange] = useState<SleepTrendRange>(7);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -84,6 +93,7 @@ export default function ProgressScreen() {
     setConsistencyDays(days);
     setLifeSegments(buildLifeBalanceWheelSegments(habits, todayProgress));
     setSleepData(sleepDashboard);
+    setProgressTrends(habitsResult.progressTrends ?? EMPTY_PROGRESS_TRENDS);
     setLoaded(true);
   }, []);
 
@@ -167,11 +177,28 @@ export default function ProgressScreen() {
   const weekNonFutureDays = currentWeekDays.filter((d) => !d.isFuture).length;
   const isOnTrack = weekNonFutureDays > 0 && weekCompletedDays / weekNonFutureDays >= 0.5;
 
-  // Sleep score + trend data
-  const sleepRangeSummary = summarizeSleepRange(sleepData?.entries ?? [], sleepRange);
+  // Saved step totals and health-first sleep history share the same 7/30-day
+  // presentation without triggering new device reads or permission prompts.
+  const stepRangeSummary = summarizeStepTrend(progressTrends.steps?.completions ?? [], stepRange);
+  const stepTrend = stepRangeSummary.trendEntries;
+  const stepTarget = Math.max(0, Number(progressTrends.steps?.target ?? 0));
+  const stepScaleMaximum = Math.max(stepRangeSummary.maximumSteps, stepTarget, 1);
+
+  // Sleep score + trend data. Ordinary manual sleep logs live in habit
+  // completions, so fill only dates that sleep_entries does not already cover.
+  const fallbackSleepTargetHours = Math.max(1, Number(progressTrends.sleep?.target ?? 8));
+  const sleepTargetMinutes = sleepData?.habit
+    ? sleepData.targetMinutes
+    : fallbackSleepTargetHours * 60;
+  const sleepCompletionFallbacks = progressTrends.sleep?.completions ?? [];
+  const mergedSleepEntries = mergeSleepTrendEntries(
+    sleepData?.entries ?? [],
+    sleepCompletionFallbacks,
+    sleepTargetMinutes,
+  );
+  const sleepRangeSummary = summarizeSleepRange(mergedSleepEntries, sleepRange);
   const sleepTrend = sleepRangeSummary.trendEntries;
   const sleepLatest = sleepRangeSummary.entries[0] ?? null;
-  const sleepTargetMinutes = sleepData?.targetMinutes ?? 480;
   const sleepWindowCount = sleepRangeSummary.count;
   const sleepAvgScore = sleepRangeSummary.averageScore;
   const sleepAvgDurationMinutes = sleepRangeSummary.averageDurationMinutes;
@@ -510,9 +537,141 @@ export default function ProgressScreen() {
             </View>
           )}
         </View>
+
+        {/* Steps Trend */}
+        {loaded && progressTrends.steps && (
+          <View className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface-container rounded-xl p-md">
+            <View className="flex-row items-center justify-between mb-md">
+              <View className="flex-row items-center gap-sm">
+                <MaterialCommunityIcons name="shoe-sneaker" size={18} color="#F26B1F" />
+                <Text
+                  className="text-body-md text-on-surface dark:text-d-on-surface font-semibold"
+                  style={{ fontFamily: "SpaceGrotesk_600SemiBold" }}
+                >
+                  {t("Steps Trend")}
+                </Text>
+              </View>
+              <View className="flex-row bg-surface-lowest dark:bg-d-surface-lowest rounded-full p-1">
+                {([7, 30] as const).map((option) => {
+                  const active = option === stepRange;
+                  return (
+                    <TouchableOpacity
+                      key={option}
+                      onPress={() => setStepRange(option)}
+                      className="px-sm py-1 rounded-full"
+                      style={{ backgroundColor: active ? "#F26B1F" : "transparent" }}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("Show {days} day steps trend", { days: option })}
+                      accessibilityState={{ selected: active }}
+                    >
+                      <Text
+                        className="text-label-sm font-semibold"
+                        style={{ color: active ? "#fff" : "#F26B1F" }}
+                      >
+                        {t("{days}d", { days: option })}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+            {stepTrend.length === 0 ? (
+              <View className="items-center py-md gap-xs">
+                <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant text-center">
+                  {t("Step data is not available for the last {days} days.", {
+                    days: stepRange,
+                  })}
+                </Text>
+              </View>
+            ) : stepRange === 7 ? (
+              <View className="flex-row items-end justify-between" style={{ height: 120 }}>
+                {stepTrend.map((entry) => {
+                  const height = Math.max(10, Math.round((entry.steps / stepScaleMaximum) * 80));
+                  const date = new Date(`${entry.step_date}T12:00:00`);
+                  const dateLabel = date.toLocaleDateString(language === "hi" ? "hi-IN" : "en-US", {
+                    month: "short",
+                    day: "numeric",
+                  });
+                  return (
+                    <View
+                      key={entry.id}
+                      className="items-center gap-xs flex-1"
+                      accessible
+                      accessibilityLabel={t("{steps} steps on {date}", {
+                        steps: entry.steps.toLocaleString(language === "hi" ? "hi-IN" : "en-US"),
+                        date: dateLabel,
+                      })}
+                    >
+                      <Text
+                        className="text-label-sm text-on-surface dark:text-d-on-surface font-semibold"
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.65}
+                      >
+                        {entry.steps.toLocaleString(language === "hi" ? "hi-IN" : "en-US")}
+                      </Text>
+                      <View
+                        className="w-7 rounded-full"
+                        style={{ height, backgroundColor: "#F26B1F" }}
+                      />
+                      <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                        {date
+                          .toLocaleDateString(language === "hi" ? "hi-IN" : "en-US", {
+                            weekday: "short",
+                          })
+                          .slice(0, 2)}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View>
+                <View className="flex-row items-end gap-1" style={{ height: 100 }}>
+                  {stepTrend.map((entry) => {
+                    const height = Math.max(6, Math.round((entry.steps / stepScaleMaximum) * 88));
+                    const date = new Date(`${entry.step_date}T12:00:00`);
+                    return (
+                      <View
+                        key={entry.id}
+                        className="flex-1 rounded-sm"
+                        style={{ height, backgroundColor: "#F26B1F", minWidth: 4 }}
+                        accessible
+                        accessibilityLabel={t("{steps} steps on {date}", {
+                          steps: entry.steps.toLocaleString(language === "hi" ? "hi-IN" : "en-US"),
+                          date: date.toLocaleDateString(language === "hi" ? "hi-IN" : "en-US", {
+                            month: "short",
+                            day: "numeric",
+                          }),
+                        })}
+                      />
+                    );
+                  })}
+                </View>
+                <View className="flex-row justify-between mt-sm">
+                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                    {new Date(`${stepTrend[0].step_date}T12:00:00`).toLocaleDateString(
+                      language === "hi" ? "hi-IN" : "en-US",
+                      { month: "short", day: "numeric" },
+                    )}
+                  </Text>
+                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+                    {new Date(
+                      `${stepTrend[stepTrend.length - 1].step_date}T12:00:00`,
+                    ).toLocaleDateString(language === "hi" ? "hi-IN" : "en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Sleep Section */}
         {loaded &&
-          (Platform.OS !== "web" && !sleepEnabled ? (
+          (Platform.OS !== "web" && !sleepEnabled && mergedSleepEntries.length === 0 ? (
             <TouchableOpacity
               onPress={handleEnableSleep}
               className="mx-margin-mobile mb-sm bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md flex-row items-center gap-md"

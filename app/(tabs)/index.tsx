@@ -130,6 +130,12 @@ type StepTrackingState = {
   error?: string;
 };
 
+type WidgetStepsState = {
+  count: number | null;
+  status: "available" | "permission_required" | "unavailable";
+  updatedAtMs: number | null;
+};
+
 export default function DashboardScreen() {
   const router = useRouter();
   const activation = useActivation();
@@ -186,7 +192,13 @@ export default function DashboardScreen() {
     status: "idle",
     lastSyncedAt: null,
   });
+  const [widgetSteps, setWidgetSteps] = useState<WidgetStepsState>({
+    count: null,
+    status: "unavailable",
+    updatedAtMs: null,
+  });
   const [widgetRank, setWidgetRank] = useState<number | null>(null);
+  const [widgetLiveRefreshToken, setWidgetLiveRefreshToken] = useState(0);
   const dataRef = useRef<DashboardData | null>(null);
   const stepSubscriptionRef = useRef<StepSubscription | null>(null);
   const stepTrackingHabitIdRef = useRef<string | null>(null);
@@ -208,19 +220,89 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
     if (!data?.leaderboardOptedIn) {
       setWidgetRank(null);
       return () => {
         cancelled = true;
       };
     }
-    void getMyRank().then((rank) => {
-      if (!cancelled) setWidgetRank(rank);
-    });
+
+    const refreshRank = async (attempt: number) => {
+      const rank = await getMyRank({ force: true });
+      if (cancelled) return;
+      setWidgetRank(rank);
+      // A transient auth/network failure is returned as null. Retry once so a
+      // joined user is not left with a permanently hidden widget rank.
+      if (rank == null && attempt === 0) {
+        retryTimer = setTimeout(() => void refreshRank(1), 5_000);
+      }
+    };
+
+    void refreshRank(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [data?.leaderboardOptedIn, data?.userId, widgetLiveRefreshToken]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!trackingHydrated || !stepTrackingEnabled) {
+      setWidgetSteps({ count: null, status: "unavailable", updatedAtMs: null });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const refreshSteps = async () => {
+      try {
+        const permission = await getStepPermissionStatus();
+        if (cancelled) return;
+        if (permission !== "granted") {
+          setWidgetSteps({
+            count: null,
+            status:
+              permission === "denied" || permission === "undetermined"
+                ? "permission_required"
+                : "unavailable",
+            updatedAtMs: null,
+          });
+          return;
+        }
+
+        const snapshot = await getTodayStepSnapshot();
+        if (cancelled) return;
+        if (snapshot.status === "granted" && Number.isFinite(snapshot.steps)) {
+          setWidgetSteps({
+            count: Math.max(0, Math.floor(snapshot.steps as number)),
+            status: "available",
+            updatedAtMs: Date.now(),
+          });
+          return;
+        }
+
+        setWidgetSteps({
+          count: null,
+          status:
+            snapshot.status === "denied" || snapshot.status === "undetermined"
+              ? "permission_required"
+              : "unavailable",
+          updatedAtMs: null,
+        });
+      } catch {
+        if (!cancelled) {
+          setWidgetSteps({ count: null, status: "unavailable", updatedAtMs: null });
+        }
+      }
+    };
+
+    void refreshSteps();
     return () => {
       cancelled = true;
     };
-  }, [data?.leaderboardOptedIn]);
+  }, [stepTrackingEnabled, trackingHydrated, widgetLiveRefreshToken]);
 
   useEffect(() => {
     if (newUser === "1") setShowWelcome(true);
@@ -320,6 +402,9 @@ export default function DashboardScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
+      // Health and leaderboard values can change while Lagan is backgrounded.
+      // Refresh both whenever the dashboard becomes active again.
+      setWidgetLiveRefreshToken((current) => current + 1);
     }, [load]),
   );
 
@@ -547,6 +632,13 @@ export default function DashboardScreen() {
         const baseline = Math.max(savedValue, snapshot.steps ?? 0);
         stepBaseRef.current = baseline;
         lastStepValueRef.current = baseline;
+        if (Number.isFinite(snapshot.steps)) {
+          setWidgetSteps({
+            count: Math.max(0, Math.floor(snapshot.steps as number)),
+            status: "available",
+            updatedAtMs: Date.now(),
+          });
+        }
         stepTrackingHabitIdRef.current = habit.id;
         stepTrackingHabitSyncKeyRef.current = stepHabitSyncKey;
         stepTrackingIdentityRef.current = identity;
@@ -580,6 +672,11 @@ export default function DashboardScreen() {
           }
           if (resolution.kind === "unchanged") return;
           lastStepValueRef.current = resolution.total;
+          setWidgetSteps({
+            count: resolution.total,
+            status: "available",
+            updatedAtMs: Date.now(),
+          });
           updateLocalStepProgress(habit, resolution.total);
           void persistStepCount(habit, resolution.total);
         });
@@ -648,6 +745,7 @@ export default function DashboardScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await load({ force: true });
+    setWidgetLiveRefreshToken((current) => current + 1);
     if (
       stepHabit &&
       stepTrackingEnabled &&
@@ -1029,18 +1127,7 @@ export default function DashboardScreen() {
       coachMessage: coachSignalActive && coachSignal ? coachSignal.message : null,
       weekTrend: data.weekTrend,
       upcomingHabits: widgetUpcomingHabits,
-      steps: {
-        count: ["tracking", "syncing", "synced"].includes(stepTracking.status)
-          ? lastStepValueRef.current
-          : null,
-        status:
-          stepTracking.status === "needsPermission" || stepTracking.status === "denied"
-            ? "permission_required"
-            : ["tracking", "syncing", "synced"].includes(stepTracking.status)
-              ? "available"
-              : "unavailable",
-        updatedAtMs: stepTracking.lastSyncedAt,
-      },
+      steps: widgetSteps,
       leaderboard: data.leaderboardOptedIn
         ? widgetRank != null
           ? { status: "ranked", rank: widgetRank }
@@ -1060,7 +1147,7 @@ export default function DashboardScreen() {
     total,
     widgetUpcomingHabits,
     widgetRank,
-    stepTracking,
+    widgetSteps,
   ]);
 
   // First load failed and there is nothing cached to show — offer a retry

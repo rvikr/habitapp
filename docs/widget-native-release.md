@@ -21,6 +21,33 @@ its JavaScript to the 1.0.0 runtime, and do not reuse a 1.0.0 build artifact.
    contains the all-time rank field only.
 6. Release through TestFlight/Play internal testing, then stage production.
 
+## Corrective-build regression gate
+
+The first 1.1.0 internal binaries exposed responsive-layout and Android live-data
+defects. Do not promote those artifacts. A replacement native build must pass all
+of the following before the server kill switch is enabled:
+
+1. On iOS, add the widget in small, medium, and large sizes. Resize or replace it
+   between every family and confirm the action is fully visible, labels do not
+   overlap, and steps/rank remain readable.
+2. On Android, test the smallest square, short horizontal, and tall layouts.
+   Resize in both directions and confirm the action is never clipped. Compact
+   layouts may hide the next-habit line, but must retain steps, rank, action
+   status, and the action button.
+3. With step tracking enabled and Health access granted, open the Today screen
+   and confirm today's device step count appears on the widget even when no
+   habit is classified as a steps habit.
+4. With a leaderboard display name set, confirm the widget shows the same
+   all-time rank as the in-app all-time leaderboard. It must never show total
+   users. Repeat after foregrounding the app and after pull-to-refresh.
+5. Test light and dark system themes on both platforms.
+6. Keep `WIDGET_BACKGROUND_ACTIONS_ENABLED=false` while validating display and
+   resizing. Then enable it only for the direct-action test cohort and verify a
+   server-confirmed success message after every accepted check-in.
+
+These corrections change native Swift/Kotlin resources and cannot be delivered
+through EAS Update. Publish new TestFlight and Google Play internal-test builds.
+
 ## Rollback
 
 Set `WIDGET_BACKGROUND_ACTIONS_ENABLED=false`. Native widgets then retain

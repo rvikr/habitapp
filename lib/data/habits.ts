@@ -22,6 +22,8 @@ import { getAiSuggestionsEnabled } from "../services/feature-flags";
 import { AI_DISCLOSURE_VERSION } from "../services/ai-access";
 import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
 import { dashboardDisplayName } from "./display-name";
+import { isStepHabit } from "./steps-shared";
+import type { ProgressTrendInputs, TrendCompletion } from "./progress-trends";
 
 export type TodayProgressMap = Map<string, HabitProgress>;
 export type StreaksMap = Map<string, number>;
@@ -52,6 +54,7 @@ export type TodayDashboard = {
   leaderboardOptedIn: boolean;
   coachSignal: CoachSignal | null;
   weekTrend: WidgetTrendDay[];
+  progressTrends: ProgressTrendInputs;
 };
 
 function emptyTodayDashboard(displayName: string, ok: boolean, userId: string | null) {
@@ -66,6 +69,7 @@ function emptyTodayDashboard(displayName: string, ok: boolean, userId: string | 
     leaderboardOptedIn: false,
     coachSignal: null as CoachSignal | null,
     weekTrend: [] as WidgetTrendDay[],
+    progressTrends: { steps: null, sleep: null },
   } satisfies TodayDashboard;
 }
 
@@ -158,6 +162,32 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
   );
   // Rides the completions already fetched above — no extra query.
   const weekTrend = buildWidgetWeekTrend({ habits: habitsList, completions: completionRows });
+  const trendCutoff = localDateDaysAgo(29);
+  const recentTrendCompletions = completionRows.filter(
+    (completion) => completion.completed_on >= trendCutoff,
+  ) as TrendCompletion[];
+  const stepHabit = habitsList.find(isStepHabit) ?? null;
+  const sleepHabit = habitsList.find((habit) => habit.habit_type === "sleep") ?? null;
+  const progressTrends: ProgressTrendInputs = {
+    steps: stepHabit
+      ? {
+          habitId: stepHabit.id,
+          target: stepHabit.target,
+          completions: recentTrendCompletions.filter(
+            (completion) => completion.habit_id === stepHabit.id,
+          ),
+        }
+      : null,
+    sleep: sleepHabit
+      ? {
+          habitId: sleepHabit.id,
+          target: sleepHabit.target,
+          completions: recentTrendCompletions.filter(
+            (completion) => completion.habit_id === sleepHabit.id,
+          ),
+        }
+      : null,
+  };
 
   const coachTone = normalizeCoachTone(profile?.coach_tone as string | null | undefined);
   // Personalized messages are Pro-only server-side: gating here keeps free
@@ -195,6 +225,7 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
     leaderboardOptedIn: !!(profile?.display_name as string | null | undefined),
     coachSignal,
     weekTrend,
+    progressTrends,
   };
   return setCachedValue(cacheKey, result);
 }

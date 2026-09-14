@@ -96,6 +96,7 @@ import {
   shouldStartAutomaticStepSync,
   stepSyncIdentity,
 } from "../lib/data/steps-shared.ts";
+import { mergeSleepTrendEntries, summarizeStepTrend } from "../lib/data/progress-trends.ts";
 import {
   buildHomeWidgetSnapshot,
   stringifyHomeWidgetSnapshot,
@@ -2132,7 +2133,8 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /LaganWidgetProvider/);
   assert.match(pluginSource, /android\.appwidget\.action\.APPWIDGET_UPDATE/);
   assert.match(pluginSource, /lagan_widget_info/);
-  // Next-habit and coach lines: rendered from the snapshot, hidden when blank.
+  // Next-habit and legacy coach fields remain backward-compatible in the
+  // snapshot parser; the adaptive layout keeps only essential rows visible.
   assert.match(pluginSource, /lagan_widget_next_habit/);
   assert.match(pluginSource, /lagan_widget_coach/);
   assert.match(pluginSource, /json\.optString\("nextHabitLabel", ""\)/);
@@ -2140,10 +2142,7 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   // The next-habit line binds the time-aware selected label (falling back to
   // the synced snapshot label for v1 payloads), hidden when blank.
   assert.match(pluginSource, /if \(nextHabitLabel\.isBlank\(\)\) View\.GONE else View\.VISIBLE/);
-  assert.match(
-    pluginSource,
-    /if \(snapshot\.coachLabel\.isBlank\(\)\) View\.GONE else View\.VISIBLE/,
-  );
+  assert.match(pluginSource, /views\.setViewVisibility\(R\.id\.lagan_widget_coach, View\.GONE\)/);
   // 7-day trend row: fixed per-day views bound via setImageViewResource, and
   // hidden entirely for v1 snapshots that carry no trend data.
   assert.match(pluginSource, /TREND_DAYS = 7/);
@@ -2161,7 +2160,17 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /bindStaleDay/);
   assert.match(pluginSource, /optJSONArray\("upcoming"\)/);
   assert.match(pluginSource, /private fun selectNext\(/);
-  assert.match(pluginSource, /"with-lagan-widget", "2\.0\.0"/);
+  // Resizing must trigger a fresh render and compact mode must keep the live
+  // steps/rank row while dropping lower-priority content.
+  assert.match(pluginSource, /override fun onAppWidgetOptionsChanged\(/);
+  assert.match(pluginSource, /private enum class LayoutMode \{ COMPACT, REGULAR \}/);
+  assert.match(pluginSource, /lagan_widget_meta_row/);
+  assert.match(pluginSource, /android:theme="@style\/LaganWidgetTheme"/);
+  assert.match(pluginSource, /Theme\.DeviceDefault\.DayNight/);
+  assert.match(pluginSource, /values-night/);
+  assert.match(pluginSource, /if \(mode == LayoutMode\.COMPACT\)/);
+  assert.match(pluginSource, /"All-time #" \+ snapshot\.leaderboardRank/);
+  assert.match(pluginSource, /"with-lagan-widget", "2\.1\.0"/);
 
   const moduleConfig = JSON.parse(
     readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
@@ -2186,6 +2195,22 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(dashboardSource, /weekTrend: data\.weekTrend/);
   assert.match(dashboardSource, /buildWidgetUpcomingInput/);
   assert.match(dashboardSource, /upcomingHabits: widgetUpcomingHabits/);
+  // Widget live data is refreshed independently of a step habit. Joined-user
+  // rank calls force a fresh read and retry once after a transient failure.
+  assert.match(dashboardSource, /const refreshSteps = async \(\) =>/);
+  assert.match(dashboardSource, /const snapshot = await getTodayStepSnapshot\(\)/);
+  assert.match(dashboardSource, /steps: widgetSteps/);
+  assert.match(dashboardSource, /getMyRank\(\{ force: true \}\)/);
+  assert.match(dashboardSource, /setTimeout\(\(\) => void refreshRank\(1\), 5_000\)/);
+
+  const iosWidgetSource = readFileSync(
+    "modules/lagan-widget/widget-extension/LaganWidget.swift",
+    "utf8",
+  );
+  assert.match(iosWidgetSource, /case \.systemSmall:[\s\S]*smallLayout/);
+  assert.match(iosWidgetSource, /case \.systemMedium:[\s\S]*mediumLayout/);
+  assert.match(iosWidgetSource, /private var largeLayout: some View/);
+  assert.match(iosWidgetSource, /minimumScaleFactor\(0\.72\)/);
 });
 
 test("sign-out clears the Android launcher widget snapshot", () => {
@@ -5285,6 +5310,57 @@ test("dashboard step coordinator guards sync and clears revoked permission state
   );
 });
 
+function trendCompletion(habitId, completedOn, value) {
+  return {
+    habit_id: habitId,
+    completed_on: completedOn,
+    created_at: `${completedOn}T08:00:00.000Z`,
+    value,
+  };
+}
+
+test("step trend summarizes saved totals inside the selected local-date range", () => {
+  const now = new Date(2026, 4, 14, 15, 30);
+  const summary = summarizeStepTrend(
+    [
+      trendCompletion("steps", "2026-05-14", 4321.9),
+      trendCompletion("steps", "2026-05-08", 8100),
+      trendCompletion("steps", "2026-05-08", 8000),
+      trendCompletion("steps", "2026-05-07", 12000),
+      trendCompletion("steps", "2026-05-13", 0),
+      trendCompletion("steps", "not-a-date", 9999),
+    ],
+    7,
+    now,
+  );
+
+  assert.deepEqual(
+    summary.entries.map((entry) => [entry.step_date, entry.steps]),
+    [
+      ["2026-05-14", 4321],
+      ["2026-05-08", 8100],
+    ],
+  );
+  assert.deepEqual(
+    summary.trendEntries.map((entry) => entry.step_date),
+    ["2026-05-08", "2026-05-14"],
+  );
+  assert.equal(summary.count, 2);
+  assert.equal(summary.maximumSteps, 8100);
+});
+
+test("step trend reports an empty range without fabricating zero-step days", () => {
+  const summary = summarizeStepTrend(
+    [trendCompletion("steps", "2026-04-01", 7000)],
+    30,
+    new Date(2026, 4, 14, 15, 30),
+  );
+  assert.deepEqual(summary.entries, []);
+  assert.deepEqual(summary.trendEntries, []);
+  assert.equal(summary.count, 0);
+  assert.equal(summary.maximumSteps, 0);
+});
+
 function sleepEntry(id, sleepDate, score, durationMinutes) {
   return {
     id,
@@ -5302,6 +5378,50 @@ function sleepEntry(id, sleepDate, score, durationMinutes) {
     updated_at: `${sleepDate}T07:00:00.000Z`,
   };
 }
+
+test("manual sleep completions fill missing dates while health data wins conflicts", () => {
+  const health = {
+    ...sleepEntry("health", "2026-05-14", 82, 430),
+    source: "healthKit",
+  };
+  const duplicateManualEntry = sleepEntry("manual-entry", "2026-05-14", 100, 480);
+  const merged = mergeSleepTrendEntries(
+    [health, duplicateManualEntry],
+    [
+      trendCompletion("sleep", "2026-05-14", 9),
+      trendCompletion("sleep", "2026-05-13", 7.5),
+      trendCompletion("sleep", "2026-05-12", 0),
+    ],
+    480,
+  );
+
+  assert.deepEqual(
+    merged.map((entry) => [entry.sleep_date, entry.duration_minutes, entry.score, entry.source]),
+    [
+      ["2026-05-14", 430, 82, "healthKit"],
+      ["2026-05-13", 450, 95, "manual"],
+    ],
+  );
+});
+
+test("stored manual sleep entries remain authoritative over completion fallbacks", () => {
+  const storedManual = sleepEntry("stored", "2026-05-13", 88, 420);
+  const merged = mergeSleepTrendEntries(
+    [storedManual],
+    [trendCompletion("sleep", "2026-05-13", 8)],
+    480,
+  );
+
+  assert.deepEqual(merged, [
+    {
+      id: "stored",
+      sleep_date: "2026-05-13",
+      duration_minutes: 420,
+      score: 88,
+      source: "manual",
+    },
+  ]);
+});
 
 test("sleep date is assigned from wake time and windows span 18:00 to 18:00", () => {
   assert.equal(sleepDateForWakeTime(new Date(2026, 4, 14, 7, 30)), "2026-05-14");
