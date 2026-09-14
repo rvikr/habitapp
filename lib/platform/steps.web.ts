@@ -12,6 +12,14 @@ export async function requestStepPermission(): Promise<StepPermissionStatus> {
   return "denied";
 }
 
+export async function getBackgroundStepPermissionStatus(): Promise<StepPermissionStatus> {
+  return "unavailable";
+}
+
+export async function requestBackgroundStepPermission(): Promise<StepPermissionStatus> {
+  return "unavailable";
+}
+
 export async function getTodayStepSnapshot(): Promise<StepSnapshot> {
   return { steps: null, source: "unsupported", status: "unavailable", canWatch: false };
 }

@@ -40,16 +40,23 @@ export default function PrivacyPage() {
   return (
     <LegalShell
       title="Privacy Policy"
-      updated="Last updated: 16 July 2026"
+      updated="Last updated: 15 September 2026"
       toc={SECTIONS}
       intro={
-        <p>
-          Lagan (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) provides a habit
-          tracking app and website. This policy explains what personal data we collect, why
-          we use it, when we share it, and the choices you have. It applies worldwide, and
-          the region-specific sections below add rights and disclosures for users in
-          particular countries and states.
-        </p>
+        <div className="space-y-3">
+          <p>
+            Lagan (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) provides a habit
+            tracking app and website. This policy explains what personal data we collect, why
+            we use it, when we share it, and the choices you have. It applies worldwide, and
+            the region-specific sections below add rights and disclosures for users in
+            particular countries and states.
+          </p>
+          <p>
+            <strong className="text-on-surface">September 2026 update.</strong> We added
+            disclosures for optional background step updates in the Android home-screen widget
+            and for Siri and Shortcuts habit check-ins on Apple devices.
+          </p>
+        </div>
       }
     >
       <LegalSection title="1. Data we collect">
@@ -65,9 +72,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong className="text-on-surface">Health and sensor data.</strong> If you grant
-          permission, Lagan reads step-count and sleep data from Android Health Connect, sleep
-          data from Apple HealthKit, and step data from your device pedometer or motion sensor.
-          You can also enter sleep and habit data manually.
+          permission, Lagan reads step-count and sleep data from Android Health Connect and
+          Apple HealthKit, and step data from your device pedometer or motion sensor. You can
+          also enter sleep and habit data manually.
         </p>
         <p>
           <strong className="text-on-surface">AI feature inputs.</strong> When you use AI
@@ -85,7 +92,9 @@ export default function PrivacyPage() {
           <strong className="text-on-surface">Device, diagnostics, and support data.</strong>
           We may process app version, platform, operating system, device model, crash reports,
           error logs, product analytics events, feedback messages, support requests, and
-          approximate technical identifiers needed to operate and secure the service.
+          approximate technical identifiers needed to operate and secure the service. When
+          widget actions are enabled, we also create a pseudonymous widget device identifier
+          and a revocable credential so the widget can securely send the action you request.
         </p>
       </LegalSection>
 
@@ -108,6 +117,13 @@ export default function PrivacyPage() {
             across devices and display it inside the app.
           </li>
         </ul>
+        <p>
+          On Android, you may separately enable background widget step updates. If enabled,
+          Lagan periodically reads today&apos;s step total from Health Connect while the app is
+          closed and sends it to your Lagan account so your step habit and home-screen widget
+          stay updated. This is optional: you can choose &quot;Not now&quot; or turn it off later in
+          Settings. Widget habit check-ins remain available without background step access.
+        </p>
       </LegalSection>
 
       <LegalSection title="3. How we use data">
@@ -217,6 +233,11 @@ export default function PrivacyPage() {
           leaderboard and sharing features. You can opt out by removing your display name from
           the leaderboard.
         </p>
+        <p>
+          On Apple devices, habit names and details such as the habit&apos;s unit and target may
+          appear in Siri and Shortcuts so you can choose a habit to check in. Lagan receives the
+          selected habit check-in, but does not receive or store your Siri audio or raw speech.
+        </p>
       </LegalSection>
 
       <LegalSection title="8. Third-party services">
@@ -247,6 +268,10 @@ export default function PrivacyPage() {
           />
           <Service name="Apple APNs" purpose="iOS push notification delivery." />
           <Service
+            name="Apple Siri and Shortcuts"
+            purpose="Optional habit selection and check-ins initiated through Apple system interfaces. Lagan does not receive Siri audio."
+          />
+          <Service
             name="Apple App Store and Google Play"
             purpose="In-app purchase billing, subscription renewals, refunds, and store account management."
           />
@@ -262,7 +287,8 @@ export default function PrivacyPage() {
           We keep account and app data while your account is active or as needed to provide the
           service. When your account deletion request completes, we delete your authentication
           account, profile, habits, completions, sleep entries, and feedback linked to your
-          account.
+          account. Widget device records are deleted with the account, and widget credentials
+          are revoked on sign-out, account deletion, or expiration.
         </p>
         <p>
           We may retain limited operational records, security logs, subscription records,
@@ -292,7 +318,8 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong className="text-on-surface">Control health permissions</strong> in Android
-            Health Connect, Apple Health, or your device settings.
+            Health Connect, Apple Health, or your device settings. On Android, control
+            background widget step updates from Settings, then Tracking.
           </li>
           <li>
             <strong className="text-on-surface">Control notifications</strong> in Lagan

@@ -8,6 +8,10 @@ import {
 } from "../data/steps-shared";
 
 const HEALTH_CONNECT_STEPS_PERMISSION = { accessType: "read", recordType: "Steps" } as const;
+const HEALTH_CONNECT_BACKGROUND_PERMISSION = {
+  accessType: "read",
+  recordType: "BackgroundAccessPermission",
+} as const;
 const HEALTHKIT_STEPS_IDENTIFIER = "HKQuantityTypeIdentifierStepCount" as const;
 
 type HealthConnectModule = typeof import("react-native-health-connect");
@@ -163,6 +167,15 @@ function hasReadStepsPermission(
   );
 }
 
+function hasBackgroundAccessPermission(
+  permissions: { accessType?: string; recordType?: string }[],
+): boolean {
+  return permissions.some(
+    (permission) =>
+      permission.accessType === "read" && permission.recordType === "BackgroundAccessPermission",
+  );
+}
+
 async function getHealthConnectPermissionStatus(): Promise<StepPermissionStatus> {
   const { mod, status } = await initializeHealthConnect();
   if (!mod || status !== "undetermined") return status;
@@ -182,6 +195,32 @@ async function requestHealthConnectPermission(): Promise<StepPermissionStatus> {
   try {
     const granted = await mod.requestPermission([HEALTH_CONNECT_STEPS_PERMISSION]);
     return hasReadStepsPermission(granted) ? "granted" : "denied";
+  } catch {
+    return "denied";
+  }
+}
+
+export async function getBackgroundStepPermissionStatus(): Promise<StepPermissionStatus> {
+  if (Platform.OS !== "android") return "unavailable";
+  const { mod, status } = await initializeHealthConnect();
+  if (!mod || status !== "undetermined") return status;
+
+  try {
+    const granted = await mod.getGrantedPermissions();
+    return hasBackgroundAccessPermission(granted) ? "granted" : "undetermined";
+  } catch {
+    return "undetermined";
+  }
+}
+
+export async function requestBackgroundStepPermission(): Promise<StepPermissionStatus> {
+  if (Platform.OS !== "android") return "unavailable";
+  const { mod, status } = await initializeHealthConnect();
+  if (!mod || status !== "undetermined") return status;
+
+  try {
+    const granted = await mod.requestPermission([HEALTH_CONNECT_BACKGROUND_PERMISSION]);
+    return hasBackgroundAccessPermission(granted) ? "granted" : "denied";
   } catch {
     return "denied";
   }

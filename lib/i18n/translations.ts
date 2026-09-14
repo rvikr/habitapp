@@ -171,6 +171,18 @@ const HI_TRANSLATIONS: Record<string, string> = {
   TRACKING: "ट्रैकिंग",
   "Step tracking": "स्टेप ट्रैकिंग",
   "Auto-sync steps from your device pedometer.": "अपने डिवाइस पेडोमीटर से स्टेप अपने-आप सिंक करें.",
+  "Background widget steps": "बैकग्राउंड विजेट स्टेप्स",
+  "Keep your step habit and widget updated when Lagan is closed.":
+    "Lagan बंद होने पर भी अपनी स्टेप आदत और विजेट को अपडेट रखें.",
+  "Background step updates": "बैकग्राउंड स्टेप अपडेट",
+  "Lagan reads your step count from Health Connect in the background, even when the app is closed, to keep your step habit and home-screen widget updated. Your step total is sent to and stored in your Lagan account. Lagan does not sell it or use it for advertising.":
+    "Lagan आपके स्टेप की आदत और होम-स्क्रीन विजेट को अपडेट रखने के लिए, ऐप बंद होने पर भी Health Connect से बैकग्राउंड में आपके स्टेप की संख्या पढ़ता है. आपके कुल स्टेप आपके Lagan अकाउंट में भेजे और स्टोर किए जाते हैं. Lagan इसे बेचता नहीं है और न ही विज्ञापन के लिए इस्तेमाल करता है.",
+  "Update Health Connect to enable background step updates.":
+    "बैकग्राउंड स्टेप अपडेट चालू करने के लिए Health Connect अपडेट करें.",
+  "Allow Health Connect step access to enable background step updates.":
+    "बैकग्राउंड स्टेप अपडेट चालू करने के लिए Health Connect में स्टेप एक्सेस दें.",
+  "Allow Health Connect background access to keep widget steps updated.":
+    "विजेट के स्टेप अपडेट रखने के लिए Health Connect में बैकग्राउंड एक्सेस दें.",
   "Sleep tracking": "नींद ट्रैकिंग",
   "Enable sleep tracking": "नींद ट्रैकिंग चालू करें",
   "Sync sleep from Health Connect or Apple Health to see your score and trends here.":

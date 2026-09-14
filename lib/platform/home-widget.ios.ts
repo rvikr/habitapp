@@ -46,6 +46,10 @@ export async function configureHomeWidgetActions(configurationJson: string): Pro
   }
 }
 
+export async function setHomeWidgetBackgroundStepSyncEnabled(_enabled: boolean): Promise<boolean> {
+  return false;
+}
+
 export async function clearHomeWidgetActionCredentials(): Promise<void> {
   try {
     const { requireNativeModule } = await import("expo");

@@ -5,8 +5,11 @@ import {
   configureHomeWidgetActions,
   getHomeWidgetDeviceId,
   hasValidHomeWidgetActionSession,
+  setHomeWidgetBackgroundStepSyncEnabled,
 } from "@/lib/platform/home-widget";
+import { getBackgroundStepPermissionStatus } from "@/lib/platform/steps";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { getWidgetBackgroundStepsConsent } from "@/lib/widgets/widget-background-steps";
 
 type WidgetSessionResponse = {
   ok?: boolean;
@@ -24,8 +27,23 @@ export const WIDGET_BACKGROUND_ACTIONS_ENABLED =
 let registration: Promise<void> | null = null;
 let nextRegistrationAtMs = 0;
 
+async function syncAndroidBackgroundStepSchedule(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  const consented = await getWidgetBackgroundStepsConsent();
+  const permission = consented ? await getBackgroundStepPermissionStatus() : "undetermined";
+  await setHomeWidgetBackgroundStepSyncEnabled(consented && permission === "granted");
+}
+
 export function ensureHomeWidgetActionSession(): Promise<void> {
-  if (!WIDGET_BACKGROUND_ACTIONS_ENABLED || Platform.OS === "web" || !isSupabaseConfigured()) {
+  if (!WIDGET_BACKGROUND_ACTIONS_ENABLED) {
+    if (Platform.OS === "android") {
+      return setHomeWidgetBackgroundStepSyncEnabled(false)
+        .then(() => undefined)
+        .catch(() => undefined);
+    }
+    return Promise.resolve();
+  }
+  if (Platform.OS === "web" || !isSupabaseConfigured()) {
     return Promise.resolve();
   }
   if (Date.now() < nextRegistrationAtMs) return Promise.resolve();
@@ -36,6 +54,7 @@ export function ensureHomeWidgetActionSession(): Promise<void> {
     // twelve hours (cold launches can still rotate the 30-day credential).
     nextRegistrationAtMs = Date.now() + 5 * 60_000;
     if (await hasValidHomeWidgetActionSession()) {
+      await syncAndroidBackgroundStepSchedule();
       nextRegistrationAtMs = Date.now() + 12 * 60 * 60_000;
       return;
     }
@@ -67,7 +86,10 @@ export function ensureHomeWidgetActionSession(): Promise<void> {
         anonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "",
       }),
     );
-    if (configured) nextRegistrationAtMs = Date.now() + 12 * 60 * 60_000;
+    if (configured) {
+      await syncAndroidBackgroundStepSchedule();
+      nextRegistrationAtMs = Date.now() + 12 * 60 * 60_000;
+    }
   })().finally(() => {
     // A later foreground sync may rotate an expiring credential or recover
     // after an offline registration attempt.

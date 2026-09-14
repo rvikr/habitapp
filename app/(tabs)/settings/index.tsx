@@ -2,7 +2,14 @@ import { useState, useCallback } from "react";
 import Constants from "expo-constants";
 import { requestReviewManually } from "@/lib/platform/store-review";
 import { requestSleepPermission } from "@/lib/platform/sleep";
-import { isStepTrackingAvailable, requestStepPermission } from "@/lib/platform/steps";
+import {
+  getBackgroundStepPermissionStatus,
+  getStepPermissionStatus,
+  isStepTrackingAvailable,
+  requestBackgroundStepPermission,
+  requestStepPermission,
+} from "@/lib/platform/steps";
+import { setHomeWidgetBackgroundStepSyncEnabled } from "@/lib/platform/home-widget";
 import {
   Linking,
   Platform,
@@ -96,6 +103,7 @@ function TrackingToggleRow({
         </Text>
       </View>
       <Switch
+        accessibilityLabel={label}
         value={value}
         onValueChange={onValueChange}
         trackColor={{ false: "#E6E0D5", true: "#F26B1F" }}
@@ -141,7 +149,14 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colorScheme, toggle } = useTheme();
   const { languageName, t, toggleLanguage } = useLanguage();
-  const { stepsEnabled, sleepEnabled, setStepsEnabled, setSleepEnabled } = useTrackingPreferences();
+  const {
+    stepsEnabled,
+    sleepEnabled,
+    backgroundWidgetStepsEnabled,
+    setStepsEnabled,
+    setSleepEnabled,
+    setBackgroundWidgetStepsEnabled,
+  } = useTrackingPreferences();
   const [user, setUser] = useState<UserInfo | null>(null);
 
   const load = useCallback(async () => {
@@ -170,10 +185,18 @@ export default function SettingsScreen() {
     }
   }, [t]);
 
+  const reconcileBackgroundStepAccess = useCallback(async () => {
+    if (Platform.OS !== "android" || !backgroundWidgetStepsEnabled) return;
+    if ((await getBackgroundStepPermissionStatus()) === "granted") return;
+    setBackgroundWidgetStepsEnabled(false);
+    await setHomeWidgetBackgroundStepSyncEnabled(false).catch(() => false);
+  }, [backgroundWidgetStepsEnabled, setBackgroundWidgetStepsEnabled]);
+
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load]),
+      void load();
+      void reconcileBackgroundStepAccess();
+    }, [load, reconcileBackgroundStepAccess]),
   );
 
   async function handleSignOut() {
@@ -200,6 +223,10 @@ export default function SettingsScreen() {
   async function handleStepToggle(next: boolean) {
     if (!next) {
       setStepsEnabled(false);
+      if (Platform.OS === "android") {
+        setBackgroundWidgetStepsEnabled(false);
+        await setHomeWidgetBackgroundStepSyncEnabled(false).catch(() => false);
+      }
       return;
     }
     // Auto step tracking needs a device pedometer (mobile only). On web — and on
@@ -248,6 +275,54 @@ export default function SettingsScreen() {
           ? t("Update Health Connect to enable sleep tracking.")
           : t("Allow health access to enable sleep tracking.");
     showAlert(t("Sleep tracking"), message);
+  }
+
+  async function enableBackgroundWidgetSteps() {
+    let stepStatus = await getStepPermissionStatus();
+    if (stepStatus !== "granted") stepStatus = await requestStepPermission();
+    if (stepStatus !== "granted") {
+      const message =
+        stepStatus === "providerUpdateRequired"
+          ? t("Update Health Connect to enable background step updates.")
+          : t("Allow Health Connect step access to enable background step updates.");
+      showAlert(t("Background step updates"), message);
+      return;
+    }
+
+    const backgroundStatus = await requestBackgroundStepPermission();
+    if (backgroundStatus === "granted") {
+      setStepsEnabled(true);
+      setBackgroundWidgetStepsEnabled(true);
+      await setHomeWidgetBackgroundStepSyncEnabled(true).catch(() => false);
+      return;
+    }
+
+    setBackgroundWidgetStepsEnabled(false);
+    await setHomeWidgetBackgroundStepSyncEnabled(false).catch(() => false);
+    const message =
+      backgroundStatus === "providerUpdateRequired"
+        ? t("Update Health Connect to enable background step updates.")
+        : t("Allow Health Connect background access to keep widget steps updated.");
+    showAlert(t("Background step updates"), message);
+  }
+
+  function handleBackgroundWidgetStepsToggle(next: boolean) {
+    if (!next) {
+      setBackgroundWidgetStepsEnabled(false);
+      void setHomeWidgetBackgroundStepSyncEnabled(false).catch(() => false);
+      return;
+    }
+
+    showAlert(
+      t("Background step updates"),
+      t(
+        "Lagan reads your step count from Health Connect in the background, even when the app is closed, to keep your step habit and home-screen widget updated. Your step total is sent to and stored in your Lagan account. Lagan does not sell it or use it for advertising.",
+      ),
+      [
+        { text: t("Not now"), style: "cancel" },
+        { text: t("Enable"), onPress: () => void enableBackgroundWidgetSteps() },
+      ],
+    );
   }
 
   return (
@@ -382,6 +457,15 @@ export default function SettingsScreen() {
                 value={sleepEnabled}
                 onValueChange={handleSleepToggle}
               />
+              {Platform.OS === "android" && (
+                <TrackingToggleRow
+                  icon="widgets-outline"
+                  label={t("Background widget steps")}
+                  description={t("Keep your step habit and widget updated when Lagan is closed.")}
+                  value={backgroundWidgetStepsEnabled}
+                  onValueChange={handleBackgroundWidgetStepsToggle}
+                />
+              )}
             </>
           )}
         </View>

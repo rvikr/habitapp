@@ -2198,7 +2198,7 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /"All-time #" \+ snapshot\.leaderboardRank/);
   assert.match(pluginSource, /val canCheckInDirectly = directHabitId != null/);
   assert.match(pluginSource, /if \(canCheckInDirectly\)[\s\S]*"Check in"/);
-  assert.match(pluginSource, /"with-lagan-widget", "2\.1\.0"/);
+  assert.match(pluginSource, /"with-lagan-widget", "2\.2\.0"/);
 
   const moduleConfig = JSON.parse(
     readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
@@ -2295,6 +2295,79 @@ test("native widget background actions are kill-switched, exact-once, and rank-o
   assert.doesNotMatch(snapshot, /totalUsers|total_users/);
   assert.equal(appConfig.expo.version, "1.1.0");
   assert.deepEqual(appConfig.expo.runtimeVersion, { policy: "appVersion" });
+});
+
+test("background widget steps require disclosure, consent, and both Health Connect permissions", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+  const settings = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
+  const steps = readFileSync("lib/platform/steps.native.ts", "utf8");
+  const session = readFileSync("lib/widgets/widget-session.ts", "utf8");
+  const nativeModule = readFileSync(
+    "modules/lagan-widget/android/src/main/java/health/lagan/widget/LaganWidgetModule.kt",
+    "utf8",
+  );
+  const worker = readFileSync(
+    "modules/lagan-widget/android/src/main/java/health/lagan/widget/WidgetActions.kt",
+    "utf8",
+  );
+
+  assert.ok(
+    appConfig.expo.android.permissions.includes(
+      "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND",
+    ),
+  );
+  assert.match(settings, /Background widget steps/);
+  assert.match(
+    settings,
+    /Lagan reads your step count from Health Connect in the background, even when the app is closed/,
+  );
+  assert.match(settings, /t\("Not now"\)/);
+  assert.match(settings, /t\("Enable"\)/);
+  assert.match(settings, /requestBackgroundStepPermission/);
+  assert.match(steps, /recordType: "BackgroundAccessPermission"/);
+  assert.match(session, /getWidgetBackgroundStepsConsent/);
+  assert.match(session, /setHomeWidgetBackgroundStepSyncEnabled/);
+
+  const configureStart = nativeModule.indexOf('AsyncFunction("configureActionsAsync")');
+  const backgroundToggleStart = nativeModule.indexOf(
+    'AsyncFunction("setBackgroundStepSyncEnabledAsync")',
+  );
+  assert.ok(configureStart >= 0 && backgroundToggleStart > configureStart);
+  assert.doesNotMatch(
+    nativeModule.slice(configureStart, backgroundToggleStart),
+    /scheduleStepRefresh/,
+  );
+  assert.match(worker, /PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND/);
+  assert.match(worker, /cancelUniqueWork\("lagan-widget-steps"\)/);
+  assert.match(
+    worker,
+    /!grantedPermissions\.contains\(backgroundPermission\)[\s\S]*cancelStepRefresh/,
+  );
+});
+
+test("widget extension declares HealthKit purpose and required-reason API use", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+  const plugin = readFileSync("plugins/with-lagan-widget.js", "utf8");
+  const policy = readFileSync("website/app/privacy/page.tsx", "utf8");
+  const accessed = appConfig.expo.ios.privacyManifests.NSPrivacyAccessedAPITypes;
+
+  assert.deepEqual(accessed, [
+    {
+      NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
+      NSPrivacyAccessedAPITypeReasons: ["1C8F.1"],
+    },
+  ]);
+  assert.match(plugin, /NSHealthShareUsageDescription/);
+  assert.match(plugin, /PrivacyInfo\.xcprivacy/);
+  assert.match(plugin, /NSPrivacyAccessedAPICategoryUserDefaults/);
+  assert.match(plugin, /1C8F\.1/);
+  assert.match(plugin, /PBXResourcesBuildPhase/);
+  assert.match(
+    policy,
+    /step-count and sleep data from Android Health Connect and[\s\S]*Apple HealthKit/,
+  );
+  assert.match(policy, /periodically reads today&apos;s step total/);
+  assert.match(policy, /does not receive or store your Siri audio or raw speech/);
 });
 
 test("iOS Siri shortcuts use scoped exact-once actions and a bounded offline queue", () => {
@@ -9278,6 +9351,12 @@ test("iOS privacy manifest declares app-owned collection without tracking", () =
   const declaredTypes = new Set(collected.map((entry) => entry.NSPrivacyCollectedDataType));
 
   assert.equal(manifest.NSPrivacyTracking, false);
+  assert.deepEqual(manifest.NSPrivacyAccessedAPITypes, [
+    {
+      NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryUserDefaults",
+      NSPrivacyAccessedAPITypeReasons: ["1C8F.1"],
+    },
+  ]);
   for (const expected of [
     "NSPrivacyCollectedDataTypeName",
     "NSPrivacyCollectedDataTypeEmailAddress",

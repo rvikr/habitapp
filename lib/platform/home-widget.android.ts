@@ -4,6 +4,7 @@ type LaganWidgetModule = {
   updateAsync(snapshotJson: string): Promise<void>;
   clearAsync(): Promise<void>;
   configureActionsAsync?(configurationJson: string): Promise<void>;
+  setBackgroundStepSyncEnabledAsync?(enabled: boolean): Promise<void>;
   getDeviceIdAsync?(): Promise<string>;
   clearActionCredentialsAsync?(): Promise<void>;
   hasValidActionSessionAsync?(): Promise<boolean>;
@@ -27,6 +28,12 @@ export async function getHomeWidgetDeviceId(): Promise<string | null> {
 export async function configureHomeWidgetActions(configurationJson: string): Promise<boolean> {
   if (!LaganWidget.configureActionsAsync) return false;
   await LaganWidget.configureActionsAsync(configurationJson);
+  return true;
+}
+
+export async function setHomeWidgetBackgroundStepSyncEnabled(enabled: boolean): Promise<boolean> {
+  if (!LaganWidget.setBackgroundStepSyncEnabledAsync) return false;
+  await LaganWidget.setBackgroundStepSyncEnabledAsync(enabled);
   return true;
 }
 

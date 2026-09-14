@@ -11,8 +11,8 @@ its JavaScript to the 1.0.0 runtime, and do not reuse a 1.0.0 build artifact.
 2. Deploy `widget-session` and `widget-action` with
    `WIDGET_BACKGROUND_ACTIONS_ENABLED=false`.
 3. Build internal iOS and Android 1.1.0 binaries. Confirm iOS App Group,
-   Keychain group, HealthKit capability, and Android background Health Connect
-   permission in the signed artifacts.
+   Keychain group, HealthKit capability and purpose string, widget privacy manifest,
+   and Android background Health Connect permission in the signed artifacts.
 4. Test sign-in, sign-out/revocation, offline queue replay, repeated taps with
    one operation UUID, day rollover, completed/archived habits, steps denied,
    and light/dark mode on physical devices.
@@ -20,6 +20,16 @@ its JavaScript to the 1.0.0 runtime, and do not reuse a 1.0.0 build artifact.
    success message follows a 2xx server receipt and widget leaderboard data
    contains the all-time rank field only.
 6. Release through TestFlight/Play internal testing, then stage production.
+
+Complete the disclosure and console checklist in
+[`submission-compliance-1.1.0.md`](./submission-compliance-1.1.0.md) before either
+production submission.
+
+Background Android step reads are a separate opt-in from direct widget actions.
+Registration must never schedule the periodic step worker. Schedule it only after
+the in-app disclosure is accepted and both `READ_STEPS` and
+`READ_HEALTH_DATA_IN_BACKGROUND` are granted; cancel it when consent or permission
+is withdrawn. Declining background access must not disable widget check-ins.
 
 ## Corrective-build regression gate
 
@@ -41,7 +51,11 @@ of the following before the server kill switch is enabled:
    all-time rank as the in-app all-time leaderboard. It must never show total
    users. Repeat after foregrounding the app and after pull-to-refresh.
 5. Test light and dark system themes on both platforms.
-6. Keep `WIDGET_BACKGROUND_ACTIONS_ENABLED=false` while validating display and
+6. On Android, verify background widget steps are off by default. Accept the
+   Settings disclosure, grant both Health Connect permissions, close Lagan, and
+   confirm a later worker run updates the account and widget. Revoke background
+   access and confirm the worker is cancelled without disabling widget check-ins.
+7. Keep `WIDGET_BACKGROUND_ACTIONS_ENABLED=false` while validating display and
    resizing. Then enable it only for the direct-action test cohort and verify a
    server-confirmed success message after every accepted check-in.
 

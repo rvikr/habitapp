@@ -33,9 +33,23 @@ const IOS_WIDGET_INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
   <key>LaganAppIdentifierPrefix</key><string>$(AppIdentifierPrefix)</string>
+  <key>NSHealthShareUsageDescription</key><string>Lagan reads today's step count from Apple Health to keep your home-screen widget and step habit up to date.</string>
   <key>NSExtension</key><dict>
     <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
   </dict>
+</dict></plist>
+`;
+
+const IOS_WIDGET_PRIVACY_MANIFEST = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSPrivacyTracking</key><false/>
+  <key>NSPrivacyAccessedAPITypes</key><array>
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key><array><string>1C8F.1</string></array>
+    </dict>
+  </array>
 </dict></plist>
 `;
 
@@ -980,6 +994,7 @@ function withLaganIosWidget(config) {
       );
       writeFile(path.join(targetRoot, "LaganWidget.swift"), fs.readFileSync(template, "utf8"));
       writeFile(path.join(targetRoot, `${IOS_WIDGET_TARGET}-Info.plist`), IOS_WIDGET_INFO_PLIST);
+      writeFile(path.join(targetRoot, "PrivacyInfo.xcprivacy"), IOS_WIDGET_PRIVACY_MANIFEST);
       writeFile(
         path.join(targetRoot, `${IOS_WIDGET_TARGET}.entitlements`),
         IOS_WIDGET_ENTITLEMENTS,
@@ -991,6 +1006,7 @@ function withLaganIosWidget(config) {
   config = withXcodeProject(config, (config) => {
     const project = config.modResults;
     let targetEntry = findTarget(project, IOS_WIDGET_TARGET);
+    let createdTarget = false;
     if (!targetEntry) {
       const target = project.addTarget(
         IOS_WIDGET_TARGET,
@@ -1004,7 +1020,19 @@ function withLaganIosWidget(config) {
         "Sources",
         target.uuid,
       );
+      project.addBuildPhase(
+        [`${IOS_WIDGET_TARGET}/PrivacyInfo.xcprivacy`],
+        "PBXResourcesBuildPhase",
+        "Resources",
+        target.uuid,
+      );
       targetEntry = [target.uuid, target.pbxNativeTarget];
+      createdTarget = true;
+    }
+    if (!createdTarget) {
+      project.addResourceFile(`${IOS_WIDGET_TARGET}/PrivacyInfo.xcprivacy`, {
+        target: targetEntry[0],
+      });
     }
     configureIosTarget(project, { uuid: targetEntry[0], pbxNativeTarget: targetEntry[1] });
     return config;
@@ -1071,4 +1099,4 @@ const withLaganWidget = (config) => {
   return withLaganIosWidget(config);
 };
 
-module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "2.1.0");
+module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "2.2.0");

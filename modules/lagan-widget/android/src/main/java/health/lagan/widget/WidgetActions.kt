@@ -160,6 +160,10 @@ object WidgetActionScheduler {
     )
   }
 
+  @JvmStatic fun cancelStepRefresh(context: Context) {
+    WorkManager.getInstance(context).cancelUniqueWork("lagan-widget-steps")
+  }
+
   internal fun updateResult(context: Context, result: JSONObject) {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     val snapshot = try { JSONObject(prefs.getString(SNAPSHOT_KEY, "{}") ?: "{}") } catch (_: Exception) { JSONObject() }
@@ -296,12 +300,19 @@ class WidgetStepWorker(context: Context, params: WorkerParameters) : CoroutineWo
     return try {
       val steps = try {
         if (HealthConnectClient.getSdkStatus(applicationContext) != HealthConnectClient.SDK_AVAILABLE) {
-          null
+          WidgetActionScheduler.cancelStepRefresh(applicationContext)
+          return Result.success()
         } else {
           val client = HealthConnectClient.getOrCreate(applicationContext)
-          val permission = HealthPermission.getReadPermission(StepsRecord::class)
-          if (!client.permissionController.getGrantedPermissions().contains(permission)) {
-            null
+          val grantedPermissions = client.permissionController.getGrantedPermissions()
+          val stepsPermission = HealthPermission.getReadPermission(StepsRecord::class)
+          val backgroundPermission = HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND
+          if (
+            !grantedPermissions.contains(stepsPermission) ||
+            !grantedPermissions.contains(backgroundPermission)
+          ) {
+            WidgetActionScheduler.cancelStepRefresh(applicationContext)
+            return Result.success()
           } else {
             val now = ZonedDateTime.now()
             val start = now.toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant()

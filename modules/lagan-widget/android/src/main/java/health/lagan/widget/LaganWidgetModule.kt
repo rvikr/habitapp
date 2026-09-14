@@ -47,7 +47,14 @@ class LaganWidgetModule : Module() {
     AsyncFunction("configureActionsAsync") { configurationJson: String ->
       val configuration = JSONObject(configurationJson)
       WidgetCredentialStore.write(context, configuration)
-      WidgetActionScheduler.scheduleStepRefresh(context)
+    }
+
+    AsyncFunction("setBackgroundStepSyncEnabledAsync") { enabled: Boolean ->
+      if (enabled) {
+        WidgetActionScheduler.scheduleStepRefresh(context)
+      } else {
+        WidgetActionScheduler.cancelStepRefresh(context)
+      }
     }
 
     AsyncFunction("clearActionCredentialsAsync") {

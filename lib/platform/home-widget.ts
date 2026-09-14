@@ -10,6 +10,10 @@ export async function configureHomeWidgetActions(_configurationJson: string): Pr
   return false;
 }
 
+export async function setHomeWidgetBackgroundStepSyncEnabled(_enabled: boolean): Promise<boolean> {
+  return false;
+}
+
 export async function clearHomeWidgetActionCredentials(): Promise<void> {}
 
 export async function hasValidHomeWidgetActionSession(): Promise<boolean> {
