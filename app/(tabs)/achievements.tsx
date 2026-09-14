@@ -76,11 +76,13 @@ export default function AchievementsScreen() {
   }, [load]);
 
   const handleShareBadge = useCallback((badge: ComputedBadge) => {
+    const canonical = BADGE_DEFS.find((definition) => definition.id === badge.id);
     setShareData({
       kind: "badge",
       id: badge.id,
-      name: badge.name,
-      description: badge.description,
+      name: canonical?.name ?? badge.name,
+      description: canonical?.description ?? badge.description,
+      icon: badge.icon,
       tone: badge.tone,
     });
   }, []);

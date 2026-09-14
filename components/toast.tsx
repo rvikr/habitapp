@@ -17,7 +17,8 @@ const CHECK_GREEN = "#3EBB7F"; // secondary
 
 const TOAST_DURATION_MS = 1800;
 
-type Ctx = { toast: (message: string, detail?: string) => void };
+type ToastOptions = { durationMs?: number };
+type Ctx = { toast: (message: string, detail?: string, options?: ToastOptions) => void };
 const ToastContext = createContext<Ctx>({ toast: () => {} });
 
 /**
@@ -40,7 +41,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   // animating without the "useNativeDriver is not supported" console warning.
   const useNativeDriver = Platform.OS !== "web";
 
-  function toast(msg: string, detailText?: string) {
+  function toast(msg: string, detailText?: string, options?: ToastOptions) {
     setMessage(msg);
     setDetail(detailText);
     setVisible(true);
@@ -59,7 +60,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       ]).start(({ finished }) => {
         if (finished) setVisible(false);
       });
-    }, TOAST_DURATION_MS);
+    }, options?.durationMs ?? TOAST_DURATION_MS);
   }
 
   return (

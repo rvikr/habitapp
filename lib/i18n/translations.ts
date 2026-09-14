@@ -37,6 +37,11 @@ const HI_TRANSLATIONS: Record<string, string> = {
   ACCOUNT: "अकाउंट",
   Reminders: "रिमाइंडर",
   "Manage subscription": "सब्सक्रिप्शन प्रबंधित करें",
+  "Congratulations — you're on Lagan Pro!": "बधाई — अब आप Lagan Pro पर हैं!",
+  "Your Pro features are now active.": "आपकी Pro सुविधाएँ अब सक्रिय हैं।",
+  "Purchase received": "खरीदारी मिल गई",
+  "We're still activating Pro. Please try Restore purchases again in a moment.":
+    "हम अभी भी Pro सक्रिय कर रहे हैं। कृपया कुछ देर में Restore purchases फिर से आज़माएँ।",
   "Apple ID": "Apple ID",
   "Google Play": "Google Play",
   "Manage or cancel in your Apple ID subscription settings.":

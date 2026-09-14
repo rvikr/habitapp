@@ -5,6 +5,10 @@ import { test } from "node:test";
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const faqsSource = readFileSync(new URL("../lib/faqs.ts", import.meta.url), "utf8");
 const faqPageSource = readFileSync(new URL("../app/faq/page.tsx", import.meta.url), "utf8");
+const shareCardSource = readFileSync(
+  new URL("../app/api/og/card/route.tsx", import.meta.url),
+  "utf8",
+);
 
 test("homepage is a Lagan-branded landing page with web and Android CTAs", () => {
   assert.match(pageSource, /Lagan — build better habits/);
@@ -73,4 +77,12 @@ test("homepage does not depend on dynamic Supabase stats", () => {
   assert.doesNotMatch(pageSource, /createClient/);
   assert.doesNotMatch(pageSource, /get_public_stats/);
   assert.doesNotMatch(pageSource, /force-dynamic/);
+});
+
+test("share image route supports branded portrait achievement cards", () => {
+  assert.match(shareCardSource, /portrait \? 1080 : 1200/);
+  assert.match(shareCardSource, /portrait \? 1350 : 630/);
+  assert.match(shareCardSource, /function ChainMark/);
+  assert.match(shareCardSource, /Can you beat me\?/);
+  assert.match(shareCardSource, /lagan\.health/);
 });

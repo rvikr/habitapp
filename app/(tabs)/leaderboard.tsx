@@ -166,9 +166,7 @@ export default function LeaderboardScreen() {
             </View>
             <TouchableOpacity
               onPress={() => {
-                const topPct =
-                  entries.length > 0 ? Math.ceil((myRank / entries.length) * 100) : null;
-                setShareData({ kind: "rank", rank: myRank, streak: 0, topPct });
+                setShareData({ kind: "rank", rank: myRank });
               }}
               hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
               className="p-xs"

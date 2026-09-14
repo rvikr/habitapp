@@ -24,6 +24,7 @@ import {
 } from "@/lib/subscription/revenuecat-shared";
 import { reportError } from "@/lib/services/sentry";
 import { canOfferProPurchase, type ProAccess } from "@/lib/subscription/access";
+import { useToast } from "@/components/toast";
 
 type PaywallPackage = Awaited<ReturnType<typeof getProPackages>>["monthly"];
 
@@ -36,6 +37,7 @@ function toError(error: unknown): Error {
 export default function ProScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const toast = useToast();
   const [access, setAccess] = useState<ProAccess | null>(null);
   const [monthly, setMonthly] = useState<PaywallPackage>(null);
   const [annual, setAnnual] = useState<PaywallPackage>(null);
@@ -92,7 +94,17 @@ export default function ProScreen() {
     try {
       const nextAccess = await purchaseProPackage(pack);
       setAccess(nextAccess);
-      if (nextAccess.hasPro) router.back();
+      if (nextAccess.hasPro) {
+        toast(t("Congratulations — you're on Lagan Pro!"), t("Your Pro features are now active."), {
+          durationMs: 4000,
+        });
+        router.back();
+      } else {
+        showAlert(
+          t("Purchase received"),
+          t("We're still activating Pro. Please try Restore purchases again in a moment."),
+        );
+      }
     } catch (error) {
       if (isRevenueCatPurchaseCancelled(error)) return;
       reportError(toError(error), { context: "pro-paywall-purchase" });

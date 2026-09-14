@@ -188,6 +188,11 @@ import {
 } from "../website/lib/auth-route-policy.ts";
 import { isAdminEmail } from "../website/lib/admin/access.ts";
 import { isMissingRefreshTokenError as websiteIsMissingRefreshTokenError } from "../website/lib/supabase/auth-error.ts";
+import { getBadgeShareMessage, getRankShareMessage } from "../lib/utils/share-messages.ts";
+import {
+  getBadgeShareMessage as getWebsiteBadgeShareMessage,
+  getRankShareMessage as getWebsiteRankShareMessage,
+} from "../website/lib/share-messages.ts";
 
 const { resolveProAccess, subscriptionStatusLabel, canOfferProPurchase } = subscriptionAccess;
 
@@ -2624,9 +2629,65 @@ test("remaining secondary first-run surfaces expose accessible actions", () => {
     "Restore purchases",
     "Terms of Use",
     "Privacy Policy",
+    "Congratulations — you're on Lagan Pro!",
+    "Your Pro features are now active.",
+    "Purchase received",
+    "We're still activating Pro. Please try Restore purchases again in a moment.",
   ]) {
     assert.notEqual(translate("hi", label), label);
   }
+});
+
+test("achievement share copy is exact and stays aligned with the website renderer", () => {
+  const badge = getBadgeShareMessage(
+    "7 Day Streak",
+    "Complete at least one habit every day for 7 days running.",
+  );
+  assert.deepEqual(badge, {
+    tagline: "I unlocked the 7 Day Streak badge on Lagan.",
+    subtitle: "Complete at least one habit every day for 7 days running.",
+  });
+  assert.deepEqual(getWebsiteBadgeShareMessage("7 Day Streak", badge.subtitle), badge);
+
+  const rank = getRankShareMessage(17);
+  assert.deepEqual(rank, {
+    tagline: "I'm ranked #17 on Lagan's global leaderboard. Can you beat me?",
+    subtitle: "All-time global rank",
+  });
+  assert.deepEqual(getWebsiteRankShareMessage(17), rank);
+});
+
+test("share cards use portrait branded images and authoritative all-time rank only", () => {
+  const modal = readFileSync("components/share-card-modal.tsx", "utf8");
+  const leaderboard = readFileSync("app/(tabs)/leaderboard.tsx", "utf8");
+  const achievements = readFileSync("app/(tabs)/achievements.tsx", "utf8");
+  const ogRoute = readFileSync("website/app/api/og/card/route.tsx", "utf8");
+
+  assert.match(modal, /ratio=portrait&v=2/);
+  assert.match(modal, /height: width \* 1\.25/);
+  assert.match(modal, /LogoChainL/);
+  assert.match(modal, /Can you beat me\?/);
+  assert.match(modal, /lagan\.health/);
+  assert.match(achievements, /canonical\?\.description/);
+  assert.match(leaderboard, /setShareData\(\{ kind: "rank", rank: myRank \}\)/);
+  assert.doesNotMatch(leaderboard, /myRank \/ entries\.length/);
+  assert.doesNotMatch(modal, /topPct|totalUsers|streak:/);
+  assert.match(ogRoute, /portrait \? 1080 : 1200/);
+  assert.match(ogRoute, /portrait \? 1350 : 630/);
+  assert.match(ogRoute, /function ChainMark/);
+  assert.match(ogRoute, /ACHIEVEMENT UNLOCKED/);
+  assert.match(ogRoute, /GLOBAL LEADERBOARD/);
+});
+
+test("Pro purchase celebrates only after synchronized access is confirmed", () => {
+  const proScreen = readFileSync("app/pro.tsx", "utf8");
+  const toast = readFileSync("components/toast.tsx", "utf8");
+  assert.match(proScreen, /if \(nextAccess\.hasPro\) \{/);
+  assert.match(proScreen, /Congratulations — you're on Lagan Pro!/);
+  assert.match(proScreen, /durationMs: 4000/);
+  assert.match(proScreen, /Purchase received/);
+  assert.match(toast, /type ToastOptions = \{ durationMs\?: number \}/);
+  assert.match(toast, /options\?\.durationMs \?\? TOAST_DURATION_MS/);
 });
 
 test("late first-run surfaces localize alerts and use text busy states", () => {
