@@ -38,6 +38,7 @@ import { appleFullNameMetadata, isAppleAuthCancellationError } from "../auth/app
 import { enqueueCompletionOp, flushPendingCompletions, isNetworkFailure } from "./completion-queue";
 import { clearDataCache } from "./cache";
 import { clearHomeWidgetSnapshot } from "../widgets/home-widget";
+import { revokeHomeWidgetActionSession } from "../widgets/widget-session";
 import { localDateKey } from "../utils/date";
 import {
   cancelHabitReminders,
@@ -380,6 +381,9 @@ export async function resendConfirmationEmail(email: string) {
 }
 
 export async function signOut() {
+  // Revoke while the user JWT is still available; local credential clearing is
+  // guaranteed by the helper even if the network request fails.
+  await revokeHomeWidgetActionSession();
   if (isSupabaseConfigured()) {
     markUserInitiatedSignOut();
     try {
@@ -1280,6 +1284,7 @@ export async function requestAccountDeletion(
     );
     if (error) return { ok: false, error: error.message };
     if (!data?.ok) return { ok: false, error: data?.error ?? "Could not delete account." };
+    await revokeHomeWidgetActionSession();
     await clearLocalAuthSession();
     clearDataCache();
     resetAnalytics();

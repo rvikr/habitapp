@@ -501,7 +501,7 @@ test("home widget snapshot clamps progress and formats launcher copy", () => {
     },
   );
   assert.match(snapshot.updatedLabel, /^Updated /);
-  assert.equal(snapshot.schemaVersion, 2);
+  assert.equal(snapshot.schemaVersion, 3);
   assert.equal(snapshot.todayKey, "2026-05-10");
 });
 
@@ -524,6 +524,23 @@ test("home widget snapshot handles an empty routine", () => {
   assert.equal(snapshot.levelLabel, "Level 1");
   assert.equal(snapshot.nextHabitLabel, "");
   assert.doesNotThrow(() => JSON.parse(stringifyHomeWidgetSnapshot(snapshot)));
+});
+
+test("home widget v3 carries best-available steps and all-time rank without total users", () => {
+  const snapshot = buildHomeWidgetSnapshot({
+    completedCount: 1,
+    totalHabits: 2,
+    steps: { count: 4321.9, status: "available", updatedAtMs: 1234 },
+    leaderboard: { status: "ranked", rank: 17 },
+  });
+  assert.deepEqual(snapshot.steps, {
+    count: 4321,
+    status: "available",
+    updatedAtMs: 1234,
+  });
+  assert.deepEqual(snapshot.leaderboard, { status: "ranked", rank: 17 });
+  assert.equal("totalUsers" in snapshot.leaderboard, false);
+  assert.doesNotMatch(stringifyHomeWidgetSnapshot(snapshot), /totalUsers|total_users/);
 });
 
 test("home widget next-habit and coach lines show for everyone", () => {
@@ -699,7 +716,7 @@ test("home widget snapshot carries trend, upcoming, and stale-day labels", () =>
   };
 
   const snapshot = buildHomeWidgetSnapshot({ ...base, language: "en" });
-  assert.equal(snapshot.schemaVersion, 2);
+  assert.equal(snapshot.schemaVersion, 3);
   assert.equal(snapshot.todayKey, "2026-07-12");
   assert.equal(snapshot.trend.length, 7);
   // Today's dot reflects the live counts (1 of 2), not the stored history.
@@ -711,6 +728,7 @@ test("home widget snapshot carries trend, upcoming, and stale-day labels", () =>
   );
   assert.deepEqual(snapshot.upcoming, [
     {
+      id: "read",
       name: "Read",
       label: "Next: Read",
       time: "07:30",
@@ -719,6 +737,7 @@ test("home widget snapshot carries trend, upcoming, and stale-day labels", () =>
       preferred: false,
     },
     {
+      id: "walk",
       name: "Walk",
       label: "Next: Walk",
       time: null,
@@ -2084,7 +2103,11 @@ test("Health Connect privacy policy links route to a dedicated Play rationale ac
     appConfig.expo.android.permissions.filter((permission) =>
       permission.startsWith("android.permission.health."),
     ),
-    ["android.permission.health.READ_STEPS", "android.permission.health.READ_SLEEP"],
+    [
+      "android.permission.health.READ_STEPS",
+      "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND",
+      "android.permission.health.READ_SLEEP",
+    ],
   );
 
   const pluginSource = readFileSync("plugins/with-health-connect-rationale.js", "utf8");
@@ -2138,13 +2161,14 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /bindStaleDay/);
   assert.match(pluginSource, /optJSONArray\("upcoming"\)/);
   assert.match(pluginSource, /private fun selectNext\(/);
-  assert.match(pluginSource, /"with-lagan-widget", "1\.2\.0"/);
+  assert.match(pluginSource, /"with-lagan-widget", "2\.0\.0"/);
 
   const moduleConfig = JSON.parse(
     readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
   );
-  assert.deepEqual(moduleConfig.platforms, ["android"]);
+  assert.deepEqual(moduleConfig.platforms, ["android", "ios"]);
   assert.deepEqual(moduleConfig.android.modules, ["health.lagan.widget.LaganWidgetModule"]);
+  assert.deepEqual(moduleConfig.ios.modules, ["LaganWidgetModule"]);
 
   const nativeModule = readFileSync(
     "modules/lagan-widget/android/src/main/java/health/lagan/widget/LaganWidgetModule.kt",
@@ -2196,6 +2220,27 @@ test("sign-out clears the Android launcher widget snapshot", () => {
   const layoutSource = readFileSync("app/_layout.tsx", "utf8");
   assert.match(layoutSource, /clearHomeWidgetSnapshot/);
   assert.match(layoutSource, /void clearHomeWidgetSnapshot\(\)/);
+});
+
+test("native widget background actions are kill-switched, exact-once, and rank-only", () => {
+  const migration = readFileSync(
+    "supabase/migrations/20260914090000_widget_background_actions.sql",
+    "utf8",
+  );
+  const action = readFileSync("supabase/functions/widget-action/index.ts", "utf8");
+  const session = readFileSync("supabase/functions/widget-session/index.ts", "utf8");
+  const snapshot = readFileSync("lib/widgets/home-widget-snapshot.ts", "utf8");
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+
+  assert.match(action, /WIDGET_BACKGROUND_ACTIONS_ENABLED/);
+  assert.match(session, /WIDGET_BACKGROUND_ACTIONS_ENABLED/);
+  assert.match(migration, /primary key \(user_id, operation_id\)/i);
+  assert.match(migration, /idempotency key reused with different payload/i);
+  assert.match(migration, /grant execute[\s\S]*to service_role/i);
+  assert.doesNotMatch(action, /totalUsers|total_users/);
+  assert.doesNotMatch(snapshot, /totalUsers|total_users/);
+  assert.equal(appConfig.expo.version, "1.1.0");
+  assert.deepEqual(appConfig.expo.runtimeVersion, { policy: "appVersion" });
 });
 
 test("app-icon badge tracks the remaining-habits-today count", () => {

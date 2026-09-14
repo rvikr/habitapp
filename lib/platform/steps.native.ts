@@ -8,8 +8,78 @@ import {
 } from "../data/steps-shared";
 
 const HEALTH_CONNECT_STEPS_PERMISSION = { accessType: "read", recordType: "Steps" } as const;
+const HEALTHKIT_STEPS_IDENTIFIER = "HKQuantityTypeIdentifierStepCount" as const;
 
 type HealthConnectModule = typeof import("react-native-health-connect");
+type HealthKitModule = typeof import("@kingstinct/react-native-healthkit");
+
+async function loadHealthKit(): Promise<HealthKitModule | null> {
+  if (Platform.OS !== "ios") return null;
+  try {
+    return await import("@kingstinct/react-native-healthkit");
+  } catch {
+    return null;
+  }
+}
+
+async function getHealthKitStepPermissionStatus(): Promise<StepPermissionStatus> {
+  const healthKit = await loadHealthKit();
+  if (!healthKit) return "unavailable";
+  try {
+    if (!(await healthKit.isHealthDataAvailableAsync())) return "unavailable";
+    const status = await healthKit.getRequestStatusForAuthorization({
+      toRead: [HEALTHKIT_STEPS_IDENTIFIER],
+    });
+    return status === 2 ? "granted" : "undetermined";
+  } catch {
+    return "unavailable";
+  }
+}
+
+async function requestHealthKitStepPermission(): Promise<StepPermissionStatus> {
+  const healthKit = await loadHealthKit();
+  if (!healthKit) return "unavailable";
+  try {
+    if (!(await healthKit.isHealthDataAvailableAsync())) return "unavailable";
+    const granted = await healthKit.requestAuthorization({
+      toRead: [HEALTHKIT_STEPS_IDENTIFIER],
+    });
+    return granted ? "granted" : "denied";
+  } catch {
+    return "denied";
+  }
+}
+
+async function readHealthKitTodaySteps(): Promise<StepSnapshot> {
+  const healthKit = await loadHealthKit();
+  if (!healthKit) {
+    return { steps: null, source: "healthKit", status: "unavailable", canWatch: false };
+  }
+  const status = await getHealthKitStepPermissionStatus();
+  if (status !== "granted") {
+    return { steps: null, source: "healthKit", status, canWatch: false };
+  }
+  try {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    const result = await healthKit.queryStatisticsForQuantity(
+      HEALTHKIT_STEPS_IDENTIFIER,
+      ["cumulativeSum"],
+      {
+        filter: { date: { startDate: start, endDate: new Date() } },
+        unit: "count",
+      },
+    );
+    return {
+      steps: normalizeStepCount(result.sumQuantity?.quantity ?? 0),
+      source: "healthKit",
+      status: "granted",
+      canWatch: false,
+    };
+  } catch {
+    return { steps: null, source: "healthKit", status: "unavailable", canWatch: false };
+  }
+}
 
 function normalizePedometerPermissionStatus(status: string): StepPermissionStatus {
   if (status === "granted" || status === "denied") return status;
@@ -178,6 +248,9 @@ export async function isStepTrackingAvailable(): Promise<boolean> {
     const healthStatus = await getHealthConnectStatus();
     if (healthStatus === "undetermined") return true;
   }
+  if (Platform.OS === "ios" && (await getHealthKitStepPermissionStatus()) !== "unavailable") {
+    return true;
+  }
   return isPedometerAvailable();
 }
 
@@ -188,6 +261,8 @@ export async function getStepPermissionStatus(): Promise<StepPermissionStatus> {
     const pedometerStatus = await getPedometerPermissionStatus();
     return pedometerStatus === "granted" ? "granted" : healthStatus;
   }
+  const healthKitStatus = await getHealthKitStepPermissionStatus();
+  if (healthKitStatus === "granted" || healthKitStatus === "undetermined") return healthKitStatus;
   return getPedometerPermissionStatus();
 }
 
@@ -202,6 +277,8 @@ export async function requestStepPermission(): Promise<StepPermissionStatus> {
     }
     return healthStatus;
   }
+  const healthKitStatus = await requestHealthKitStepPermission();
+  if (healthKitStatus === "granted") return healthKitStatus;
   return requestPedometerPermission();
 }
 
@@ -215,6 +292,8 @@ export async function getTodayStepSnapshot(): Promise<StepSnapshot> {
     if (pedometerSnapshot.status === "granted") return pedometerSnapshot;
     return healthSnapshot;
   }
+  const healthKitSnapshot = await readHealthKitTodaySteps();
+  if (healthKitSnapshot.status === "granted") return healthKitSnapshot;
   return readPedometerTodaySteps();
 }
 

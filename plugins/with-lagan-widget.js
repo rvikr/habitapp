@@ -5,6 +5,9 @@ const {
   createRunOncePlugin,
   withAndroidManifest,
   withDangerousMod,
+  withEntitlementsPlist,
+  withInfoPlist,
+  withXcodeProject,
 } = require("@expo/config-plugins");
 
 const { getMainApplicationOrThrow } = AndroidConfig.Manifest;
@@ -13,6 +16,37 @@ const APPWIDGET_UPDATE_ACTION = "android.appwidget.action.APPWIDGET_UPDATE";
 const WIDGET_PROVIDER = ".LaganWidgetProvider";
 const WIDGET_INFO_RESOURCE = "@xml/lagan_widget_info";
 const TREND_DAYS = 7;
+const IOS_WIDGET_TARGET = "LaganWidgetExtension";
+const IOS_WIDGET_BUNDLE_ID = "health.lagan.app.widget";
+const IOS_APP_GROUP = "group.health.lagan.app";
+const IOS_KEYCHAIN_GROUP = "$(AppIdentifierPrefix)health.lagan.widget.shared";
+
+const IOS_WIDGET_INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleDisplayName</key><string>Lagan</string>
+  <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+  <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+  <key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+  <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+  <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+  <key>LaganAppIdentifierPrefix</key><string>$(AppIdentifierPrefix)</string>
+  <key>NSExtension</key><dict>
+    <key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>
+  </dict>
+</dict></plist>
+`;
+
+const IOS_WIDGET_ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>com.apple.security.application-groups</key><array><string>${IOS_APP_GROUP}</string></array>
+  <key>keychain-access-groups</key><array><string>${IOS_KEYCHAIN_GROUP}</string></array>
+  <key>com.apple.developer.healthkit</key><true/>
+</dict></plist>
+`;
 
 function ensureArray(parent, key) {
   if (!Array.isArray(parent[key])) parent[key] = [];
@@ -66,12 +100,22 @@ import android.content.Intent
 import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
+import health.lagan.widget.WidgetActionScheduler
 import java.util.Calendar
 import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
 
 class LaganWidgetProvider : AppWidgetProvider() {
+  override fun onReceive(context: Context, intent: Intent) {
+    super.onReceive(context, intent)
+    if (intent.action == ACTION_CHECK_IN) {
+      val habitId = intent.getStringExtra(EXTRA_HABIT_ID) ?: return
+      WidgetActionScheduler.enqueueCheckIn(context, habitId, intent.getStringExtra(EXTRA_HABIT_NAME))
+      updateAll(context)
+    }
+  }
+
   override fun onUpdate(
     context: Context,
     appWidgetManager: AppWidgetManager,
@@ -87,6 +131,9 @@ class LaganWidgetProvider : AppWidgetProvider() {
     private const val SNAPSHOT_KEY = "snapshot_json"
     private const val CHECK_IN_URL_PREFIX = "lagan://widget/check-in?"
     private const val UPCOMING_LIMIT = 15
+    private const val ACTION_CHECK_IN = "health.lagan.widget.CHECK_IN"
+    private const val EXTRA_HABIT_ID = "habit_id"
+    private const val EXTRA_HABIT_NAME = "habit_name"
 
     // Zero-padded "HH:MM"; anything else in an upcoming entry means "no time".
     private val TIME_REGEX = Regex("""\\d{2}:\\d{2}""")
@@ -154,6 +201,9 @@ class LaganWidgetProvider : AppWidgetProvider() {
         setTextViewText(R.id.lagan_widget_progress_text, "0%")
         setProgressBar(R.id.lagan_widget_progress, 100, 0, false)
         setTextViewText(R.id.lagan_widget_streak, snapshot.staleLabels.streakLabel)
+        setViewVisibility(R.id.lagan_widget_steps, View.GONE)
+        setViewVisibility(R.id.lagan_widget_rank, View.GONE)
+        setViewVisibility(R.id.lagan_widget_action_status, View.GONE)
         setTextViewText(R.id.lagan_widget_check_in, snapshot.staleLabels.checkInLabel)
         setOnClickPendingIntent(R.id.lagan_widget_check_in, openAppPendingIntent(context))
       }
@@ -171,6 +221,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
       val nextHabitLabel = selected?.label ?: snapshot.nextHabitLabel
       val checkInLabel = if (selected != null) selected.checkInLabel else snapshot.checkInLabel
       val checkInUrl = if (selected != null) selected.checkInUrl else snapshot.checkInUrl
+      val checkInHabitName = selected?.name
 
       views.apply {
         setTextViewText(R.id.lagan_widget_completion, snapshot.completionLabel)
@@ -204,10 +255,32 @@ class LaganWidgetProvider : AppWidgetProvider() {
         setTextViewText(R.id.lagan_widget_progress_text, "\${snapshot.progressPercent}%")
         setProgressBar(R.id.lagan_widget_progress, 100, snapshot.progressPercent, false)
         setTextViewText(R.id.lagan_widget_streak, snapshot.streakLabel)
+        if (snapshot.stepsCount != null) {
+          setTextViewText(R.id.lagan_widget_steps, String.format(Locale.US, "%,d steps today", snapshot.stepsCount))
+          setViewVisibility(R.id.lagan_widget_steps, View.VISIBLE)
+        } else {
+          setViewVisibility(R.id.lagan_widget_steps, View.GONE)
+        }
+        when (snapshot.leaderboardStatus) {
+          "ranked" -> {
+            setTextViewText(R.id.lagan_widget_rank, "All-time rank #" + snapshot.leaderboardRank)
+            setViewVisibility(R.id.lagan_widget_rank, View.VISIBLE)
+          }
+          "not_joined" -> {
+            setTextViewText(R.id.lagan_widget_rank, "Join leaderboard in Lagan")
+            setViewVisibility(R.id.lagan_widget_rank, View.VISIBLE)
+          }
+          else -> setViewVisibility(R.id.lagan_widget_rank, View.GONE)
+        }
+        setTextViewText(R.id.lagan_widget_action_status, snapshot.actionMessage)
+        setViewVisibility(
+          R.id.lagan_widget_action_status,
+          if (snapshot.actionMessage.isNullOrBlank()) View.GONE else View.VISIBLE,
+        )
         setTextViewText(R.id.lagan_widget_check_in, checkInLabel)
         setOnClickPendingIntent(
           R.id.lagan_widget_check_in,
-          checkInPendingIntent(context, checkInUrl),
+          checkInPendingIntent(context, checkInUrl, checkInHabitName),
         )
       }
     }
@@ -246,6 +319,13 @@ class LaganWidgetProvider : AppWidgetProvider() {
           checkInLabel = text(json, "checkInLabel", "Open Lagan"),
           checkInUrl = optionalText(json, "checkInUrl"),
           todayKey = optionalText(json, "todayKey"),
+          stepsCount = json.optJSONObject("steps")
+            ?.takeIf { it.optString("status") == "available" && it.has("count") }
+            ?.optLong("count"),
+          leaderboardStatus = json.optJSONObject("leaderboard")?.optString("status", "unavailable")
+            ?: "unavailable",
+          leaderboardRank = json.optJSONObject("leaderboard")?.optInt("rank", 0) ?: 0,
+          actionMessage = optionalText(json.optJSONObject("lastAction") ?: JSONObject(), "message"),
           trend = parseTrend(json.optJSONArray("trend")),
           upcoming = parseUpcoming(json.optJSONArray("upcoming")),
           staleLabels = parseStaleLabels(json.optJSONObject("staleLabels")),
@@ -280,6 +360,8 @@ class LaganWidgetProvider : AppWidgetProvider() {
         if (label.isBlank() || label == "null") continue
         items.add(
           UpcomingHabit(
+            id = item.optString("id", ""),
+            name = item.optString("name", ""),
             label = label,
             time = optionalText(item, "time")?.takeIf { TIME_REGEX.matches(it) },
             checkInUrl = optionalText(item, "checkInUrl"),
@@ -324,7 +406,11 @@ class LaganWidgetProvider : AppWidgetProvider() {
       )
     }
 
-    private fun checkInPendingIntent(context: Context, checkInUrl: String?): PendingIntent {
+    private fun checkInPendingIntent(
+      context: Context,
+      checkInUrl: String?,
+      habitName: String?,
+    ): PendingIntent {
       if (checkInUrl.isNullOrBlank() || !checkInUrl.startsWith(CHECK_IN_URL_PREFIX)) {
         return openAppPendingIntent(context)
       }
@@ -336,6 +422,21 @@ class LaganWidgetProvider : AppWidgetProvider() {
       }
       if (uri.scheme != "lagan" || uri.host != "widget" || uri.path != "/check-in") {
         return openAppPendingIntent(context)
+      }
+
+      val habitId = uri.getQueryParameter("habitId") ?: return openAppPendingIntent(context)
+      if (WidgetActionScheduler.canRun(context)) {
+        val intent = Intent(context, LaganWidgetProvider::class.java).apply {
+          action = ACTION_CHECK_IN
+          putExtra(EXTRA_HABIT_ID, habitId)
+          putExtra(EXTRA_HABIT_NAME, habitName)
+        }
+        return PendingIntent.getBroadcast(
+          context,
+          checkInUrl.hashCode(),
+          intent,
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
       }
 
       val intent = Intent(Intent.ACTION_VIEW, uri).apply {
@@ -364,6 +465,10 @@ private data class WidgetSnapshot(
   val checkInLabel: String,
   val checkInUrl: String?,
   val todayKey: String?,
+  val stepsCount: Long?,
+  val leaderboardStatus: String,
+  val leaderboardRank: Int,
+  val actionMessage: String?,
   val trend: List<TrendDay>,
   val upcoming: List<UpcomingHabit>,
   val staleLabels: StaleLabels,
@@ -381,6 +486,10 @@ private data class WidgetSnapshot(
       checkInLabel = "Open Lagan",
       checkInUrl = null,
       todayKey = null,
+      stepsCount = null,
+      leaderboardStatus = "unavailable",
+      leaderboardRank = 0,
+      actionMessage = null,
       trend = emptyList(),
       upcoming = emptyList(),
       staleLabels = StaleLabels.defaults(),
@@ -394,6 +503,8 @@ private data class TrendDay(
 )
 
 private data class UpcomingHabit(
+  val id: String,
+  val name: String,
   val label: String,
   val time: String?,
   val checkInUrl: String?,
@@ -434,7 +545,7 @@ function trendCellXml(index) {
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text=""
-        android:textColor="#7B6C62"
+        android:textColor="@color/lagan_widget_muted"
         android:textSize="9sp"
         android:maxLines="1" />
 
@@ -473,7 +584,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:text="Today"
-    android:textColor="#3A2418"
+    android:textColor="@color/lagan_widget_primary"
     android:textSize="14sp"
     android:textStyle="bold" />
 
@@ -483,7 +594,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:layout_height="wrap_content"
     android:layout_marginTop="6dp"
     android:text="Open Lagan to start"
-    android:textColor="#1F1A17"
+    android:textColor="@color/lagan_widget_primary"
     android:textSize="18sp"
     android:textStyle="bold"
     android:maxLines="2" />
@@ -494,7 +605,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:layout_height="wrap_content"
     android:layout_marginTop="4dp"
     android:text=""
-    android:textColor="#3A2418"
+    android:textColor="@color/lagan_widget_primary"
     android:textSize="13sp"
     android:textStyle="bold"
     android:maxLines="1"
@@ -507,7 +618,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     android:layout_height="wrap_content"
     android:layout_marginTop="4dp"
     android:text=""
-    android:textColor="#5B5049"
+    android:textColor="@color/lagan_widget_secondary"
     android:textSize="11sp"
     android:maxLines="2"
     android:ellipsize="end"
@@ -539,7 +650,7 @@ ${WIDGET_TREND_ROW_XML}
       android:layout_height="wrap_content"
       android:layout_marginStart="8dp"
       android:text="0%"
-      android:textColor="#3A2418"
+      android:textColor="@color/lagan_widget_primary"
       android:textSize="12sp"
       android:textStyle="bold" />
   </LinearLayout>
@@ -556,7 +667,7 @@ ${WIDGET_TREND_ROW_XML}
       android:layout_height="wrap_content"
       android:layout_weight="1"
       android:text="Sign in to sync"
-      android:textColor="#5B5049"
+      android:textColor="@color/lagan_widget_secondary"
       android:textSize="12sp"
       android:maxLines="1" />
 
@@ -565,7 +676,7 @@ ${WIDGET_TREND_ROW_XML}
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
       android:text="Lagan"
-      android:textColor="#5B5049"
+      android:textColor="@color/lagan_widget_secondary"
       android:textSize="12sp"
       android:textStyle="bold"
       android:maxLines="1" />
@@ -577,9 +688,47 @@ ${WIDGET_TREND_ROW_XML}
     android:layout_height="wrap_content"
     android:layout_marginTop="6dp"
     android:text=""
-    android:textColor="#7B6C62"
+    android:textColor="@color/lagan_widget_muted"
     android:textSize="10sp"
     android:maxLines="1" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:orientation="horizontal">
+
+    <TextView
+      android:id="@+id/lagan_widget_steps"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:textColor="@color/lagan_widget_secondary"
+      android:textSize="11sp"
+      android:maxLines="1"
+      android:visibility="gone" />
+
+    <TextView
+      android:id="@+id/lagan_widget_rank"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:textColor="@color/lagan_widget_secondary"
+      android:textSize="11sp"
+      android:maxLines="1"
+      android:visibility="gone" />
+  </LinearLayout>
+
+  <TextView
+    android:id="@+id/lagan_widget_action_status"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="4dp"
+    android:textColor="@color/lagan_widget_success"
+    android:textSize="11sp"
+    android:textStyle="bold"
+    android:maxLines="1"
+    android:ellipsize="end"
+    android:visibility="gone" />
 
   <TextView
     android:id="@+id/lagan_widget_check_in"
@@ -598,7 +747,7 @@ ${WIDGET_TREND_ROW_XML}
 
 const WIDGET_BACKGROUND_XML = `<?xml version="1.0" encoding="utf-8"?>
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
-  <solid android:color="#FFF8F2" />
+  <solid android:color="@color/lagan_widget_background" />
   <corners android:radius="20dp" />
 </shape>
 `;
@@ -643,9 +792,119 @@ const WIDGET_STRINGS_XML = `<?xml version="1.0" encoding="utf-8"?>
 </resources>
 `;
 
+const WIDGET_COLORS_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="lagan_widget_background">#FFF8F2</color>
+  <color name="lagan_widget_primary">#1F1A17</color>
+  <color name="lagan_widget_secondary">#5B5049</color>
+  <color name="lagan_widget_muted">#7B6C62</color>
+  <color name="lagan_widget_success">#237A4B</color>
+</resources>
+`;
+
+const WIDGET_COLORS_NIGHT_XML = `<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="lagan_widget_background">#211A17</color>
+  <color name="lagan_widget_primary">#FFF8F2</color>
+  <color name="lagan_widget_secondary">#D9C9BF</color>
+  <color name="lagan_widget_muted">#B8A59A</color>
+  <color name="lagan_widget_success">#72D6A0</color>
+</resources>
+`;
+
 function writeFile(filePath, contents) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, contents);
+}
+
+function findTarget(project, name) {
+  const section = project.pbxNativeTargetSection();
+  return Object.entries(section).find(
+    ([key, value]) => !key.endsWith("_comment") && String(value.name).replaceAll('"', "") === name,
+  );
+}
+
+function configureIosTarget(project, target) {
+  const list =
+    project.hash.project.objects.XCConfigurationList[target.pbxNativeTarget.buildConfigurationList];
+  for (const entry of list?.buildConfigurations ?? []) {
+    const settings = project.hash.project.objects.XCBuildConfiguration[entry.value]?.buildSettings;
+    if (!settings) continue;
+    settings.APPLICATION_EXTENSION_API_ONLY = "YES";
+    settings.CODE_SIGN_ENTITLEMENTS = `"${IOS_WIDGET_TARGET}/${IOS_WIDGET_TARGET}.entitlements"`;
+    settings.CODE_SIGN_STYLE = "Automatic";
+    settings.CURRENT_PROJECT_VERSION = 1;
+    settings.GENERATE_INFOPLIST_FILE = "NO";
+    settings.IPHONEOS_DEPLOYMENT_TARGET = "15.1";
+    settings.MARKETING_VERSION = "1.1.0";
+    settings.PRODUCT_BUNDLE_IDENTIFIER = `"${IOS_WIDGET_BUNDLE_ID}"`;
+    settings.SKIP_INSTALL = "YES";
+    settings.SWIFT_VERSION = "5.9";
+    settings.TARGETED_DEVICE_FAMILY = '"1,2"';
+  }
+}
+
+function withLaganIosWidget(config) {
+  config = withInfoPlist(config, (config) => {
+    config.modResults.LaganAppIdentifierPrefix = "$(AppIdentifierPrefix)";
+    return config;
+  });
+
+  config = withEntitlementsPlist(config, (config) => {
+    const groups = new Set(config.modResults["com.apple.security.application-groups"] ?? []);
+    groups.add(IOS_APP_GROUP);
+    config.modResults["com.apple.security.application-groups"] = [...groups];
+    const keychainGroups = new Set(config.modResults["keychain-access-groups"] ?? []);
+    keychainGroups.add(IOS_KEYCHAIN_GROUP);
+    config.modResults["keychain-access-groups"] = [...keychainGroups];
+    return config;
+  });
+
+  config = withDangerousMod(config, [
+    "ios",
+    async (config) => {
+      const root = config.modRequest.platformProjectRoot;
+      const targetRoot = path.join(root, IOS_WIDGET_TARGET);
+      const template = path.join(
+        config.modRequest.projectRoot,
+        "modules",
+        "lagan-widget",
+        "widget-extension",
+        "LaganWidget.swift",
+      );
+      writeFile(path.join(targetRoot, "LaganWidget.swift"), fs.readFileSync(template, "utf8"));
+      writeFile(path.join(targetRoot, `${IOS_WIDGET_TARGET}-Info.plist`), IOS_WIDGET_INFO_PLIST);
+      writeFile(
+        path.join(targetRoot, `${IOS_WIDGET_TARGET}.entitlements`),
+        IOS_WIDGET_ENTITLEMENTS,
+      );
+      return config;
+    },
+  ]);
+
+  config = withXcodeProject(config, (config) => {
+    const project = config.modResults;
+    let targetEntry = findTarget(project, IOS_WIDGET_TARGET);
+    if (!targetEntry) {
+      const target = project.addTarget(
+        IOS_WIDGET_TARGET,
+        "app_extension",
+        IOS_WIDGET_TARGET,
+        IOS_WIDGET_BUNDLE_ID,
+      );
+      project.addBuildPhase(
+        [`${IOS_WIDGET_TARGET}/LaganWidget.swift`],
+        "PBXSourcesBuildPhase",
+        "Sources",
+        target.uuid,
+      );
+      targetEntry = [target.uuid, target.pbxNativeTarget];
+    }
+    configureIosTarget(project, { uuid: targetEntry[0], pbxNativeTarget: targetEntry[1] });
+    return config;
+  });
+
+  return config;
 }
 
 const withLaganWidget = (config) => {
@@ -692,12 +951,17 @@ const withLaganWidget = (config) => {
       writeFile(path.join(resRoot, "drawable", "lagan_widget_dot_empty.xml"), WIDGET_DOT_EMPTY_XML);
       writeFile(path.join(resRoot, "xml", "lagan_widget_info.xml"), WIDGET_INFO_XML);
       writeFile(path.join(resRoot, "values", "lagan_widget_strings.xml"), WIDGET_STRINGS_XML);
+      writeFile(path.join(resRoot, "values", "lagan_widget_colors.xml"), WIDGET_COLORS_XML);
+      writeFile(
+        path.join(resRoot, "values-night", "lagan_widget_colors.xml"),
+        WIDGET_COLORS_NIGHT_XML,
+      );
 
       return config;
     },
   ]);
 
-  return config;
+  return withLaganIosWidget(config);
 };
 
-module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "1.2.0");
+module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "2.0.0");

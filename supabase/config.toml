@@ -11,3 +11,7 @@ verify_jwt = false
 # not a user JWT — the service worker redeeming the token has no session.
 [functions.complete-habit-from-push]
 verify_jwt = false
+
+# Native widgets authenticate with a short-lived, revocable device credential.
+[functions.widget-action]
+verify_jwt = false

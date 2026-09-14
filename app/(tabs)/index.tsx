@@ -14,6 +14,7 @@ import { useFocusEffect, useRouter, useLocalSearchParams } from "expo-router";
 import * as Crypto from "expo-crypto";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { getHabitsForToday, getStats } from "@/lib/data/habits";
+import { getMyRank } from "@/lib/data/leaderboard";
 import { getHabitVisualForHabit } from "@/lib/data/habit-images";
 import { logCompletionOnce, raiseCompletionValue, toggleHabit } from "@/lib/data/actions";
 import { flushPendingCompletions } from "@/lib/data/completion-queue";
@@ -185,6 +186,7 @@ export default function DashboardScreen() {
     status: "idle",
     lastSyncedAt: null,
   });
+  const [widgetRank, setWidgetRank] = useState<number | null>(null);
   const dataRef = useRef<DashboardData | null>(null);
   const stepSubscriptionRef = useRef<StepSubscription | null>(null);
   const stepTrackingHabitIdRef = useRef<string | null>(null);
@@ -203,6 +205,22 @@ export default function DashboardScreen() {
   useEffect(() => {
     dataRef.current = data;
   }, [data]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!data?.leaderboardOptedIn) {
+      setWidgetRank(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+    void getMyRank().then((rank) => {
+      if (!cancelled) setWidgetRank(rank);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.leaderboardOptedIn]);
 
   useEffect(() => {
     if (newUser === "1") setShowWelcome(true);
@@ -1011,6 +1029,23 @@ export default function DashboardScreen() {
       coachMessage: coachSignalActive && coachSignal ? coachSignal.message : null,
       weekTrend: data.weekTrend,
       upcomingHabits: widgetUpcomingHabits,
+      steps: {
+        count: ["tracking", "syncing", "synced"].includes(stepTracking.status)
+          ? lastStepValueRef.current
+          : null,
+        status:
+          stepTracking.status === "needsPermission" || stepTracking.status === "denied"
+            ? "permission_required"
+            : ["tracking", "syncing", "synced"].includes(stepTracking.status)
+              ? "available"
+              : "unavailable",
+        updatedAtMs: stepTracking.lastSyncedAt,
+      },
+      leaderboard: data.leaderboardOptedIn
+        ? widgetRank != null
+          ? { status: "ranked", rank: widgetRank }
+          : { status: "unavailable", rank: null }
+        : { status: "not_joined", rank: null },
       language: language === "hi" ? "hi" : "en",
       locale: language === "hi" ? "hi-IN" : "en-US",
     });
@@ -1024,6 +1059,8 @@ export default function DashboardScreen() {
     nextWidgetHabit,
     total,
     widgetUpcomingHabits,
+    widgetRank,
+    stepTracking,
   ]);
 
   // First load failed and there is nothing cached to show — offer a retry

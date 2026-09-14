@@ -4,7 +4,7 @@ export type StepPermissionStatus =
   | "undetermined"
   | "providerUpdateRequired"
   | "unavailable";
-export type StepSource = "healthConnect" | "pedometer" | "unsupported";
+export type StepSource = "healthConnect" | "healthKit" | "pedometer" | "unsupported";
 export type StepSnapshot = {
   steps: number | null;
   source: StepSource;

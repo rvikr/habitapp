@@ -3,6 +3,7 @@ import {
   updateHomeWidgetSnapshot,
 } from "@/lib/platform/home-widget";
 import { clearAppBadge, setAppBadgeCount } from "@/lib/platform/notifications";
+import { ensureHomeWidgetActionSession } from "./widget-session";
 
 import {
   buildHomeWidgetSnapshot,
@@ -24,12 +25,14 @@ export type HomeWidgetDashboardSnapshot = Pick<
   | "coachMessage"
   | "weekTrend"
   | "upcomingHabits"
+  | "steps"
+  | "leaderboard"
 >;
 
 // No todayKey on purpose: the signed-out card must never flip to the
 // day-rollover ("stale") state, whatever day the launcher renders it on.
 const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
-  schemaVersion: 2,
+  schemaVersion: 3,
   title: "Today",
   updatedAtMs: 0,
   completedCount: 0,
@@ -46,6 +49,17 @@ const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
   checkInUrl: null,
   trend: [],
   upcoming: [],
+  steps: { count: null, status: "unavailable", updatedAtMs: null },
+  leaderboard: { status: "unavailable", rank: null },
+  lastAction: {
+    status: "idle",
+    operationId: null,
+    habitId: null,
+    habitName: null,
+    amountLabel: null,
+    message: null,
+    updatedAtMs: null,
+  },
   staleLabels: {
     completionLabel: "New day — open Lagan",
     streakLabel: "Open Lagan to keep your streak",
@@ -57,6 +71,7 @@ export async function syncHomeWidgetFromDashboard(
   input: HomeWidgetDashboardSnapshot,
 ): Promise<void> {
   const snapshot = buildHomeWidgetSnapshot(input);
+  void ensureHomeWidgetActionSession();
   // The app-icon badge shows the same "remaining habits today" count as the
   // widget, so it rides the same sync. Fire-and-forget: it must never block the
   // widget update (setAppBadgeCount already swallows its own errors).

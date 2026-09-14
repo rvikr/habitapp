@@ -21,6 +21,15 @@ export type HomeWidgetSnapshotInput = {
   coachMessage?: string | null;
   weekTrend?: WidgetTrendDay[] | null;
   upcomingHabits?: WidgetUpcomingHabit[] | null;
+  steps?: {
+    count: number | null;
+    status: "available" | "permission_required" | "unavailable";
+    updatedAtMs?: number | null;
+  } | null;
+  leaderboard?: {
+    status: "ranked" | "not_joined" | "unavailable";
+    rank: number | null;
+  } | null;
   language?: Language;
   now?: Date;
   locale?: string;
@@ -33,12 +42,23 @@ export type HomeWidgetTrendEntry = {
 };
 
 export type HomeWidgetUpcomingEntry = {
+  id: string;
   name: string;
   label: string;
   time: string | null;
   checkInUrl: string | null;
   checkInLabel: string;
   preferred: boolean;
+};
+
+export type HomeWidgetLastAction = {
+  status: "idle" | "queued" | "success" | "error";
+  operationId: string | null;
+  habitId: string | null;
+  habitName: string | null;
+  amountLabel: string | null;
+  message: string | null;
+  updatedAtMs: number | null;
 };
 
 export type HomeWidgetStaleLabels = {
@@ -48,7 +68,9 @@ export type HomeWidgetStaleLabels = {
 };
 
 export type HomeWidgetSnapshot = {
-  schemaVersion: 2;
+  // Providers must accept v2 snapshots. Version 3 is additive so a pre-1.1.0
+  // Android provider safely ignores the new fields.
+  schemaVersion: 3;
   title: string;
   // Absent (not null) in the signed-out snapshot so the provider never treats
   // it as a stale day; org.json would read a JSON null back as "null".
@@ -68,6 +90,16 @@ export type HomeWidgetSnapshot = {
   checkInUrl: string | null;
   trend: HomeWidgetTrendEntry[];
   upcoming: HomeWidgetUpcomingEntry[];
+  steps: {
+    count: number | null;
+    status: "available" | "permission_required" | "unavailable";
+    updatedAtMs: number | null;
+  };
+  leaderboard: {
+    status: "ranked" | "not_joined" | "unavailable";
+    rank: number | null;
+  };
+  lastAction: HomeWidgetLastAction;
   staleLabels: HomeWidgetStaleLabels;
 };
 
@@ -182,6 +214,7 @@ function buildUpcoming(
         checkInValue: habit.checkInValue,
       });
       return {
+        id: habit.id,
         name: habit.name,
         label: translate(language, "Next: {name}", { name: habit.name }),
         time: habit.time,
@@ -217,7 +250,7 @@ export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWid
   const checkInUrl = buildCheckInUrl(input.nextHabit);
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     title: "Today",
     todayKey,
     updatedAtMs: now.getTime(),
@@ -235,6 +268,33 @@ export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWid
     checkInUrl,
     trend: buildTrend(input.weekTrend, todayKey, completedCount, totalHabits, language),
     upcoming: buildUpcoming(input.upcomingHabits, language),
+    steps: {
+      count:
+        input.steps?.status === "available" && Number.isFinite(input.steps.count)
+          ? wholeNumber(input.steps.count)
+          : null,
+      status: input.steps?.status ?? "unavailable",
+      updatedAtMs:
+        input.steps?.updatedAtMs != null && Number.isFinite(input.steps.updatedAtMs)
+          ? Math.max(0, Math.floor(input.steps.updatedAtMs))
+          : null,
+    },
+    leaderboard: {
+      status: input.leaderboard?.status ?? "unavailable",
+      rank:
+        input.leaderboard?.status === "ranked" && Number.isFinite(input.leaderboard.rank)
+          ? Math.max(1, Math.floor(input.leaderboard.rank as number))
+          : null,
+    },
+    lastAction: {
+      status: "idle",
+      operationId: null,
+      habitId: null,
+      habitName: null,
+      amountLabel: null,
+      message: null,
+      updatedAtMs: null,
+    },
     staleLabels: buildStaleLabels(language),
   };
 }

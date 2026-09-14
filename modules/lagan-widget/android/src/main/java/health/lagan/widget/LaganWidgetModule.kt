@@ -7,6 +7,8 @@ import android.content.Intent
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.util.UUID
+import org.json.JSONObject
 
 class LaganWidgetModule : Module() {
   private val context: Context
@@ -34,6 +36,28 @@ class LaganWidgetModule : Module() {
 
       notifyWidgets()
     }
+
+    AsyncFunction("getDeviceIdAsync") {
+      val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+      prefs.getString(DEVICE_ID_KEY, null) ?: UUID.randomUUID().toString().also {
+        prefs.edit().putString(DEVICE_ID_KEY, it).commit()
+      }
+    }
+
+    AsyncFunction("configureActionsAsync") { configurationJson: String ->
+      val configuration = JSONObject(configurationJson)
+      WidgetCredentialStore.write(context, configuration)
+      WidgetActionScheduler.scheduleStepRefresh(context)
+    }
+
+    AsyncFunction("clearActionCredentialsAsync") {
+      WidgetCredentialStore.clear(context)
+      WidgetActionScheduler.cancelAll(context)
+    }
+
+    AsyncFunction("hasValidActionSessionAsync") {
+      WidgetCredentialStore.isFresh(context)
+    }
   }
 
   private fun notifyWidgets() {
@@ -49,5 +73,6 @@ class LaganWidgetModule : Module() {
   companion object {
     private const val PREFS_NAME = "lagan_widget"
     private const val SNAPSHOT_KEY = "snapshot_json"
+    private const val DEVICE_ID_KEY = "device_id"
   }
 }

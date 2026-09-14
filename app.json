@@ -2,7 +2,7 @@
   "expo": {
     "name": "Lagan",
     "slug": "habbitapp",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "lagan",
@@ -24,12 +24,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "health.lagan.app",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "usesAppleSignIn": true,
       "associatedDomains": ["applinks:lagan.health"],
       "infoPlist": {
         "NSUserNotificationsUsageDescription": "Lagan uses notifications to remind you about your habits.",
-        "NSHealthShareUsageDescription": "Lagan reads sleep data from Apple Health to sync your sleep tracker and calculate your sleep score.",
+        "NSHealthShareUsageDescription": "Lagan reads steps and sleep data from Apple Health to update your habits and home-screen widget.",
         "NSHealthUpdateUsageDescription": "Lagan does not write sleep data today, but HealthKit requires this description for health access setup.",
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -154,7 +154,7 @@
     },
     "android": {
       "package": "health.lagan.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A1A1A"
@@ -164,6 +164,7 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND",
         "android.permission.health.READ_SLEEP"
       ],
       "blockedPermissions": [
@@ -224,7 +225,7 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "Lagan reads sleep data from Apple Health to sync your sleep tracker and calculate your sleep score.",
+          "NSHealthShareUsageDescription": "Lagan reads steps and sleep data from Apple Health to update your habits and home-screen widget.",
           "NSHealthUpdateUsageDescription": "Lagan does not write sleep data today, but HealthKit requires this description for health access setup.",
           "background": false
         }
@@ -271,7 +272,24 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a2e33959-81eb-4c3c-ba61-c2503eb7beba"
+        "projectId": "a2e33959-81eb-4c3c-ba61-c2503eb7beba",
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "LaganWidgetExtension",
+                  "bundleIdentifier": "health.lagan.app.widget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": ["group.health.lagan.app"],
+                    "keychain-access-groups": ["$(AppIdentifierPrefix)health.lagan.widget.shared"],
+                    "com.apple.developer.healthkit": true
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "owner": "rk12333"
