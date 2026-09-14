@@ -2175,6 +2175,8 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /values-night/);
   assert.match(pluginSource, /if \(mode == LayoutMode\.COMPACT\)/);
   assert.match(pluginSource, /"All-time #" \+ snapshot\.leaderboardRank/);
+  assert.match(pluginSource, /val canCheckInDirectly = directHabitId != null/);
+  assert.match(pluginSource, /if \(canCheckInDirectly\)[\s\S]*"Check in"/);
   assert.match(pluginSource, /"with-lagan-widget", "2\.1\.0"/);
 
   const moduleConfig = JSON.parse(
@@ -2216,6 +2218,7 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(iosWidgetSource, /case \.systemMedium:[\s\S]*mediumLayout/);
   assert.match(iosWidgetSource, /private var largeLayout: some View/);
   assert.match(iosWidgetSource, /minimumScaleFactor\(0\.72\)/);
+  assert.match(iosWidgetSource, /actionTitle\("Check in"\)/);
 });
 
 test("sign-out clears the Android launcher widget snapshot", () => {

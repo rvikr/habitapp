@@ -261,9 +261,16 @@ class LaganWidgetProvider : AppWidgetProvider() {
       // labels synced by the app when the snapshot predates schema v2.
       val selected = selectNext(snapshot.upcoming, nowHHMM)
       val nextHabitLabel = selected?.label ?: snapshot.nextHabitLabel
-      val checkInLabel = if (selected != null) selected.checkInLabel else snapshot.checkInLabel
       val checkInUrl = if (selected != null) selected.checkInUrl else snapshot.checkInUrl
       val checkInHabitName = selected?.name
+      val directHabitId = selected?.id?.takeIf { it.isNotBlank() }
+      val canCheckInDirectly = directHabitId != null && WidgetActionScheduler.canRun(context)
+      val checkInLabel = if (canCheckInDirectly)
+        "Check in"
+      else if (selected != null)
+        selected.checkInLabel
+      else
+        snapshot.checkInLabel
 
       views.apply {
         setTextViewText(R.id.lagan_widget_completion, snapshot.completionLabel)
@@ -344,7 +351,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
         setTextViewText(R.id.lagan_widget_check_in, checkInLabel)
         setOnClickPendingIntent(
           R.id.lagan_widget_check_in,
-          checkInPendingIntent(context, checkInUrl, checkInHabitName),
+          checkInPendingIntent(context, checkInUrl, checkInHabitName, directHabitId),
         )
       }
     }
@@ -474,7 +481,22 @@ class LaganWidgetProvider : AppWidgetProvider() {
       context: Context,
       checkInUrl: String?,
       habitName: String?,
+      directHabitId: String?,
     ): PendingIntent {
+      if (WidgetActionScheduler.canRun(context) && !directHabitId.isNullOrBlank()) {
+        val intent = Intent(context, LaganWidgetProvider::class.java).apply {
+          action = ACTION_CHECK_IN
+          putExtra(EXTRA_HABIT_ID, directHabitId)
+          putExtra(EXTRA_HABIT_NAME, habitName)
+        }
+        return PendingIntent.getBroadcast(
+          context,
+          directHabitId.hashCode(),
+          intent,
+          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+      }
+
       if (checkInUrl.isNullOrBlank() || !checkInUrl.startsWith(CHECK_IN_URL_PREFIX)) {
         return openAppPendingIntent(context)
       }

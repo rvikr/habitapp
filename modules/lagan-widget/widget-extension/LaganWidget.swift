@@ -466,7 +466,7 @@ private struct LaganWidgetView: View {
   @ViewBuilder private var actionControl: some View {
     if #available(iOS 17.0, *), WidgetStore.hasCredential, let next, let habitId = next.id {
       Button(intent: WidgetCheckInIntent(habitId: habitId, habitName: next.name)) {
-        actionTitle(next.checkInLabel)
+        actionTitle("Check in")
       }
       .buttonStyle(.borderedProminent)
       .tint(.orange)
