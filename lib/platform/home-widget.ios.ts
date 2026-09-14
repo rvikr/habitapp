@@ -69,3 +69,15 @@ export async function hasValidHomeWidgetActionSession(): Promise<boolean> {
     return false;
   }
 }
+
+export async function retryHomeWidgetPendingShortcutActions(): Promise<void> {
+  try {
+    const { requireNativeModule } = await import("expo");
+    const widget = requireNativeModule<{
+      retryShortcutActionsAsync?: () => Promise<void>;
+    }>("LaganWidget");
+    await widget.retryShortcutActionsAsync?.();
+  } catch {
+    // Siri intents are absent from older native binaries.
+  }
+}

@@ -56,11 +56,15 @@ async function leaderboardFor(admin: ReturnType<typeof createClient>, userId: st
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
-  if (!ACTIONS_ENABLED) return json({ error: "Widget actions disabled" }, 503);
+  if (!ACTIONS_ENABLED) {
+    return json({ error: "Widget actions disabled", code: "actions_disabled" }, 503);
+  }
 
   const auth = req.headers.get("Authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  if (token.length < 32 || token.length > 128) return json({ error: "Unauthorized" }, 401);
+  if (token.length < 32 || token.length > 128) {
+    return json({ error: "Unauthorized", code: "session_required" }, 401);
+  }
 
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -76,7 +80,7 @@ Deno.serve(async (req) => {
     !device ||
     device.revoked_at ||
     new Date(device.expires_at).getTime() <= Date.now()
-  ) return json({ error: "Unauthorized" }, 401);
+  ) return json({ error: "Unauthorized", code: "session_required" }, 401);
 
   let body: Record<string, unknown>;
   try {
@@ -135,8 +139,17 @@ Deno.serve(async (req) => {
     p_completed_on: today,
   });
   if (error) {
-    const completed = error.code === "23514";
-    return json({ error: completed ? "Habit already complete" : "Could not log check-in" }, 409);
+    const code = error.code === "23514"
+      ? "already_complete"
+      : error.code === "P0002"
+        ? "habit_unavailable"
+        : "check_in_failed";
+    const message = code === "already_complete"
+      ? "Habit already complete"
+      : code === "habit_unavailable"
+        ? "Habit unavailable"
+        : "Could not log check-in";
+    return json({ error: message, code }, 409);
   }
   return json({ ...data, leaderboard: await leaderboardFor(admin, device.user_id) });
 });

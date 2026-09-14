@@ -15,3 +15,5 @@ export async function clearHomeWidgetActionCredentials(): Promise<void> {}
 export async function hasValidHomeWidgetActionSession(): Promise<boolean> {
   return false;
 }
+
+export async function retryHomeWidgetPendingShortcutActions(): Promise<void> {}

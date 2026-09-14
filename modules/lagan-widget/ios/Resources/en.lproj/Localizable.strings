@@ -1,0 +1,17 @@
+"Habit" = "Habit";
+"Goal: %@" = "Goal: %@";
+"Log Habit" = "Log Habit";
+"Log the default check-in amount for a Lagan habit." = "Log the default check-in amount for a Lagan habit.";
+"The Lagan habit to log." = "The Lagan habit to log.";
+"Log %@" = "Log %@";
+"Open Lagan first so Siri can load your habits." = "Open Lagan first so Siri can load your habits.";
+"Which habit would you like to log?" = "Which habit would you like to log?";
+"Logged %@ for %@." = "Logged %@ for %@.";
+"Logged %@." = "Logged %@.";
+"You're offline. %@ is queued and Lagan will retry." = "You're offline. %@ is queued and Lagan will retry.";
+"%@ is already complete today." = "%@ is already complete today.";
+"That habit is no longer available in Lagan." = "That habit is no longer available in Lagan.";
+"Open Lagan first to enable Siri habit logging." = "Open Lagan first to enable Siri habit logging.";
+"Siri habit logging is temporarily unavailable." = "Siri habit logging is temporarily unavailable.";
+"Lagan's offline queue is full. Open Lagan before logging another habit." = "Lagan's offline queue is full. Open Lagan before logging another habit.";
+"Lagan couldn't log %@. Please try again." = "Lagan couldn't log %@. Please try again.";

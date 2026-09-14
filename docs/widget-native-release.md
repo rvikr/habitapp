@@ -48,6 +48,33 @@ of the following before the server kill switch is enabled:
 These corrections change native Swift/Kotlin resources and cannot be delivered
 through EAS Update. Publish new TestFlight and Google Play internal-test builds.
 
+## Siri and Shortcuts regression gate
+
+Siri habit logging is also native-binary-only. Do not run `eas update` for the
+App Intent, its localized resources, the habit entity catalog, or the Settings
+discovery screen. Bundle all of them in the replacement iOS 1.1.0 binary.
+
+Before promoting that binary:
+
+1. Keep the production `WIDGET_BACKGROUND_ACTIONS_ENABLED` server secret false.
+   Internal testing must use a non-production backend or an explicitly isolated
+   test environment.
+2. On iOS 16 and the current iOS release, confirm **Log Habit** appears in the
+   Shortcuts app after opening Lagan and syncing Today.
+3. Test a named phrase and the generic habit prompt in English and Hindi. Verify
+   the selected habit UUID remains stable after completing the habit.
+4. Confirm quantity habits log only their configured default increment, never
+   exceed the target, and report success only after a 2xx server receipt.
+5. Test already-complete and archived habits, signed-out and expired sessions,
+   airplane-mode queueing, FIFO replay, queue-full handling, and repeated runs
+   with distinct operation UUIDs.
+6. Confirm a successful Siri run does not foreground Lagan, sign-out clears the
+   credential and pending queue, and existing WidgetKit check-in still works.
+
+The repository may remain configured for EAS Update generally; the release
+boundary is that no update is published for this feature. Current installed
+binaries therefore receive no Siri code or Settings UI.
+
 ## Rollback
 
 Set `WIDGET_BACKGROUND_ACTIONS_ENABLED=false`. Native widgets then retain

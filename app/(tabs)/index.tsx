@@ -1127,6 +1127,12 @@ export default function DashboardScreen() {
       coachMessage: coachSignalActive && coachSignal ? coachSignal.message : null,
       weekTrend: data.weekTrend,
       upcomingHabits: widgetUpcomingHabits,
+      shortcutHabits: habits.map((habit) => ({
+        id: habit.id,
+        name: habit.name,
+        unit: habit.unit,
+        target: habit.target,
+      })),
       steps: widgetSteps,
       leaderboard: data.leaderboardOptedIn
         ? widgetRank != null
@@ -1141,6 +1147,7 @@ export default function DashboardScreen() {
     coachSignalActive,
     completedCount,
     data,
+    habits,
     language,
     nextWidgetCheckInValue,
     nextWidgetHabit,

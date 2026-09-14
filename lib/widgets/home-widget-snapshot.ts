@@ -21,6 +21,14 @@ export type HomeWidgetSnapshotInput = {
   coachMessage?: string | null;
   weekTrend?: WidgetTrendDay[] | null;
   upcomingHabits?: WidgetUpcomingHabit[] | null;
+  shortcutHabits?:
+    | {
+        id: string;
+        name: string;
+        unit?: string | null;
+        target?: number | null;
+      }[]
+    | null;
   steps?: {
     count: number | null;
     status: "available" | "permission_required" | "unavailable";
@@ -49,6 +57,13 @@ export type HomeWidgetUpcomingEntry = {
   checkInUrl: string | null;
   checkInLabel: string;
   preferred: boolean;
+};
+
+export type HomeWidgetShortcutHabitEntry = {
+  id: string;
+  name: string;
+  unit: string | null;
+  target: number | null;
 };
 
 export type HomeWidgetLastAction = {
@@ -90,6 +105,7 @@ export type HomeWidgetSnapshot = {
   checkInUrl: string | null;
   trend: HomeWidgetTrendEntry[];
   upcoming: HomeWidgetUpcomingEntry[];
+  shortcutHabits: HomeWidgetShortcutHabitEntry[];
   steps: {
     count: number | null;
     status: "available" | "permission_required" | "unavailable";
@@ -227,6 +243,23 @@ function buildUpcoming(
     });
 }
 
+function buildShortcutHabits(
+  habits: HomeWidgetSnapshotInput["shortcutHabits"],
+): HomeWidgetShortcutHabitEntry[] {
+  if (!Array.isArray(habits)) return [];
+  return habits
+    .filter((habit) => habit.id.trim() && habit.name.trim())
+    .map((habit) => ({
+      id: habit.id.trim(),
+      name: habit.name.trim(),
+      unit: habit.unit?.trim() || null,
+      target:
+        habit.target != null && Number.isFinite(habit.target) && habit.target > 0
+          ? habit.target
+          : null,
+    }));
+}
+
 function buildStaleLabels(language: Language): HomeWidgetStaleLabels {
   return {
     completionLabel: translate(language, "New day — open Lagan"),
@@ -268,6 +301,7 @@ export function buildHomeWidgetSnapshot(input: HomeWidgetSnapshotInput): HomeWid
     checkInUrl,
     trend: buildTrend(input.weekTrend, todayKey, completedCount, totalHabits, language),
     upcoming: buildUpcoming(input.upcomingHabits, language),
+    shortcutHabits: buildShortcutHabits(input.shortcutHabits),
     steps: {
       count:
         input.steps?.status === "available" && Number.isFinite(input.steps.count)

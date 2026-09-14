@@ -410,6 +410,13 @@ export default function SettingsScreen() {
             label={t("Reminders")}
             onPress={() => router.push("/settings/reminders")}
           />
+          {Platform.OS === "ios" && (
+            <SettingsRow
+              icon="microphone-outline"
+              label={t("Siri & Shortcuts")}
+              onPress={() => router.push("/settings/siri-shortcuts" as never)}
+            />
+          )}
           <SettingsRow icon="message-text-outline" label={t("AI Coach")} onPress={openAiCoach} />
           <SettingsRow
             icon="message-alert-outline"

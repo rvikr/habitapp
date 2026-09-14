@@ -36,6 +36,27 @@ const HI_TRANSLATIONS: Record<string, string> = {
   Language: "भाषा",
   ACCOUNT: "अकाउंट",
   Reminders: "रिमाइंडर",
+  "Siri & Shortcuts": "Siri और Shortcuts",
+  "Ready for Siri": "Siri के लिए तैयार",
+  "Siri can log your Lagan habits without opening the app.":
+    "Siri ऐप खोले बिना आपकी Lagan आदतें लॉग कर सकता है।",
+  "Requires iOS 16 or later": "iOS 16 या उसके बाद का संस्करण आवश्यक है",
+  "You can continue logging habits inside Lagan.": "आप Lagan में आदतें लॉग करना जारी रख सकते हैं।",
+  "Checking setup": "सेटअप जाँचा जा रहा है",
+  "Open Today to finish setup": "सेटअप पूरा करने के लिए Today खोलें",
+  "Lagan securely prepares Siri after your habits sync.":
+    "आदतें सिंक होने के बाद Lagan Siri को सुरक्षित रूप से तैयार करता है।",
+  "Shortcuts unavailable": "Shortcuts उपलब्ध नहीं है",
+  "Open Apple's Shortcuts app on this iPhone.": "इस iPhone पर Apple का Shortcuts ऐप खोलें।",
+  "TRY SAYING": "यह कहकर देखें",
+  "Hey Siri, log Water with Lagan": "Hey Siri, Lagan में Water लॉग करें",
+  "Hey Siri, log a habit with Lagan": "Hey Siri, Lagan में एक आदत लॉग करें",
+  "The generic phrase asks you which habit to log.":
+    "सामान्य वाक्य पूछता है कि कौन-सी आदत लॉग करनी है।",
+  "What gets logged": "क्या लॉग होता है",
+  "Siri uses your habit's default check-in amount and never logs beyond today's target.":
+    "Siri आपकी आदत की डिफ़ॉल्ट चेक-इन मात्रा इस्तेमाल करता है और आज के लक्ष्य से अधिक लॉग नहीं करता।",
+  "Open Shortcuts": "Shortcuts खोलें",
   "Manage subscription": "सब्सक्रिप्शन प्रबंधित करें",
   "Congratulations — you're on Lagan Pro!": "बधाई — अब आप Lagan Pro पर हैं!",
   "Your Pro features are now active.": "आपकी Pro सुविधाएँ अब सक्रिय हैं।",

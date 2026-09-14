@@ -1,5 +1,6 @@
 import {
   clearHomeWidgetSnapshot as clearHomeWidgetSnapshotFromPlatform,
+  retryHomeWidgetPendingShortcutActions,
   updateHomeWidgetSnapshot,
 } from "@/lib/platform/home-widget";
 import { clearAppBadge, setAppBadgeCount } from "@/lib/platform/notifications";
@@ -25,6 +26,7 @@ export type HomeWidgetDashboardSnapshot = Pick<
   | "coachMessage"
   | "weekTrend"
   | "upcomingHabits"
+  | "shortcutHabits"
   | "steps"
   | "leaderboard"
 >;
@@ -49,6 +51,7 @@ const SIGNED_OUT_HOME_WIDGET_SNAPSHOT = JSON.stringify({
   checkInUrl: null,
   trend: [],
   upcoming: [],
+  shortcutHabits: [],
   steps: { count: null, status: "unavailable", updatedAtMs: null },
   leaderboard: { status: "unavailable", rank: null },
   lastAction: {
@@ -71,7 +74,7 @@ export async function syncHomeWidgetFromDashboard(
   input: HomeWidgetDashboardSnapshot,
 ): Promise<void> {
   const snapshot = buildHomeWidgetSnapshot(input);
-  void ensureHomeWidgetActionSession();
+  void ensureHomeWidgetActionSession().then(retryHomeWidgetPendingShortcutActions);
   // The app-icon badge shows the same "remaining habits today" count as the
   // widget, so it rides the same sync. Fire-and-forget: it must never block the
   // widget update (setAppBadgeCount already swallows its own errors).

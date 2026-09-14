@@ -549,6 +549,27 @@ test("home widget v3 carries best-available steps and all-time rank without tota
   assert.doesNotMatch(stringifyHomeWidgetSnapshot(snapshot), /totalUsers|total_users/);
 });
 
+test("home widget exports a stable active-habit catalog for Siri shortcuts", () => {
+  const snapshot = buildHomeWidgetSnapshot({
+    completedCount: 1,
+    totalHabits: 2,
+    shortcutHabits: [
+      { id: " water-id ", name: " Drink Water ", unit: " ml ", target: 2000 },
+      { id: "read-id", name: "Read", unit: "pages", target: null },
+      { id: "", name: "Invalid", unit: null, target: 1 },
+    ],
+  });
+
+  assert.deepEqual(snapshot.shortcutHabits, [
+    { id: "water-id", name: "Drink Water", unit: "ml", target: 2000 },
+    { id: "read-id", name: "Read", unit: "pages", target: null },
+  ]);
+  assert.deepEqual(
+    JSON.parse(stringifyHomeWidgetSnapshot(snapshot)).shortcutHabits,
+    snapshot.shortcutHabits,
+  );
+});
+
 test("home widget next-habit and coach lines show for everyone", () => {
   const base = {
     completedCount: 1,
@@ -2274,6 +2295,35 @@ test("native widget background actions are kill-switched, exact-once, and rank-o
   assert.doesNotMatch(snapshot, /totalUsers|total_users/);
   assert.equal(appConfig.expo.version, "1.1.0");
   assert.deepEqual(appConfig.expo.runtimeVersion, { policy: "appVersion" });
+});
+
+test("iOS Siri shortcuts use scoped exact-once actions and a bounded offline queue", () => {
+  const intent = readFileSync("modules/lagan-widget/ios/LaganShortcutIntents.swift", "utf8");
+  const module = readFileSync("modules/lagan-widget/ios/LaganWidgetModule.swift", "utf8");
+  const podspec = readFileSync("modules/lagan-widget/ios/LaganWidget.podspec", "utf8");
+  const settings = readFileSync("app/(tabs)/settings/siri-shortcuts.tsx", "utf8");
+  const settingsIndex = readFileSync("app/(tabs)/settings/index.tsx", "utf8");
+  const action = readFileSync("supabase/functions/widget-action/index.ts", "utf8");
+
+  assert.match(intent, /@available\(iOS 16\.0, \*\)[\s\S]*LaganLogHabitIntent: AppIntent/);
+  assert.match(intent, /LaganHabitEntity: AppEntity/);
+  assert.match(intent, /LaganHabitQuery: EntityStringQuery/);
+  assert.match(intent, /LaganAppShortcuts: AppShortcutsProvider/);
+  assert.ok(intent.includes('"Log \\(\\.$habit) with \\(.applicationName)"'));
+  assert.match(intent, /shortcutQueueLimit = 20/);
+  assert.match(intent, /operationId: UUID\(\)\.uuidString\.lowercased\(\)/);
+  assert.match(intent, /"action": "check_in"/);
+  assert.match(intent, /case \.queued/);
+  assert.match(module, /LaganAppShortcuts\.updateAppShortcutParameters\(\)/);
+  assert.match(module, /retryShortcutActionsAsync/);
+  assert.match(module, /shortcut_pending_actions/);
+  assert.match(podspec, /Resources\/\*\*\/\*/);
+  assert.match(settingsIndex, /Platform\.OS === "ios"[\s\S]*Siri & Shortcuts/);
+  assert.match(settings, /shortcuts:\/\//);
+  assert.match(action, /code: "actions_disabled"/);
+  assert.match(action, /code: "session_required"/);
+  assert.match(action, /"already_complete"/);
+  assert.match(action, /"habit_unavailable"/);
 });
 
 test("app-icon badge tracks the remaining-habits-today count", () => {

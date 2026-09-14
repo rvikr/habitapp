@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import Foundation
+import AppIntents
 import Security
 import WidgetKit
 
@@ -49,11 +50,13 @@ public final class LaganWidgetModule: Module {
     AsyncFunction("updateAsync") { (snapshotJson: String) in
       UserDefaults(suiteName: appGroup)?.set(snapshotJson, forKey: "snapshot_json")
       WidgetCenter.shared.reloadAllTimelines()
+      if #available(iOS 16.0, *) { LaganAppShortcuts.updateAppShortcutParameters() }
     }
 
     AsyncFunction("clearAsync") {
       UserDefaults(suiteName: appGroup)?.removeObject(forKey: "snapshot_json")
       WidgetCenter.shared.reloadAllTimelines()
+      if #available(iOS 16.0, *) { LaganAppShortcuts.updateAppShortcutParameters() }
     }
 
     AsyncFunction("getDeviceIdAsync") { () -> String in
@@ -78,13 +81,22 @@ public final class LaganWidgetModule: Module {
       defaults?.set(actionUrl, forKey: "action_url")
       defaults?.set(value["anonKey"] as? String ?? "", forKey: "anon_key")
       defaults?.set(value["expiresAt"] as? String ?? "", forKey: "expires_at")
+      if #available(iOS 16.0, *) {
+        await LaganShortcutActionCoordinator.shared.retryPending()
+      }
     }
 
     AsyncFunction("clearActionCredentialsAsync") {
       try storeToken(nil)
       let defaults = UserDefaults(suiteName: appGroup)
-      ["action_url", "anon_key", "expires_at", "pending_action"].forEach {
+      ["action_url", "anon_key", "expires_at", "pending_action", "shortcut_pending_actions"].forEach {
         defaults?.removeObject(forKey: $0)
+      }
+    }
+
+    AsyncFunction("retryShortcutActionsAsync") {
+      if #available(iOS 16.0, *) {
+        await LaganShortcutActionCoordinator.shared.retryPending()
       }
     }
 

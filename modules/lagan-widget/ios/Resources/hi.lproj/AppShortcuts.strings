@@ -1,0 +1,3 @@
+"Log ${habit} with ${applicationName}" = "${applicationName} में ${habit} लॉग करें";
+"Check in ${habit} with ${applicationName}" = "${applicationName} में ${habit} चेक-इन करें";
+"Log a habit with ${applicationName}" = "${applicationName} में एक आदत लॉग करें";

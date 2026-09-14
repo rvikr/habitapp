@@ -1,0 +1,3 @@
+"Log ${habit} with ${applicationName}" = "Log ${habit} with ${applicationName}";
+"Check in ${habit} with ${applicationName}" = "Check in ${habit} with ${applicationName}";
+"Log a habit with ${applicationName}" = "Log a habit with ${applicationName}";

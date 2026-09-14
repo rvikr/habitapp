@@ -7,6 +7,7 @@ type LaganWidgetModule = {
   getDeviceIdAsync?(): Promise<string>;
   clearActionCredentialsAsync?(): Promise<void>;
   hasValidActionSessionAsync?(): Promise<boolean>;
+  retryShortcutActionsAsync?(): Promise<void>;
 };
 
 const LaganWidget = requireNativeModule<LaganWidgetModule>("LaganWidget");
@@ -36,3 +37,5 @@ export async function clearHomeWidgetActionCredentials(): Promise<void> {
 export async function hasValidHomeWidgetActionSession(): Promise<boolean> {
   return LaganWidget.hasValidActionSessionAsync ? LaganWidget.hasValidActionSessionAsync() : false;
 }
+
+export async function retryHomeWidgetPendingShortcutActions(): Promise<void> {}

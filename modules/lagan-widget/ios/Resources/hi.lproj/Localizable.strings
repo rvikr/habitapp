@@ -1,0 +1,17 @@
+"Habit" = "आदत";
+"Goal: %@" = "लक्ष्य: %@";
+"Log Habit" = "आदत लॉग करें";
+"Log the default check-in amount for a Lagan habit." = "Lagan की किसी आदत के लिए डिफ़ॉल्ट चेक-इन मात्रा लॉग करें।";
+"The Lagan habit to log." = "लॉग की जाने वाली Lagan आदत।";
+"Log %@" = "%@ लॉग करें";
+"Open Lagan first so Siri can load your habits." = "पहले Lagan खोलें ताकि Siri आपकी आदतें लोड कर सके।";
+"Which habit would you like to log?" = "आप कौन-सी आदत लॉग करना चाहते हैं?";
+"Logged %@ for %@." = "%@ के लिए %@ लॉग किया गया।";
+"Logged %@." = "%@ लॉग किया गया।";
+"You're offline. %@ is queued and Lagan will retry." = "आप ऑफ़लाइन हैं। %@ कतार में है और Lagan फिर कोशिश करेगा।";
+"%@ is already complete today." = "%@ आज पहले ही पूरी हो चुकी है।";
+"That habit is no longer available in Lagan." = "वह आदत अब Lagan में उपलब्ध नहीं है।";
+"Open Lagan first to enable Siri habit logging." = "Siri से आदत लॉग करना चालू करने के लिए पहले Lagan खोलें।";
+"Siri habit logging is temporarily unavailable." = "Siri से आदत लॉग करना अभी उपलब्ध नहीं है।";
+"Lagan's offline queue is full. Open Lagan before logging another habit." = "Lagan की ऑफ़लाइन कतार भर गई है। दूसरी आदत लॉग करने से पहले Lagan खोलें।";
+"Lagan couldn't log %@. Please try again." = "Lagan %@ लॉग नहीं कर सका। कृपया फिर कोशिश करें।";

@@ -11,5 +11,6 @@ Pod::Spec.new do |s|
   s.source         = { :git => '' }
   s.static_framework = true
   s.source_files   = '**/*.{h,m,mm,swift}'
+  s.resources      = 'Resources/**/*'
   s.dependency 'ExpoModulesCore'
 end
