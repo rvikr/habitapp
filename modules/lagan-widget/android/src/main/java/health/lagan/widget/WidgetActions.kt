@@ -94,6 +94,9 @@ object WidgetActionScheduler {
   private const val PREFS_NAME = "lagan_widget"
   private const val SNAPSHOT_KEY = "snapshot_json"
   private const val ACTION_WORK_PREFIX = "lagan-widget-check-in-"
+  private const val ACTION_CLEANUP_PREFIX = "lagan-widget-action-cleanup-"
+  private const val ACTION_FEEDBACK_SECONDS = 5L
+  internal const val MAX_CHECK_IN_ATTEMPTS = 5
 
   @JvmStatic fun canRun(context: Context): Boolean = WidgetCredentialStore.read(context) != null
 
@@ -112,7 +115,7 @@ object WidgetActionScheduler {
       .put("habitId", habitId)
       .put("habitName", habitName ?: JSONObject.NULL)
       .put("amountLabel", JSONObject.NULL)
-      .put("message", "Queued")
+      .put("message", "Logging\u2026")
       .put("updatedAtMs", System.currentTimeMillis()))
     prefs.edit()
       .putString("pending_$habitId", operationId)
@@ -146,6 +149,29 @@ object WidgetActionScheduler {
     if (prefs.getString("pending_$habitId", null) == operationId) {
       prefs.edit().remove("pending_$habitId").commit()
     }
+  }
+
+  internal fun scheduleActionCleanup(context: Context, operationId: String) {
+    val request = OneTimeWorkRequestBuilder<WidgetActionCleanupWorker>()
+      .addTag("lagan-widget")
+      .setInitialDelay(ACTION_FEEDBACK_SECONDS, TimeUnit.SECONDS)
+      .setInputData(workDataOf("operation_id" to operationId))
+      .build()
+    WorkManager.getInstance(context).enqueueUniqueWork(
+      "$ACTION_CLEANUP_PREFIX$operationId",
+      ExistingWorkPolicy.REPLACE,
+      request,
+    )
+  }
+
+  internal fun clearActionIfCurrent(context: Context, operationId: String) {
+    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val snapshot = try { JSONObject(prefs.getString(SNAPSHOT_KEY, "{}") ?: "{}") } catch (_: Exception) { return }
+    val current = snapshot.optJSONObject("lastAction") ?: return
+    if (current.optString("operationId") != operationId || current.optString("status") != "success") return
+    snapshot.remove("lastAction")
+    prefs.edit().putString(SNAPSHOT_KEY, snapshot.toString()).commit()
+    notifyWidgets(context)
   }
 
   @JvmStatic fun scheduleStepRefresh(context: Context) {
@@ -261,19 +287,22 @@ class WidgetCheckInWorker(context: Context, params: WorkerParameters) : Coroutin
           .put("updatedAtMs", System.currentTimeMillis())
         WidgetActionScheduler.applyCheckInSuccess(applicationContext, response, action)
         WidgetActionScheduler.clearPending(applicationContext, habitId, operationId)
+        WidgetActionScheduler.scheduleActionCleanup(applicationContext, operationId)
         Result.success()
-      } else if (code == 401 || code == 503) {
+      } else if (code == 401) {
         WidgetCredentialStore.clear(applicationContext)
         fail(operationId, habitId, habitName, "Open Lagan to reconnect")
+      } else if (code == 503) {
+        fail(operationId, habitId, habitName, "Retry")
       } else if (code == 408 || code == 429 || code >= 500) {
-        Result.retry()
+        retryOrFail(operationId, habitId, habitName)
       } else {
-        fail(operationId, habitId, habitName, if (code == 401) "Open Lagan to reconnect" else "Check-in failed")
+        fail(operationId, habitId, habitName, "Retry")
       }
     } catch (_: IOException) {
-      Result.retry()
+      retryOrFail(operationId, habitId, habitName)
     } catch (_: Exception) {
-      fail(operationId, habitId, habitName, "Check-in failed")
+      fail(operationId, habitId, habitName, "Retry")
     }
   }
 
@@ -292,6 +321,22 @@ class WidgetCheckInWorker(context: Context, params: WorkerParameters) : Coroutin
 
   private fun formatAmount(value: Double): String =
     if (value % 1.0 == 0.0) value.toLong().toString() else "%.2f".format(value).trimEnd('0').trimEnd('.')
+
+  private fun retryOrFail(operationId: String, habitId: String, habitName: String): Result {
+    return if (runAttemptCount + 1 < WidgetActionScheduler.MAX_CHECK_IN_ATTEMPTS) {
+      Result.retry()
+    } else {
+      fail(operationId, habitId, habitName, "Retry")
+    }
+  }
+}
+
+class WidgetActionCleanupWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+  override suspend fun doWork(): Result {
+    val operationId = inputData.getString("operation_id") ?: return Result.failure()
+    WidgetActionScheduler.clearActionIfCurrent(applicationContext, operationId)
+    return Result.success()
+  }
 }
 
 class WidgetStepWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
@@ -357,8 +402,10 @@ class WidgetStepWorker(context: Context, params: WorkerParameters) : CoroutineWo
         prefs.edit().putString("snapshot_json", snapshot.toString()).commit()
         WidgetActionScheduler.notifyWidgets(applicationContext)
         Result.success()
-      } else if (code == 401 || code == 503) {
+      } else if (code == 401) {
         WidgetCredentialStore.clear(applicationContext)
+        Result.success()
+      } else if (code == 503) {
         Result.success()
       } else if (code == 408 || code == 429 || code >= 500) Result.retry() else Result.success()
     } catch (_: IOException) {

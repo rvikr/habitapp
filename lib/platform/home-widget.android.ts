@@ -1,5 +1,7 @@
 import { requireNativeModule } from "expo";
 
+import type { HomeWidgetDiagnosticEntry } from "@/lib/widgets/widget-diagnostics";
+
 type LaganWidgetModule = {
   updateAsync(snapshotJson: string): Promise<void>;
   clearAsync(): Promise<void>;
@@ -46,3 +48,9 @@ export async function hasValidHomeWidgetActionSession(): Promise<boolean> {
 }
 
 export async function retryHomeWidgetPendingShortcutActions(): Promise<void> {}
+
+export async function getHomeWidgetDiagnostics(): Promise<HomeWidgetDiagnosticEntry[]> {
+  return [];
+}
+
+export async function clearHomeWidgetDiagnostics(): Promise<void> {}

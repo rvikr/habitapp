@@ -109,6 +109,10 @@ import {
 import { buildWidgetWeekTrend } from "../lib/widgets/widget-trend.ts";
 import { buildWidgetUpcomingInput, selectNextUpcoming } from "../lib/widgets/widget-upcoming.ts";
 import {
+  formatHomeWidgetDiagnostics,
+  normalizeHomeWidgetDiagnostics,
+} from "../lib/widgets/widget-diagnostics.ts";
+import {
   buildSleepCompletionValue,
   computeSleepScore,
   isSleepEntriesSetupError,
@@ -2203,7 +2207,15 @@ test("Android launcher widget is wired through Expo config and dashboard sync", 
   assert.match(pluginSource, /"All-time #" \+ snapshot\.leaderboardRank/);
   assert.match(pluginSource, /val canCheckInDirectly = directHabitId != null/);
   assert.match(pluginSource, /if \(canCheckInDirectly\)[\s\S]*"Check in"/);
-  assert.match(pluginSource, /"with-lagan-widget", "2\.2\.0"/);
+  assert.match(pluginSource, /"with-lagan-widget", "2\.3\.0"/);
+  assert.doesNotMatch(pluginSource, /lagan_widget_action_status/);
+  assert.match(pluginSource, /"queued" -> "Logging\\\\u2026"/);
+  assert.match(pluginSource, /"success" -> snapshot\.actionMessage/);
+  assert.match(
+    pluginSource,
+    /setBoolean\(R\.id\.lagan_widget_check_in, "setEnabled", actionEnabled\)/,
+  );
+  assert.match(pluginSource, /android:autoSizeTextType="uniform"/);
 
   const moduleConfig = JSON.parse(
     readFileSync("modules/lagan-widget/expo-module.config.json", "utf8"),
@@ -2298,8 +2310,107 @@ test("native widget background actions are kill-switched, exact-once, and rank-o
   assert.match(migration, /grant execute[\s\S]*to service_role/i);
   assert.doesNotMatch(action, /totalUsers|total_users/);
   assert.doesNotMatch(snapshot, /totalUsers|total_users/);
-  assert.equal(appConfig.expo.version, "1.1.0");
+  assert.equal(appConfig.expo.version, "1.1.1");
   assert.deepEqual(appConfig.expo.runtimeVersion, { policy: "appVersion" });
+});
+
+test("iOS widget intent is shared across both targets and records privacy-safe stages", () => {
+  const plugin = readFileSync("plugins/with-lagan-widget.js", "utf8");
+  const action = readFileSync(
+    "modules/lagan-widget/widget-extension/LaganWidgetAction.swift",
+    "utf8",
+  );
+  const widget = readFileSync("modules/lagan-widget/widget-extension/LaganWidget.swift", "utf8");
+  const module = readFileSync("modules/lagan-widget/ios/LaganWidgetModule.swift", "utf8");
+  const settings = readFileSync("app/(tabs)/settings/widget-diagnostics.tsx", "utf8");
+
+  assert.match(plugin, /IOS_WIDGET_ACTION_APP_SOURCE/);
+  assert.match(plugin, /IOS_WIDGET_ACTION_EXTENSION_SOURCE/);
+  assert.match(plugin, /targetUuid: mainTarget\.uuid/);
+  assert.match(plugin, /targetUuid: targetEntry\[0\]/);
+  assert.match(action, /struct WidgetCheckInIntent: AppIntent/);
+  assert.match(action, /enum WidgetActionOutcome/);
+  assert.match(action, /stage: "intent_entered"/);
+  assert.match(action, /stage: "request_started"/);
+  assert.match(action, /stage: "response_received"/);
+  assert.match(action, /case "session_required", "configuration_missing"/);
+  assert.match(action, /case "actions_disabled"/);
+  assert.match(action, /widgetRetryLimit = 5/);
+  assert.match(action, /Array\(entries\.suffix\(50\)\)/);
+  assert.match(widget, /WidgetDiagnostics\.append\(stage: "timeline_reload"\)/);
+  assert.match(module, /AsyncFunction\("getWidgetDiagnosticsAsync"\)/);
+  assert.match(module, /AsyncFunction\("clearWidgetDiagnosticsAsync"\)/);
+  assert.match(settings, /getHomeWidgetDiagnostics/);
+  assert.match(settings, /Share\.share/);
+
+  const diagnosticsSection = action.slice(
+    action.indexOf("enum WidgetDiagnostics"),
+    action.indexOf("enum WidgetStore"),
+  );
+  assert.doesNotMatch(diagnosticsSection, /token|anon_key|action_url|habitId|habitName|userId/i);
+});
+
+test("widget diagnostics normalize, expire, bound, and omit unknown sensitive fields", () => {
+  const now = Date.UTC(2026, 8, 18, 12, 0, 0);
+  const operationId = "247cec46-a8b7-47cf-ad8f-2d084167ba53";
+  const input = Array.from({ length: 55 }, (_, index) => ({
+    timestampMs: now - (54 - index) * 1_000,
+    stage: "request_started",
+    operationId,
+    httpStatus: index === 54 ? 200 : null,
+    category: "check_in",
+    appVersion: "1.1.1",
+    buildNumber: "15",
+    runtimeVersion: "appVersion:1.1.1",
+    osVersion: "iOS",
+    token: "do-not-export",
+    actionUrl: "https://secret.example",
+  }));
+  input.unshift({ ...input[0], timestampMs: now - 8 * 24 * 60 * 60_000 });
+
+  const entries = normalizeHomeWidgetDiagnostics(input, now);
+  assert.equal(entries.length, 50);
+  assert.equal(entries.at(-1)?.httpStatus, 200);
+  const output = formatHomeWidgetDiagnostics(entries);
+  assert.doesNotMatch(output, /do-not-export|secret\.example/);
+  assert.match(output, /request_started/);
+});
+
+test("Android widget uses guarded five-second inline feedback and bounded retry", () => {
+  const plugin = readFileSync("plugins/with-lagan-widget.js", "utf8");
+  const worker = readFileSync(
+    "modules/lagan-widget/android/src/main/java/health/lagan/widget/WidgetActions.kt",
+    "utf8",
+  );
+
+  assert.doesNotMatch(plugin, /lagan_widget_action_status/);
+  assert.match(worker, /setInitialDelay\(ACTION_FEEDBACK_SECONDS, TimeUnit\.SECONDS\)/);
+  assert.match(worker, /ACTION_FEEDBACK_SECONDS = 5L/);
+  assert.match(worker, /current\.optString\("operationId"\) != operationId/);
+  assert.match(worker, /current\.optString\("status"\) != "success"/);
+  assert.match(worker, /scheduleActionCleanup\(applicationContext, operationId\)/);
+  assert.match(worker, /MAX_CHECK_IN_ATTEMPTS = 5/);
+  assert.match(worker, /runAttemptCount \+ 1 < WidgetActionScheduler\.MAX_CHECK_IN_ATTEMPTS/);
+  const disabledBlock = worker.slice(
+    worker.indexOf("} else if (code == 503)"),
+    worker.indexOf("} else if (code == 408"),
+  );
+  assert.doesNotMatch(disabledBlock, /WidgetCredentialStore\.clear/);
+});
+
+test("EAS Update is bound to the 1.1.1 runtime with preview and production channels", () => {
+  const appConfig = JSON.parse(readFileSync("app.json", "utf8"));
+  const eas = JSON.parse(readFileSync("eas.json", "utf8"));
+  const projectId = appConfig.expo.extra.eas.projectId;
+
+  assert.equal(appConfig.expo.version, "1.1.1");
+  assert.equal(appConfig.expo.updates.enabled, true);
+  assert.equal(appConfig.expo.updates.url, `https://u.expo.dev/${projectId}`);
+  assert.deepEqual(appConfig.expo.runtimeVersion, { policy: "appVersion" });
+  assert.equal(eas.build["testflight-preview"].distribution, "store");
+  assert.equal(eas.build["testflight-preview"].channel, "preview");
+  assert.equal(eas.build["testflight-preview"].environment, "production");
+  assert.equal(eas.build.production.channel, "production");
 });
 
 test("background widget steps require disclosure, consent, and both Health Connect permissions", () => {

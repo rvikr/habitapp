@@ -1,3 +1,4 @@
+import type { HomeWidgetDiagnosticEntry } from "@/lib/widgets/widget-diagnostics";
 export async function updateHomeWidgetSnapshot(_snapshotJson: string): Promise<void> {}
 
 export async function clearHomeWidgetSnapshot(): Promise<void> {}
@@ -17,3 +18,9 @@ export async function hasValidHomeWidgetActionSession(): Promise<boolean> {
 }
 
 export async function retryHomeWidgetPendingShortcutActions(): Promise<void> {}
+
+export async function getHomeWidgetDiagnostics(): Promise<HomeWidgetDiagnosticEntry[]> {
+  return [];
+}
+
+export async function clearHomeWidgetDiagnostics(): Promise<void> {}

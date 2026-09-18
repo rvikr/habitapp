@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const {
   AndroidConfig,
+  IOSConfig,
   createRunOncePlugin,
   withAndroidManifest,
   withDangerousMod,
@@ -20,6 +21,9 @@ const IOS_WIDGET_TARGET = "LaganWidgetExtension";
 const IOS_WIDGET_BUNDLE_ID = "health.lagan.app.widget";
 const IOS_APP_GROUP = "group.health.lagan.app";
 const IOS_KEYCHAIN_GROUP = "$(AppIdentifierPrefix)health.lagan.widget.shared";
+const IOS_WIDGET_ACTION_SOURCE = "LaganWidgetAction.swift";
+const IOS_WIDGET_ACTION_APP_SOURCE = "LaganWidgetAction.swift";
+const IOS_WIDGET_ACTION_EXTENSION_SOURCE = "LaganWidgetActionExtension.swift";
 
 const IOS_WIDGET_INFO_PLIST = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -215,7 +219,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
         } else {
           bindToday(this, context, snapshot, nowHHMM, layoutMode)
         }
-        applyLayoutMode(this, layoutMode)
+        applyLayoutMode(this, layoutMode, context.resources.configuration.fontScale)
       }
       manager.updateAppWidget(widgetId, views)
     }
@@ -227,10 +231,10 @@ class LaganWidgetProvider : AppWidgetProvider() {
       return if (height < 190 || width < 200) LayoutMode.COMPACT else LayoutMode.REGULAR
     }
 
-    private fun applyLayoutMode(views: RemoteViews, mode: LayoutMode) {
+    private fun applyLayoutMode(views: RemoteViews, mode: LayoutMode, fontScale: Float) {
       // The legacy coach/trend/footer rows made the resizable widget overflow.
       // Keep the same essential hierarchy as iOS and let compact widgets drop
-      // only the next-habit line; steps, rank, status, and the action remain.
+      // only the next-habit line; steps, rank, and the action remain.
       views.setViewVisibility(R.id.lagan_widget_coach, View.GONE)
       views.setViewVisibility(R.id.lagan_widget_trend_row, View.GONE)
       views.setViewVisibility(R.id.lagan_widget_streak, View.GONE)
@@ -242,6 +246,10 @@ class LaganWidgetProvider : AppWidgetProvider() {
       )
       if (mode == LayoutMode.COMPACT) {
         views.setViewVisibility(R.id.lagan_widget_next_habit, View.GONE)
+        if (fontScale > 1.25f) {
+          // Preserve the action's full touch target at accessibility font sizes.
+          views.setViewVisibility(R.id.lagan_widget_meta_row, View.GONE)
+        }
       }
     }
 
@@ -258,7 +266,6 @@ class LaganWidgetProvider : AppWidgetProvider() {
         setViewVisibility(R.id.lagan_widget_steps, View.GONE)
         setViewVisibility(R.id.lagan_widget_rank, View.GONE)
         setViewVisibility(R.id.lagan_widget_meta_row, View.GONE)
-        setViewVisibility(R.id.lagan_widget_action_status, View.GONE)
         setTextViewText(R.id.lagan_widget_check_in, snapshot.staleLabels.checkInLabel)
         setOnClickPendingIntent(R.id.lagan_widget_check_in, openAppPendingIntent(context))
       }
@@ -357,15 +364,25 @@ class LaganWidgetProvider : AppWidgetProvider() {
           else
             View.GONE,
         )
-        setTextViewText(R.id.lagan_widget_action_status, snapshot.actionMessage)
-        setViewVisibility(
-          R.id.lagan_widget_action_status,
-          if (snapshot.actionMessage.isNullOrBlank()) View.GONE else View.VISIBLE,
-        )
-        setTextViewText(R.id.lagan_widget_check_in, checkInLabel)
+        val actionLabel = when (snapshot.actionStatus) {
+          "queued" -> "Logging\\u2026"
+          "success" -> snapshot.actionMessage ?: "Logged"
+          "error" -> if (snapshot.actionMessage == "Open Lagan to reconnect")
+            "Open Lagan to reconnect"
+          else "Retry"
+          else -> checkInLabel
+        }
+        val actionEnabled = snapshot.actionStatus != "queued" && snapshot.actionStatus != "success"
+        setTextViewText(R.id.lagan_widget_check_in, actionLabel)
+        setBoolean(R.id.lagan_widget_check_in, "setEnabled", actionEnabled)
         setOnClickPendingIntent(
           R.id.lagan_widget_check_in,
-          checkInPendingIntent(context, checkInUrl, checkInHabitName, directHabitId),
+          when {
+            !actionEnabled -> null
+            snapshot.actionStatus == "error" && snapshot.actionMessage == "Open Lagan to reconnect" ->
+              openAppPendingIntent(context)
+            else -> checkInPendingIntent(context, checkInUrl, checkInHabitName, directHabitId)
+          },
         )
       }
     }
@@ -410,6 +427,7 @@ class LaganWidgetProvider : AppWidgetProvider() {
           leaderboardStatus = json.optJSONObject("leaderboard")?.optString("status", "unavailable")
             ?: "unavailable",
           leaderboardRank = json.optJSONObject("leaderboard")?.optInt("rank", 0) ?: 0,
+          actionStatus = optionalText(json.optJSONObject("lastAction") ?: JSONObject(), "status"),
           actionMessage = optionalText(json.optJSONObject("lastAction") ?: JSONObject(), "message"),
           trend = parseTrend(json.optJSONArray("trend")),
           upcoming = parseUpcoming(json.optJSONArray("upcoming")),
@@ -568,6 +586,7 @@ private data class WidgetSnapshot(
   val stepsCount: Long?,
   val leaderboardStatus: String,
   val leaderboardRank: Int,
+  val actionStatus: String?,
   val actionMessage: String?,
   val trend: List<TrendDay>,
   val upcoming: List<UpcomingHabit>,
@@ -589,6 +608,7 @@ private data class WidgetSnapshot(
       stepsCount = null,
       leaderboardStatus = "unavailable",
       leaderboardRank = 0,
+      actionStatus = null,
       actionMessage = null,
       trend = emptyList(),
       upcoming = emptyList(),
@@ -676,7 +696,7 @@ const WIDGET_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
   android:layout_width="match_parent"
   android:layout_height="match_parent"
   android:orientation="vertical"
-  android:padding="12dp"
+  android:padding="10dp"
   android:theme="@style/LaganWidgetTheme"
   android:background="@drawable/lagan_widget_background">
 
@@ -821,18 +841,6 @@ ${WIDGET_TREND_ROW_XML}
       android:visibility="gone" />
   </LinearLayout>
 
-  <TextView
-    android:id="@+id/lagan_widget_action_status"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginTop="3dp"
-    android:textColor="@color/lagan_widget_success"
-    android:textSize="11sp"
-    android:textStyle="bold"
-    android:maxLines="1"
-    android:ellipsize="end"
-    android:visibility="gone" />
-
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="0dp"
@@ -842,15 +850,20 @@ ${WIDGET_TREND_ROW_XML}
   <TextView
     android:id="@+id/lagan_widget_check_in"
     android:layout_width="match_parent"
-    android:layout_height="34dp"
-    android:layout_marginTop="6dp"
+    android:layout_height="36dp"
+    android:layout_marginTop="5dp"
     android:background="@drawable/lagan_widget_button_background"
     android:gravity="center"
     android:text="Open Lagan"
     android:textColor="#FFFFFF"
     android:textSize="13sp"
     android:textStyle="bold"
-    android:maxLines="1" />
+    android:maxLines="1"
+    android:includeFontPadding="false"
+    android:autoSizeTextType="uniform"
+    android:autoSizeMinTextSize="9sp"
+    android:autoSizeMaxTextSize="13sp"
+    android:autoSizeStepGranularity="1sp" />
 </LinearLayout>
 `;
 
@@ -944,7 +957,7 @@ function findTarget(project, name) {
   );
 }
 
-function configureIosTarget(project, target) {
+function configureIosTarget(project, target, marketingVersion) {
   const list =
     project.hash.project.objects.XCConfigurationList[target.pbxNativeTarget.buildConfigurationList];
   for (const entry of list?.buildConfigurations ?? []) {
@@ -956,7 +969,7 @@ function configureIosTarget(project, target) {
     settings.CURRENT_PROJECT_VERSION = 1;
     settings.GENERATE_INFOPLIST_FILE = "NO";
     settings.IPHONEOS_DEPLOYMENT_TARGET = "15.1";
-    settings.MARKETING_VERSION = "1.1.0";
+    settings.MARKETING_VERSION = `"${marketingVersion}"`;
     settings.PRODUCT_BUNDLE_IDENTIFIER = `"${IOS_WIDGET_BUNDLE_ID}"`;
     settings.SKIP_INSTALL = "YES";
     settings.SWIFT_VERSION = "5.9";
@@ -985,14 +998,32 @@ function withLaganIosWidget(config) {
     async (config) => {
       const root = config.modRequest.platformProjectRoot;
       const targetRoot = path.join(root, IOS_WIDGET_TARGET);
-      const template = path.join(
+      const projectName = IOSConfig.XcodeUtils.getProjectName(config.modRequest.projectRoot);
+      const mainTargetRoot = path.join(root, projectName);
+      const widgetTemplate = path.join(
         config.modRequest.projectRoot,
         "modules",
         "lagan-widget",
         "widget-extension",
         "LaganWidget.swift",
       );
-      writeFile(path.join(targetRoot, "LaganWidget.swift"), fs.readFileSync(template, "utf8"));
+      const actionTemplate = path.join(
+        config.modRequest.projectRoot,
+        "modules",
+        "lagan-widget",
+        "widget-extension",
+        IOS_WIDGET_ACTION_SOURCE,
+      );
+      const actionSource = fs.readFileSync(actionTemplate, "utf8");
+      writeFile(
+        path.join(targetRoot, "LaganWidget.swift"),
+        fs.readFileSync(widgetTemplate, "utf8"),
+      );
+      // Generate the same AppIntent implementation into both compilation
+      // targets. Apple requires an interactive widget AppIntent to belong to
+      // the containing app and widget extension targets.
+      writeFile(path.join(mainTargetRoot, IOS_WIDGET_ACTION_APP_SOURCE), actionSource);
+      writeFile(path.join(mainTargetRoot, IOS_WIDGET_ACTION_EXTENSION_SOURCE), actionSource);
       writeFile(path.join(targetRoot, `${IOS_WIDGET_TARGET}-Info.plist`), IOS_WIDGET_INFO_PLIST);
       writeFile(path.join(targetRoot, "PrivacyInfo.xcprivacy"), IOS_WIDGET_PRIVACY_MANIFEST);
       writeFile(
@@ -1005,6 +1036,8 @@ function withLaganIosWidget(config) {
 
   config = withXcodeProject(config, (config) => {
     const project = config.modResults;
+    const projectName = IOSConfig.XcodeUtils.getProjectName(config.modRequest.projectRoot);
+    const mainTarget = project.getFirstTarget();
     let targetEntry = findTarget(project, IOS_WIDGET_TARGET);
     let createdTarget = false;
     if (!targetEntry) {
@@ -1029,12 +1062,28 @@ function withLaganIosWidget(config) {
       targetEntry = [target.uuid, target.pbxNativeTarget];
       createdTarget = true;
     }
+    IOSConfig.XcodeUtils.addBuildSourceFileToGroup({
+      filepath: IOS_WIDGET_ACTION_APP_SOURCE,
+      groupName: projectName,
+      project,
+      targetUuid: mainTarget.uuid,
+    });
+    IOSConfig.XcodeUtils.addBuildSourceFileToGroup({
+      filepath: IOS_WIDGET_ACTION_EXTENSION_SOURCE,
+      groupName: projectName,
+      project,
+      targetUuid: targetEntry[0],
+    });
     if (!createdTarget) {
       project.addResourceFile(`${IOS_WIDGET_TARGET}/PrivacyInfo.xcprivacy`, {
         target: targetEntry[0],
       });
     }
-    configureIosTarget(project, { uuid: targetEntry[0], pbxNativeTarget: targetEntry[1] });
+    configureIosTarget(
+      project,
+      { uuid: targetEntry[0], pbxNativeTarget: targetEntry[1] },
+      config.version ?? "1.1.1",
+    );
     return config;
   });
 
@@ -1099,4 +1148,4 @@ const withLaganWidget = (config) => {
   return withLaganIosWidget(config);
 };
 
-module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "2.2.0");
+module.exports = createRunOncePlugin(withLaganWidget, "with-lagan-widget", "2.3.0");

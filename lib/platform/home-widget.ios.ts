@@ -1,3 +1,7 @@
+import {
+  parseHomeWidgetDiagnostics,
+  type HomeWidgetDiagnosticEntry,
+} from "@/lib/widgets/widget-diagnostics";
 export async function updateHomeWidgetSnapshot(snapshotJson: string): Promise<void> {
   try {
     const { requireNativeModule } = await import("expo");
@@ -83,5 +87,30 @@ export async function retryHomeWidgetPendingShortcutActions(): Promise<void> {
     await widget.retryShortcutActionsAsync?.();
   } catch {
     // Siri intents are absent from older native binaries.
+  }
+}
+
+export async function getHomeWidgetDiagnostics(): Promise<HomeWidgetDiagnosticEntry[]> {
+  try {
+    const { requireNativeModule } = await import("expo");
+    const widget = requireNativeModule<{
+      getWidgetDiagnosticsAsync?: () => Promise<string>;
+    }>("LaganWidget");
+    if (!widget.getWidgetDiagnosticsAsync) return [];
+    return parseHomeWidgetDiagnostics(await widget.getWidgetDiagnosticsAsync());
+  } catch {
+    return [];
+  }
+}
+
+export async function clearHomeWidgetDiagnostics(): Promise<void> {
+  try {
+    const { requireNativeModule } = await import("expo");
+    const widget = requireNativeModule<{
+      clearWidgetDiagnosticsAsync?: () => Promise<void>;
+    }>("LaganWidget");
+    await widget.clearWidgetDiagnosticsAsync?.();
+  } catch {
+    // Diagnostics are optional and absent from older native binaries.
   }
 }

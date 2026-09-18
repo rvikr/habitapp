@@ -1,8 +1,8 @@
-# Native widget 1.1.0 release guardrails
+# Native widget 1.1.1 release guardrails
 
 This feature is a native-binary release. Do not run `eas update`, do not publish
 its JavaScript to the 1.0.0 runtime, and do not reuse a 1.0.0 build artifact.
-`runtimeVersion.policy = appVersion` isolates this code as runtime `1.1.0`.
+`runtimeVersion.policy = appVersion` isolates this code as runtime `1.1.1`.
 
 ## Safe rollout order
 
@@ -10,7 +10,7 @@ its JavaScript to the 1.0.0 runtime, and do not reuse a 1.0.0 build artifact.
    leaderboard smoke tests still pass.
 2. Deploy `widget-session` and `widget-action` with
    `WIDGET_BACKGROUND_ACTIONS_ENABLED=false`.
-3. Build internal iOS and Android 1.1.0 binaries. Confirm iOS App Group,
+3. Build internal iOS and Android 1.1.1 binaries. Confirm iOS App Group,
    Keychain group, HealthKit capability and purpose string, widget privacy manifest,
    and Android background Health Connect permission in the signed artifacts.
 4. Test sign-in, sign-out/revocation, offline queue replay, repeated taps with
@@ -42,8 +42,8 @@ of the following before the server kill switch is enabled:
    overlap, and steps/rank remain readable.
 2. On Android, test the smallest square, short horizontal, and tall layouts.
    Resize in both directions and confirm the action is never clipped. Compact
-   layouts may hide the next-habit line, but must retain steps, rank, action
-   status, and the action button.
+   layouts may hide the next-habit line and, at large accessibility font sizes,
+   metadata, but must retain the inline action button without clipping.
 3. With step tracking enabled and Health access granted, open the Today screen
    and confirm today's device step count appears on the widget even when no
    habit is classified as a steps habit.
@@ -66,7 +66,7 @@ through EAS Update. Publish new TestFlight and Google Play internal-test builds.
 
 Siri habit logging is also native-binary-only. Do not run `eas update` for the
 App Intent, its localized resources, the habit entity catalog, or the Settings
-discovery screen. Bundle all of them in the replacement iOS 1.1.0 binary.
+discovery screen. Bundle all of them in the replacement iOS 1.1.1 binary.
 
 Before promoting that binary:
 
@@ -88,6 +88,22 @@ Before promoting that binary:
 The repository may remain configured for EAS Update generally; the release
 boundary is that no update is published for this feature. Current installed
 binaries therefore receive no Siri code or Settings UI.
+
+## OTA workflow after the 1.1.1 replacement binaries
+
+Only publish JavaScript and asset changes that remain compatible with runtime
+`1.1.1`; Swift, Kotlin, config-plugin, entitlement, permission, or native-library
+changes require another binary and app-version runtime.
+
+1. Publish to the preview channel with the production EAS environment:
+   `eas update --channel preview --environment production --message "..."`.
+2. Validate the exact update group on the Android preview build and the
+   `testflight-preview` iOS build. Force-close and reopen twice to exercise the
+   download-then-launch cycle.
+3. After explicit approval, republish that tested update group to production:
+   `eas update:republish --destination-channel production`.
+4. Verify runtime, commit, update group, and both platform bundles in EAS before
+   monitoring Sentry/PostHog. Use `eas update:rollback` if production regresses.
 
 ## Rollback
 

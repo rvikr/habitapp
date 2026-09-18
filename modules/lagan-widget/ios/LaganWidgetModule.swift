@@ -7,6 +7,7 @@ import WidgetKit
 private let appGroup = "group.health.lagan.app"
 private let keychainSuffix = "health.lagan.widget.shared"
 private let keychainService = "health.lagan.widget.actions"
+private let widgetDiagnosticsKey = "widget_diagnostics_v1"
 
 private func sharedAccessGroup() -> String? {
   guard let prefix = Bundle.main.object(forInfoDictionaryKey: "LaganAppIdentifierPrefix") as? String,
@@ -43,6 +44,13 @@ private func hasStoredToken() -> Bool {
   return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
 }
 
+private func widgetSessionExpiry(_ value: String) -> Date? {
+  let fractional = ISO8601DateFormatter()
+  fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+  if let date = fractional.date(from: value) { return date }
+  return ISO8601DateFormatter().date(from: value)
+}
+
 public final class LaganWidgetModule: Module {
   public func definition() -> ModuleDefinition {
     Name("LaganWidget")
@@ -54,7 +62,9 @@ public final class LaganWidgetModule: Module {
     }
 
     AsyncFunction("clearAsync") {
-      UserDefaults(suiteName: appGroup)?.removeObject(forKey: "snapshot_json")
+      let defaults = UserDefaults(suiteName: appGroup)
+      defaults?.removeObject(forKey: "snapshot_json")
+      defaults?.removeObject(forKey: widgetDiagnosticsKey)
       WidgetCenter.shared.reloadAllTimelines()
       if #available(iOS 16.0, *) { LaganAppShortcuts.updateAppShortcutParameters() }
     }
@@ -100,11 +110,18 @@ public final class LaganWidgetModule: Module {
       }
     }
 
+    AsyncFunction("getWidgetDiagnosticsAsync") { () -> String in
+      UserDefaults(suiteName: appGroup)?.string(forKey: widgetDiagnosticsKey) ?? "[]"
+    }
+
+    AsyncFunction("clearWidgetDiagnosticsAsync") {
+      UserDefaults(suiteName: appGroup)?.removeObject(forKey: widgetDiagnosticsKey)
+    }
 
     AsyncFunction("hasValidActionSessionAsync") { () -> Bool in
       guard hasStoredToken(),
             let expiresAt = UserDefaults(suiteName: appGroup)?.string(forKey: "expires_at"),
-            let expiry = ISO8601DateFormatter().date(from: expiresAt)
+            let expiry = widgetSessionExpiry(expiresAt)
       else { return false }
       // Rotate before the final seven days rather than failing mid-queue.
       return expiry.timeIntervalSinceNow > 7 * 24 * 60 * 60

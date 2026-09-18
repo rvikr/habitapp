@@ -29,6 +29,25 @@
       },
       "ios": { "simulator": true }
     },
+    "testflight-preview": {
+      "distribution": "store",
+      "channel": "preview",
+      "autoIncrement": true,
+      "environment": "production",
+      "env": {
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_WIDGET_BACKGROUND_ACTIONS_ENABLED": "true",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_sCctonAL2nCpwTFSSW98vYpX2QXHKEuTQDPinoEgcXNV",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
+        "EXPO_PUBLIC_PRIVACY_POLICY_URL": "https://lagan.health/privacy",
+        "EXPO_PUBLIC_TERMS_URL": "https://lagan.health/terms",
+        "EXPO_PUBLIC_ACCOUNT_DELETION_URL": "https://lagan.health/account-deletion",
+        "EXPO_PUBLIC_SUPPORT_EMAIL": "support@lagan.health",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://efb1a7c31216123735438f0a2e8571d0@o4511332581244928.ingest.de.sentry.io/4511332590157904",
+        "EXPO_PUBLIC_GOOGLE_NATIVE_ANDROID_AUTH": "true",
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "goog_SHTWKRBPEQvAxbTmohWtozNXMNd"
+      }
+    },
     "production": {
       "channel": "production",
       "autoIncrement": true,

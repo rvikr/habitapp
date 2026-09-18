@@ -10,6 +10,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="security" />
       <Stack.Screen name="privacy" />
       <Stack.Screen name="feedback" />
+      <Stack.Screen name="widget-diagnostics" />
     </Stack>
   );
 }
