@@ -28,6 +28,8 @@ import {
 import { useLanguage } from "@/components/language-provider";
 import { useTheme } from "@/components/theme-provider";
 import { getHabitVisualForHabit } from "@/lib/data/habit-images";
+import HabitTrendCard from "@/components/habit-trend-card";
+import type { HabitTrendRange } from "@/lib/data/habit-trends";
 
 const CARD_CLASS =
   "bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant";
@@ -55,6 +57,7 @@ export default function HabitDetailScreen() {
   const [insightDismissed, setInsightDismissed] = useState(false);
   // Pessimistic default so the Pro upsell row never flashes at Pro users.
   const [hasPro, setHasPro] = useState(true);
+  const [trendRange, setTrendRange] = useState<HabitTrendRange>(7);
 
   const load = useCallback(
     async (options?: { force?: boolean }) => {
@@ -456,6 +459,14 @@ export default function HabitDetailScreen() {
             </View>
           </View>
         </View>
+
+        <HabitTrendCard
+          habit={habit}
+          completions={completions}
+          range={trendRange}
+          onRangeChange={setTrendRange}
+          accent={accent}
+        />
 
         {/* AI Coach tip for this habit */}
         {insight && !insightDismissed && (

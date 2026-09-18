@@ -1,9 +1,15 @@
-import type { HabitProgress, HabitType, MetricType, ReminderStrategy } from "./habit-intelligence.ts";
+import type {
+  HabitProgress,
+  HabitType,
+  MetricType,
+  ReminderStrategy,
+} from "./habit-intelligence.ts";
 import {
   SMART_REMINDER_ACTIVE_END_HOUR,
   SMART_REMINDER_ACTIVE_START_HOUR,
   smartReminderTimesForDay,
 } from "./habit-intelligence.ts";
+import type { CoachTrendSummary, SmartReminderTimingSummary } from "../data/habit-trends.ts";
 
 export type SmartReminderCompletion = {
   completedOn: string;
@@ -26,6 +32,9 @@ export type SmartReminderDecisionContext = {
   reminderDays: number[];
   streak: number;
   typicalHour: number | null;
+  recommendedTime: string | null;
+  timing: SmartReminderTimingSummary;
+  trend: CoachTrendSummary;
   now: Date;
 };
 
@@ -80,12 +89,11 @@ export function sanitizeSmartReminderPlanTimes(
 export function learnedSmartReminderTimesForDay(input: SmartReminderDecisionContext): Date[] {
   if (input.progress.isDone) return [];
 
-  const maxCount = maxSmartReminderCount(input);
   const candidates: Date[] = [];
 
-  if (input.typicalHour != null) {
-    addHourCandidate(candidates, input.now, input.typicalHour - 1);
-    addHourCandidate(candidates, input.now, input.typicalHour);
+  if (input.recommendedTime) {
+    const recommended = dateForTime(input.now, input.recommendedTime);
+    if (recommended) return [recommended];
   }
 
   for (const hour of defaultReminderHours(input)) {
@@ -96,31 +104,22 @@ export function learnedSmartReminderTimesForDay(input: SmartReminderDecisionCont
     candidates.push(slot);
   }
 
-  return selectReminderSlots(candidates, maxCount);
+  return selectReminderSlots(candidates, 1);
 }
 
-export function maxSmartReminderCount(input: Pick<SmartReminderDecisionContext, "metricType" | "habitType" | "progress">): number {
+export function maxSmartReminderCount(
+  input: Pick<SmartReminderDecisionContext, "metricType" | "habitType" | "progress">,
+): number {
   if (input.progress.isDone) return 0;
-
-  if (input.metricType === "volume_ml" || input.metricType === "steps") {
-    if (input.progress.ratio < 0.25) return 4;
-    if (input.progress.ratio < 0.75) return 3;
-    return 2;
-  }
-
-  if (
-    input.habitType === "workout" ||
-    input.habitType === "run" ||
-    input.habitType === "cycling" ||
-    input.habitType === "coding" ||
-    input.habitType === "read" ||
-    input.habitType === "meditate" ||
-    input.habitType === "stretch"
-  ) {
-    return 2;
-  }
-
   return 1;
+}
+
+function dateForTime(now: Date, time: string): Date | null {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return null;
+  const [hour, minute] = time.split(":").map(Number);
+  const candidate = new Date(now);
+  candidate.setHours(hour, minute, 0, 0);
+  return candidate > now && isInsideActiveWindow(hour, minute) ? candidate : null;
 }
 
 function defaultReminderHours(

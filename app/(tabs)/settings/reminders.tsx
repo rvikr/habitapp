@@ -20,19 +20,11 @@ import type { ReminderStrategy } from "@/lib/coach/habit-intelligence";
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function smartReminderSummary(
-  intervalMinutes: number | null | undefined,
-  strategy: ReminderStrategy,
+  _intervalMinutes: number | null | undefined,
+  _strategy: ReminderStrategy,
   t: (key: string, vars?: Record<string, string | number>) => string,
 ): string {
-  const interval = intervalMinutes ?? 720;
-  const slotsPerDay = Math.round((14 * 60) / interval);
-  const count = Math.max(1, slotsPerDay);
-  if (strategy === "conditional_interval") {
-    if (count === 1) return t("1 smart reminder/day, stops once done");
-    return t("Up to {count} smart reminders/day, stops once done", { count });
-  }
-  if (count === 1) return t("1 smart reminder/day");
-  return t("Up to {count} smart reminders/day", { count });
+  return t("1 smart reminder/day, stops once done");
 }
 
 export default function RemindersScreen() {
@@ -43,6 +35,7 @@ export default function RemindersScreen() {
     "undetermined",
   );
   const [previewMessages, setPreviewMessages] = useState<Record<string, string>>({});
+  const [previewTiming, setPreviewTiming] = useState<Record<string, string>>({});
   const [hasPro, setHasPro] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
   const reviewableHabitIds = useMemo(() => habits.map((habit) => habit.id), [habits]);
@@ -59,13 +52,25 @@ export default function RemindersScreen() {
     // Load enriched schedule to show contextual preview messages.
     const schedule = await getReminderSchedule({ aiSmartReminders: false });
     const previews: Record<string, string> = {};
+    const timings: Record<string, string> = {};
     for (const entry of schedule) {
       if (!(entry.habitId in previews)) {
         previews[entry.habitId] =
           entry.coachMessage ?? buildSmartBody(entry.habitName, entry.context);
       }
+      if (!(entry.habitId in timings) && entry.timingSource) {
+        timings[entry.habitId] =
+          entry.timingSource === "habit_weekday"
+            ? t("Based on this weekday's pattern")
+            : entry.timingSource === "habit_overall"
+              ? t("Based on this habit's pattern")
+              : entry.timingSource === "user_overall"
+                ? t("Based on your active-time pattern")
+                : t("Standard timing until more data is available");
+      }
     }
     setPreviewMessages(previews);
+    setPreviewTiming(timings);
     setLoaded(true);
   }, []);
 
@@ -202,6 +207,11 @@ export default function RemindersScreen() {
                       habit.reminder_strategy as ReminderStrategy,
                       t,
                     )}
+                  </Text>
+                )}
+                {habit.reminders_enabled && previewTiming[habit.id] && (
+                  <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant mt-xs">
+                    {previewTiming[habit.id]}
                   </Text>
                 )}
                 {habit.reminder_times && habit.reminder_times.length > 0 && (

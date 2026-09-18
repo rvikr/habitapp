@@ -98,6 +98,11 @@ import {
 } from "../lib/data/steps-shared.ts";
 import { mergeSleepTrendEntries, summarizeStepTrend } from "../lib/data/progress-trends.ts";
 import {
+  reminderTimeForTiming,
+  resolveSmartReminderTiming,
+  summarizeHabitTrend,
+} from "../lib/data/habit-trends.ts";
+import {
   buildHomeWidgetSnapshot,
   stringifyHomeWidgetSnapshot,
 } from "../lib/widgets/home-widget-snapshot.ts";
@@ -6059,10 +6064,123 @@ function smartReminderTestContext(overrides = {}) {
     reminderDays: [0, 1, 2, 3, 4, 5, 6],
     streak: 1,
     typicalHour: null,
+    recommendedTime: "10:00",
+    timing: { source: "habit_overall", hour: 10, sampleCount: 5, confidence: 0.8 },
+    trend: {
+      rangeDays: 30,
+      scheduledDays: 30,
+      loggedDays: 5,
+      targetHitDays: 5,
+      targetHitRate: 1 / 6,
+      consistencyRate: 1 / 6,
+      averageProgressPct: 17,
+      strongestWeekday: null,
+      priorPeriodTargetHitRate: null,
+      changePctPoints: null,
+      direction: null,
+      timing: { hour: 10, sampleCount: 5, confidence: 0.8 },
+    },
     now,
     ...overrides,
   };
 }
+
+function trendTestHabit(overrides = {}) {
+  return {
+    id: "habit-1",
+    user_id: "user-1",
+    name: "Read",
+    description: null,
+    icon: "book",
+    color: "primary",
+    target: 10,
+    unit: "pages",
+    reminder_time: null,
+    reminder_times: [],
+    reminder_days: [0, 1, 2, 3, 4, 5, 6],
+    reminders_enabled: true,
+    habit_type: "read",
+    metric_type: "pages",
+    visual_type: "reading_book",
+    reminder_strategy: "conditional_interval",
+    reminder_interval_minutes: 120,
+    default_log_value: 5,
+    created_at: "2026-04-01T08:00:00",
+    archived_at: null,
+    ...overrides,
+  };
+}
+
+function trendLog(date, value, hour = 18, habitId = "habit-1") {
+  return {
+    habit_id: habitId,
+    completed_on: date,
+    created_at: `${date}T${String(hour).padStart(2, "0")}:00:00`,
+    value,
+  };
+}
+
+test("habit trends calculate target, consistency, prior period and timing aggregates", () => {
+  const now = new Date(2026, 4, 14, 12, 0);
+  const completions = [
+    trendLog("2026-05-14", 10),
+    trendLog("2026-05-13", 10),
+    trendLog("2026-05-12", 5),
+    trendLog("2026-05-11", 10),
+    trendLog("2026-05-08", 10),
+    trendLog("2026-05-07", 10),
+    trendLog("2026-05-06", 5),
+    trendLog("2026-05-03", 10),
+  ];
+  const summary = summarizeHabitTrend(trendTestHabit(), completions, 7, now);
+
+  assert.equal(summary.scheduledDays, 7);
+  assert.equal(summary.loggedDays, 5);
+  assert.equal(summary.targetHitDays, 4);
+  assert.equal(Math.round(summary.targetHitRate * 100), 57);
+  assert.equal(summary.direction, "up");
+  assert.equal(summary.timing?.hour, 18);
+  assert.equal(summary.points.length, 7);
+});
+
+test("habit trends suppress direction until three scheduled points exist", () => {
+  const now = new Date(2026, 4, 14, 12, 0);
+  const summary = summarizeHabitTrend(
+    trendTestHabit({ created_at: "2026-05-13T08:00:00" }),
+    [trendLog("2026-05-14", 10)],
+    7,
+    now,
+  );
+  assert.equal(summary.scheduledDays, 2);
+  assert.equal(summary.direction, null);
+  assert.equal(summary.changePctPoints, null);
+});
+
+test("smart reminder timing prefers weekday, then habit, then global patterns", () => {
+  const now = new Date(2026, 4, 14, 9, 0); // Thursday
+  const habit = trendTestHabit();
+  const other = trendTestHabit({ id: "habit-2", name: "Walk" });
+  const weekdayLogs = [
+    trendLog("2026-05-07", 10, 18),
+    trendLog("2026-04-30", 10, 18),
+    trendLog("2026-04-23", 10, 19),
+  ];
+  const weekday = resolveSmartReminderTiming(habit, weekdayLogs, [habit], weekdayLogs, now);
+  assert.equal(weekday.source, "habit_weekday");
+  assert.equal(weekday.hour, 18);
+  assert.equal(reminderTimeForTiming(weekday, now), "17:30");
+
+  const globalLogs = [
+    trendLog("2026-05-13", 10, 20, "habit-2"),
+    trendLog("2026-05-12", 10, 20, "habit-2"),
+    trendLog("2026-05-11", 10, 20, "habit-2"),
+    trendLog("2026-05-10", 10, 20, "habit-2"),
+    trendLog("2026-05-09", 10, 19, "habit-2"),
+  ];
+  const global = resolveSmartReminderTiming(habit, [], [habit, other], globalLogs, now);
+  assert.equal(global.source, "user_overall");
+  assert.equal(global.hour, 20);
+});
 
 test("smart reminder slots respect active hours and intervals", () => {
   const slots = smartReminderTimesForDay(new Date(2026, 4, 10, 7, 30), 120);
@@ -6074,7 +6192,7 @@ test("smart reminder slots respect active hours and intervals", () => {
   assert.equal(midday[0].getHours(), 13);
 });
 
-test("learned smart reminders prefer the user's recent successful hour", () => {
+test("learned smart reminders schedule one deterministic pre-window time", () => {
   const slots = learnedSmartReminderTimesForDay({
     habitId: "workout-1",
     habitName: "Workout",
@@ -6094,13 +6212,15 @@ test("learned smart reminders prefer the user's recent successful hour", () => {
     reminderDays: [0, 1, 2, 3, 4, 5, 6],
     streak: 3,
     typicalHour: 18,
+    recommendedTime: "17:30",
+    timing: { source: "habit_overall", hour: 18, sampleCount: 5, confidence: 0.8 },
+    trend: smartReminderTestContext().trend,
     now: new Date(2026, 4, 10, 9, 0),
   });
 
-  assert.deepEqual(
-    slots.map((slot) => slot.getHours()),
-    [17, 18],
-  );
+  assert.equal(slots.length, 1);
+  assert.equal(slots[0].getHours(), 17);
+  assert.equal(slots[0].getMinutes(), 30);
 });
 
 test("strict smart reminder AI times reject past, invalid, and crowded slots", () => {
@@ -6131,6 +6251,9 @@ test("AI smart reminder plans keep valid habit plans and drop invalid ones", asy
     reminderDays: [0, 1, 2, 3, 4, 5, 6],
     streak: 1,
     typicalHour: null,
+    recommendedTime: "10:00",
+    timing: smartReminderTestContext().timing,
+    trend: smartReminderTestContext().trend,
     now: new Date(2026, 4, 10, 9, 15),
   };
 
@@ -6144,7 +6267,7 @@ test("AI smart reminder plans keep valid habit plans and drop invalid ones", asy
       now: new Date(2026, 4, 10, 9, 15),
       invoke: async () => ({
         plans: [
-          { habitId: "valid-habit", times: ["10:00", "14:00"] },
+          { habitId: "valid-habit", times: ["10:00"], message: "Your usual window is coming up." },
           { habitId: "invalid-habit", times: ["08:00"] },
         ],
         generated: true,
@@ -6153,9 +6276,10 @@ test("AI smart reminder plans keep valid habit plans and drop invalid ones", asy
   );
 
   assert.deepEqual(
-    plans.get("valid-habit")?.map((slot) => slot.getHours()),
-    [10, 14],
+    plans.get("valid-habit")?.times.map((slot) => slot.getHours()),
+    [10],
   );
+  assert.equal(plans.get("valid-habit")?.message, "Your usual window is coming up.");
   assert.equal(plans.has("invalid-habit"), false);
 });
 
@@ -6228,6 +6352,20 @@ test("smart-reminders sanitizes contexts before quota and Gemini input", () => {
   assert.doesNotMatch(source, /progress: isRecord\(item\.progress\) \? item\.progress : \{\}/);
 });
 
+test("new smart-reminder AI payloads contain aggregates and a fixed time, not raw logs", () => {
+  const client = readFileSync("lib/coach/smart-reminder-ai.ts", "utf8");
+  const invokeBlock =
+    client.match(/async function invokeSmartReminderPlans[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(invokeBlock, /recommendedTime: context\.recommendedTime/);
+  assert.match(invokeBlock, /trend: context\.trend/);
+  assert.doesNotMatch(invokeBlock, /completions:/);
+
+  const server = readFileSync("supabase/functions/smart-reminders/index.ts", "utf8");
+  assert.match(server, /deterministicTiming/);
+  assert.match(server, /times: \[context\.recommendedTime\]/);
+  assert.match(server, /maxItems: 1/);
+});
+
 test("AI smart reminder plans reuse cached responses for matching contexts", async () => {
   const now = new Date(2026, 4, 10, 9, 15);
   const context = smartReminderTestContext({ now });
@@ -6240,7 +6378,9 @@ test("AI smart reminder plans reuse cached responses for matching contexts", asy
     storage,
     invoke: async () => {
       calls++;
-      return { plans: [{ habitId: context.habitId, times: ["10:00", "14:00"] }] };
+      return {
+        plans: [{ habitId: context.habitId, times: ["10:00"], message: "Time to build momentum." }],
+      };
     },
   };
 
@@ -6248,12 +6388,12 @@ test("AI smart reminder plans reuse cached responses for matching contexts", asy
   const second = await resolveAiSmartReminderPlans([context], options);
 
   assert.deepEqual(
-    first.get(context.habitId)?.map((slot) => slot.getHours()),
-    [10, 14],
+    first.get(context.habitId)?.times.map((slot) => slot.getHours()),
+    [10],
   );
   assert.deepEqual(
-    second.get(context.habitId)?.map((slot) => slot.getHours()),
-    [10, 14],
+    second.get(context.habitId)?.times.map((slot) => slot.getHours()),
+    [10],
   );
   assert.equal(calls, 1);
 });
@@ -6280,8 +6420,8 @@ test("AI smart reminder plans share an in-flight invocation", async () => {
   const [firstPlans, secondPlans] = await Promise.all([first, second]);
 
   assert.equal(calls, 1);
-  assert.equal(firstPlans.get(context.habitId)?.[0].getHours(), 10);
-  assert.equal(secondPlans.get(context.habitId)?.[0].getHours(), 10);
+  assert.equal(firstPlans.get(context.habitId)?.times[0].getHours(), 10);
+  assert.equal(secondPlans.get(context.habitId)?.times[0].getHours(), 10);
 });
 
 test("AI smart reminder plans cool down after a 429", async () => {
@@ -6339,7 +6479,7 @@ test("AI smart reminder 429 cooldown honors retryAfterSeconds when available", a
   const invoke = async () => {
     calls++;
     if (calls === 1) throw rateLimitError;
-    return { plans: [{ habitId: context.habitId, times: ["11:00"] }] };
+    return { plans: [{ habitId: context.habitId, times: ["10:00"] }] };
   };
 
   const first = await resolveAiSmartReminderPlans([context], {
@@ -6359,7 +6499,7 @@ test("AI smart reminder 429 cooldown honors retryAfterSeconds when available", a
   );
 
   assert.equal(first.size, 0);
-  assert.equal(second.get(context.habitId)?.[0].getHours(), 11);
+  assert.equal(second.get(context.habitId)?.times[0].getHours(), 10);
   assert.equal(calls, 2);
 });
 
@@ -6390,7 +6530,7 @@ test("AI smart reminder plans ignore stale cached times and fall back locally", 
     },
   });
 
-  assert.equal(first.get(firstContext.habitId)?.[0].getHours(), 10);
+  assert.equal(first.get(firstContext.habitId)?.times[0].getHours(), 10);
   assert.equal(second.size, 0);
   assert.equal(calls, 2);
 });
@@ -8436,6 +8576,23 @@ test("AI access UI records versioned adult attestation, syncs timezone, and supp
   assert.match(privacy, /I confirm I am 18 or older/);
   assert.match(privacy, /Revoke AI access/);
   assert.match(privacy, /Google Gemini/);
+});
+
+test("Pro age banner gates dashboard AI and habit detail also requires attestation", () => {
+  const dashboard = readFileSync("app/(tabs)/index.tsx", "utf8");
+  const banners = readFileSync("components/pro-access-banner.tsx", "utf8");
+  const habits = readFileSync("lib/data/habits.ts", "utf8");
+
+  assert.match(
+    dashboard,
+    /data\?\.proAccess\.hasPro[\s\S]*data\.aiAccess\?\.state === "attestation_required"/,
+  );
+  assert.match(banners, /Confirm I'm 18 or older/);
+  assert.match(banners, /Privacy policy/);
+  assert.match(
+    habits,
+    /getHabitCoachInsight[\s\S]*ai_adult_attested_at[\s\S]*ai_disclosure_version[\s\S]*enabled: aiEnabled && hasPro && hasAiAccess/,
+  );
 });
 
 test("signup, Terms, and Privacy disclose the adult-only revocable AI processing", () => {

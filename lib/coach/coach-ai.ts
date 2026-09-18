@@ -117,13 +117,14 @@ export async function resolveCoachMessage(
 export function coachMessageCacheKey(
   signal: Pick<
     CoachSignal,
-    "kind" | "habitId" | "tone" | "suggestedValue" | "progressPct" | "message"
+    "kind" | "habitId" | "tone" | "suggestedValue" | "progressPct" | "message" | "trend"
   >,
   now = new Date(),
   cacheEpoch = "0",
 ): string {
   const progress = Math.max(0, Math.min(100, Math.round(signal.progressPct ?? 0)));
   const progressBucket = Math.floor(progress / 10) * 10;
+  const trendFingerprint = signal.trend ? fingerprint(JSON.stringify(signal.trend)) : "no-trend";
   const localDate = [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, "0"),
@@ -138,6 +139,7 @@ export function coachMessageCacheKey(
     signal.tone,
     signal.suggestedValue ?? "",
     progressBucket,
+    trendFingerprint,
     fingerprint(signal.message),
   ].join(":");
 }
@@ -255,6 +257,7 @@ async function invokeCoachMessage(signal: CoachSignal): Promise<string | null> {
         suggestedValue: signal.suggestedValue ?? null,
         unit: signal.unit ?? null,
         progressPct: signal.progressPct ?? null,
+        trend: signal.trend ?? null,
         fallbackMessage: signal.message,
       },
     },

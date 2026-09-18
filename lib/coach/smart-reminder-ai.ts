@@ -2,7 +2,6 @@ import { localDateKey } from "../utils/date.ts";
 import { isRateLimited, retryAfterMsFromRateLimit } from "./ai-rate-limit.ts";
 import { readAiCacheEpoch } from "./ai-cache-epoch.ts";
 import {
-  maxSmartReminderCount,
   sanitizeSmartReminderPlanTimes,
   type SmartReminderDecisionContext,
 } from "./smart-reminders.ts";
@@ -16,9 +15,10 @@ type ResolveAiSmartReminderOptions = {
   cooldownMs?: number;
 };
 
-type AiSmartReminderPlan = {
+export type AiSmartReminderPlan = {
   habitId: string;
   times: Date[];
+  message?: string;
 };
 
 type SmartReminderStorage = {
@@ -32,6 +32,7 @@ type CachedSmartReminderPlans = {
   plans: {
     habitId: string;
     times: string[];
+    message?: string;
   }[];
 };
 
@@ -39,13 +40,13 @@ const CACHE_PREFIX = "habbit:smart-reminders";
 const CACHE_VERSION = "v1";
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000;
 const DEFAULT_COOLDOWN_MS = 60 * 60 * 1000;
-const inflightInvocations = new Map<string, Promise<Map<string, Date[]>>>();
+const inflightInvocations = new Map<string, Promise<Map<string, AiSmartReminderPlan>>>();
 
 export async function resolveAiSmartReminderPlans(
   contexts: SmartReminderDecisionContext[],
   options: ResolveAiSmartReminderOptions,
-): Promise<Map<string, Date[]>> {
-  const resolved = new Map<string, Date[]>();
+): Promise<Map<string, AiSmartReminderPlan>> {
+  const resolved = new Map<string, AiSmartReminderPlan>();
   if (!options.enabled || contexts.length === 0) return resolved;
 
   const now = options.now ?? new Date();
@@ -85,13 +86,13 @@ async function resolveFreshAiSmartReminderPlans(
     cooldownMs: number;
     cacheEpoch: string;
   },
-): Promise<Map<string, Date[]>> {
-  const resolved = new Map<string, Date[]>();
+): Promise<Map<string, AiSmartReminderPlan>> {
+  const resolved = new Map<string, AiSmartReminderPlan>();
 
   try {
     const response = await (options.invoke ?? invokeSmartReminderPlans)(contexts);
     const plans = sanitizeAiSmartReminderPlans(response, contexts, options.now);
-    for (const plan of plans) resolved.set(plan.habitId, plan.times);
+    for (const plan of plans) resolved.set(plan.habitId, plan);
     if (plans.length > 0) {
       await writeCachedPlans(options.storage, contexts, options.now, plans, options.cacheEpoch);
     }
@@ -123,12 +124,21 @@ export function sanitizeAiSmartReminderPlans(
     if (!context) continue;
 
     const times = sanitizeSmartReminderPlanTimes(item.times, now, {
-      maxCount: maxSmartReminderCount(context),
+      maxCount: 1,
     });
     if (!times) continue;
+    if (context.recommendedTime && timeString(times[0]) !== context.recommendedTime) continue;
+
+    const message =
+      typeof item.message === "string" && item.message.trim().length > 0
+        ? item.message
+            .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+            .trim()
+            .slice(0, 160)
+        : undefined;
 
     seen.add(item.habitId);
-    plans.push({ habitId: item.habitId, times });
+    plans.push({ habitId: item.habitId, times, message });
   }
 
   return plans;
@@ -166,6 +176,9 @@ function smartReminderPlansCacheKey(
         reminderDays: [...context.reminderDays].sort((a, b) => a - b),
         streak: context.streak,
         typicalHour: context.typicalHour,
+        recommendedTime: context.recommendedTime,
+        timing: context.timing,
+        trend: context.trend,
       }))
       .sort((a, b) => a.habitId.localeCompare(b.habitId)),
   );
@@ -179,7 +192,7 @@ async function readCachedPlans(
   contexts: SmartReminderDecisionContext[],
   now: Date,
   ttlMs: number,
-): Promise<Map<string, Date[]> | null> {
+): Promise<Map<string, AiSmartReminderPlan> | null> {
   if (!storage) return null;
   const raw = await storage.getItem(key);
   if (!raw) return null;
@@ -192,8 +205,8 @@ async function readCachedPlans(
     const plans = sanitizeAiSmartReminderPlans({ plans: parsed.plans }, contexts, now);
     if (plans.length === 0) return null;
 
-    const resolved = new Map<string, Date[]>();
-    for (const plan of plans) resolved.set(plan.habitId, plan.times);
+    const resolved = new Map<string, AiSmartReminderPlan>();
+    for (const plan of plans) resolved.set(plan.habitId, plan);
     return resolved;
   } catch {
     return null;
@@ -213,6 +226,7 @@ async function writeCachedPlans(
     plans: plans.map((plan) => ({
       habitId: plan.habitId,
       times: plan.times.map(timeString),
+      message: plan.message,
     })),
   };
   await storage.setItem(
@@ -308,11 +322,13 @@ async function invokeSmartReminderPlans(
           ratio: context.progress.ratio,
           label: context.progress.label,
         },
-        completions: context.completions.slice(-14),
         manualTimes: context.manualTimes,
         reminderDays: context.reminderDays,
         streak: context.streak,
         typicalHour: context.typicalHour,
+        recommendedTime: context.recommendedTime,
+        timing: context.timing,
+        trend: context.trend,
         currentTime: timeString(now),
       })),
     },

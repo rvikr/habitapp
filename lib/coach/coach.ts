@@ -5,6 +5,7 @@ import {
   progressForHabit,
   suggestedCheckInForHabit,
 } from "./habit-intelligence.ts";
+import type { CoachTrendSummary } from "../data/habit-trends.ts";
 
 export type CoachTone = "friendly" | "motivational" | "calm" | "strict" | "military";
 
@@ -30,6 +31,7 @@ export type CoachSignal = {
   progressPct?: number;
   unit?: string | null;
   skipWindowLabel?: string;
+  trend?: CoachTrendSummary;
 };
 
 type CoachCompletion = Pick<HabitCompletion, "habit_id" | "completed_on" | "created_at" | "value">;

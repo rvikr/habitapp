@@ -24,6 +24,7 @@ import { resolveProAccess, type ProAccessProfile } from "../subscription/access"
 import { dashboardDisplayName } from "./display-name";
 import { isStepHabit } from "./steps-shared";
 import type { ProgressTrendInputs, TrendCompletion } from "./progress-trends";
+import { coachTrendSummary, summarizeHabitTrend } from "./habit-trends";
 
 export type TodayProgressMap = Map<string, HabitProgress>;
 export type StreaksMap = Map<string, number>;
@@ -200,9 +201,14 @@ export async function getHabitsForToday(options?: DataFetchOptions): Promise<Tod
     buildCoachSignals({ habits: habitsList, completions: completionRows, tone: coachTone }),
   );
   if (coachSignal) {
+    const signalHabit = habitsList.find((habit) => habit.id === coachSignal?.habitId);
+    const trend = signalHabit
+      ? coachTrendSummary(summarizeHabitTrend(signalHabit, completionRows, 30))
+      : undefined;
+    const trendSignal = { ...coachSignal, trend };
     coachSignal = {
-      ...coachSignal,
-      message: await resolveCoachMessage(coachSignal, {
+      ...trendSignal,
+      message: await resolveCoachMessage(trendSignal, {
         enabled: aiEnabled && hasPro && hasAiAccess,
         nonBlocking: true,
       }),
@@ -273,7 +279,11 @@ export async function getHabit(id: string, options?: DataFetchOptions) {
   );
 }
 
-type CoachProfileRow = ProAccessProfile & { coach_tone?: string | null };
+type CoachProfileRow = ProAccessProfile & {
+  coach_tone?: string | null;
+  ai_adult_attested_at?: string | null;
+  ai_disclosure_version?: string | null;
+};
 
 // Top coach signal for a single habit, for the habit detail screen. Unlike the
 // dashboard's top signal this may be the low-priority encouragement fallback —
@@ -297,7 +307,7 @@ export async function getHabitCoachInsight(
         const { data } = await supabase
           .from("profiles")
           .select(
-            "coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at",
+            "coach_tone, is_pro, pro_trial_ends_at, revenuecat_entitlement_active, pro_expires_at, ai_adult_attested_at, ai_disclosure_version",
           )
           .eq("user_id", user.id)
           .maybeSingle();
@@ -322,11 +332,24 @@ export async function getHabitCoachInsight(
   if (!signal) return null;
 
   const hasPro = resolveProAccess(profile).hasPro;
-  const message = await resolveCoachMessage(signal, {
-    enabled: aiEnabled && hasPro,
+  const hasAiAccess = Boolean(
+    profile?.ai_adult_attested_at && profile.ai_disclosure_version === AI_DISCLOSURE_VERSION,
+  );
+  const trendSignal = {
+    ...signal,
+    trend: coachTrendSummary(
+      summarizeHabitTrend(
+        habit,
+        completions.map((completion) => ({ habit_id: habit.id, ...completion })),
+        30,
+      ),
+    ),
+  };
+  const message = await resolveCoachMessage(trendSignal, {
+    enabled: aiEnabled && hasPro && hasAiAccess,
     nonBlocking: true,
   });
-  return { ...signal, message };
+  return { ...trendSignal, message };
 }
 
 export async function getStats(options?: DataFetchOptions) {

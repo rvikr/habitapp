@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { syncScheduledReminders } from "@/lib/data/reminder-sync";
 import { toggleHabit } from "@/lib/data/actions";
@@ -37,7 +37,10 @@ export default function NotificationScheduler() {
     if (Platform.OS === "web") return;
 
     registerNotificationCategories().catch(() => {});
-    syncScheduledReminders();
+    void syncScheduledReminders();
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void syncScheduledReminders();
+    });
 
     let cancelled = false;
     let remove: (() => void) | undefined;
@@ -93,6 +96,7 @@ export default function NotificationScheduler() {
 
     return () => {
       cancelled = true;
+      appStateSubscription.remove();
       remove?.();
     };
   }, [router]);

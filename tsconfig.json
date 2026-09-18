@@ -16,5 +16,5 @@
     "nativewind-env.d.ts",
     ".expo/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "website", "supabase/functions"]
+  "exclude": ["node_modules", "website", "supabase/functions", "tmp"]
 }

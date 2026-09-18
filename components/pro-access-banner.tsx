@@ -97,3 +97,61 @@ export function TrialSubscriptionBanner({
     />
   );
 }
+
+export function AiAgeConfirmationBanner({
+  confirming,
+  onConfirm,
+  onNotNow,
+  onPrivacy,
+}: {
+  confirming: boolean;
+  onConfirm: () => void;
+  onNotNow: () => void;
+  onPrivacy: () => void;
+}) {
+  const { t } = useLanguage();
+  return (
+    <View className="bg-surface-container dark:bg-d-surface rounded-2xl border border-outline-variant dark:border-d-outline-variant p-md gap-sm">
+      <View className="flex-row items-start gap-md">
+        <View className="w-10 h-10 rounded-full bg-primary items-center justify-center">
+          <MaterialCommunityIcons name="shield-account" size={20} color="#fff" />
+        </View>
+        <View className="flex-1 gap-xs">
+          <Text className="text-body-md text-on-background dark:text-d-on-background font-semibold">
+            {t("Confirm your age for AI features")}
+          </Text>
+          <Text className="text-label-sm text-on-surface-variant dark:text-d-on-surface-variant">
+            {t(
+              "AI Coach and adaptive smart reminders are available to Pro users aged 18 or older.",
+            )}
+          </Text>
+          <TouchableOpacity accessibilityRole="link" onPress={onPrivacy}>
+            <Text className="text-label-sm text-primary font-semibold">{t("Privacy policy")}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View className="flex-row gap-sm">
+        <TouchableOpacity
+          className="flex-1 bg-primary rounded-full px-md py-sm items-center"
+          onPress={onConfirm}
+          disabled={confirming}
+          accessibilityRole="button"
+          accessibilityState={{ disabled: confirming }}
+        >
+          <Text className="text-on-primary text-label-sm font-semibold">
+            {confirming ? t("Confirming...") : t("Confirm I'm 18 or older")}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          className="rounded-full px-md py-sm items-center border border-outline-variant dark:border-d-outline-variant"
+          onPress={onNotNow}
+          accessibilityRole="button"
+        >
+          <Text className="text-on-background dark:text-d-on-background text-label-sm font-semibold">
+            {t("Not now")}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}

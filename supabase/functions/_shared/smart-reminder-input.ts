@@ -48,6 +48,8 @@ type SanitizedSmartReminderCompletion = {
   value: number | null;
 };
 
+type TimingSource = "habit_weekday" | "habit_overall" | "user_overall" | "default";
+
 type SanitizedSmartReminderContext = {
   habitId: string;
   habitName: string;
@@ -63,6 +65,14 @@ type SanitizedSmartReminderContext = {
   reminderDays: number[];
   streak: number | null;
   typicalHour: number | null;
+  recommendedTime: string | null;
+  timing: {
+    source: TimingSource;
+    hour: number | null;
+    sampleCount: number;
+    confidence: number;
+  } | null;
+  trend: Record<string, unknown> | null;
   currentTime: string;
 };
 
@@ -116,7 +126,65 @@ function cleanContext(item: unknown): SanitizedSmartReminderContext | null {
     reminderDays: cleanReminderDays(item.reminderDays),
     streak: cleanNumber(item.streak, 0, 365, true),
     typicalHour: cleanNumber(item.typicalHour, 0, 23, true),
+    recommendedTime: cleanTime(item.recommendedTime),
+    timing: cleanTiming(item.timing),
+    trend: cleanTrend(item.trend),
     currentTime,
+  };
+}
+
+function cleanTiming(value: unknown): SanitizedSmartReminderContext["timing"] {
+  if (!isRecord(value)) return null;
+  const allowed = new Set(["habit_weekday", "habit_overall", "user_overall", "default"]);
+  if (typeof value.source !== "string" || !allowed.has(value.source)) return null;
+  const sampleCount = cleanNumber(value.sampleCount, 0, 60, true);
+  const confidence = cleanNumber(value.confidence, 0, 1, false);
+  if (sampleCount == null || confidence == null) return null;
+  return {
+    source: value.source as TimingSource,
+    hour: cleanNumber(value.hour, 0, 23, true),
+    sampleCount,
+    confidence,
+  };
+}
+
+function cleanTrend(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) return null;
+  const rangeDays = value.rangeDays === 7 || value.rangeDays === 30 ? value.rangeDays : null;
+  const scheduledDays = cleanNumber(value.scheduledDays, 0, 30, true);
+  const loggedDays = cleanNumber(value.loggedDays, 0, 30, true);
+  const targetHitDays = cleanNumber(value.targetHitDays, 0, 30, true);
+  const targetHitRate = cleanNumber(value.targetHitRate, 0, 1, false);
+  const consistencyRate = cleanNumber(value.consistencyRate, 0, 1, false);
+  const averageProgressPct = cleanNumber(value.averageProgressPct, 0, 100, false);
+  if (
+    rangeDays == null || scheduledDays == null || loggedDays == null ||
+    targetHitDays == null || targetHitRate == null || consistencyRate == null ||
+    averageProgressPct == null
+  ) return null;
+  return {
+    rangeDays,
+    scheduledDays,
+    loggedDays,
+    targetHitDays,
+    targetHitRate,
+    consistencyRate,
+    averageProgressPct,
+    direction:
+      value.direction === "up" || value.direction === "down" || value.direction === "steady"
+        ? value.direction
+        : null,
+    changePctPoints: cleanNumber(value.changePctPoints, -100, 100, false),
+    strongestWeekday: isRecord(value.strongestWeekday)
+      ? {
+          weekday: cleanNumber(value.strongestWeekday.weekday, 0, 6, true),
+          hitRate: cleanNumber(value.strongestWeekday.hitRate, 0, 1, false),
+        }
+      : null,
+    timing: cleanTiming({
+      ...(isRecord(value.timing) ? value.timing : {}),
+      source: "habit_overall",
+    }),
   };
 }
 

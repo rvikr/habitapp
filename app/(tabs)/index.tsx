@@ -37,7 +37,11 @@ import {
   hasCompletedOnboarding,
   markOnboardingComplete,
 } from "@/lib/auth/onboarding";
-import { TrialEndedBanner, TrialSubscriptionBanner } from "@/components/pro-access-banner";
+import {
+  AiAgeConfirmationBanner,
+  TrialEndedBanner,
+  TrialSubscriptionBanner,
+} from "@/components/pro-access-banner";
 import NotificationPermissionCard from "@/components/notification-permission-card";
 import CoachCard, { CoachHeaderButton } from "@/components/coach-card";
 import { dismissCoachCard, isCoachCardDismissed } from "@/lib/coach/coach-card-dismissal";
@@ -87,6 +91,12 @@ import {
   watchStepCount,
   type StepSubscription,
 } from "@/lib/platform/steps";
+import {
+  getAiAccessProfile,
+  setAiAdultAttestation,
+  type AiAccessProfile,
+} from "@/lib/services/ai-access";
+import { syncScheduledReminders } from "@/lib/data/reminder-sync";
 
 type StatsData = Awaited<ReturnType<typeof getStats>>;
 
@@ -102,6 +112,7 @@ type DashboardData = {
   coachSignal: CoachSignal | null;
   weekTrend: WidgetTrendDay[];
   proAccess: ProAccess;
+  aiAccess: AiAccessProfile | null;
   stats: StatsData;
 };
 
@@ -109,6 +120,7 @@ const STEP_SYNC_INTERVAL_MS = 30_000;
 const TRIAL_ENDED_DISMISSED_KEY = "habbit:trial-ended-banner-dismissed";
 let trialBannerDismissedForSession = false;
 let coachUpgradeHintDismissedForSession = false;
+let aiAgeBannerDismissedForSession = false;
 // The wizard auto-launches at most once per session: cancelling it must land
 // on the dashboard's empty state, not bounce straight back into the wizard.
 let wizardAutoLaunchedForSession = false;
@@ -183,6 +195,8 @@ export default function DashboardScreen() {
   const [trialBannerDismissed, setTrialBannerDismissed] = useState(trialBannerDismissedForSession);
   const [trialEndedDismissedAt, setTrialEndedDismissedAt] = useState<string | null>(null);
   const [coachHintDismissed, setCoachHintDismissed] = useState(coachUpgradeHintDismissedForSession);
+  const [aiAgeBannerDismissed, setAiAgeBannerDismissed] = useState(aiAgeBannerDismissedForSession);
+  const [confirmingAiAge, setConfirmingAiAge] = useState(false);
   // null = automatic (auto-show unless dismissed today); the bot button toggles
   // an explicit override so it survives as a manual entry point.
   const [coachCardOverride, setCoachCardOverride] = useState<"shown" | "hidden" | null>(null);
@@ -360,10 +374,11 @@ export default function DashboardScreen() {
         flushPendingCompletions().catch(() => undefined),
       ]);
       setSyncIssueRefreshToken((current) => current + 1);
-      const [result, proAccess, stats] = await Promise.all([
+      const [result, proAccess, stats, aiAccess] = await Promise.all([
         getHabitsForToday(options),
         getCurrentProAccess(),
         getStats(options),
+        getAiAccessProfile().catch(() => null),
       ]);
 
       if (!result.ok) {
@@ -392,6 +407,7 @@ export default function DashboardScreen() {
         todayProgress: result.todayProgress,
         streaksMap: result.streaksMap,
         proAccess,
+        aiAccess,
         stats,
       });
     } catch {
@@ -473,6 +489,25 @@ export default function DashboardScreen() {
     activationPresentation.showMonetization && data
       ? shouldShowTrialEndedBanner(data.proAccess, trialEndedDismissedAt)
       : false;
+  const showAiAgeBanner = Boolean(
+    data?.proAccess.hasPro &&
+    data.aiAccess?.state === "attestation_required" &&
+    !aiAgeBannerDismissed,
+  );
+
+  const confirmAiAge = useCallback(async () => {
+    setConfirmingAiAge(true);
+    try {
+      await setAiAdultAttestation(true);
+      const aiAccess = await getAiAccessProfile();
+      setData((current) => (current ? { ...current, aiAccess } : current));
+      if (Platform.OS !== "web") void syncScheduledReminders();
+    } catch {
+      showAlert(t("Could not update AI access"), t("Try again."));
+    } finally {
+      setConfirmingAiAge(false);
+    }
+  }, [t]);
 
   useEffect(() => {
     if (requiresFirstRunOnboarding && !wizardAutoLaunchedForSession) {
@@ -1242,6 +1277,24 @@ export default function DashboardScreen() {
                 const endedAt = data.proAccess.trialEndedAt as string;
                 setTrialEndedDismissedAt(endedAt);
                 void setItem(TRIAL_ENDED_DISMISSED_KEY, endedAt);
+              }}
+            />
+          </View>
+        ) : null}
+
+        {showAiAgeBanner ? (
+          <View className="mx-margin-mobile mt-md mb-xs">
+            <AiAgeConfirmationBanner
+              confirming={confirmingAiAge}
+              onConfirm={() => void confirmAiAge()}
+              onNotNow={() => {
+                aiAgeBannerDismissedForSession = true;
+                setAiAgeBannerDismissed(true);
+              }}
+              onPrivacy={() => {
+                const url =
+                  process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL || "https://lagan.health/privacy";
+                void Linking.openURL(url);
               }}
             />
           </View>

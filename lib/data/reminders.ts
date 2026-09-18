@@ -28,6 +28,13 @@ import {
 import { resolveAiSmartReminderPlans } from "../coach/smart-reminder-ai";
 import { resolveProAccess, type ProAccessProfile } from "../subscription/access";
 import { getMyLeaderboardPosition } from "./leaderboard";
+import {
+  coachTrendSummary,
+  reminderTimeForTiming,
+  resolveSmartReminderTiming,
+  summarizeHabitTrend,
+  type SmartReminderTimingSource,
+} from "./habit-trends";
 
 export type ReminderContext = {
   streak: number;
@@ -48,6 +55,8 @@ export type ScheduledReminder = {
   suggestion?: CheckInSuggestion | null;
   unit?: string | null;
   coachMessage?: string;
+  timingSource?: SmartReminderTimingSource;
+  timingConfidence?: number;
 };
 
 type ReminderScheduleOptions = {
@@ -58,18 +67,6 @@ type ReminderScheduleOptions = {
 // are cached (6h) and optional, so refreshing only the highest-priority signals
 // keeps the most relevant nudges fresh without bursting the Gemini rate limit.
 const MAX_COACH_MESSAGE_REFRESH = 3;
-
-// Returns the hour (0-23) the user most often logs this habit, or null if too few data points.
-function typicalHourFromTimestamps(timestamps: string[]): number | null {
-  if (timestamps.length < 3) return null;
-  const counts: Record<number, number> = {};
-  for (const ts of timestamps) {
-    const h = new Date(ts).getHours();
-    counts[h] = (counts[h] ?? 0) + 1;
-  }
-  const top = Object.entries(counts).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
-  return top ? parseInt(top[0], 10) : null;
-}
 
 function isMissingSmartHabitColumn(
   error: { message?: string; code?: string } | null | undefined,
@@ -203,13 +200,12 @@ export async function getReminderSchedule(
     const days = (h.reminder_days ?? [0, 1, 2, 3, 4, 5, 6]) as number[];
     const hc = byHabit.get(h.id as string) ?? [];
     const completedDates = new Set(completedDatesForHabit(habit, hc));
-    const creditedHistory = hc.filter((completion) => completedDates.has(completion.completed_on));
     const streak = habitStreakFromDates([...completedDates], habit.reminder_days, now);
-    const typicalHour = typicalHourFromTimestamps(
-      creditedHistory.map((completion) => completion.created_at),
-    );
+    const trend = coachTrendSummary(summarizeHabitTrend(habit, hc, 30, now));
+    const typicalHour = trend.timing?.hour ?? null;
     const reminderContext = { streak, typicalHour, percentileAhead };
-    const localCoachSignal = coachSignalByHabit.get(habit.id as string) ?? null;
+    const rawCoachSignal = coachSignalByHabit.get(habit.id as string) ?? null;
+    const localCoachSignal = rawCoachSignal ? { ...rawCoachSignal, trend } : null;
     const coachMessage = localCoachSignal
       ? await resolveCoachMessage(localCoachSignal, {
           enabled: aiCoachEnabled,
@@ -248,28 +244,47 @@ export async function getReminderSchedule(
     if (todayProgress.isDone) continue;
 
     const interval = habit.reminder_interval_minutes ?? (strategy === "interval" ? 120 : 60);
+    let timing = aiCoachEnabled
+      ? resolveSmartReminderTiming(habit, hc, habits as Habit[], completions ?? [], now)
+      : { source: "default" as const, hour: null, sampleCount: 0, confidence: 0 };
+    let recommendedTime = aiCoachEnabled ? reminderTimeForTiming(timing, now) : null;
+    if (!recommendedTime) {
+      timing = { source: "default" as const, hour: null, sampleCount: 0, confidence: 0 };
+    }
+    const decisionContext: SmartReminderDecisionContext = {
+      habitId: habit.id,
+      habitName: habit.name,
+      habitType: (habit.habit_type ?? "custom") as HabitType,
+      metricType: (habit.metric_type ?? "boolean") as MetricType,
+      strategy,
+      intervalMinutes: interval,
+      target: habit.target,
+      unit: habit.unit,
+      progress: todayProgress,
+      completions: hc.map((c) => ({
+        completedOn: c.completed_on,
+        createdAt: c.created_at,
+        value: c.value,
+      })),
+      manualTimes: times,
+      reminderDays: smartDays,
+      streak,
+      typicalHour,
+      recommendedTime,
+      timing,
+      trend,
+      now,
+    };
+    if (!decisionContext.recommendedTime) {
+      const fallback = learnedSmartReminderTimesForDay(decisionContext)[0];
+      if (!fallback) continue;
+      recommendedTime = `${String(fallback.getHours()).padStart(2, "0")}:${String(
+        fallback.getMinutes(),
+      ).padStart(2, "0")}`;
+      decisionContext.recommendedTime = recommendedTime;
+    }
     smartReminderCandidates.push({
-      decisionContext: {
-        habitId: habit.id,
-        habitName: habit.name,
-        habitType: (habit.habit_type ?? "custom") as HabitType,
-        metricType: (habit.metric_type ?? "boolean") as MetricType,
-        strategy,
-        intervalMinutes: interval,
-        target: habit.target,
-        unit: habit.unit,
-        progress: todayProgress,
-        completions: hc.map((c) => ({
-          completedOn: c.completed_on,
-          createdAt: c.created_at,
-          value: c.value,
-        })),
-        manualTimes: times,
-        reminderDays: smartDays,
-        streak,
-        typicalHour,
-        now,
-      },
+      decisionContext,
       reminderContext,
       habit,
       coachMessage,
@@ -278,16 +293,15 @@ export async function getReminderSchedule(
 
   const aiSmartPlans =
     options.aiSmartReminders === false
-      ? new Map<string, Date[]>()
+      ? new Map<string, import("../coach/smart-reminder-ai").AiSmartReminderPlan>()
       : await resolveAiSmartReminderPlans(
           smartReminderCandidates.map((candidate) => candidate.decisionContext),
           { enabled: aiCoachEnabled, now },
         );
 
   for (const candidate of smartReminderCandidates) {
-    const fireTimes =
-      aiSmartPlans.get(candidate.habit.id) ??
-      learnedSmartReminderTimesForDay(candidate.decisionContext);
+    const aiPlan = aiSmartPlans.get(candidate.habit.id);
+    const fireTimes = aiPlan?.times ?? learnedSmartReminderTimesForDay(candidate.decisionContext);
     for (const fireAt of fireTimes) {
       schedule.push({
         habitId: candidate.habit.id,
@@ -299,7 +313,9 @@ export async function getReminderSchedule(
         progress: candidate.decisionContext.progress,
         suggestion: suggestedCheckInForHabit(candidate.habit, candidate.decisionContext.progress),
         unit: candidate.habit.unit,
-        coachMessage: candidate.coachMessage,
+        coachMessage: aiPlan?.message ?? candidate.coachMessage,
+        timingSource: candidate.decisionContext.timing.source,
+        timingConfidence: candidate.decisionContext.timing.confidence,
       });
     }
   }
