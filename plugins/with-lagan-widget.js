@@ -998,8 +998,9 @@ function withLaganIosWidget(config) {
     async (config) => {
       const root = config.modRequest.platformProjectRoot;
       const targetRoot = path.join(root, IOS_WIDGET_TARGET);
-      const projectName = IOSConfig.XcodeUtils.getProjectName(config.modRequest.projectRoot);
-      const mainTargetRoot = path.join(root, projectName);
+      // Xcode's generated main PBXGroup resolves added source references from
+      // the iOS project root, so the generated files must live there too.
+      const sharedSourceRoot = root;
       const widgetTemplate = path.join(
         config.modRequest.projectRoot,
         "modules",
@@ -1022,8 +1023,8 @@ function withLaganIosWidget(config) {
       // Generate the same AppIntent implementation into both compilation
       // targets. Apple requires an interactive widget AppIntent to belong to
       // the containing app and widget extension targets.
-      writeFile(path.join(mainTargetRoot, IOS_WIDGET_ACTION_APP_SOURCE), actionSource);
-      writeFile(path.join(mainTargetRoot, IOS_WIDGET_ACTION_EXTENSION_SOURCE), actionSource);
+      writeFile(path.join(sharedSourceRoot, IOS_WIDGET_ACTION_APP_SOURCE), actionSource);
+      writeFile(path.join(sharedSourceRoot, IOS_WIDGET_ACTION_EXTENSION_SOURCE), actionSource);
       writeFile(path.join(targetRoot, `${IOS_WIDGET_TARGET}-Info.plist`), IOS_WIDGET_INFO_PLIST);
       writeFile(path.join(targetRoot, "PrivacyInfo.xcprivacy"), IOS_WIDGET_PRIVACY_MANIFEST);
       writeFile(

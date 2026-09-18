@@ -2326,6 +2326,11 @@ test("iOS widget intent is shared across both targets and records privacy-safe s
 
   assert.match(plugin, /IOS_WIDGET_ACTION_APP_SOURCE/);
   assert.match(plugin, /IOS_WIDGET_ACTION_EXTENSION_SOURCE/);
+  assert.match(plugin, /const sharedSourceRoot = root/);
+  assert.match(
+    plugin,
+    /writeFile\(path\.join\(sharedSourceRoot, IOS_WIDGET_ACTION_EXTENSION_SOURCE\), actionSource\)/,
+  );
   assert.match(plugin, /targetUuid: mainTarget\.uuid/);
   assert.match(plugin, /targetUuid: targetEntry\[0\]/);
   assert.match(action, /struct WidgetCheckInIntent: AppIntent/);
