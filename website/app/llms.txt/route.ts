@@ -1,5 +1,5 @@
 import { getAllPosts } from "@/lib/blog";
-import { MARKETING_PAGES, PLAY_STORE_URL, SITE_URL } from "@/lib/site";
+import { APP_STORE_URL, MARKETING_PAGES, PLAY_STORE_URL, SITE_URL } from "@/lib/site";
 
 // llms.txt (https://llmstxt.org): a curated map of the site for AI assistants.
 // Composed from the same registries as sitemap.ts so it never drifts; rendered
@@ -21,7 +21,7 @@ export async function GET() {
   const body = [
     "# Lagan",
     "",
-    "> Lagan is an AI habit tracker for the web and Android (native iOS coming soon). It helps people build daily routines with habit tracking, schedule-aware streaks, XP and badges, calm reminders, and an AI coach that reads completion patterns and suggests the next small improvement.",
+    "> Lagan is an AI habit tracker for iOS, Android, and the web. It helps people build daily routines with habit tracking, schedule-aware streaks, XP and badges, calm reminders, and an AI coach that reads completion patterns and suggests the next small improvement.",
     "",
     `The core tracker is free. The full web app runs in any modern browser at ${SITE_URL}/app, and the Android app is on Google Play. Advanced AI coaching features are part of the Lagan Pro subscription.`,
     "",
@@ -30,8 +30,13 @@ export async function GET() {
     ...productPages.map((p) =>
       line(p.title, p.path === "/" ? `${SITE_URL}/` : `${SITE_URL}${p.path}`, p.description),
     ),
-    line("Lagan web app", `${SITE_URL}/app`, "The full Lagan app in the browser (account required)."),
+    line(
+      "Lagan web app",
+      `${SITE_URL}/app`,
+      "The full Lagan app in the browser (account required).",
+    ),
     line("Lagan on Google Play", PLAY_STORE_URL, "The Android app listing."),
+    line("Lagan on the App Store", APP_STORE_URL, "The iOS app listing."),
     "",
     "## Guides",
     "",

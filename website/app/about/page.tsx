@@ -7,10 +7,17 @@ import MarketingNav from "@/components/ui/marketing-nav";
 import { Eyebrow } from "@/components/ui/section";
 import { JsonLd } from "@/components/seo/json-ld";
 import { breadcrumbJsonLd, ORGANIZATION_ID } from "@/lib/seo";
-import { INSTAGRAM_HANDLE, INSTAGRAM_URL, PLAY_STORE_URL, SITE_URL, WEB_APP_URL } from "@/lib/site";
+import {
+  APP_STORE_URL,
+  INSTAGRAM_HANDLE,
+  INSTAGRAM_URL,
+  PLAY_STORE_URL,
+  SITE_URL,
+  WEB_APP_URL,
+} from "@/lib/site";
 
 const DESCRIPTION =
-  "Lagan is an AI habit tracker for the web and Android, built around one idea: consistency comes from small, realistic steps — and an AI coach that notices your patterns.";
+  "Lagan is an AI habit tracker for iOS, Android, and the web, built around one idea: consistency comes from small, realistic steps — and an AI coach that notices your patterns.";
 
 export const metadata: Metadata = {
   title: "About",
@@ -70,10 +77,10 @@ export default function AboutPage() {
             About Lagan
           </h1>
           <p className="text-base leading-8 text-on-surface-variant">
-            Lagan is an AI habit tracker available on the web at lagan.health and on Android via
-            Google Play, with a native iOS app coming soon. It helps people build daily routines
-            with habit tracking, schedule-aware streaks, XP, and an AI coach that suggests the next
-            small improvement.
+            Lagan is an AI habit tracker available on the web at lagan.health, on iOS via the App
+            Store, and on Android via Google Play. It helps people build daily routines with habit
+            tracking, schedule-aware streaks, XP, and an AI coach that suggests the next small
+            improvement.
           </p>
         </header>
 
@@ -102,7 +109,10 @@ export default function AboutPage() {
             <p>
               The AI works from your tracking data, and suggestions are always yours to accept or
               ignore. What data is processed and how is documented in the{" "}
-              <Link href="/privacy" className="font-semibold text-on-background underline-offset-4 hover:underline">
+              <Link
+                href="/privacy"
+                className="font-semibold text-on-background underline-offset-4 hover:underline"
+              >
                 privacy policy
               </Link>
               .
@@ -112,8 +122,8 @@ export default function AboutPage() {
           <Block title="Where Lagan runs">
             <p>
               The full web app is free to use in any modern browser — desktop or iPhone — at
-              lagan.health/app. The Android app is on Google Play, and a native iOS app is in
-              development. Your habits sync across devices with one account.
+              lagan.health/app. The iOS app is on the App Store, and the Android app is on Google
+              Play. Your habits sync across devices with one account.
             </p>
           </Block>
 
@@ -121,7 +131,10 @@ export default function AboutPage() {
             <p>
               Your habit data belongs to you. Lagan stores it securely to power syncing and
               coaching, never sells it, and lets you{" "}
-              <Link href="/account-deletion" className="font-semibold text-on-background underline-offset-4 hover:underline">
+              <Link
+                href="/account-deletion"
+                className="font-semibold text-on-background underline-offset-4 hover:underline"
+              >
                 delete your account and data
               </Link>{" "}
               at any time.
@@ -131,7 +144,10 @@ export default function AboutPage() {
           <Block title="Get in touch">
             <p>
               Questions or feedback? Email{" "}
-              <a href="mailto:hello@lagan.health" className="font-semibold text-on-background underline-offset-4 hover:underline">
+              <a
+                href="mailto:hello@lagan.health"
+                className="font-semibold text-on-background underline-offset-4 hover:underline"
+              >
                 hello@lagan.health
               </a>{" "}
               or find us on Instagram at{" "}
@@ -144,7 +160,10 @@ export default function AboutPage() {
                 {INSTAGRAM_HANDLE}
               </a>
               . Common questions are answered on the{" "}
-              <Link href="/faq" className="font-semibold text-on-background underline-offset-4 hover:underline">
+              <Link
+                href="/faq"
+                className="font-semibold text-on-background underline-offset-4 hover:underline"
+              >
                 FAQ page
               </Link>
               .
@@ -162,6 +181,9 @@ export default function AboutPage() {
               </Button>
               <Button href={PLAY_STORE_URL} external variant="outline">
                 Get it on Google Play
+              </Button>
+              <Button href={APP_STORE_URL} external variant="outline">
+                Download on the App Store
               </Button>
             </div>
           </Card>

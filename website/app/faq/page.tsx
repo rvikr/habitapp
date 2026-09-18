@@ -7,10 +7,10 @@ import { Eyebrow } from "@/components/ui/section";
 import { JsonLd } from "@/components/seo/json-ld";
 import { ALL_FAQS } from "@/lib/faqs";
 import { breadcrumbJsonLd, faqPageJsonLd } from "@/lib/seo";
-import { PLAY_STORE_URL, WEB_APP_URL } from "@/lib/site";
+import { APP_STORE_URL, PLAY_STORE_URL, WEB_APP_URL } from "@/lib/site";
 
 const DESCRIPTION =
-  "Answers to common questions about Lagan — the AI habit tracker for web and Android. Platforms, pricing, streaks, AI coaching, reminders, and privacy.";
+  "Answers to common questions about Lagan — the AI habit tracker for iOS, Android, and the web. Platforms, pricing, streaks, AI coaching, reminders, and privacy.";
 
 export const metadata: Metadata = {
   title: "FAQ",
@@ -52,7 +52,10 @@ export default function FaqPage() {
           <p className="text-base leading-8 text-on-surface-variant">
             Everything about how Lagan works — platforms, pricing, streaks, AI coaching, and your
             data. Can&apos;t find an answer? Email{" "}
-            <a href="mailto:support@lagan.health" className="font-semibold text-on-background underline-offset-4 hover:underline">
+            <a
+              href="mailto:support@lagan.health"
+              className="font-semibold text-on-background underline-offset-4 hover:underline"
+            >
               support@lagan.health
             </a>
             .
@@ -81,6 +84,9 @@ export default function FaqPage() {
             </Button>
             <Button href={PLAY_STORE_URL} external variant="outline">
               Get it on Google Play
+            </Button>
+            <Button href={APP_STORE_URL} external variant="outline">
+              Download on the App Store
             </Button>
           </div>
         </Card>

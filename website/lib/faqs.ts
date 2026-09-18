@@ -18,12 +18,12 @@ export const ALL_FAQS: Faq[] = [
   {
     question: "Is Lagan free?",
     answer:
-      "Yes. Lagan is free to use in the web app and the Android app. Advanced AI features are part of Lagan Pro, with 50% off the yearly plan during our launch.",
+      "Yes. Lagan is free to use in the web, iOS, and Android apps. Advanced AI features are part of Lagan Pro, with 50% off the yearly plan during our launch.",
   },
   {
     question: "Which platforms does Lagan support?",
     answer:
-      "Lagan works in any modern browser — on desktop and iPhone — at lagan.health/app. The Android app is available on Google Play, and a native iOS app is coming soon.",
+      "Lagan works in any modern browser at lagan.health/app, on iPhone through the App Store, and on Android through Google Play.",
   },
   {
     question: "Is Lagan on Google Play?",
@@ -38,7 +38,7 @@ export const ALL_FAQS: Faq[] = [
   {
     question: "Can I use Lagan on iPhone?",
     answer:
-      "Yes. The full Lagan web app runs in Safari or any browser on iPhone at lagan.health/app — no install needed. A native iOS app is in development and coming soon.",
+      "Yes. Download the native Lagan app from the App Store, or use the full web app in Safari at lagan.health/app with no install needed.",
   },
   {
     question: "How much does Lagan Pro cost?",

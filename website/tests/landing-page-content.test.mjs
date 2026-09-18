@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const pageSource = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const siteSource = readFileSync(new URL("../lib/site.ts", import.meta.url), "utf8");
 const faqsSource = readFileSync(new URL("../lib/faqs.ts", import.meta.url), "utf8");
 const faqPageSource = readFileSync(new URL("../app/faq/page.tsx", import.meta.url), "utf8");
 const shareCardSource = readFileSync(
@@ -10,7 +11,7 @@ const shareCardSource = readFileSync(
   "utf8",
 );
 
-test("homepage is a Lagan-branded landing page with web and Android CTAs", () => {
+test("homepage is a Lagan-branded landing page with web, iOS, and Android CTAs", () => {
   assert.match(pageSource, /Lagan — build better habits/);
   assert.match(pageSource, /Lagan is an AI habit tracker/);
   assert.match(pageSource, /Use the web app/);
@@ -19,6 +20,14 @@ test("homepage is a Lagan-branded landing page with web and Android CTAs", () =>
   assert.match(pageSource, /Use Android/);
   assert.match(pageSource, /href=\{PLAY_STORE_URL\}/);
   assert.doesNotMatch(pageSource, /play\.google\.com/);
+  // The iOS app is live on the App Store and uses the shared URL constant.
+  assert.match(pageSource, /Use iOS/);
+  assert.match(pageSource, /href=\{APP_STORE_URL\}/);
+  assert.doesNotMatch(pageSource, /apps\.apple\.com/);
+  assert.match(
+    siteSource,
+    /APP_STORE_URL = "https:\/\/apps\.apple\.com\/app\/lagan-ai-habit-tracker\/id6808705929"/,
+  );
 });
 
 test("homepage surfaces the launch promo modal", () => {
@@ -61,8 +70,9 @@ test("/faq renders every FAQ with FAQPage JSON-LD", () => {
   assert.match(faqPageSource, /canonical: "\/faq"/);
 });
 
-test("homepage marks iOS coming soon and offers a web app path", () => {
-  assert.match(pageSource, /iOS — coming soon/);
+test("homepage links to the iOS app and offers a web app path", () => {
+  assert.doesNotMatch(pageSource, /iOS — coming soon/);
+  assert.match(pageSource, /href=\{APP_STORE_URL\}/);
   assert.match(pageSource, /from "@\/lib\/site"/);
   assert.match(pageSource, /href=\{WEB_APP_URL\}/);
 });

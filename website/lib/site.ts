@@ -10,6 +10,9 @@ export const WEB_APP_URL = "/app";
  */
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=health.lagan.app";
 
+/** Public Apple App Store listing for the iOS app. */
+export const APP_STORE_URL = "https://apps.apple.com/app/lagan-ai-habit-tracker/id6808705929";
+
 /**
  * Official Instagram profile. Shown in the footer and used for the
  * Organization JSON-LD `sameAs`. The handle is rendered in the UI; the URL is
@@ -69,14 +72,15 @@ export const MARKETING_PAGES: MarketingPage[] = [
     path: "/",
     title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "AI habit tracker for the web and Android: build routines, track streaks, and get AI coaching.",
+      "AI habit tracker for iOS, Android, and the web: build routines, track streaks, and get AI coaching.",
     changeFrequency: "weekly",
     priority: 1.0,
   },
   {
     path: "/faq",
     title: "FAQ",
-    description: "Answers to common questions about Lagan — platforms, pricing, AI coaching, and privacy.",
+    description:
+      "Answers to common questions about Lagan — platforms, pricing, AI coaching, and privacy.",
     changeFrequency: "monthly",
     priority: 0.8,
   },

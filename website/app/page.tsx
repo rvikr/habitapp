@@ -10,13 +10,13 @@ import ScrollAnimations from "@/components/ui/scroll-animations";
 import { Eyebrow, Section, SectionHeading } from "@/components/ui/section";
 import { JsonLd } from "@/components/seo/json-ld";
 import { LANDING_FAQS } from "@/lib/faqs";
-import { PLAY_STORE_URL, SITE_URL, WEB_APP_URL } from "@/lib/site";
+import { APP_STORE_URL, PLAY_STORE_URL, SITE_URL, WEB_APP_URL } from "@/lib/site";
 
 const DESCRIPTION =
-  "Lagan is an AI habit tracker. Build daily routines, track streaks, and get AI coaching — free in the web app, with the Android app on Google Play.";
+  "Lagan is an AI habit tracker for iOS, Android, and the web. Build daily routines, track streaks, and get AI coaching.";
 
 export const metadata: Metadata = {
-  title: { absolute: "Lagan — AI Habit Tracker & Coach for Android and Web" },
+  title: { absolute: "Lagan — AI Habit Tracker & Coach for iOS, Android, and Web" },
   description: DESCRIPTION,
   alternates: { canonical: "/" },
   openGraph: {
@@ -76,7 +76,7 @@ const steps = [
     step: "01",
     title: "Open Lagan",
     description:
-      "Start free in the web app — no install needed — or download the Android app on Google Play.",
+      "Start free in the web app — no install needed — or download Lagan from the App Store or Google Play.",
   },
   {
     step: "02",
@@ -104,8 +104,18 @@ function GooglePlayIcon() {
 function SparkIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="m12 3 1.8 5.1L19 10l-5.2 1.9L12 17l-1.8-5.1L5 10l5.2-1.9L12 3Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="m18 15 .8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      <path
+        d="m12 3 1.8 5.1L19 10l-5.2 1.9L12 17l-1.8-5.1L5 10l5.2-1.9L12 3Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m18 15 .8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -113,7 +123,13 @@ function SparkIcon() {
 function CheckIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 12.5 9.2 17 19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M5 12.5 9.2 17 19 7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -122,7 +138,13 @@ function ChartIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M5 19V5M5 19h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path d="m8 15 3.2-3.2 2.5 2.5L18.5 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="m8 15 3.2-3.2 2.5 2.5L18.5 8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -130,8 +152,18 @@ function ChartIcon() {
 function BellIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M18 10.4V9a6 6 0 0 0-12 0v1.4c0 2.2-.8 3.5-1.6 4.5-.5.7 0 1.6.9 1.6h13.4c.9 0 1.4-.9.9-1.6-.8-1-1.6-2.3-1.6-4.5Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-      <path d="M10 19a2.2 2.2 0 0 0 4 0" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M18 10.4V9a6 6 0 0 0-12 0v1.4c0 2.2-.8 3.5-1.6 4.5-.5.7 0 1.6.9 1.6h13.4c.9 0 1.4-.9.9-1.6-.8-1-1.6-2.3-1.6-4.5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 19a2.2 2.2 0 0 0 4 0"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -139,7 +171,12 @@ function BellIcon() {
 function FlameIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 21c3.6 0 6.5-2.6 6.5-6.1 0-2.9-1.6-4.8-4-7.2-.7 2.1-1.7 3.2-3 3.9.4-3-1-5.5-3.5-7.6.2 3.6-2.5 5.6-2.5 9.7C5.5 18 8.4 21 12 21Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path
+        d="M12 21c3.6 0 6.5-2.6 6.5-6.1 0-2.9-1.6-4.8-4-7.2-.7 2.1-1.7 3.2-3 3.9.4-3-1-5.5-3.5-7.6.2 3.6-2.5 5.6-2.5 9.7C5.5 18 8.4 21 12 21Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -157,7 +194,12 @@ function GlobeIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M4.5 12h15M12 4c2 2.1 3 4.7 3 8s-1 5.9-3 8M12 4c-2 2.1-3 4.7-3 8s1 5.9 3 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M4.5 12h15M12 4c2 2.1 3 4.7 3 8s-1 5.9-3 8M12 4c-2 2.1-3 4.7-3 8s1 5.9 3 8"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -210,19 +252,30 @@ function TrackingVisual() {
             <span
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-current bg-surface-container-low ${row.accent}`}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-3.5 w-3.5"
+                aria-hidden="true"
+              >
                 {row.done ? <path d="M20 6 9 17l-5-5" /> : <circle cx="12" cy="12" r="8" />}
               </svg>
             </span>
             <span className="min-w-0 flex-1">
-              <span className={`block truncate text-sm font-bold ${row.done ? "text-on-surface" : "text-on-surface-variant"}`}>
+              <span
+                className={`block truncate text-sm font-bold ${row.done ? "text-on-surface" : "text-on-surface-variant"}`}
+              >
                 {row.label}
               </span>
-              <span className="block text-xs font-medium text-on-surface-variant/70">{row.meta}</span>
+              <span className="block text-xs font-medium text-on-surface-variant/70">
+                {row.meta}
+              </span>
             </span>
-            {row.done && (
-              <span className="text-xs font-bold text-secondary">Done</span>
-            )}
+            {row.done && <span className="text-xs font-bold text-secondary">Done</span>}
           </div>
         ))}
       </div>
@@ -257,7 +310,9 @@ function InsightsVisual() {
                 style={{ height: `${bar.pct}%` }}
               />
             </div>
-            <span className={`text-[10px] font-bold ${bar.today ? "text-primary" : "text-on-surface-variant/70"}`}>
+            <span
+              className={`text-[10px] font-bold ${bar.today ? "text-primary" : "text-on-surface-variant/70"}`}
+            >
               {bar.day}
             </span>
           </div>
@@ -313,7 +368,10 @@ export default function LandingPage() {
       {/* ── Hero ─────────────────────────────────────────── */}
       <section className="relative pt-[100px] sm:pt-[120px]">
         <div className="bg-grid-faint pointer-events-none absolute inset-0" aria-hidden="true" />
-        <div className="bg-ember-glow glow-drift pointer-events-none absolute -top-40 left-[10%] h-[480px] w-[480px] rounded-full" aria-hidden="true" />
+        <div
+          className="bg-ember-glow glow-drift pointer-events-none absolute -top-40 left-[10%] h-[480px] w-[480px] rounded-full"
+          aria-hidden="true"
+        />
 
         <div className="relative mx-auto grid max-w-6xl items-center gap-12 px-5 pb-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-8 lg:pb-24">
           <div>
@@ -333,8 +391,8 @@ export default function LandingPage() {
               className="hero-rise mt-6 max-w-xl text-lg leading-8 text-on-surface-variant"
               style={{ animationDelay: "0.25s" }}
             >
-              Lagan is an AI habit tracker that turns your day into a simple timeline of
-              habits — with a coach that notices your patterns and makes the next step clear.
+              Lagan is an AI habit tracker that turns your day into a simple timeline of habits —
+              with a coach that notices your patterns and makes the next step clear.
             </p>
             <div
               className="hero-rise mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
@@ -344,26 +402,20 @@ export default function LandingPage() {
                 <GooglePlayIcon />
                 Use Android
               </Button>
-              <Button
-                href={WEB_APP_URL}
-                external
-                variant="outline"
-                className="w-full sm:w-auto"
-              >
+              <Button href={WEB_APP_URL} external variant="outline" className="w-full sm:w-auto">
                 <GlobeIcon />
                 Use the web app
               </Button>
-              <span className="inline-flex min-h-12 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-outline-variant px-5 py-3 text-base font-bold text-on-surface-variant sm:w-auto">
+              <Button href={APP_STORE_URL} external variant="outline" className="w-full sm:w-auto">
                 <PhoneIcon />
-                iOS — coming soon
-              </span>
+                Use iOS
+              </Button>
             </div>
             <p
               className="hero-rise mt-4 text-sm font-medium text-on-surface-variant/70"
               style={{ animationDelay: "0.45s" }}
             >
-              Download the Android app on Google Play, or start free in the web app on iPhone and
-              desktop. A native iOS app is coming soon.
+              Download Lagan from the App Store or Google Play, or start free in the web app.
             </p>
           </div>
 
@@ -391,7 +443,9 @@ export default function LandingPage() {
                 className="stagger grid items-center gap-8 md:grid-cols-2 md:gap-14"
               >
                 <div className={reversed ? "md:order-2" : ""}>
-                  <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${feature.chip} ${feature.accent}`}>
+                  <span
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${feature.chip} ${feature.accent}`}
+                  >
                     <Icon />
                   </span>
                   <h3 className="mt-5 font-display text-2xl font-bold tracking-tight text-on-background sm:text-3xl">
@@ -414,13 +468,17 @@ export default function LandingPage() {
             const Icon = feature.icon;
             return (
               <Card key={feature.title} hover className="p-6">
-                <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${feature.chip} ${feature.accent}`}>
+                <span
+                  className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${feature.chip} ${feature.accent}`}
+                >
                   <Icon />
                 </span>
                 <h3 className="mt-4 font-display text-xl font-bold tracking-tight text-on-background">
                   {feature.title}
                 </h3>
-                <p className="mt-2 text-sm leading-6 text-on-surface-variant">{feature.description}</p>
+                <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                  {feature.description}
+                </p>
               </Card>
             );
           })}
@@ -487,15 +545,22 @@ export default function LandingPage() {
 
       {/* ── Final CTA ────────────────────────────────────── */}
       <Section className="landing-section pt-0 sm:pt-0">
-        <Card surface="low" className="relative overflow-hidden px-5 py-12 text-center sm:px-8 md:py-16">
-          <div className="bg-ember-glow glow-pulse pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full" aria-hidden="true" />
+        <Card
+          surface="low"
+          className="relative overflow-hidden px-5 py-12 text-center sm:px-8 md:py-16"
+        >
+          <div
+            className="bg-ember-glow glow-pulse pointer-events-none absolute -top-32 left-1/2 h-[420px] w-[420px] -translate-x-1/2 rounded-full"
+            aria-hidden="true"
+          />
           <div className="relative">
             <Eyebrow className="text-tertiary">Start today</Eyebrow>
             <h2 className="mx-auto mt-3 max-w-2xl font-display text-3xl font-bold tracking-tight text-on-background sm:text-5xl">
               Make consistency easier with Lagan
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-on-surface-variant">
-              Track daily habits, see progress clearly, and let AI guide your next small improvement.
+              Track daily habits, see progress clearly, and let AI guide your next small
+              improvement.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Button href={PLAY_STORE_URL} external>
@@ -506,10 +571,10 @@ export default function LandingPage() {
                 <GlobeIcon />
                 Use the web app
               </Button>
-              <span className="inline-flex min-h-12 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-outline-variant px-5 py-3 text-base font-bold text-on-surface-variant">
+              <Button href={APP_STORE_URL} external variant="outline">
                 <PhoneIcon />
-                iOS — coming soon
-              </span>
+                Use iOS
+              </Button>
             </div>
           </div>
         </Card>

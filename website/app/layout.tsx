@@ -1,6 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Manrope } from "next/font/google";
-import { GOOGLE_SITE_VERIFICATION, PLAY_STORE_URL, SITE_URL, SOCIAL_PROFILE_URLS } from "@/lib/site";
+import {
+  APP_STORE_URL,
+  GOOGLE_SITE_VERIFICATION,
+  PLAY_STORE_URL,
+  SITE_URL,
+  SOCIAL_PROFILE_URLS,
+} from "@/lib/site";
 import { ORGANIZATION_ID } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/json-ld";
 import "./globals.css";
@@ -26,7 +32,7 @@ export const metadata: Metadata = {
     template: "%s — Lagan",
   },
   description:
-    "Lagan is an AI habit tracker for the web and Android. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
+    "Lagan is an AI habit tracker for iOS, Android, and the web. Build routines, get AI coaching and smart reminders, track streaks, and earn XP.",
   applicationName: "Lagan",
   keywords: [
     "AI habit tracker",
@@ -60,7 +66,7 @@ export const metadata: Metadata = {
     siteName: "Lagan",
     title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges — free on the web, with an Android beta on Google Play.",
+      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and the web.",
     url: SITE_URL,
     locale: "en_US",
     images: [
@@ -76,7 +82,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Lagan — AI Habit Tracker & Coach",
     description:
-      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges — free on the web, with an Android beta on Google Play.",
+      "Build daily routines with AI coaching, smart reminders, streak tracking, XP, and badges on iOS, Android, and the web.",
     images: ["/og-image.png"],
   },
   robots: {
@@ -93,11 +99,7 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -106,8 +108,8 @@ export default function RootLayout({
     url: SITE_URL,
     logo: `${SITE_URL}/icon-512.png`,
     description:
-      "Lagan makes an AI habit tracker for the web and Android that helps people build daily routines with coaching, streaks, and gentle reminders.",
-    sameAs: [...SOCIAL_PROFILE_URLS, PLAY_STORE_URL],
+      "Lagan makes an AI habit tracker for iOS, Android, and the web that helps people build daily routines with coaching, streaks, and gentle reminders.",
+    sameAs: [...SOCIAL_PROFILE_URLS, APP_STORE_URL, PLAY_STORE_URL],
   };
 
   const websiteJsonLd = {
