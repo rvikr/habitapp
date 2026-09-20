@@ -6468,6 +6468,16 @@ test("smart-reminders sanitizes contexts before quota and Gemini input", () => {
   assert.doesNotMatch(source, /progress: isRecord\(item\.progress\) \? item\.progress : \{\}/);
 });
 
+test("coach-message defines the record guard used by trend sanitization", () => {
+  const source = readFileSync("supabase/functions/coach-message/index.ts", "utf8");
+  const guardIndex = source.indexOf("function isRecord(value: unknown)");
+  const sanitizerIndex = source.indexOf("function sanitizeTrend(value: unknown)");
+
+  assert.ok(guardIndex >= 0, "expected coach-message to define isRecord");
+  assert.ok(sanitizerIndex > guardIndex, "record guard must be defined before trend sanitization");
+  assert.match(source, /if \(!isRecord\(value\)\) return null/);
+});
+
 test("new smart-reminder AI payloads contain aggregates and a fixed time, not raw logs", () => {
   const client = readFileSync("lib/coach/smart-reminder-ai.ts", "utf8");
   const invokeBlock =

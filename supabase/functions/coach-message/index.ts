@@ -81,6 +81,10 @@ function cleanMessage(value: unknown): string | null {
   return sanitizeUntrustedText(value, 180);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function outputText(body: any): string | null {
   const parts = body?.candidates?.[0]?.content?.parts;
   if (!Array.isArray(parts)) return null;
